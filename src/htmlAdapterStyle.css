@@ -1,0 +1,53 @@
+
+.htmlAdapter{
+    color: black;
+    background-color: white;
+}
+
+.htmlAdapter input{
+    background-color: unset;
+    color: unset;
+    border: unset;
+    border-radius: unset;
+    border-bottom: unset;
+    border-color: unset;
+    border-width: unset;
+}
+
+.htmlAdapter button{
+    background-color: unset;
+    color: unset;
+}
+
+.htmlAdapter button:hover{
+    background-color: unset;
+    color: unset;
+}
+
+.htmlAdapter button:active{
+    background-color: unset;
+    color: unset;
+}
+
+.htmlAdapter button:disabled{
+    background-color: unset;
+    color: unset;
+}
+
+.htmlAdapter textarea{
+    background-color: unset;
+    color: unset;
+    border: unset;
+    border-radius: unset;
+    border-bottom: unset;
+    border-color: unset;
+    border-color: unset;
+}
+
+.htmlAdapter select{
+    background-color: unset;
+    color: unset;
+}
+
+
+

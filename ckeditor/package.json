@@ -1,0 +1,12 @@
+{
+  "name": "ckeditor",
+  "version": "1.0.0",
+  "description": "",
+  "main": "ckeditor.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "author": "",
+  "license": "ISC",
+  "types": "./ckeditor.d.ts"
+}
