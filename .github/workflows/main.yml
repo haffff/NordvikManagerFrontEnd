@@ -38,7 +38,7 @@ jobs:
         uses: actions/download-artifact@v3
         with:
           name: app-build
-      - run: ls dist
+      - run: ls .
       - name: Upload
         uses: SamKirkland/FTP-Deploy-Action@v4.3.5
         with:
