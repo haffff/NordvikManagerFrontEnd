@@ -18,10 +18,10 @@ jobs:
       - name: create env file
         run: |
           touch .env
-          echo REACT_APP_API_URL=${{ API_URL }} >> .env
-          echo REACT_APP_WS_URL=${{ WS_URL }} >> .env
-          echo REACT_APP_CARD_URL=${{ CARD_URL }} >> .env
-          echo REACT_APP_IMAGE_URL=${{ IMAGE_URL }} >> .env
+          echo REACT_APP_API_URL=${{ vars.API_URL }} >> .env
+          echo REACT_APP_WS_URL=${{ vars.WS_URL }} >> .env
+          echo REACT_APP_CARD_URL=${{ vars.CARD_URL }} >> .env
+          echo REACT_APP_IMAGE_URL=${{ vars.IMAGE_URL }} >> .env
       - name: Install dependencies
         run: npm ci
       - run: npm run build --if-present
