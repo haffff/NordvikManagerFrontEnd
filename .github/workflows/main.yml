@@ -15,6 +15,13 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '20.x'
+      - name: create env file
+        run: |
+          touch .env
+          echo REACT_APP_API_URL=${{ API_URL }} >> .env
+          echo REACT_APP_WS_URL=${{ WS_URL }} >> .env
+          echo REACT_APP_CARD_URL=${{ CARD_URL }} >> .env
+          echo REACT_APP_IMAGE_URL=${{ IMAGE_URL }} >> .env
       - run: npm run build --if-present
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
