@@ -1,10 +1,10 @@
 import UtilityHelper from './UtilityHelper';
 
 export const WebHelper = {
-    ApiAddress: "https://dndmanagerdev.local/api",
-    WebSocketAddress: "wss://dndmanagerdev.local/api",
-    CardAddress: "http://card.dndmanagerdev.local",
-    ImageAddress: `https://dndmanagerdev.local/api/Materials/Resource?id=`,
+    ApiAddress: process.env.REACT_APP_API_URL,
+    WebSocketAddress: process.env.REACT_APP_WS_URL,
+    CardAddress: process.env.REACT_APP_CARD_URL,
+    ImageAddress: process.env.REACT_APP_IMAGE_URL,
     GameId: undefined,
 
     addGameId: (addr) => {
