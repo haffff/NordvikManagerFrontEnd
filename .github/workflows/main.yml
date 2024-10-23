@@ -22,6 +22,8 @@ jobs:
           echo REACT_APP_WS_URL=${{ WS_URL }} >> .env
           echo REACT_APP_CARD_URL=${{ CARD_URL }} >> .env
           echo REACT_APP_IMAGE_URL=${{ IMAGE_URL }} >> .env
+      - name: Install dependencies
+        run: npm ci
       - run: npm run build --if-present
       - name: Upload artifacts
         uses: actions/upload-artifact@v3
