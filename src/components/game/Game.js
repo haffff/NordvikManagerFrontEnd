@@ -172,7 +172,6 @@ export const Game = ({ gameID, onExit }) => {
         GetConnectedPlayers: () => gameDataManagerRef.current.GetConnectedPlayers(),
         GetCurrentPlayer: () => gameDataManagerRef.current.CurrentPlayer(),
         GetGame: () => gameDataManagerRef.current.Game,
-        GetLayouts: () => gameDataManagerRef.current.Game.layouts,
         GetLayout: () => layout,
         CreateNewPanel: ({type, props, battleMapId}) => {
           let createdElement = CreateLayoutElement({ type, syncId: battleMapId, props: { ...props } });

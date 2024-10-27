@@ -12,6 +12,7 @@ import CreateDropDownButton from '../../../uiComponents/base/DDItems/SpecialButt
 import DeletableDropDownButton from '../../../uiComponents/base/DDItems/SpecialButtons/DeletableDropDownButton';
 import ClientMediator from '../../../../ClientMediator';
 import CollectionSyncer from '../../../uiComponents/base/CollectionSyncer';
+import WebHelper from '../../../../helpers/WebHelper';
 
 export const LayoutsMenu = ({
     state,
@@ -22,7 +23,7 @@ export const LayoutsMenu = ({
     const [clientLayouts, setClientLayouts] = React.useState(undefined);
 
     React.useEffect(() => {
-        ClientMediator.sendCommandAsync("Game", "GetLayouts", {}, true).then((r) => setServerLayouts(r));
+        WebHelper.get("Battlemap/GetLayouts",setServerLayouts);
     }, []);
 
 
@@ -61,7 +62,7 @@ export const LayoutsMenu = ({
         setClientLayouts(newArr);
     }
 
-    function DeleteServerLayout(id) {
+    function DeleteServerLayout({id}) {
         WebSocketManagerInstance.Send(CommandFactory.CreateLayoutRemoveCommand(id));
     }
 
@@ -94,7 +95,7 @@ export const LayoutsMenu = ({
 
                 <DropDownSeparator title="Layouts" />
 
-                {serverLayouts !== undefined && serverLayouts !== null ? serverLayouts.map(x => <DeletableDropDownButton key={x.id} width={width} name={x.name} onClick={() => ClientMediator.sendCommand("Game", "SetLayout", x)} onDeleteClick={() => DeleteServerLayout(x.id)} />) : <></>}
+                {serverLayouts !== undefined && serverLayouts !== null ? serverLayouts.map(x => <DeletableDropDownButton key={x.id} width={width} name={x.name} onClick={() => ClientMediator.sendCommand("Game", "SetLayout", x)} onDeleteClick={() => DeleteServerLayout(x)} />) : <></>}
             </DropDownMenu>
             <DropDownItem width={width} name={"Reset"} />
             <CreateDropDownButton icon={FaBook} width={width} name={"Layout Manager"} state={state} element={<LayoutsManagerPanel state={state} />} />

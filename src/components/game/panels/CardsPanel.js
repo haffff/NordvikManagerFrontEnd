@@ -15,6 +15,7 @@ import DTreeList from '../../uiComponents/treeList/DTreeList';
 import InputModal from '../../uiComponents/base/Modals/InputModal';
 import useGame from '../../uiComponents/hooks/useGameHook';
 import ClientMediator from '../../../ClientMediator';
+import CollectionSyncer from '../../uiComponents/base/CollectionSyncer';
 
 
 export const CardsPanel = ({ state }) => {
@@ -37,34 +38,12 @@ export const CardsPanel = ({ state }) => {
             return;
         }
         WebHelper.get("materials/getcards", (response) => { setPanels(response) }, (error) => console.log(error));
-        let currentPlayer = ClientMediator.sendCommandAsync("Game", "GetCurrentPlayer", {}, true);
+        let currentPlayer = ClientMediator.sendCommand("Game", "GetCurrentPlayer", {}, true);
         if (currentPlayer.id === game.master?.id) {
             WebHelper.get("materials/gettemplatesfull", (response) => { setTemplates(response); }, (error) => console.log(error));
         }
         setCurrentPlayer(currentPlayer);
     }, [game]);
-
-    const HandleIncomingMessage = (response) => {
-        console.log(response);
-        let panels = panelRef.current;
-        if (response.command === "card_add") {
-            WebHelper.get("materials/getcards", (response) => { setPanels(response) }, (error) => console.log(error));
-        }
-        if (response.command === "card_update") {
-            let index = panels.findIndex(x => x.id === response.data.id);
-            if (index !== -1) {
-                panels[index] = response.data;
-                setPanels([...panels]);
-            }
-        }
-        if (response.command === "card_delete") {
-            let index = panels.findIndex(x => x.id === response.data);
-            if (index !== -1) {
-                panels.splice(index, 1);
-                setPanels([...panels]);
-            }
-        }
-    };
 
     const ctx = Dockable.useContentContext();
     ctx.setTitle(`Cards`);
@@ -90,12 +69,16 @@ export const CardsPanel = ({ state }) => {
                  } }} />
 
             <DTreeList withAddItem={true} entityType={"CardModel"} items={panels} onAddItem={() => { openRef.current({template: templates[0]?.id}) }} onGenerateEditButtons={() => {
-                return <></>;
+                return <> 
+                    <OnlyOwner>
+                        
+                    </OnlyOwner>
+                </>;
             }}
                 generateItem={(x) => <DListItem key={x.id} onClick={() => { DockableHelper.NewFloating(state, (<CardPanel name={x.name} state={state} id={x.id} />)); }}><DLabel>{x.name}</DLabel></DListItem>}
             ></DTreeList>
-
-            <Subscribable commandPrefix={"card"} onMessage={HandleIncomingMessage} />
+            <CollectionSyncer collection={panels} setCollection={setPanels} commandPrefix={'card'} />
+            <CollectionSyncer collection={templates} setCollection={setTemplates} commandPrefix={'template'} />
         </BasePanel>
     )
 }

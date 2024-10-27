@@ -11,6 +11,8 @@ import BasePanel from '../../uiComponents/base/BasePanel';
 import DListItem from '../../uiComponents/base/List/DListItem';
 import DListItemButton from '../../uiComponents/base/List/ListItemDetails/DListItemButton';
 import ClientMediator from '../../../ClientMediator';
+import WebHelper from '../../../helpers/WebHelper';
+import CollectionSyncer from '../../uiComponents/base/CollectionSyncer';
 
 export const LayoutsManagerPanel = ({ state }) => {
 
@@ -18,6 +20,10 @@ export const LayoutsManagerPanel = ({ state }) => {
     const [serverLayouts, setServerLayouts] = React.useState(undefined);
     const [, forceUpdate] = React.useReducer(x => x + 1, 0);
     const [selectedLayout, setSelectedLayout] = React.useState(ClientMediator.sendCommand("Game", "GetLayout", {}));
+
+    React.useEffect(() => {
+        WebHelper.get("Battlemap/GetLayouts", setServerLayouts);
+    }, []);
 
     if (clientLayouts === undefined) {
 
@@ -33,6 +39,11 @@ export const LayoutsManagerPanel = ({ state }) => {
     }
 
     const GenerateServerLayouts = () => {
+        if(serverLayouts === undefined)
+        {
+            return [];
+        }
+
         let layouts = serverLayouts.map(x => {
             return (
                 <DListItem isSelected={selectedLayout === x}>
@@ -141,6 +152,7 @@ export const LayoutsManagerPanel = ({ state }) => {
                     </AccordionItem>
                 </Accordion>
             </Subscribable>
+            <CollectionSyncer collection={serverLayouts} setCollection={setServerLayouts} commandPrefix={"layout"} />
         </BasePanel>
     )
 }
