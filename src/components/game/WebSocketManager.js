@@ -50,7 +50,7 @@ class WebSocketManager {
             return;
         }
 
-        let ws = new WebSocket(WebHelper.WebSocketAddress + "/battlemap/ws");
+        let ws = new WebSocket(WebHelper.WebSocketAddress);
         this.WebSocket = ws;
         
         this.WebSocket.onopen = (event) => {
