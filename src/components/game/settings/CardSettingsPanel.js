@@ -16,11 +16,17 @@ export const CardSettingsPanel = ({ gameDataManagerRef, cardId }) => {
     const [dto, setDto] = React.useState(undefined);
     const [templates, setTemplates] = React.useState([]);
 
+    const generalSettings = [
+        { key: "name", label: "Card name", toolTip: "Card name.", type: "string", required: true },
+        { key: "character_name", label: "Character name", toolTip: "Name of character", type: "string", required: false, property: true },
+        { key: "player_owner", label: "Player owner", toolTip: "Player owner", type: "playerSelect", required: false, property: true },
+    ];
+
     const tokenEditables = [
-        { key: "tokenImage", label: "Token Image", toolTip: "Name of game shown in game list menu for other players.", type: "image", required: false },
-        { key: "token", label: "Token", toolTip: ".", type: "materialSelect", additionalFilter: (foundItem) => foundItem.mimeType === "application/json"  },
-        { key: "drop_token_size", label: "Token Size", toolTip: ".", type: "number", min: 1, max: 20 },
-    ]
+        { key: "tokenImage", label: "Token Image", type: "image", required: false },
+        { key: "token", label: "Token", toolTip: ".", type: "materialSelect", additionalFilter: (foundItem) => foundItem.mimeType === "application/json", property: true  },
+        { key: "drop_token_size", label: "Token Size", type: "number", min: 1, max: 20, property: true },
+    ];
 
     let gameData = gameDataManagerRef.current;
     const ctx = Dockable.useContentContext();
@@ -60,11 +66,15 @@ export const CardSettingsPanel = ({ gameDataManagerRef, cardId }) => {
             <BasePanel>
                 <Tabs marginTop={3} size='md' variant='enclosed'>
                     <TabList>
+                        <Tab>General</Tab>
                         <Tab>Token Settings</Tab>
                         <Tab>Permissions</Tab>
                         <Tab>Properties</Tab>
                     </TabList>
                     <TabPanels>
+                    <TabPanel>
+                            <SettingsPanelWithPropertySettings gameDataManagerRef={gameDataManagerRef} dto={dto} entityName={"CardModel"} editableKeyLabelDict={generalSettings} />
+                        </TabPanel>
                         <TabPanel>
                             <SettingsPanelWithPropertySettings gameDataManagerRef={gameDataManagerRef} dto={dto} entityName={"CardModel"} editableKeyLabelDict={tokenEditables} />
                         </TabPanel>
