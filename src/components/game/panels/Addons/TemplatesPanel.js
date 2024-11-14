@@ -20,7 +20,7 @@ export const TemplatesPanel = ({ gameDataRef }) => {
     const editableDict = [
         { key: "name", label: "UI Name", type: "string" },
         { key: "description", label: "Description", type: "textarea" },
-        { key: "mainResource", label: "Main Resource (HTML)", type: "materialSelect", additionalFilter: (item) => item.mimeType == "text/html" },
+        { key: "mainResource", label: "Main Resource (Javascript)", type: "materialSelect", additionalFilter: (item) => item.mimeType == "text/javascript" },
         { key: "additionalResources", label: "Additional Resources", type: "materialSelect", multiple: true },
         { key: "token", property:true ,label: "Default Token", type: "materialSelect", additionalFilter: (item) => item.mimeType == "application/json" },
         { key: "r20card", property:true, label: "Roll 20 card scheme", type: "boolean" },

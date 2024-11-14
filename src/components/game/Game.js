@@ -8,7 +8,7 @@ import GameDataManger from './GameDataManager';
 import KeyboardEventsManager from './KeyBoardEventsManager';
 import LayoutHelper from '../../helpers/LayoutCloneHelper';
 import Subscribable from '../uiComponents/base/Subscribable';
-import { API } from '../../API';
+import CardAPI, { API } from '../../CardAPI';
 import { Flex } from '@chakra-ui/react';
 import DockableHelper from '../../helpers/DockableHelper';
 import PanelList from '../../helpers/PanelsList';
@@ -140,8 +140,7 @@ export const Game = ({ gameID, onExit }) => {
     if (!WebSocketManagerInstance.WebSocketStarted) {
       return;
     }
-    API.Client._state = state;
-    API.Client._createLayoutElement = CreateLayoutElement;
+
     //WebSocketManagerInstance.ClearSubscription();
     WebHelper.get(`battlemap/getplayer`, x => { gameDataManagerRef.current.CurrentPlayerId = x.id });
     //Load everything when we have full game only
@@ -188,6 +187,9 @@ export const Game = ({ gameID, onExit }) => {
       ClientMediator.fireEvent("BattleMapsChanged", gameDataManagerRef.current.Game.battleMaps);
 
       WebSocketManagerInstance.Send({ command: "player_list" });
+
+      //Attach API method
+      window.CreateCardAPI = CardAPI;
     });
 
   }, [WebSocketManagerInstance.WebSocketStarted]);
@@ -198,12 +200,6 @@ export const Game = ({ gameID, onExit }) => {
       Loading :)
     </>
   }
-
-  API.Client._createLayoutElement = CreateLayoutElement;
-  API.Client._state = state;
-  API.Client._gameDataManagerRef = gameDataManagerRef;
-  API.Client._keyboardEventsManagerRef = keyboardEventsManagerRef;
-  API.Client._exitGame = onExit;
 
   //To refactor toolbar. it will be in Toolbar directory probably. but i need to make map system and write tools panel properly.
   return (
