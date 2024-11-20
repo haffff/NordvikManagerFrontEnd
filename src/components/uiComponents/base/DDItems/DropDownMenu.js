@@ -2,10 +2,6 @@ import { Button, Icon, Stack, Table, Tr } from '@chakra-ui/react';
 import * as React from 'react';
 import { IoIosArrowDropdown } from 'react-icons/io';
 import DropDownButton from './DropDrownButton';
-import Subscribable from '../Subscribable';
-import OnlyOwner from '../OnlyOwner';
-import CreateDropDownButton from './SpecialButtons/CreateDropDownButton';
-import CustomPanel from '../../../game/panels/CustomPanel';
 
 export const DropDownMenu = ({ children, name, submenu, width, icon, onDropDown, expandableWithAction, expandableLocationName, state }) => {
     const [dropdown, setDropdown] = React.useState(false);
@@ -65,11 +61,11 @@ export const DropDownMenu = ({ children, name, submenu, width, icon, onDropDown,
                     {
                         expandableWithAction ? (
                             <>
-                                <Subscribable commandPrefix={"add_menu_button"} onMessage={HandleNewMenuButton} />
+                                {/* <Subscribable commandPrefix={"add_menu_button"} onMessage={HandleNewMenuButton} />
                                 {additionalItems.filter(x => !additionalItems.onlyOwner).map((x) => <CreateDropDownButton width={150} name={x.Name} state={state} element={<CustomPanel uiName={x.UiName} />} />)}
                                 <OnlyOwner>
                                     {additionalItems.filter(x => additionalItems.onlyOwner).map((x) => <CreateDropDownButton width={150} name={x.Name} state={state} element={<CustomPanel uiName={x.UiName} />} />)}
-                                </OnlyOwner>
+                                </OnlyOwner> */}
                             </>) : <></>
                     }
                 </div>
