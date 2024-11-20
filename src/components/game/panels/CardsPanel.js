@@ -1,14 +1,11 @@
 import * as React from 'react';
 import * as Dockable from "@hlorenzi/react-dockable"
 import BasePanel from '../../uiComponents/base/BasePanel';
-import DList from '../../uiComponents/base/List/DList';
 import DListItem from '../../uiComponents/base/List/DListItem';
 import DLabel from '../../uiComponents/base/Text/DLabel';
 import WebHelper from '../../../helpers/WebHelper';
 import DockableHelper from '../../../helpers/DockableHelper';
 import OnlyOwner from '../../uiComponents/base/OnlyOwner';
-import { Button, Flex, Input, Select } from '@chakra-ui/react';
-import Subscribable from '../../uiComponents/base/Subscribable';
 import WebSocketManagerInstance from '../WebSocketManager';
 import CardPanel from './CardPanel';
 import DTreeList from '../../uiComponents/treeList/DTreeList';
@@ -16,6 +13,9 @@ import InputModal from '../../uiComponents/base/Modals/InputModal';
 import useGame from '../../uiComponents/hooks/useGameHook';
 import ClientMediator from '../../../ClientMediator';
 import CollectionSyncer from '../../uiComponents/base/CollectionSyncer';
+import { FaMinusCircle, FaWrench } from 'react-icons/fa';
+import CardSettingsPanel from '../settings/CardSettingsPanel';
+import DListItemButton from '../../uiComponents/base/List/ListItemDetails/DListItemButton';
 
 
 export const CardsPanel = ({ state }) => {
@@ -55,7 +55,6 @@ export const CardsPanel = ({ state }) => {
 
     return (
         <BasePanel>
-
             <InputModal
                 title="Create new card"
                 getConfigDict={() => {
@@ -68,10 +67,11 @@ export const CardsPanel = ({ state }) => {
                     WebSocketManagerInstance.Send({ command: 'card_add', data: { ...selectedTemplate, id: null, templateId: selectedTemplate?.id, name: data.name, content: selectedTemplate.content } });
                  } }} />
 
-            <DTreeList withAddItem={true} entityType={"CardModel"} items={panels} onAddItem={() => { openRef.current({template: templates[0]?.id}) }} onGenerateEditButtons={() => {
+            <DTreeList withAddItem={true} entityType={"CardModel"} items={panels} onAddItem={() => { openRef.current({template: templates[0]?.id}) }} onGenerateEditButtons={(item) => {
                 return <> 
                     <OnlyOwner>
-                        
+                        <DListItemButton icon={FaWrench} label={"Settings"} onClick={() => {DockableHelper.NewFloating(state, (<CardSettingsPanel cardId={item.id} />))}} />
+                        <DListItemButton icon={FaMinusCircle} color={'red'} label={'Delete'} onClick={() => { WebSocketManagerInstance.Send({ command: `card_delete`, data: item.id }) }} />
                     </OnlyOwner>
                 </>;
             }}

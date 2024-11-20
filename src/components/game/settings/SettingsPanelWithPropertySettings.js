@@ -9,7 +9,7 @@ export const SettingsPanelWithPropertySettings = ({ dto, editableKeyLabelDict, o
     const [show, setShow] = React.useState(false);
 
     React.useState(() => {
-        WebHelper.get("properties/GetProperties?parentId=" + dto.id, (data) => {
+        WebHelper.get("properties/QueryProperties?parentIds=" + dto.id, (data) => {
             let propsEditable = editableKeyLabelDict.filter(x => x.property);
             let propsEditableKeys = propsEditable.map(x => x.key);
             setProperties(data.filter(x => propsEditableKeys.includes(x.name)));

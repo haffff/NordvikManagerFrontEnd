@@ -22,7 +22,7 @@ export const PropertiesSettingsPanel = ({ gameId, dto, type, initProperties }) =
 
     React.useEffect(() => {
         if (!initProperties || initProperties.length == 0) {
-            WebHelper.get("properties/GetProperties?gameid=" + gameId + "&parentId=" + dto.id, (response) => { setProperties([...response]); setOriginalProperties([...response]); }, (error) => console.log(error));
+            WebHelper.get("properties/QueryProperties?parentIds=" + dto.id, (response) => { setProperties([...response]); setOriginalProperties([...response]); }, (error) => console.log(error));
         }
     }, []);
 
