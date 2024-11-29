@@ -1,18 +1,19 @@
-import * as React from 'react';
-import WebHelper from '../../helpers/WebHelper';
-import Battlemap from '../BattleMap/Battlemap';
-import WebSocketManagerInstance from './WebSocketManager';
-import * as Dockable from "@hlorenzi/react-dockable"
-import MainToolbar from './ToolBar/MainToolbar';
-import GameDataManger from './GameDataManager';
-import KeyboardEventsManager from './KeyBoardEventsManager';
-import LayoutHelper from '../../helpers/LayoutCloneHelper';
-import Subscribable from '../uiComponents/base/Subscribable';
-import CardAPI, { API } from '../../CardAPI';
-import { Flex } from '@chakra-ui/react';
-import DockableHelper from '../../helpers/DockableHelper';
-import PanelList from '../../helpers/PanelsList';
-import ClientMediator from '../../ClientMediator';
+import * as React from "react";
+import WebHelper from "../../helpers/WebHelper";
+import Battlemap from "../BattleMap/Battlemap";
+import WebSocketManagerInstance from "./WebSocketManager";
+import * as Dockable from "@hlorenzi/react-dockable";
+import MainToolbar from "./ToolBar/MainToolbar";
+import GameDataManger from "./GameDataManager";
+import KeyboardEventsManager from "./KeyBoardEventsManager";
+import LayoutHelper from "../../helpers/LayoutCloneHelper";
+import Subscribable from "../uiComponents/base/Subscribable";
+import CardAPI, { API } from "../../CardAPI";
+import { Flex } from "@chakra-ui/react";
+import DockableHelper from "../../helpers/DockableHelper";
+import PanelList from "../../helpers/PanelsList";
+import ClientMediator from "../../ClientMediator";
+import QuickCommandDialog from "../QuickCommandDialog";
 
 export const BattleMapInstance = { battleMap: undefined };
 
@@ -21,12 +22,15 @@ export const Game = ({ gameID, onExit }) => {
   const [layout, setLayout] = React.useState(undefined);
   const [battleMapContexts, setBattleMapContexts] = React.useState({});
   const battleMapsContextsRef = React.useRef({});
+  const quickCommandDialogOpenRef = React.useRef(null);
   battleMapsContextsRef.current = battleMapContexts;
   //This is refresh after some time
   // to make all components load properly
   // Generally i will think how to make it better...
   const [_, forceUpdate] = React.useReducer((x) => x + 1, 0);
-  const UpdateAfterTime = () => { setTimeout(forceUpdate, 100) }
+  const UpdateAfterTime = () => {
+    setTimeout(forceUpdate, 100);
+  };
 
   // References, these objects are user everywhere across the application
   const gameDataManagerRef = React.useRef(new GameDataManger());
@@ -35,9 +39,7 @@ export const Game = ({ gameID, onExit }) => {
   WebHelper.GameId = gameID;
 
   // Setting up dockable. when dockable is loading we start websocketManagerInstance
-  const state = Dockable.useDockable((state) => {
-
-  });
+  const state = Dockable.useDockable((state) => {});
 
   // // GetSelectedBattleMapContext uses contexts to find which battlemap is selected. Its used for keyboard events
   // keyboardEventsManagerRef.current._getSelectedBattleMapContext = () => {
@@ -67,20 +69,22 @@ export const Game = ({ gameID, onExit }) => {
     createdElement = React.createElement(PanelList[content.type], props);
 
     return createdElement;
-  }
+  };
 
   const SetLayoutAndApply = (layout) => {
     LayoutHelper.LoadLayoutState(state, layout.value, CreateLayoutElement);
     setLayout(layout);
-  }
+  };
 
   const HandleShowLayout = (resp) => {
     WebHelper.get(`battlemap/GetLayout?id=${resp.data}`, SetLayoutAndApply);
-  }
+  };
 
   const HandleSettingsChange = (resp) => {
     if (resp.command === "settings_player") {
-      let player = gameDataManagerRef.current.Game.players.find(x => x.id === resp.data.id);
+      let player = gameDataManagerRef.current.Game.players.find(
+        (x) => x.id === resp.data.id
+      );
       if (player) {
         player.name = resp.data.name;
         player.color = resp.data.color;
@@ -88,7 +92,7 @@ export const Game = ({ gameID, onExit }) => {
         forceUpdate();
       }
     }
-  }
+  };
 
   const HandlePlayers = (resp) => {
     switch (resp.command) {
@@ -96,19 +100,36 @@ export const Game = ({ gameID, onExit }) => {
         gameDataManagerRef.current.ConnectedPlayers = resp.data;
         break;
       case "player_join":
-        if (!gameDataManagerRef.current.ConnectedPlayers.find(x => x.id === resp.data.id)) {
+        if (
+          !gameDataManagerRef.current.ConnectedPlayers.find(
+            (x) => x.id === resp.data.id
+          )
+        ) {
           gameDataManagerRef.current.ConnectedPlayers.push(resp.data);
         }
-        if (!gameDataManagerRef.current.Game.players.find(x => x.id === resp.data.id)) {
+        if (
+          !gameDataManagerRef.current.Game.players.find(
+            (x) => x.id === resp.data.id
+          )
+        ) {
           gameDataManagerRef.current.Game.players.push(resp.data);
         }
         break;
       case "player_leave":
-        gameDataManagerRef.current.ConnectedPlayers = gameDataManagerRef.current.ConnectedPlayers.filter(x => x.id !== resp.data.id);
+        gameDataManagerRef.current.ConnectedPlayers =
+          gameDataManagerRef.current.ConnectedPlayers.filter(
+            (x) => x.id !== resp.data.id
+          );
         break;
       case "player_kick":
-        gameDataManagerRef.current.ConnectedPlayers = gameDataManagerRef.current.ConnectedPlayers.filter(x => x.id !== resp.data);
-        gameDataManagerRef.current.Game.players = gameDataManagerRef.current.Game.players.filter(x => x.id !== resp.data);
+        gameDataManagerRef.current.ConnectedPlayers =
+          gameDataManagerRef.current.ConnectedPlayers.filter(
+            (x) => x.id !== resp.data
+          );
+        gameDataManagerRef.current.Game.players =
+          gameDataManagerRef.current.Game.players.filter(
+            (x) => x.id !== resp.data
+          );
         if (gameDataManagerRef.current.CurrentPlayerId === resp.data) {
           onExit();
         }
@@ -118,23 +139,28 @@ export const Game = ({ gameID, onExit }) => {
     }
 
     ClientMediator.fireEvent("PlayersChanged", {});
-  }
+  };
 
   const HandleShowBattleMap = (resp) => {
     let context = battleMapContexts.current[resp.data];
     if (context === undefined) {
-      let panel = DockableHelper.NewFloating(state, CreateLayoutElement({ type: "Battlemap", syncId: resp.data }));
+      let panel = DockableHelper.NewFloating(
+        state,
+        CreateLayoutElement({ type: "Battlemap", syncId: resp.data })
+      );
       panel.rect = panel.rect.withX(50).withY(50);
       state.commit();
     }
-  }
+  };
 
   const HandleShowPanel = (resp) => {
-    let panel = DockableHelper.NewFloating(state, CreateLayoutElement(resp.data));
+    let panel = DockableHelper.NewFloating(
+      state,
+      CreateLayoutElement(resp.data)
+    );
     panel.rect = panel.rect.withX(50).withY(50);
     state.commit();
-  }
-
+  };
 
   React.useEffect(() => {
     if (!WebSocketManagerInstance.WebSocketStarted) {
@@ -142,9 +168,11 @@ export const Game = ({ gameID, onExit }) => {
     }
 
     //WebSocketManagerInstance.ClearSubscription();
-    WebHelper.get(`battlemap/getplayer`, x => { gameDataManagerRef.current.CurrentPlayerId = x.id });
+    WebHelper.get(`battlemap/getplayer`, (x) => {
+      gameDataManagerRef.current.CurrentPlayerId = x.id;
+    });
     //Load everything when we have full game only
-    WebHelper.get(`battlemap/getfullgame`, x => {
+    WebHelper.get(`battlemap/getfullgame`, (x) => {
       //Assign data to GameDataManagerInstance. its used in all panels.
       gameDataManagerRef.current.Load(x);
 
@@ -152,74 +180,106 @@ export const Game = ({ gameID, onExit }) => {
         SetLayout: SetLayoutAndApply,
         update: UpdateAfterTime,
         CreateLayoutElement: CreateLayoutElement,
-        AddBattleMapContext: (battleMapContext) => {
+        AddBattleMapContext: ({battleMapContext}) => {
           let newBmContexts = { ...battleMapsContextsRef.current };
           newBmContexts[battleMapContext.Id] = battleMapContext;
           setBattleMapContexts(newBmContexts);
           ClientMediator.fireEvent("BattleMapsChanged", newBmContexts);
         },
-        GetBattleMapContext: (id) => battleMapContexts[id],
-        DeleteBattleMapContext: (id) => {
+        GetBattleMapContext: ({id}) => battleMapContexts[id],
+        DeleteBattleMapContext: ({id}) => {
           let newBmContexts = { ...battleMapsContextsRef.current };
           delete newBmContexts[id];
-          setBattleMapContexts(newBmContexts)
+          setBattleMapContexts(newBmContexts);
           ClientMediator.fireEvent("BattleMapsChanged", newBmContexts);
         },
-        GetOpenedBattleMaps: () => Object.values(battleMapContexts),
+        GetOpenedBattleMaps: () => Object.values(battleMapsContextsRef.current),
         GetMaps: () => gameDataManagerRef.current.Game.maps,
         GetPlayers: () => gameDataManagerRef.current.Game.players,
-        GetConnectedPlayers: () => gameDataManagerRef.current.GetConnectedPlayers(),
+        GetConnectedPlayers: () =>
+          gameDataManagerRef.current.GetConnectedPlayers(),
         GetCurrentPlayer: () => gameDataManagerRef.current.CurrentPlayer(),
         GetGame: () => gameDataManagerRef.current.Game,
         GetLayout: () => layout,
-        CreateNewPanel: ({type, props, battleMapId}) => {
-          let createdElement = CreateLayoutElement({ type, syncId: battleMapId, props: { ...props } });
+        CreateNewPanel: ({ type, props, battleMapId }) => {
+          let createdElement = CreateLayoutElement({
+            type,
+            syncId: battleMapId,
+            props: { ...props },
+          });
           let panel = DockableHelper.NewFloating(state, createdElement);
           return panel;
+        },
+        OpenRun() {
+          quickCommandDialogOpenRef.current();
         },
       };
 
       ClientMediator.register({ id: "Game", panel: "Game", ...gameMethods });
 
       setLayout(gameDataManagerRef.current.Game.defaultLayout);
-      LayoutHelper.LoadLayoutState(state, gameDataManagerRef.current.Game.defaultLayout.value, CreateLayoutElement);
-      
-      ClientMediator.fireEvent("BattleMapsChanged", gameDataManagerRef.current.Game.battleMaps);
+      LayoutHelper.LoadLayoutState(
+        state,
+        gameDataManagerRef.current.Game.defaultLayout.value,
+        CreateLayoutElement
+      );
+
+      ClientMediator.fireEvent(
+        "BattleMapsChanged",
+        gameDataManagerRef.current.Game.battleMaps
+      );
 
       WebSocketManagerInstance.Send({ command: "player_list" });
 
       //Attach API method
       window.CreateCardAPI = CardAPI;
     });
-
   }, [WebSocketManagerInstance.WebSocketStarted]);
 
   if (!WebSocketManagerInstance.WebSocketStarted) {
     WebSocketManagerInstance.Start(gameID);
-    return <>
-      Loading :)
-    </>
+    return <>Loading :)</>;
   }
 
   //To refactor toolbar. it will be in Toolbar directory probably. but i need to make map system and write tools panel properly.
   return (
-    <div style={{ display: "grid", gridTemplate: "auto-flow  / 1fr 1fr", width: "100%" }} onKeyDown={(e) => keyboardEventsManagerRef.current.HandleKeyboardEventDown(e)} onKeyUp={(e) => keyboardEventsManagerRef.current.HandleKeyboardEventUp(e)}>
-
-      <Subscribable onMessage={HandleShowLayout} commandPrefix={"layout_forcechange"} />
-      <Subscribable onMessage={HandleSettingsChange} commandPrefix={"settings"} />
+    <div
+      style={{
+        display: "grid",
+        gridTemplate: "auto-flow  / 1fr 1fr",
+        width: "100%",
+      }}
+      onKeyDown={(e) =>
+        keyboardEventsManagerRef.current.HandleKeyboardEventDown(e)
+      }
+      onKeyUp={(e) => keyboardEventsManagerRef.current.HandleKeyboardEventUp(e)}
+    >
+      <Subscribable
+        onMessage={HandleShowLayout}
+        commandPrefix={"layout_forcechange"}
+      />
+      <Subscribable
+        onMessage={HandleSettingsChange}
+        commandPrefix={"settings"}
+      />
       <Subscribable onMessage={HandlePlayers} commandPrefix={"player"} />
-      <Subscribable onMessage={HandleShowBattleMap} commandPrefix={"battlemap_show"} />
+      <Subscribable
+        onMessage={HandleShowBattleMap}
+        commandPrefix={"battlemap_show"}
+      />
       <Subscribable onMessage={HandleShowPanel} commandPrefix={"show_panel"} />
       {/* <Subscribable onMessage={HandleShowLayout} commandPrefix={"panel_show"} /> */}
-      <MainToolbar state={state}
+      <MainToolbar
+        state={state}
         gameDataManagerRef={gameDataManagerRef}
         battlemapsRef={battleMapContexts}
-        forceRefreshGame={forceUpdate} />
-      <Flex className='content'>
+        forceRefreshGame={forceUpdate}
+      />
+      <Flex className="content">
         <Dockable.Container state={state} />
       </Flex>
-
+      <QuickCommandDialog state={state} openRef={quickCommandDialogOpenRef} />
     </div>
-  )
-}
+  );
+};
 export default Battlemap;

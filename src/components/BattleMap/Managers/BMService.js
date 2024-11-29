@@ -91,7 +91,11 @@ class BMService {
         this._canvas.renderAll();
     }
 
-    SetSelectedLayer({ layerId, withEditMode }) {
+    SetSelectedLayer({ layerId, withEditMode, isCommand }) {
+        if(isCommand && !layerId) {
+            return "layerId is required.";
+        }
+
         this._setSelectedLayerCommand(layerId);
         this._canvas._objects.forEach((object) => {
             object.set("selectable", object.selectablePermission && object.layer === layerId);
@@ -100,7 +104,11 @@ class BMService {
         this.SetLayerEditMode({ editMode: withEditMode, layer: layerId });
     }
 
-    SetLayerEditMode({ editMode, layer }) {
+    SetLayerEditMode({ editMode, layer, isCommand }) {
+        if(isCommand && editMode === undefined) {
+            return "editMode is required.";
+        }
+        
         this._canvas.discardActiveObject();
         this._canvas._objects.forEach(object => {
             if (editMode && object.layer !== layer) {
@@ -123,7 +131,10 @@ class BMService {
         this._canvas.requestRenderAll();
     }
 
-    SetOperationMode({ mode }) {
+    SetOperationMode({ mode, isCommand }) {
+        if(isCommand && mode === undefined) {
+            return "mode is required.";
+        }
         this._operationModeRef.current = mode;
     }
 
@@ -158,7 +169,15 @@ class BMService {
         this._canvas.setActiveObject(sel);
     }
 
-    PasteElements({coords}) {
+    PasteElements({coords, isCommand, x, y}) {
+        if(isCommand && !x && !y) {
+            return "x and y are required.";
+        }
+        if(isCommand)
+        {
+            coords = { x, y };
+        }
+        
         if (this._clipboard !== undefined) {
             // active selection needs a reference to the canvas.
             this._clipboard.forEach(element => {

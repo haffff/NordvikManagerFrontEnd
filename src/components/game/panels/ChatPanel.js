@@ -16,6 +16,7 @@ import DContainer from '../../uiComponents/base/Containers/DContainer';
 import DropDownButton from '../../uiComponents/base/DDItems/DropDrownButton';
 import ClientMediator from '../../../ClientMediator';
 import useGame from '../../uiComponents/hooks/useGameHook';
+import CommandExecutionHelper from '../../../helpers/CommandExecutionHelper';
 
 export const ChatPanel = () => {
     const [items, setItems] = React.useState([]);
@@ -68,6 +69,29 @@ export const ChatPanel = () => {
         if (message === undefined || message === "") {
             return;
         }
+
+        if(message.startsWith("/c ")) {
+            let cmessage = message.replace("/c ", "");
+            CommandExecutionHelper.LoadSuggestions();
+            let result = CommandExecutionHelper.RunCommand(cmessage);
+            if(result !== undefined) {
+                if(typeof result === "object") {
+                    result = JSON.stringify(result);
+                }
+                else
+                {
+                    result = result.toString();
+                }
+                setNewItem({ data: result });
+            }
+            else
+            {
+                setNewItem({ data: "Executed " + cmessage });
+            }
+            setMessage("");
+            return;
+        }
+
         let command = CommandFactory.CreateChatSendCommand(message);
         WebSocketManagerInstance.Send(command);
 

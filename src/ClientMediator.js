@@ -1,5 +1,3 @@
-import { wait } from "@testing-library/user-event/dist/utils";
-
 export const ClientMediator = {
     /*
     ClientHashset structure
@@ -10,12 +8,10 @@ export const ClientMediator = {
         }
     }
     */
-
     _clientsHashSet: {},
     _awaitingRequests: [],
 
     sendCommand: function (panel, command, data) {
-
         console.log("Sent command: " + command + " to panel: " + panel);
         console.log(data);
 
@@ -51,7 +47,6 @@ export const ClientMediator = {
     },
 
     sendCommandAsync: async function (panel, command, data, waitUntilAvailable = false) {
-
         console.log("Sent async command: " + command + " to panel: " + panel);
         console.log(data);
 
@@ -89,7 +84,6 @@ export const ClientMediator = {
         else {
             this._clientsHashSet[clientPanel][clientId] = client;
         }
-
 
         if (this._awaitingRequests.length > 0) {
             let requests = this._awaitingRequests.filter(x => clientPanel === toString(x.panel) && (x.contextId === client.contextId || !x.contextId));
