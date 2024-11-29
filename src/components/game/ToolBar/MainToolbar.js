@@ -1,4 +1,4 @@
-import { FaMap, FaMapSigns, FaTools, FaUser } from "react-icons/fa";
+import { FaCode, FaMap, FaMapSigns, FaTools, FaUser } from "react-icons/fa";
 import ChatPanel from "../panels/ChatPanel";
 import Battlemap, { BattleMapInstance } from "../Game";
 import ToolsPanel from "../panels/ToolsPanel/ToolsPanel";
@@ -9,11 +9,13 @@ import SettingsMenu from "./ToolBarMenus/SettingsMenu";
 import ViewsMenu from "./ToolBarMenus/ViewsMenu";
 import LayoutsMenu from "./ToolBarMenus/LayoutsMenu";
 import { IoIosExit } from "react-icons/io";
-import { API } from "../../../API";
+import { API } from "../../../CardAPI";
 import { useToast } from "@chakra-ui/react";
 import UtilityHelper from "../../../helpers/UtilityHelper";
 import OnlyOwner from "../../uiComponents/base/OnlyOwner";
 import AddonsMenu from "./ToolBarMenus/AddonsMenu";
+import ClientMediator from "../../../ClientMediator";
+import { GiRun } from "react-icons/gi";
 
 export const MainToolbar = ({ Dockable,
     state,
@@ -48,7 +50,8 @@ export const MainToolbar = ({ Dockable,
                 <OnlyOwner gameDataRef={gameDataManagerRef}>
                     <DropDownItem width={150} name={"Get Invite URL"} onClick={GenerateInviteLink} />
                 </OnlyOwner>
-                <DropDownItem width={150} name={"Exit"} icon={IoIosExit} onClick={() => API.Client.ExitGame()} />
+                <DropDownItem width={150} name={"Run command"} icon={FaCode} onClick={() => ClientMediator.sendCommand("game", "OpenRun")} />
+                <DropDownItem width={150} name={"Exit"} icon={IoIosExit} onClick={() => ClientMediator.sendCommand("game", "Exit")} />
             </DropDownMenu>
             <ViewsMenu gameMethods={gameMethods} state={state} gameDataManagerRef={gameDataManagerRef} battlemapsRef={battlemapsRef} onDropDown={forceRefreshGame} />
             <SettingsMenu gameDataManagerRef={gameDataManagerRef} battlemapsRef={battlemapsRef} state={state} />

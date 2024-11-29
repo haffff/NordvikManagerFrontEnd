@@ -1,10 +1,11 @@
 import { Flex } from '@chakra-ui/react';
 import * as React from 'react';
 
-export const BasePanel = ({ children }) => {
-
+export const BasePanel = (props) => {
+    const {children} = props;
+    
     return (
-        <Flex
+        <Flex {...props}
             direction="column"
             width="100%"
             height="100%"

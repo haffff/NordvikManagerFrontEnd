@@ -9,7 +9,6 @@ import AdminPlayersPanel from "../components/game/panels/AdminPlayersPanel";
 import CardPanel from "../components/game/panels/CardPanel";
 import CardsPanel from "../components/game/panels/CardsPanel";
 import ChatPanel from "../components/game/panels/ChatPanel";
-import CustomPanel from "../components/game/panels/CustomPanel";
 import LayoutsManagerPanel from "../components/game/panels/LayoutsManagerPanel";
 import MapSelector from "../components/game/panels/MapSelector";
 import PlayersPanel from "../components/game/panels/PlayersPanel";
@@ -36,7 +35,6 @@ export const PanelList = {
     AdminPlayersPanel: AdminPlayersPanel,
     CardPanel: CardPanel,
     CardsPanel: CardsPanel,
-    CustomPanel: CustomPanel,
     MapSelector: MapSelector,
     LayoutsManagerPanel: LayoutsManagerPanel,
     PlayersPanel: PlayersPanel,
