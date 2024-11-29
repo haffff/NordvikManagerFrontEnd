@@ -26,7 +26,7 @@ class BMQueryService {
     }
 
 
-    SubscribeSelectionChanged({name, method})
+    SubscribeSelectionChanged({name, method, isCommand})
     {
         this._selectionChangedSubscriptions.push({name, method})
     }

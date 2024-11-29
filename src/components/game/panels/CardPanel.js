@@ -6,7 +6,7 @@ import useUUID from "../../uiComponents/hooks/useUUID";
 import BasePanel from "../../uiComponents/base/BasePanel";
 import WebHelper from "../../../helpers/WebHelper";
 
-export const CardPanel = ({ gameDataManagerRef, state, id, name }) => {
+export const CardPanel = ({ id, name }) => {
   const game = useGame();
   const divId = useUUID();
   const [loaded, setLoaded] = React.useState(false);

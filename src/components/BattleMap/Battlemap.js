@@ -62,7 +62,7 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
       WebSocketManagerInstance.Unsubscribe("BattleMap" + uuid);
       ClientMediator.unregister("BMQueryService" + uuid);
       ClientMediator.unregister("BMService" + uuid);
-      ClientMediator.sendCommand("Game", "DeleteBattleMapContext", uuid);
+      ClientMediator.sendCommand("Game", "DeleteBattleMapContext", {id: uuid});
     }
   }, []);
 
@@ -251,7 +251,7 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
     };
 
     battleMapObjectRef.current = bmObj;
-    ClientMediator.sendCommand("Game", "AddBattleMapContext", bmObj);
+    ClientMediator.sendCommand("Game", "AddBattleMapContext", {battleMapContext: bmObj});
     
     const references = {
       operationRef,

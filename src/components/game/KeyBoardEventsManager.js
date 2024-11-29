@@ -1,8 +1,13 @@
+import ClientMediator from "../../ClientMediator";
+
 class KeyboardEventsManager {
     _getSelectedBattleMapContext = undefined;
 
     KeyboardMap = {};
     ShortCuts = {
+        "Shift+P": (operationManager) => {
+            ClientMediator.sendCommand("Game", "OpenRun");
+        },
         "Shift+G": (operationManager) => {
             operationManager.GroupSelected();
         },
@@ -41,14 +46,15 @@ class KeyboardEventsManager {
     HandleKeyboardEventUp(ev) {
         let actionName = this.CreateActionName(ev);
         console.log(actionName);
+        console.log(this.ShortCuts[actionName]);
         let action = this.ShortCuts[actionName];
         if (action !== undefined) {
             ev.preventDefault();
-            if (this._getSelectedBattleMapContext !== undefined) {
-                let ctx = this._getSelectedBattleMapContext();
-                if(ctx !== undefined)
-                    action(ctx.current.BattleMapServices.BMService);
-            }
+            //if (this._getSelectedBattleMapContext !== undefined) {
+                //let ctx = this._getSelectedBattleMapContext();
+                //if(ctx !== undefined)
+                    action();
+            //}
         }
         this.KeyboardMap[ev.key] = false;
         
