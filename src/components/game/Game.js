@@ -66,6 +66,12 @@ export const Game = ({ gameID, onExit }) => {
       withID: content.syncId,
     };
 
+    if(!PanelList[content.type])
+    {
+      console.error(`Panel type ${content.type} is not defined`);
+      return null;
+    }
+
     createdElement = React.createElement(PanelList[content.type], props);
 
     return createdElement;
@@ -201,12 +207,25 @@ export const Game = ({ gameID, onExit }) => {
         GetCurrentPlayer: () => gameDataManagerRef.current.CurrentPlayer(),
         GetGame: () => gameDataManagerRef.current.Game,
         GetLayout: () => layout,
-        CreateNewPanel: ({ type, props, battleMapId }) => {
+        CreateNewPanel: (allProps) => {
+          const { type, props, battleMapId, isCommand } = allProps;
+          let finalProps = { ...props };
+          if( isCommand )
+          {
+            finalProps = { ...allProps };
+          }
+
           let createdElement = CreateLayoutElement({
             type,
             syncId: battleMapId,
             props: { ...props },
           });
+
+          if(!createdElement && isCommand)
+          {
+            return "Wrong panel type";
+          }
+
           let panel = DockableHelper.NewFloating(state, createdElement);
           return panel;
         },
