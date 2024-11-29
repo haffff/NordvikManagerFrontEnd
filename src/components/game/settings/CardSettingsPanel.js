@@ -73,7 +73,7 @@ export const CardSettingsPanel = ({cardId }) => {
                     </TabList>
                     <TabPanels>
                     <TabPanel>
-                            <SettingsPanelWithPropertySettings gameDataManagerRef={gameDataManagerRef} dto={dto} entityName={"CardModel"} editableKeyLabelDict={generalSettings} />
+                            <SettingsPanelWithPropertySettings dto={dto} entityName={"CardModel"} editableKeyLabelDict={generalSettings} />
                         </TabPanel>
                         <TabPanel>
                             <SettingsPanelWithPropertySettings key={dto.id} dto={dto} entityName={"CardModel"} editableKeyLabelDict={tokenEditables} />
