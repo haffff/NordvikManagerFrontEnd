@@ -15,6 +15,8 @@ import CollectionSyncer from "../../uiComponents/base/CollectionSyncer";
 import DListItemButton from "../../uiComponents/base/List/ListItemDetails/DListItemButton";
 import { FaMinusCircle } from "react-icons/fa";
 import { Image } from "@chakra-ui/react";
+import CardSettingsPanel from "../settings/CardSettingsPanel";
+import { GiGears } from "react-icons/gi";
 
 export const CardsPanel = ({ state }) => {
   const [panels, setPanels] = React.useState([]);
@@ -118,6 +120,16 @@ export const CardsPanel = ({ state }) => {
         onGenerateEditButtons={(item) => {
           return (
             <>
+              <DListItemButton
+                label={"Edit"}
+                icon={GiGears}
+                onClick={() => {
+                  DockableHelper.NewFloating(
+                    state,
+                    <CardSettingsPanel cardId={item.id} />
+                  );
+                }}
+                />
               <DListItemButton
                 label={"Delete"}
                 icon={FaMinusCircle}

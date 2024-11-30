@@ -22,6 +22,7 @@ export const PlayerChooser = ({
   const LoadData = (then) => {
     const players = ClientMediator.sendCommand("Game", "GetPlayers", {});
     setPlayers(players);
+    setSelectedPlayers(players.filter((x) => selectedPlayers.includes(x.id)));
   };
 
   const selectedPlayersRef = React.useRef(_selectedPlayers);

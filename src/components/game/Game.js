@@ -14,6 +14,8 @@ import DockableHelper from "../../helpers/DockableHelper";
 import PanelList from "../../helpers/PanelsList";
 import ClientMediator from "../../ClientMediator";
 import QuickCommandDialog from "../QuickCommandDialog";
+import PropertiesHelperInstance from "../../helpers/PropertiesHelper";
+import UtilityHelper from "../../helpers/UtilityHelper";
 
 export const BattleMapInstance = { battleMap: undefined };
 
@@ -66,8 +68,7 @@ export const Game = ({ gameID, onExit }) => {
       withID: content.syncId,
     };
 
-    if(!PanelList[content.type])
-    {
+    if (!PanelList[content.type]) {
       console.error(`Panel type ${content.type} is not defined`);
       return null;
     }
@@ -186,14 +187,14 @@ export const Game = ({ gameID, onExit }) => {
         SetLayout: SetLayoutAndApply,
         update: UpdateAfterTime,
         CreateLayoutElement: CreateLayoutElement,
-        AddBattleMapContext: ({battleMapContext}) => {
+        AddBattleMapContext: ({ battleMapContext }) => {
           let newBmContexts = { ...battleMapsContextsRef.current };
           newBmContexts[battleMapContext.Id] = battleMapContext;
           setBattleMapContexts(newBmContexts);
           ClientMediator.fireEvent("BattleMapsChanged", newBmContexts);
         },
-        GetBattleMapContext: ({id}) => battleMapContexts[id],
-        DeleteBattleMapContext: ({id}) => {
+        GetBattleMapContext: ({ id }) => battleMapContexts[id],
+        DeleteBattleMapContext: ({ id }) => {
           let newBmContexts = { ...battleMapsContextsRef.current };
           delete newBmContexts[id];
           setBattleMapContexts(newBmContexts);
@@ -210,8 +211,7 @@ export const Game = ({ gameID, onExit }) => {
         CreateNewPanel: (allProps) => {
           const { type, props, battleMapId, isCommand } = allProps;
           let finalProps = { ...props };
-          if( isCommand )
-          {
+          if (isCommand) {
             finalProps = { ...allProps };
           }
 
@@ -221,8 +221,7 @@ export const Game = ({ gameID, onExit }) => {
             props: { ...props },
           });
 
-          if(!createdElement && isCommand)
-          {
+          if (!createdElement && isCommand) {
             return "Wrong panel type";
           }
 
@@ -248,6 +247,7 @@ export const Game = ({ gameID, onExit }) => {
         gameDataManagerRef.current.Game.battleMaps
       );
 
+      ClientMediator.register(PropertiesHelperInstance);
       WebSocketManagerInstance.Send({ command: "player_list" });
 
       //Attach API method

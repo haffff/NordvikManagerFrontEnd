@@ -24,7 +24,7 @@ export const CardSettingsPanel = ({cardId }) => {
     ];
 
     const tokenEditables = [
-        { key: "tokenImage", label: "Token Image", type: "image", required: false },
+        { key: "tokenImage", label: "Token Image", type: "image", required: false, property: true },
         { key: "token", label: "Token", toolTip: ".", type: "materialSelect", additionalFilter: (foundItem) => foundItem.mimeType === "application/json", property: true  },
         { key: "drop_token_size", label: "Token Size", type: "number", min: 1, max: 20, property: true },
     ];

@@ -319,8 +319,8 @@ export const SettingsPanel = ({
           input = (
             <PlayerChooser
               isDisabled={editable.disableOn && editable.disableOn(dto)}
-              selectedPlayers={dto[key]}
-              onSelect={(name) => OnChange(key, name)}
+              selectedPlayers={[dto[key]]}
+              onSelect={([name]) => OnChange(key, name)}
             />
           );
           break;

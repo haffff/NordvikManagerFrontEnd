@@ -20,7 +20,7 @@ export class OnTokenSelectedClientBehavior {
                 objects.forEach(element => {
                     element.animate('opacity', 0, {
                         duration: 400,
-                        easing: fabric.util.ease.easeOutBounce,
+                        easing: fabric.util.ease.easeOutSine,
                         onChange: canvas.renderAll.bind(canvas),
                         onComplete: () => {
                             element.set({ visible: false });
@@ -47,7 +47,7 @@ export class OnTokenSelectedClientBehavior {
             element.animate('opacity', 1, {
                 onChange: canvas.renderAll.bind(canvas),
                 duration: 400,
-                easing: fabric.util.ease.easeOutBounce,
+                easing: fabric.util.ease.easeInSine,
             });
         });
 
