@@ -46,7 +46,7 @@ export const ClientMediator = {
         }
     },
 
-    sendCommandAsync: async function (panel, command, data, waitUntilAvailable = false) {
+    sendCommandWaitForRegister: async function (panel, command, data, waitUntilAvailable = false) {
         console.log("Sent async command: " + command + " to panel: " + panel);
         console.log(data);
 
@@ -68,6 +68,41 @@ export const ClientMediator = {
                 reject("Client not found.");
             }
         });
+    },
+    
+    sendCommandAsync: async function (panel, command, data) {
+        console.log("Sent command: " + command + " to panel: " + panel);
+        console.log(data);
+
+        let clients = this._clientsHashSet[panel.toLowerCase()];
+
+        if (!clients) {
+            return undefined;
+        }
+
+        if (data && data.contextId) {
+            clients = Object.values(clients).filter(x => x.contextId === data.contextId);
+        }
+
+        if (Object.values(clients).length === 1) {
+            return await Object.values(clients)[0][command](data);
+        }
+        else {
+            let results = await Promise.all(Object.values(clients).map(async client => {
+                if (client[command]) {
+                    return await client[command](data);
+                }
+            }));
+
+            results = results.filter(x => x !== undefined);
+
+            if(results.length === 1)
+            {
+                return results[0];
+            }
+
+            return results;
+        }
     },
 
     register: function (client) {

@@ -94,7 +94,7 @@ export const CommandExecutionHelper = {
           }
         }
       });
-      return ClientMediator.sendCommand(panel, command, {
+      return ClientMediator.sendCommandAsync(panel, command, {
         ...argsObj,
         contextId: context,
         isCommand: true,

@@ -24,7 +24,13 @@ export class OnAddElementBehavior {
           const props = await WebHelper.getAsync(
             `properties/QueryProperties?parentIds=${response.result}`
           );
-          element.properties = props;
+
+          const parsedProps = {};
+          props.forEach((prop) => {
+            parsedProps[prop.name] = prop;
+          });
+
+          element.properties = parsedProps;
 
           let found = canvas._objects.findIndex(
             (x) => x.layer >= element.layer
@@ -41,7 +47,7 @@ export class OnAddElementBehavior {
             ClientMediator.sendCommand(
               "battlemap_token",
               "CanvasObjectLoadToken",
-              { contextId: battleMapId, object: element }
+              { contextId: battleMapId, id: element.id }
             );
           }
           

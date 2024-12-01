@@ -314,7 +314,7 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
     BattleMapServices.TokenManager._setPopupContent = setPopupContent;
     BattleMapServices.TokenManager._popupVisible = popupVisible;
     BattleMapServices.TokenManager._refreshCommand = forceUpdate;
-    BattleMapServices.TokenManager.Load();
+    BattleMapServices.TokenManager.Load(() => editor.canvas);
 
     //Assing Selected map instance when necessary
     BattleMapServices.BMQueryService._map = map;
@@ -357,8 +357,7 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
           text: this.text,
           radius: this.radius,
           tokenUiElements: this.tokenUiElements,
-          showOnTokenControl: this.showOnTokenControl,
-
+          tokenData: this.tokenData,
           isTokenUi: this.isTokenUi,
           parentId: this.parentId,
           originalLeft: this.originalLeft,

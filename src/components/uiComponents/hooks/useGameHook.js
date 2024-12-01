@@ -7,7 +7,7 @@ export const useGame = () => {
     const uuid = useUUID();
 
     React.useEffect(() => {
-        ClientMediator.sendCommandAsync("Game", "GetGame", { uniqueKey: uuid }, true).then(x => {
+        ClientMediator.sendCommandWaitForRegister("Game", "GetGame", { uniqueKey: uuid }, true).then(x => {
             setGame(x);
         });
     }, []);

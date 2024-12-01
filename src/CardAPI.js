@@ -58,12 +58,9 @@ class CardAPI {
             );
 
             command.data.name = foundProp.name;
-          }
-          else
-          {
+          } else {
             let foundProp = this._propertyCache[command.data.name];
-            if(foundProp.id !== command.data.id)
-            {
+            if (foundProp.id !== command.data.id) {
               return;
             }
           }
@@ -92,18 +89,14 @@ class CardAPI {
     });
   }
 
-  InitApi() {
-    return new Promise((resolve, reject) => {
-      WebHelper.get(
-        "properties/QueryProperties?parentIds=" + this._cardId,
-        (response) => {
-          response.forEach((x) => {
-            this._propertyCache[x.name] = x;
-          });
-          resolve();
-        }
-      );
+  async InitApi() {
+    const properties = await WebHelper.getAsync(
+      "properties/QueryProperties?parentIds=" + this._cardId
+    );
+    properties.forEach((x) => {
+      this._propertyCache[x.name] = x;
     });
+    return properties;
   }
 
   destroy() {
@@ -161,7 +154,7 @@ class CardAPI {
               propertyName +
               "&parentIds=" +
               this._cardId,
-              
+
             (response) => {
               if (response.length === 0) {
                 resolve(undefined);
@@ -211,7 +204,10 @@ class CardAPI {
     },
 
     Set: (propertyName, value) => {
-      if(this._propertyCache[propertyName] && this._propertyCache[propertyName].value === value) {
+      if (
+        this._propertyCache[propertyName] &&
+        this._propertyCache[propertyName].value === value
+      ) {
         return;
       }
 
@@ -239,7 +235,15 @@ class CardAPI {
     },
 
     SetMany: (properties) => {
-      properties = properties.filter((x) => x.name && x.value && !(this._propertyCache[x.name] && this._propertyCache[x.name].value === x.value));
+      properties = properties.filter(
+        (x) =>
+          x.name &&
+          x.value &&
+          !(
+            this._propertyCache[x.name] &&
+            this._propertyCache[x.name].value === x.value
+          )
+      );
       //try to get the properties
       this.Properties.GetMany(properties.map((x) => x.name)).then((x) => {
         const existingProperties = x.filter((y) => y !== undefined);
@@ -326,7 +330,7 @@ class CardAPI {
     WebSocketManagerInstance.Send({
       command: command,
       data: data,
-      ...additionalArgs
+      ...additionalArgs,
     });
   }
 

@@ -3,7 +3,7 @@ import DTOConverter from "../../DTOConverter";
 
 export class OnUpdateElementBehavior {
   Handle(response, canvas, battleMapId) {
-    ClientMediator.sendCommandAsync("Game", "GetCurrentPlayer", {}, true).then((currentPlayer) => {
+    ClientMediator.sendCommandWaitForRegister("Game", "GetCurrentPlayer", {}, true).then((currentPlayer) => {
       let obj = canvas.getObjects().find(x => x.id === response.data.id);
       if (obj &&
         !(response.battleMapId === battleMapId && response.playerId === currentPlayer.id)

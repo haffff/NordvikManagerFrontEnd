@@ -16,7 +16,7 @@ export class OnTokenSelectedClientBehavior {
             }
 
             if (element && element.additionalObjects) {
-                let objects = element.additionalObjects.filter(x => x.showOnTokenControl);
+                let objects = element.additionalObjects.filter(x => x?.tokenData?.showOnTokenControl);
                 objects.forEach(element => {
                     element.animate('opacity', 0, {
                         duration: 400,
@@ -40,7 +40,7 @@ export class OnTokenSelectedClientBehavior {
             return;
         }
 
-        let objects = token.additionalObjects?.filter(x => x.showOnTokenControl) || [];
+        let objects = token.additionalObjects?.filter(x => x?.tokenData?.showOnTokenControl) || [];
 
         objects.forEach(element => {
             element.set({ visible: true });
