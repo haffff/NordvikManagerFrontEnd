@@ -2,32 +2,50 @@ import ClientMediator from "../../../ClientMediator";
 import UtilityHelper from "../../../helpers/UtilityHelper";
 import WebSocketManagerInstance from "../../game/WebSocketManager";
 import BattleMapModes from "../BattlemapModes";
-import { BehaviorDictionaryClient, BehaviorDictionaryServer } from "../Behaviors/BehaviorDictionary";
+import {
+  BehaviorDictionaryClient,
+  BehaviorDictionaryServer,
+} from "../Behaviors/BehaviorDictionary";
 
 const LoadBMSubscriptions = (canvas, references) => {
-  
   //Register behaviors(actions) handling events from server.
-  WebSocketManagerInstance.Subscribe("BattleMap" + references.battleMapObjectRef.current.Id, (response) => {
-    if (response.command !== undefined && BehaviorDictionaryServer[response.command] !== undefined) {
-      if (response.result == "NoPermission") {
-        return;
+  WebSocketManagerInstance.Subscribe(
+    "BattleMap" + references.battleMapObjectRef.current.Id,
+    (response) => {
+      if (
+        response.command !== undefined &&
+        BehaviorDictionaryServer[response.command] !== undefined
+      ) {
+        if (response.result == "NoPermission") {
+          return;
+        }
+        BehaviorDictionaryServer[response.command].Handle(
+          response,
+          canvas,
+          references.battleMapObjectRef.current.Id
+        );
       }
-      BehaviorDictionaryServer[response.command].Handle(response, canvas, references.battleMapObjectRef.current.Id);
     }
-  });
+  );
 
   //Handle events from battlemap itself(rest should go trough server)
   //for example here is moving elements on map
-  Object.keys(BehaviorDictionaryClient).forEach(key => {
+  Object.keys(BehaviorDictionaryClient).forEach((key) => {
     canvas.off(key);
     canvas.on(key, (e) => {
       if (BehaviorDictionaryClient[key] !== undefined)
-        BehaviorDictionaryClient[key].Handle(e, canvas, references.mapRef.current, references.keyboardEventsManagerRef, references.battleMapObjectRef.current)
+        BehaviorDictionaryClient[key].Handle(
+          e,
+          canvas,
+          references.mapRef.current,
+          references.keyboardEventsManagerRef,
+          references.battleMapObjectRef.current
+        );
     });
   });
 
-  canvas.off('mouse:wheel');
-  canvas.on('mouse:wheel', function (opt) {
+  canvas.off("mouse:wheel");
+  canvas.on("mouse:wheel", function (opt) {
     var delta = opt.e.deltaY;
     var zoom = canvas.getZoom();
     zoom *= 0.999 ** delta;
@@ -39,40 +57,36 @@ const LoadBMSubscriptions = (canvas, references) => {
     canvas.requestRenderAll();
   });
 
-  canvas.off('mouse:down');
-  canvas.on('mouse:down', (opt) => {
+  canvas.off("mouse:down");
+  canvas.on("mouse:down", (opt) => {
     console.log(references.operationRef.current);
 
-    ClientMediator.fireEvent("ActivePanelChanged", { panel: "BattleMap", contextId: references.battleMapObjectRef.current.Id });
-    
+    ClientMediator.fireEvent("ActivePanelChanged", {
+      panel: "BattleMap",
+      contextId: references.battleMapObjectRef.current.Id,
+    });
+
     canvas.lastAbsolutePointer = canvas.getPointer(opt.e);
 
     if (opt.button === 3) {
       references.contextMenuVisibleRef.current = true;
-      const rect = references.battleMapContainerRef.current.getBoundingClientRect();
+      const rect =
+        references.battleMapContainerRef.current.getBoundingClientRect();
 
-      references.contextMenuRef.current.style.left = `${opt.e.clientX - rect.x}px`;
-      references.contextMenuRef.current.style.top = `${opt.e.clientY - rect.y}px`;
-      references.contextMenuRef.current.style.display = 'block';
-    }
-    else {
+      references.contextMenuRef.current.style.left = `${
+        opt.e.clientX - rect.x
+      }px`;
+      references.contextMenuRef.current.style.top = `${
+        opt.e.clientY - rect.y
+      }px`;
+      references.contextMenuRef.current.style.display = "block";
+    } else {
       references.contextMenuVisibleRef.current = false;
-      references.contextMenuRef.current.style.display = 'none';
+      references.contextMenuRef.current.style.display = "none";
     }
-
-    canvas.on('object:moving', function (event) {
-      var obj = event.target;
-      if(obj && obj.properties && UtilityHelper.ParseBool(obj.properties["isToken"]?.value))
-      {
-        obj.additionalObjects?.forEach(element => {
-          element.set({ left: obj.left + element.originalLeft, top: obj.top + element.originalTop });
-        });
-      }
-   });
 
     var evt = opt.e;
-    if(opt.button === 2)
-    {
+    if (opt.button === 2) {
       canvas.isDragging = true;
       canvas.selection = false;
       canvas.lastPosX = evt.clientX;
@@ -104,8 +118,8 @@ const LoadBMSubscriptions = (canvas, references) => {
     }
   });
 
-  canvas.off('mouse:move');
-  canvas.on('mouse:move', (opt) => {
+  canvas.off("mouse:move");
+  canvas.on("mouse:move", (opt) => {
     if (canvas.isDragging) {
       var e = opt.e;
       var vpt = canvas.viewportTransform;
@@ -125,24 +139,114 @@ const LoadBMSubscriptions = (canvas, references) => {
     }
 
     if (references.popupVisibleRef && references.popupVisibleRef.current) {
-      const rect = references.battleMapContainerRef.current.getBoundingClientRect();
+      const rect =
+        references.battleMapContainerRef.current.getBoundingClientRect();
       references.popupRef.current.style.left = `${opt.e.clientX - rect.x}px`;
       references.popupRef.current.style.top = `${opt.e.clientY - rect.y}px`;
-      references.popupRef.current.style.display = 'block';
-    }
-    else {
-      references.popupRef.current.style.display = 'none';
+      references.popupRef.current.style.display = "block";
+    } else {
+      references.popupRef.current.style.display = "none";
     }
   });
 
-  canvas.off('mouse:up');
-  canvas.on('mouse:up', (opt) => {
+  canvas.on("object:moving", function (event) {
+    var obj = event.target;
+
+    let isTokenRaw = obj.properties && obj.properties["isToken"]?.value;
+    if (isTokenRaw === undefined) {
+      //if not in obj check if its active selection
+      if (obj.type === "activeSelection") {
+        obj.forEachObject((subelement) => {
+          if (subelement.properties && subelement.properties["isToken"]?.value) {
+            isTokenRaw = isTokenRaw || subelement.properties["isToken"]?.value;
+          }
+        });
+      }
+    }
+
+    const isToken = isTokenRaw ? UtilityHelper.ParseBool(isTokenRaw) : false;
+
+    if (
+      obj &&
+      obj.properties &&
+      isToken
+      )
+    {
+      obj.additionalObjects?.forEach((element) => {
+        if (element.visibleBeforeDrag === undefined) {
+          element.set({ visibleBeforeDrag: element.visible });
+          element.set({ visible: false });
+        }
+      });
+    }
+
+    //Do same for active selection
+    if (obj.type === "activeSelection") {
+      obj.forEachObject((subelement) => {
+        subelement.additionalObjects?.forEach((element) => {
+          if (element.visibleBeforeDrag === undefined) {
+            element.set({ visibleBeforeDrag: element.visible });
+            element.set({ visible: false });
+          }
+        });
+      });
+    }
+  });
+
+  canvas.off("mouse:up");
+  canvas.on("mouse:up", (opt) => {
     // on mouse up we want to recalculate new interaction
     // for all objects, so we call setViewportTransform
     if (canvas.isDragging) {
       canvas.setViewportTransform(canvas.viewportTransform);
       canvas.isDragging = false;
       canvas.selection = true;
+    }
+
+    var obj = opt.target;
+    let isTokenRaw = obj?.properties && obj?.properties["isToken"]?.value;
+    //if not in obj check if its active selection
+    if (!isTokenRaw && obj?.type === "activeSelection") {
+      obj.forEachObject((subelement) => {
+        if (subelement.properties && subelement.properties["isToken"]?.value) {
+          isTokenRaw = isTokenRaw || subelement.properties["isToken"]?.value;
+        }
+      });
+    }
+
+    const isToken = isTokenRaw ? UtilityHelper.ParseBool(isTokenRaw) : false;
+
+    if (isToken) {
+      ClientMediator.sendCommandAsync(
+        "BattleMap_Token",
+        "UpdateTokenUIPositions",
+        { object: obj, contextId: references.battleMapObjectRef.current.Id }
+      ).then((result) => {
+        if (obj && obj.properties && isToken) {
+          obj.additionalObjects?.forEach((element) => {
+            if (element.visibleBeforeDrag !== undefined) {
+              element.set({
+                visible: element.visibleBeforeDrag,
+                visibleBeforeDrag: undefined,
+              });
+            }
+          });
+
+          //do same for active selection
+          if (obj.type === "activeSelection") {
+            obj.forEachObject((subelement) => {
+              subelement.additionalObjects?.forEach((element) => {
+                if (element.visibleBeforeDrag !== undefined) {
+                  element.set({
+                    visible: element.visibleBeforeDrag,
+                    visibleBeforeDrag: undefined,
+                  });
+                }
+              });
+            });
+          }
+        }
+      });
     }
 
     if (canvas.isDisplaying) {
@@ -168,6 +272,6 @@ const LoadBMSubscriptions = (canvas, references) => {
   //     popupRef.current.style.display = 'none';
   //   }
   // });
-}
+};
 
 export default LoadBMSubscriptions;

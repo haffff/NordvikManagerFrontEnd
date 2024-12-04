@@ -4,6 +4,7 @@ import DTOConverter from "../DTOConverter";
 import ClientMediator from "../../../ClientMediator";
 import WebHelper from "../../../helpers/WebHelper";
 import UtilityHelper from "../../../helpers/UtilityHelper";
+import TokenUIRules from "../../../helpers/TokenUIRules";
 
 class TokenManager {
   _clipboard = undefined;
@@ -20,7 +21,7 @@ class TokenManager {
   _isPreviewModel = false;
   _battleMapModel = undefined;
 
-  _getCanvas = undefined;
+  _originalBoundingWidth = undefined;
 
   Load(getCanvas) {
     this.panel = "battlemap_token";
@@ -51,14 +52,14 @@ class TokenManager {
           }
 
           // set relative position
-          element.originalTop = element.top;
-          element.originalLeft = element.left;
-          element.top = object.top + element.top;
-          element.left = object.left + element.left;
-          element.layer = object.layer;
-          element.insideLayerIndex = object.insideLayerIndex;
+          element.layer = 110;
           element.selectable = false;
           element.isTokenUI = true;
+
+          if(element.tokenData?.showOnTokenControl)
+          {
+            element.visible = false;
+          }
 
           if (element.type === "i-text" && element.editable) {
             element.on("mousedblclick", (e) => {
@@ -77,6 +78,7 @@ class TokenManager {
           canvas.add(element);
         });
 
+        this.UpdateTokenUIPositions({ object });
         this.UpdateTokenBasedOnProperties({ tokenId: id });
       });
     }
@@ -105,7 +107,7 @@ class TokenManager {
 
     const canvas = this._getCanvas();
     const objects = canvas.getObjects().filter((x) => {
-      if(!x.properties) {
+      if (!x.properties) {
         return false;
       }
       const isToken = UtilityHelper.ParseBool(x?.properties["isToken"]?.value);
@@ -201,10 +203,20 @@ class TokenManager {
       propValue = parseFloat(propValue);
     }
 
-    //ignore rules for now
-    if (!rule) {
-      targetElement[objectProperty] = propValue;
+    if (rule) {
+      if(rule.name === null)
+      {
+        console.warn(`Rule ${rule.name} not found on object ${object.id}`);
+        return;
+      }
+
+      propValue = TokenUIRules[rule.name]({
+        ...rule.arguments,
+        value: propValue,
+      });
     }
+
+    targetElement[objectProperty] = propValue;
   }
 
   UpdateTokenBasedOnProperties({ tokenId, isCommand }) {
@@ -327,11 +339,10 @@ class TokenManager {
     const tokenId = properties.find((p) => p.name === "token").value;
     const characterName = properties.find(
       (p) => p.name === "character_name"
-    ).value;
-    const playerOwner = properties.find((p) => p.name === "player_owner").value;
+    )?.value ?? "Token";
     const tokenSize = properties.find(
       (p) => p.name === "drop_token_size"
-    ).value;
+    )?.value ?? 1;
 
     const tokenRaw = await WebHelper.getMaterialAsync(
       tokenId,
@@ -343,12 +354,30 @@ class TokenManager {
 
     const fabricObject = fabric.Image.fromURL(tokenImageId, (object) => {
       object.set({
-        ...token,
-        name: token.prefix + characterName,
+        ...token.object,
+        name: token.prefix + " " + characterName,
         left: position.x,
         top: position.y,
         cardId: cardId,
-        tokenData: { ...token.tokenData, cardId },
+        tokenData: {
+          ...token?.tokenData,
+          cardId,
+          propDeps: [
+            ...(token?.tokenData?.propDeps ?? []),
+            {
+              dtoProperty: "tokenSize",
+              objectProperty: "scaleX",
+              type: "number",
+              source: "card",
+            },
+            {
+              dtoProperty: "tokenImage",
+              objectProperty: "src",
+              type: "string",
+              source: "card",
+            },
+          ],
+        },
         isToken: true,
         tokenUiElements: token.additions,
         mapId: map.id,
@@ -356,22 +385,12 @@ class TokenManager {
         src: tokenImageId,
       });
 
-      let calculatedSize = gridSize * (tokenSize ?? token.size);
-      object.scaleToWidth(calculatedSize);
+      object.scaleToWidth(gridSize * tokenSize);
 
-      token.additions.forEach((element) => {
-        if (element?.tokenData?.ignoreRelativePosition) {
-          return;
-        }
+      this.UpdateTokenUIPositions(object);
 
-        // set relative position
-        if (element.top > 0) {
-          element.top = element.top - gridSize + calculatedSize;
-        }
-
-        if (element.left > 0) {
-          element.left = element.left - gridSize + calculatedSize;
-        }
+      object.tokenUiElements?.forEach((element) => {
+        element.layer = 110;
       });
 
       var dto = DTOConverter.ConvertToDTO(object);
@@ -381,13 +400,107 @@ class TokenManager {
           ...dto,
           properties: [
             { name: "isToken", value: "true" },
-            { name: "cardId", value: cardId },
-            { name: "player_owner", value: playerOwner },
-            { name: "tokenSize", value: tokenSize },
+            { name: "cardId", value: cardId }
           ],
           withSelection: true,
         },
       });
+    });
+  }
+
+  async UpdateTokenUIPositions({ object, objectId, isCommand }) {
+    if (isCommand && !objectId) {
+      return "--objectId is required";
+    }
+
+    const canvas = this._getCanvas();
+    let token = object;
+    if (!token && objectId) {
+      token = canvas.getObjects().find((x) => x.id === objectId);
+    }
+
+    const parentId = token?.tokenData?.cardId;
+    if (!parentId) {
+      return;
+    }
+
+    // const tokenSize = ClientMediator.sendCommandAsync(
+    //   "Properties",
+    //   "GetByNames",
+    //   { contextId: this.contextId, parentId: parentId, names: ["tokenSize"] }
+    // );
+
+    const { gridSize } = ClientMediator.sendCommand(
+      "BattleMap",
+      "GetSelectedMap",
+      {
+        contextId: this.contextId,
+      }
+    );
+
+    const center = object.getCenterPoint();
+
+    const boundingRectFactor = 1;
+    //token.getBoundingRect().width / token.getScaledWidth();
+    const gridSizeScale = gridSize / token.width / boundingRectFactor;
+    const currentScale = token.scaleX;
+
+    console.log("getBoundingRectFactor", boundingRectFactor);
+    //const zeroCenter = object.getPointByOrigin("center", "center");
+    
+    const expectedAdditonalOffset = gridSize * (currentScale / gridSizeScale);
+    const expectedCenter = expectedAdditonalOffset / 2;
+    const zero = {x: center.x - expectedCenter , y: center.y  - expectedCenter};
+
+    token.additionalObjects.forEach((element) => {
+      if (element?.tokenData?.ignoreRelativePosition) {
+        return;
+      }
+
+      const offsetY = element?.tokenData?.offsetY ?? 0;
+      const offsetX = element.tokenData?.offsetX ?? 0;
+
+      switch (element.tokenData?.anchor) {
+        case "top":
+          element.top = zero.y + offsetY;
+          element.left = zero.x + offsetX + expectedCenter;
+          break;
+        case "bottom":
+          element.top = zero.y + expectedAdditonalOffset + offsetY;
+          element.left = center.x + offsetX;
+          break;
+        case "left":
+          element.top = zero.y + offsetY + expectedCenter;
+          element.left = zero.x + offsetX;
+          break;
+        case "right":
+          element.top = expectedCenter + offsetY;
+          element.left = zero.x + expectedAdditonalOffset + offsetX;
+          break;
+        case "left-top":
+        default:
+          element.top = zero.y + offsetY;
+          element.left = zero.x + offsetX;
+          break;
+        case "right-top":
+          element.top = zero.y + offsetY;
+          element.left = zero.x + expectedAdditonalOffset + offsetX;
+          break;
+        case "left-bottom":
+          element.top = zero.y + expectedAdditonalOffset + offsetY;
+          element.left = zero.x + offsetX;
+          break;
+        case "right-bottom":
+          element.top = zero.y + expectedAdditonalOffset + offsetY;
+          element.left = zero.x + expectedAdditonalOffset + offsetX;
+          break;
+        case "center":
+          element.top = expectedCenter + offsetY;
+          element.left = expectedCenter + offsetX;
+          break;
+      }
+
+      canvas.requestRenderAll();
     });
   }
 }

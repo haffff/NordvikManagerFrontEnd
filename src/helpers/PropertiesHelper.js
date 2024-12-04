@@ -5,6 +5,16 @@ class PropertiesHelper {
   panel = "properties";
   id = "PropertiesHelper";
 
+  async Get({ parentId, isCommand }) {
+    if (isCommand && !parentId) {
+      return "--parentId is required";
+    }
+
+    const properties = await WebHelper.getAsync(`properties/QueryProperties?parentIds=${parentId}`);
+    //add caching
+    return properties;
+  }
+
   async GetByNames({ parentId, names, isCommand }) {
     if (isCommand && (!parentId || !names)) {
       return "--parentId and --names are required";
@@ -73,16 +83,14 @@ class PropertiesHelper {
     });
   }
 
-  async UpdateBulk({propsToUpdate, isCommand}) {
-    if(isCommand && !propsToUpdate) {
-      return "--propsToUpdate is required, since its complex object type this command is not supported (for now)";
+  async UpdateBulk({properties, isCommand}) {
+    if(isCommand && !properties) {
+      return "--properties is required, since its complex object type this command is not supported (for now)";
     }
 
-    const properties = await WebHelper.postAsync(`properties/UpdateBulk`, {properties: propsToUpdate});
+    await WebHelper.postAsync(`properties/UpdateBulk`, properties);
 
     WebSocketManagerInstance.Send({command: "property_notify"})
-    //add caching
-    return properties;
   }
 }
 

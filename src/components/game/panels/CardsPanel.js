@@ -42,6 +42,13 @@ export const CardsPanel = ({ state }) => {
         return { value: x.id, label: x.name };
       }),
     },
+    {
+      key: "owner",
+      required: false,
+      label: "Owner",
+      toolTip: "Owner of card.",
+      type: "playerSelect"
+    }
   ];
 
   const panelRef = React.useRef(panels);
@@ -100,9 +107,9 @@ export const CardsPanel = ({ state }) => {
               command: "card_add",
               data: {
                 ...selectedTemplate,
+                ...data,
                 id: null,
                 templateId: selectedTemplate?.id,
-                name: data.name,
                 content: selectedTemplate.content,
               },
             });

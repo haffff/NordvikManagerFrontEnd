@@ -19,7 +19,7 @@ export class OnTokenSelectedClientBehavior {
                 let objects = element.additionalObjects.filter(x => x?.tokenData?.showOnTokenControl);
                 objects.forEach(element => {
                     element.animate('opacity', 0, {
-                        duration: 400,
+                        duration: 100,
                         easing: fabric.util.ease.easeOutSine,
                         onChange: canvas.renderAll.bind(canvas),
                         onComplete: () => {
@@ -46,7 +46,7 @@ export class OnTokenSelectedClientBehavior {
             element.set({ visible: true });
             element.animate('opacity', 1, {
                 onChange: canvas.renderAll.bind(canvas),
-                duration: 400,
+                duration: 100,
                 easing: fabric.util.ease.easeInSine,
             });
         });

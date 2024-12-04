@@ -23,6 +23,7 @@ export const TemplatesPanel = ({ gameDataRef }) => {
         { key: "mainResource", label: "Main Resource (Javascript)", type: "materialSelect", additionalFilter: (item) => item.mimeType == "text/javascript" },
         { key: "additionalResources", label: "Additional Resources", type: "materialSelect", multiple: true },
         { key: "token", property:true ,label: "Default Token", type: "materialSelect", additionalFilter: (item) => item.mimeType == "application/json" },
+        { key: "drop_token_size", property:true ,label: "Default Token Size", type: "number" },
     ]
     const [panels, setPanels] = React.useState([]);
     const [selectedPanel, setSelectedPanel] = React.useState(null);
@@ -61,7 +62,7 @@ export const TemplatesPanel = ({ gameDataRef }) => {
                 <Flex grow={1} height={'100%'}>
                     <DContainer width={'100%'} height={'100%'}>
                         {selectedPanel ?
-                            <SettingsPanelWithPropertySettings entityName={"CardModel"} gameDataManagerRef={gameDataRef} editableKeyLabelDict={editableDict} dto={selectedPanel} onSave={(dto) => { 
+                            <SettingsPanelWithPropertySettings key={selectedPanel.id} entityName={"CardModel"} gameDataManagerRef={gameDataRef} editableKeyLabelDict={editableDict} dto={selectedPanel} onSave={(dto) => { 
                                 WebSocketManagerInstance.Send({ command: "template_update", data: {...selectedPanel, ...dto} }) 
                             }} />
                             : <></>}

@@ -3,15 +3,24 @@ import UtilityHelper from "../../../../../helpers/UtilityHelper";
 
 export class OnPropertyNotifyBehavior {
   async Handle(response, canvas, battleMapId) {
-    //TODO: Implement
-    // let obj = canvas.getObjects().find(x => response.data.parentID && x.id === response.data.parentID);
-    // if (obj) {
-    //     let index = obj.properties.findIndex(x => x.id === response.data.id);
-    //     if (index !== -1) {
-    //         obj.properties[response.data.name] = response.data;
-    //     }
-    // }
-    //Get all tokens
+
+    let objects = canvas.getObjects();
+    await Promise.all(
+      objects.map(async (element) => {
+        if (element.properties) {
+          const properties = await ClientMediator.sendCommandAsync("Properties", "Get", { parentId: element.id });
+          if (properties) {
+            const finalProps = {};
+            properties.forEach((prop) => {
+              finalProps[prop.name] = prop;
+            });
+            element.properties = finalProps;
+          }
+        }
+        return true;
+      })
+    );
+
     let tokens = canvas
       .getObjects()
       .filter((x) => UtilityHelper.ParseBool(x.properties?.isToken?.value));
@@ -21,7 +30,7 @@ export class OnPropertyNotifyBehavior {
         "UpdateTokenBasedOnProperties",
         {
           contextId: battleMapId,
-          tokenId: token.id
+          tokenId: token.id,
         }
       );
     });
