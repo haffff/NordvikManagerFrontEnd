@@ -4,7 +4,7 @@ export const DTOConverter = {
 
         dto.id = object.id;
         dto.layer = object.layer;
-        dto.MapID = object.mapID;
+        dto.mapId = object.mapId;
         dto.properties = [];
         //dto.selectable = object.selectablePermission && dto.layer == selectedLayer; //not sure it should be here
 

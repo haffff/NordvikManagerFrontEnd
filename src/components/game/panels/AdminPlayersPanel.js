@@ -20,8 +20,8 @@ export const AdminPlayersPanel = ({ state }) => {
     const [connectedPlayers, setConnectedPlayers] = React.useState([]);
 
     const HandleMessage = () => {
-        ClientMediator.sendCommandAsync("Game", "GetPlayers", {}, true).then(setPlayers);
-        ClientMediator.sendCommandAsync("Game", "GetConnectedPlayers", {}, true).then(setConnectedPlayers);
+        ClientMediator.sendCommandWaitForRegister("Game", "GetPlayers", {}, true).then(setPlayers);
+        ClientMediator.sendCommandWaitForRegister("Game", "GetConnectedPlayers", {}, true).then(setConnectedPlayers);
     }
 
     useClientMediator("AdminPlayersPanel", {Reload: HandleMessage});

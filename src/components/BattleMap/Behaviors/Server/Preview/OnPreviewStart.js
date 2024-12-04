@@ -4,7 +4,7 @@ import ClientMediator from '../../../../../ClientMediator';
 export class OnPreviewStartBehavior {
 
   Handle(response, canvas, battleMapId) {
-    ClientMediator.sendCommandAsync("Game", "GetCurrentPlayer", {}, true).then((currentPlayer) => {
+    ClientMediator.sendCommandWaitForRegister("Game", "GetCurrentPlayer", {}, true).then((currentPlayer) => {
       if (response.data &&
         !(response.battleMapId === battleMapId &&
           response.playerId === currentPlayer.id)

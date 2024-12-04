@@ -8,7 +8,7 @@ export class OnPermissionsChangedBehavior {
             return;
         }
 
-        ClientMediator.sendCommandAsync("Game", "GetCurrentPlayer", {}, true).then((currentPlayer) => {
+        ClientMediator.sendCommandWaitForRegister("Game", "GetCurrentPlayer", {}, true).then((currentPlayer) => {
             let permission = data.permissions[currentPlayer.id];
             let canControl = (permission & 4) == 4;
 

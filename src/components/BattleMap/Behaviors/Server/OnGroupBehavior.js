@@ -28,7 +28,7 @@ export class OnGroupBehavior {
                     canvas.insertAt(element, found);
                 }
 
-                ClientMediator.sendCommandAsync("Game","GetCurrentPlayer", {},true).then((response) => {
+                ClientMediator.sendCommandWaitForRegister("Game","GetCurrentPlayer", {},true).then((response) => {
                     if (response.playerId === response.id)
                         canvas.setActiveObject(element);
                         canvas.requestRenderAll();

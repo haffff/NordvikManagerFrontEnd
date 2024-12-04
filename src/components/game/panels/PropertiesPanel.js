@@ -33,8 +33,8 @@ export const PropertiesPanel = ({ battlemapId, lockedObject, customTitle }) => {
     }
 
     React.useEffect(() => {
-        ClientMediator.sendCommandAsync("BattleMap", "SubscribeSelectionChanged", { contextId: battlemapId, name:uuid, method:HandleSelection }, true);
-        ClientMediator.sendCommandAsync("BattleMap", "GetSelectedObjects", { contextId: battlemapId }, true).then((r) => { setSelectedObjects(r) });
+        ClientMediator.sendCommandWaitForRegister("BattleMap", "SubscribeSelectionChanged", { contextId: battlemapId, name:uuid, method:HandleSelection }, true);
+        ClientMediator.sendCommandWaitForRegister("BattleMap", "GetSelectedObjects", { contextId: battlemapId }, true).then((r) => { setSelectedObjects(r) });
 
         return () => {
             ClientMediator.sendCommand("BattleMap", "UnSubscribeSelectionChanged", { name:uuid });

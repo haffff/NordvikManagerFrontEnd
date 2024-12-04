@@ -2,6 +2,7 @@ import * as React from 'react';
 import WebHelper from '../../../helpers/WebHelper';
 import SettingsPanel from './SettingsPanel';
 import WebSocketManagerInstance from '../WebSocketManager';
+import ClientMediator from '../../../ClientMediator';
 
 export const SettingsPanelWithPropertySettings = ({ dto, editableKeyLabelDict, onSave, onValidation, entityName, hideSaveButton, saveOnLeave }) => {
     const [properties, setProperties] = React.useState([]);
@@ -51,7 +52,7 @@ export const SettingsPanelWithPropertySettings = ({ dto, editableKeyLabelDict, o
         });
 
         if (propsToUpdate.length > 0) {
-            WebHelper.post("properties/UpdateBulk", propsToUpdate, () => { });
+            ClientMediator.sendCommandAsync("properties", "UpdateBulk", { properties: propsToUpdate });
         }
 
         if (onSave)

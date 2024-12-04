@@ -60,7 +60,7 @@ export const MapSelector = ({ battleMapId, state }) => {
     ctx.setTitle(`Map Selector - ` + bmName);
 
     if (value === -1) {
-        ClientMediator.sendCommandAsync("BattleMap", "GetSelectedMapID", { contextId: battleMapId }, true).then((r) => { setValue(r) });
+        ClientMediator.sendCommandWaitForRegister("BattleMap", "GetSelectedMapID", { contextId: battleMapId }, true).then((r) => { setValue(r) });
     }
 
 

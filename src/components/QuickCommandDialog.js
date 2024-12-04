@@ -37,15 +37,17 @@ export const QuickCommandDialog = ({ state, openRef, onCloseModal }) => {
   }, [command]);
 
   function RunCommand() {
-    let result = CommandExecutionHelper.RunCommand(command);
-    if (result !== undefined) {
-      DockableHelper.NewFloating(state,
-        <LookupPanel
-          name={`${command} result`}
-          content={result}
-        ></LookupPanel>
-      );
-    }
+    let result = CommandExecutionHelper.RunCommand(command).then((result) => {
+      if (result !== undefined) {
+        DockableHelper.NewFloating(
+          state,
+          <LookupPanel
+            name={`${command} result`}
+            content={result}
+          ></LookupPanel>
+        );
+      }
+    });
   }
 
   return (
@@ -104,12 +106,11 @@ export const QuickCommandDialog = ({ state, openRef, onCloseModal }) => {
                   //on arrow down
                   if (e.key === "ArrowDown") {
                     e.preventDefault();
-                    if(e.target.nextSibling)
-                      e.target.nextSibling.focus();
+                    if (e.target.nextSibling) e.target.nextSibling.focus();
                   }
                   if (e.key === "ArrowUp") {
                     e.preventDefault();
-                    if(e.target.previousSibling)
+                    if (e.target.previousSibling)
                       e.target.previousSibling.focus();
                   }
                 }}
@@ -122,7 +123,9 @@ export const QuickCommandDialog = ({ state, openRef, onCloseModal }) => {
                   <Text color="darkgray">{suggestion.panel}.</Text>
                   <Text fontWeight={"bold"}>{suggestion.command}</Text>
                   {suggestion?.requiresContext && (
-                    <Text color="darkgray" fontStyle={'italic'}>(Bm context required)</Text>
+                    <Text color="darkgray" fontStyle={"italic"}>
+                      (Bm context required)
+                    </Text>
                   )}
                 </HStack>
               </Box>

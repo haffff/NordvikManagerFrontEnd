@@ -12,7 +12,7 @@ export const SettingsMenu = ({ Dockable,
 
     if(!currentPlayer)
     {
-        ClientMediator.sendCommandAsync("Game","GetCurrentPlayer",{}).then(x => setCurrentPlayer(x));
+        ClientMediator.sendCommandWaitForRegister("Game","GetCurrentPlayer",{}).then(x => setCurrentPlayer(x));
     }
 
     return (

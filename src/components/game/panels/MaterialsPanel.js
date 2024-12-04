@@ -1,21 +1,19 @@
 import * as React from 'react';
-import { Flex, Circle, FormLabel, Box, Popover, PopoverTrigger, Portal, PopoverContent, PopoverCloseButton, PopoverBody, Image, Divider, useToast } from '@chakra-ui/react'
+import { Box, Image, useToast } from '@chakra-ui/react'
 import * as Dockable from "@hlorenzi/react-dockable"
 import DList from '../../uiComponents/base/List/DList';
 import DListItem from '../../uiComponents/base/List/DListItem';
-import DListItemsButtonContainer from '../../uiComponents/base/List/DListItemsButtonContainer';
 import DLabel from '../../uiComponents/base/Text/DLabel';
 import WebHelper from '../../../helpers/WebHelper';
 import BasePanel from '../../uiComponents/base/BasePanel';
 import DContainer from '../../uiComponents/base/Containers/DContainer';
 import DListItemButton from '../../uiComponents/base/List/ListItemDetails/DListItemButton';
-import { FaCode, FaEdit, FaEye, FaFontAwesome, FaICursor, FaLink, FaMinusCircle, FaMusic, FaPen, FaShare } from 'react-icons/fa';
+import { FaCode, FaLink, FaMinusCircle, FaMusic, FaPen } from 'react-icons/fa';
 import UtilityHelper from '../../../helpers/UtilityHelper';
 import DTreeList from '../../uiComponents/treeList/DTreeList';
 import CollectionSyncer from '../../uiComponents/base/CollectionSyncer';
 import InputModal from '../../uiComponents/base/Modals/InputModal';
 import WebSocketManagerInstance from '../WebSocketManager';
-import Subscribable from '../../uiComponents/base/Subscribable';
 import RefreshInfo from '../../uiComponents/treeList/RefreshInfoCard';
 import DockableHelper from '../../../helpers/DockableHelper';
 import LookupPanel from './Addons/LookupPanel';
@@ -142,7 +140,6 @@ export const MaterialsPanel = ({ state }) => {
 
     return (
         <BasePanel>
-            <Subscribable commandPrefix={"resource_notify"} onMessage={() => { }} />
             <InputModal
                 title={"Rename Resource"}
                 getConfigDict={() => [{ key: "name", label: "Resource Name", toolTip: "Name of Resource.", type: "string", required: true }]}

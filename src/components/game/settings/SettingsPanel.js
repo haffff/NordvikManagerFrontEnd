@@ -1,222 +1,410 @@
-import * as React from 'react';
-import { Box, Textarea, Grid, GridItem, Flex, Card, FormLabel, Input, Checkbox, NumberInput, NumberInputField, Accordion, AccordionButton, AccordionItem, AccordionPanel, AccordionIcon, Image, Editable, Select } from '@chakra-ui/react'
-import DropDownButton from '../../uiComponents/base/DDItems/DropDrownButton';
-import ColorPicker from '../../uiComponents/ColorPicker';
-import WebHelper from '../../../helpers/WebHelper';
-import BasePanel from '../../uiComponents/base/BasePanel';
-import DButtonHorizontalContainer from '../../uiComponents/base/Containers/DButtonHorizontalContainer';
-import DynamicIconChooser from '../../uiComponents/icons/DynamicIconChooser';
-import { MaterialChooser } from '../../uiComponents/MaterialChooser';
+import * as React from "react";
+import {
+  Box,
+  Textarea,
+  Grid,
+  GridItem,
+  Flex,
+  Card,
+  FormLabel,
+  Input,
+  Checkbox,
+  NumberInput,
+  NumberInputField,
+  Accordion,
+  AccordionButton,
+  AccordionItem,
+  AccordionPanel,
+  AccordionIcon,
+  Image,
+  Editable,
+  Select,
+} from "@chakra-ui/react";
+import DropDownButton from "../../uiComponents/base/DDItems/DropDrownButton";
+import ColorPicker from "../../uiComponents/ColorPicker";
+import WebHelper from "../../../helpers/WebHelper";
+import BasePanel from "../../uiComponents/base/BasePanel";
+import DButtonHorizontalContainer from "../../uiComponents/base/Containers/DButtonHorizontalContainer";
+import DynamicIconChooser from "../../uiComponents/icons/DynamicIconChooser";
+import { MaterialChooser } from "../../uiComponents/MaterialChooser";
+import { PlayerChooser } from "../../uiComponents/PlayerChooser";
 
-export const SettingsPanel = ({ dto, editableKeyLabelDict, onSave, onValidation, hideSaveButton, saveOnLeave }) => {
-    const [updatedDto, setUpdatedDto] = React.useState({});
-    const [validationDict, setValidationDict] = React.useState({});
+export const SettingsPanel = ({
+  dto,
+  editableKeyLabelDict,
+  onSave,
+  onValidation,
+  hideSaveButton,
+  saveOnLeave,
+}) => {
+  const [updatedDto, setUpdatedDto] = React.useState({});
+  const [validationDict, setValidationDict] = React.useState({});
 
-    const updateDtoRef = React.useRef();
-    updateDtoRef.current = updatedDto;
+  const updateDtoRef = React.useRef();
+  updateDtoRef.current = updatedDto;
 
-    if (editableKeyLabelDict === undefined) {
-        return (<>{'MISSING editableKeyLabelDict'}</>);
+  if (editableKeyLabelDict === undefined) {
+    return <>{"MISSING editableKeyLabelDict"}</>;
+  }
+
+  const OnChange = (key, value) => {
+    let newDto = { ...updateDtoRef.current };
+    newDto[key] = value;
+    setUpdatedDto(newDto);
+    if (saveOnLeave) {
+      validateAndSave(newDto);
     }
+  };
 
-    const OnChange = (key, value) => {
-        let newDto = { ...updateDtoRef.current };
-        newDto[key] = value;
-        setUpdatedDto(newDto);
-        if (saveOnLeave) {
-            validateAndSave(newDto);
+  const validateAndSave = (updatedDto) => {
+    const validationResult = {};
+    editableKeyLabelDict.forEach((editable) => {
+      let combinedDto = { ...dto, ...updatedDto };
+      if (
+        editable.required &&
+        (!combinedDto[editable.key] || combinedDto[editable.key] === "")
+      ) {
+        validationResult[editable.key] = "This field is required.";
+        return;
+      }
+      if (editable.validate) {
+        const { success, message } = editable.validate(
+          updatedDto[editable.key],
+          combinedDto
+        );
+        if (!success) {
+          validationResult[editable.key] = message;
+          return;
         }
+      }
+    });
+
+    setValidationDict(validationResult);
+
+    if (Object.keys(validationResult).length > 0) {
+      if (onValidation) onValidation(false, updatedDto, validationResult);
+      return false;
     }
 
-    const validateAndSave = (updatedDto) => {
-        const validationResult = {};
-        editableKeyLabelDict.forEach(editable => {
-            let combinedDto = { ...dto, ...updatedDto };
-            if (editable.required && (!combinedDto[editable.key] || combinedDto[editable.key] === "")) {
-                validationResult[editable.key] = "This field is required.";
-                return;
-            }
-            if (editable.validate) {
+    if (onValidation) onValidation(true, updatedDto, validationResult);
+    onSave(updatedDto);
+  };
 
-                const { success, message } = editable.validate(updatedDto[editable.key], combinedDto);
-                if (!success) {
-                    validationResult[editable.key] = message;
-                    return;
-                }
-            }
+  const HandleDrop = (ev, key) => {
+    if (ev.dataTransfer.items && ev.dataTransfer.items.length === 1) {
+      let item = [...ev.dataTransfer.items][0];
+      if (item.kind === "file") {
+        WebHelper.postImage(item.getAsFile(), dto.name, (result) => {
+          OnChange(
+            key,
+            `${WebHelper.ApiAddress}/Materials/Resource?id=${result.id}`
+          );
         });
-
-        setValidationDict(validationResult);
-
-        if (Object.keys(validationResult).length > 0) {
-            if (onValidation)
-                onValidation(false, updatedDto, validationResult);
-            return false;
-        }
-
-        if (onValidation)
-            onValidation(true, updatedDto, validationResult);
-        onSave(updatedDto);
+      }
     }
+  };
 
-    const HandleDrop = (ev, key) => {
-        if (ev.dataTransfer.items && ev.dataTransfer.items.length === 1) {
-            let item = [...ev.dataTransfer.items][0];
-            if (item.kind === "file") {
-                WebHelper.postImage(item.getAsFile(), dto.name, (result) => {
-                    OnChange(key, `${WebHelper.ApiAddress}/Materials/Resource?id=${result.id}`);
-                });
-            }
-        }
-    }
-
-    const GenerateCardBase = (key, dto, editable, content) => {
-        return (
-            <GridItem key={`${dto.id}_${key}_${editable.disableOn && editable.disableOn(dto)}`}>
-                <Card style={{ backgroundColor: 'rgba(40,40,40,0.5)', color: 'white' }} colorScheme="blackAlpha" variant="elevated" padding={3} margin={1} size='sm'>
-                    <FormLabel>{`${editable.label}:`}</FormLabel>
-                    {validationDict[key] ? <p style={{ color: 'red' }}>{validationDict[key]}</p> : <></>}
-                    {content}
-                </Card>
-            </GridItem>);
-    }
-
-    const PrepareItems = () => {
-        let mappedElements = [];
-        if (dto === undefined) {
-            return [];
-        }
-
-        dto = { ...dto, ...updatedDto };
-
-        editableKeyLabelDict.forEach(editable => {
-            const key = editable.key;
-
-            let element = {
-                category: editable.category !== undefined ? editable.category : "default",
-            };
-
-            let input = <></>;
-
-            switch (editable.type) {
-                case "string":
-                    input = <Input disabled={editable.disableOn && editable.disableOn(dto)} isInvalid={validationDict[key]} defaultValue={dto[key]} onChange={(element) => OnChange(key, element.target.value)}></Input>;
-                    break;
-                case "select":
-                    input = (
-                        <Select isDisabled={editable.disableOn && editable.disableOn(dto)} isInvalid={validationDict[key]} onChange={(element) => OnChange(key, element.target.value)}>
-                            {editable.options.map((option, index) => <option key={index} selected={dto[key] === option.value} value={option.value}>{option.label}</option>)}
-                        </Select>);
-                    break;
-                case "number":
-                    let infoAboutMinimumMaximum = '';
-                    if (editable.min !== undefined || editable.max !== undefined) {
-                        infoAboutMinimumMaximum += '(';
-                        if (editable.min !== undefined)
-                            infoAboutMinimumMaximum += ` Minimum: ${editable.min} `;
-                        if (editable.max !== undefined)
-                            infoAboutMinimumMaximum += ` Maximum: ${editable.max} `;
-                        infoAboutMinimumMaximum += ')';
-                    }
-                    input = (<>
-                        <>{infoAboutMinimumMaximum}</>
-                        <NumberInput isDisabled={editable.disableOn && editable.disableOn(dto)} isInvalid={validationDict[key]} defaultValue={dto[key]} min={editable.min} max={editable.max}>
-                            <NumberInputField onChange={(element) => OnChange(key, parseFloat(element.target.value))} />
-                        </NumberInput>
-                    </>);
-                    break;
-                case "boolean":
-                    element = {
-                        category: editable.category !== undefined ? editable.category : "default",
-                        value: (
-                            <GridItem key={`${dto.id}_${key}_${editable.disableOn && editable.disableOn(dto)}`}>
-                                <Card style={{ backgroundColor: 'rgba(40,40,40,0.5)', color: 'white' }} colorScheme="blackAlpha" variant="elevated" padding={3} margin={1} size='sm'>
-                                    {validationDict[key] ? <p style={{ color: 'red' }}>{validationDict[key]}</p> : <></>}
-                                    <Checkbox isDisabled={editable.disableOn && editable.disableOn(dto)} isInvalid={validationDict[key]} defaultChecked={dto[key]} onChange={(element) => OnChange(key, element.target.checked)} ><FormLabel>{`${editable.label}`}</FormLabel></Checkbox>
-                                </Card>
-                            </GridItem>)
-                    };
-                    break;
-                case "color":
-                    input = <ColorPicker isDisabled={editable.disableOn && editable.disableOn(dto)} isInvalid={validationDict[key]} color={dto[key]} onChange={(element) => OnChange(key, element)} />;
-                    break;
-                case "image":
-                    input = <>
-                        {dto[key] ? <Image src={dto[key]} boxSize='300px' objectFit={'contain'} /> : <></>}
-                        <MaterialChooser isDisabled={editable.disableOn && editable.disableOn(dto)} additionalFilter={(item) => item.mimeType == "image/jpeg" || item.mimeType == "image/png"} materialsSelected={dto[key]} onSelect={(name) => 
-                            OnChange(key, (name && name != ""? (WebHelper.ImageAddress + name) : undefined))} />
-                        </>;
-                    break;
-                case "textarea":
-                    input = <Textarea isDisabled={editable.disableOn && editable.disableOn(dto)} isInvalid={validationDict[key]} defaultValue={dto[key]} onChange={(element) => OnChange(key, element.target.value)}></Textarea>;
-                    break;
-                case "iconSelect":
-                    input = <DynamicIconChooser isDisabled={editable.disableOn && editable.disableOn(dto)} iconSelected={dto[key]} onSelect={(name) => OnChange(key, name)} />;
-                    break;
-                case "materialSelect":
-                    input = <MaterialChooser isDisabled={editable.disableOn && editable.disableOn(dto)} additionalFilter={editable.additionalFilter} multipleSelection={editable.multiple} materialsSelected={dto[key]} onSelect={(name) => OnChange(key, name)} />;
-                    break;
-                case "custom":
-                    input = editable.customComponent(key, dto, OnChange);
-                default:
-                    break;
-            }
-
-            if(element.value === undefined){
-                element.value = GenerateCardBase(key, dto, editable, input);
-            }
-
-            if (element !== undefined) {
-                mappedElements.push(element);
-            }
-        });
-        return mappedElements;
-    }
-
-    const getGroupless = () => {
-        let grouped = Object.groupBy(mappedItems, x => x.category);
-        return grouped["default"] ? grouped["default"].map(x => x.value) : [];
-    }
-
-
-    let mappedItems = PrepareItems();
-    let groupless = getGroupless();
-    let grouped = Object.groupBy(mappedItems, x => x.category);
-
+  const GenerateCardBase = (key, dto, editable, content) => {
     return (
-        <BasePanel>
-            <Flex overflowY="auto" overflowX="hidden" direction='column' grow='1' width='100%' heigth='100%'>
-                <Grid width='95%' margin={15}>
-                    {groupless}
-                </Grid>
-                <Accordion allowMultiple>
-                    {Object.keys(grouped).filter(x => x !== "default").map(x => (
-                        <AccordionItem key={x}>
-                            <h2>
-                                <AccordionButton>
-                                    <Box as="span" flex='1' textAlign='left'>
-                                        {x}
-                                    </Box>
-                                    <AccordionIcon />
-                                </AccordionButton>
-                            </h2>
-                            <AccordionPanel pb={4}>
-                                {grouped[x].map(y => y.value)}
-                            </AccordionPanel>
-                        </AccordionItem>
-                    ))}
-                </Accordion>
-            </Flex>
-            {hideSaveButton ?
-                <></> :
-                <>
-                    {Object.keys(validationDict).length > 0 ? <p style={{ color: 'red' }}>Settings have errors, please correct them before saving</p> : <></>}
-                    <DButtonHorizontalContainer>
-                        <DropDownButton width={200} name={"Save"} onClick={() => validateAndSave(updatedDto)} />
-                    </DButtonHorizontalContainer>
-                </>}
-        </BasePanel>
+      <GridItem
+        key={`${dto.id}_${key}_${
+          editable.disableOn && editable.disableOn(dto)
+        }`}
+      >
+        <Card
+          style={{ backgroundColor: "rgba(40,40,40,0.5)", color: "white" }}
+          colorScheme="blackAlpha"
+          variant="elevated"
+          padding={3}
+          margin={1}
+          size="sm"
+        >
+          <FormLabel>{`${editable.label}:`}</FormLabel>
+          {validationDict[key] ? (
+            <p style={{ color: "red" }}>{validationDict[key]}</p>
+          ) : (
+            <></>
+          )}
+          {content}
+        </Card>
+      </GridItem>
     );
-}
+  };
 
-export default SettingsPanel; 
+  const PrepareItems = () => {
+    let mappedElements = [];
+    if (dto === undefined) {
+      return [];
+    }
+
+    dto = { ...dto, ...updatedDto };
+
+    editableKeyLabelDict.forEach((editable) => {
+      const key = editable.key;
+
+      let element = {
+        category:
+          editable.category !== undefined ? editable.category : "default",
+      };
+
+      let input = <></>;
+
+      switch (editable.type) {
+        case "string":
+          input = (
+            <Input
+              disabled={editable.disableOn && editable.disableOn(dto)}
+              isInvalid={validationDict[key]}
+              defaultValue={dto[key]}
+              onChange={(element) => OnChange(key, element.target.value)}
+            ></Input>
+          );
+          break;
+        case "select":
+          input = (
+            <Select
+              isDisabled={editable.disableOn && editable.disableOn(dto)}
+              isInvalid={validationDict[key]}
+              onChange={(element) => OnChange(key, element.target.value)}
+            >
+              {editable.options.map((option, index) => (
+                <option
+                  key={index}
+                  selected={dto[key] === option.value}
+                  value={option.value}
+                >
+                  {option.label}
+                </option>
+              ))}
+            </Select>
+          );
+          break;
+        case "number":
+          let infoAboutMinimumMaximum = "";
+          if (editable.min !== undefined || editable.max !== undefined) {
+            infoAboutMinimumMaximum += "(";
+            if (editable.min !== undefined)
+              infoAboutMinimumMaximum += ` Minimum: ${editable.min} `;
+            if (editable.max !== undefined)
+              infoAboutMinimumMaximum += ` Maximum: ${editable.max} `;
+            infoAboutMinimumMaximum += ")";
+          }
+          input = (
+            <>
+              <>{infoAboutMinimumMaximum}</>
+              <NumberInput
+                isDisabled={editable.disableOn && editable.disableOn(dto)}
+                isInvalid={validationDict[key]}
+                defaultValue={dto[key]}
+                min={editable.min}
+                max={editable.max}
+              >
+                <NumberInputField
+                  onChange={(element) =>
+                    OnChange(key, parseFloat(element.target.value))
+                  }
+                />
+              </NumberInput>
+            </>
+          );
+          break;
+        case "boolean":
+          element = {
+            category:
+              editable.category !== undefined ? editable.category : "default",
+            value: (
+              <GridItem
+                key={`${dto.id}_${key}_${
+                  editable.disableOn && editable.disableOn(dto)
+                }`}
+              >
+                <Card
+                  style={{
+                    backgroundColor: "rgba(40,40,40,0.5)",
+                    color: "white",
+                  }}
+                  colorScheme="blackAlpha"
+                  variant="elevated"
+                  padding={3}
+                  margin={1}
+                  size="sm"
+                >
+                  {validationDict[key] ? (
+                    <p style={{ color: "red" }}>{validationDict[key]}</p>
+                  ) : (
+                    <></>
+                  )}
+                  <Checkbox
+                    isDisabled={editable.disableOn && editable.disableOn(dto)}
+                    isInvalid={validationDict[key]}
+                    defaultChecked={dto[key]}
+                    onChange={(element) =>
+                      OnChange(key, element.target.checked)
+                    }
+                  >
+                    <FormLabel>{`${editable.label}`}</FormLabel>
+                  </Checkbox>
+                </Card>
+              </GridItem>
+            ),
+          };
+          break;
+        case "color":
+          input = (
+            <ColorPicker
+              isDisabled={editable.disableOn && editable.disableOn(dto)}
+              isInvalid={validationDict[key]}
+              color={dto[key]}
+              onChange={(element) => OnChange(key, element)}
+            />
+          );
+          break;
+        case "image":
+          input = (
+            <>
+              {dto[key] ? (
+                <Image src={dto[key]} boxSize="300px" objectFit={"contain"} />
+              ) : (
+                <></>
+              )}
+              <MaterialChooser
+                isDisabled={editable.disableOn && editable.disableOn(dto)}
+                additionalFilter={(item) =>
+                  item.mimeType == "image/jpeg" || item.mimeType == "image/png"
+                }
+                materialsSelected={dto[key]}
+                onSelect={(name) =>
+                  OnChange(
+                    key,
+                    name && name != ""
+                      ? WebHelper.ImageAddress + name
+                      : undefined
+                  )
+                }
+              />
+            </>
+          );
+          break;
+        case "textarea":
+          input = (
+            <Textarea
+              isDisabled={editable.disableOn && editable.disableOn(dto)}
+              isInvalid={validationDict[key]}
+              defaultValue={dto[key]}
+              onChange={(element) => OnChange(key, element.target.value)}
+            ></Textarea>
+          );
+          break;
+        case "iconSelect":
+          input = (
+            <DynamicIconChooser
+              isDisabled={editable.disableOn && editable.disableOn(dto)}
+              iconSelected={dto[key]}
+              onSelect={(name) => OnChange(key, name)}
+            />
+          );
+          break;
+        case "materialSelect":
+          input = (
+            <MaterialChooser
+              isDisabled={editable.disableOn && editable.disableOn(dto)}
+              additionalFilter={editable.additionalFilter}
+              multipleSelection={editable.multiple}
+              materialsSelected={dto[key]}
+              onSelect={(name) => OnChange(key, name)}
+            />
+          );
+          break;
+        case "playerSelect":
+          input = (
+            <PlayerChooser
+              isDisabled={editable.disableOn && editable.disableOn(dto)}
+              selectedPlayers={[dto[key]]}
+              onSelect={([name]) => OnChange(key, name)}
+            />
+          );
+          break;
+        case "custom":
+          input = editable.customComponent(key, dto, OnChange);
+        default:
+          break;
+      }
+
+      if (element.value === undefined) {
+        element.value = GenerateCardBase(key, dto, editable, input);
+      }
+
+      if (element !== undefined) {
+        mappedElements.push(element);
+      }
+    });
+    return mappedElements;
+  };
+
+  const getGroupless = () => {
+    let grouped = Object.groupBy(mappedItems, (x) => x.category);
+    return grouped["default"] ? grouped["default"].map((x) => x.value) : [];
+  };
+
+  let mappedItems = PrepareItems();
+  let groupless = getGroupless();
+  let grouped = Object.groupBy(mappedItems, (x) => x.category);
+
+  return (
+    <BasePanel>
+      <Flex
+        overflowY="auto"
+        overflowX="hidden"
+        direction="column"
+        grow="1"
+        width="100%"
+        heigth="100%"
+      >
+        <Grid width="95%" margin={15}>
+          {groupless}
+        </Grid>
+        <Accordion allowMultiple>
+          {Object.keys(grouped)
+            .filter((x) => x !== "default")
+            .map((x) => (
+              <AccordionItem key={x}>
+                <h2>
+                  <AccordionButton>
+                    <Box as="span" flex="1" textAlign="left">
+                      {x}
+                    </Box>
+                    <AccordionIcon />
+                  </AccordionButton>
+                </h2>
+                <AccordionPanel pb={4}>
+                  {grouped[x].map((y) => y.value)}
+                </AccordionPanel>
+              </AccordionItem>
+            ))}
+        </Accordion>
+      </Flex>
+      {hideSaveButton ? (
+        <></>
+      ) : (
+        <>
+          {Object.keys(validationDict).length > 0 ? (
+            <p style={{ color: "red" }}>
+              Settings have errors, please correct them before saving
+            </p>
+          ) : (
+            <></>
+          )}
+          <DButtonHorizontalContainer>
+            <DropDownButton
+              width={200}
+              name={"Save"}
+              onClick={() => validateAndSave(updatedDto)}
+            />
+          </DButtonHorizontalContainer>
+        </>
+      )}
+    </BasePanel>
+  );
+};
+
+export default SettingsPanel;

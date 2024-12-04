@@ -16,11 +16,11 @@ export class OnTokenSelectedClientBehavior {
             }
 
             if (element && element.additionalObjects) {
-                let objects = element.additionalObjects.filter(x => x.showOnTokenControl);
+                let objects = element.additionalObjects.filter(x => x?.tokenData?.showOnTokenControl);
                 objects.forEach(element => {
                     element.animate('opacity', 0, {
-                        duration: 400,
-                        easing: fabric.util.ease.easeOutBounce,
+                        duration: 100,
+                        easing: fabric.util.ease.easeOutSine,
                         onChange: canvas.renderAll.bind(canvas),
                         onComplete: () => {
                             element.set({ visible: false });
@@ -40,14 +40,14 @@ export class OnTokenSelectedClientBehavior {
             return;
         }
 
-        let objects = token.additionalObjects?.filter(x => x.showOnTokenControl) || [];
+        let objects = token.additionalObjects?.filter(x => x?.tokenData?.showOnTokenControl) || [];
 
         objects.forEach(element => {
             element.set({ visible: true });
             element.animate('opacity', 1, {
                 onChange: canvas.renderAll.bind(canvas),
-                duration: 400,
-                easing: fabric.util.ease.easeOutBounce,
+                duration: 100,
+                easing: fabric.util.ease.easeInSine,
             });
         });
 

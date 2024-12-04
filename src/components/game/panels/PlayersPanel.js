@@ -14,8 +14,8 @@ export const PlayersPanel = () => {
     const [connectedPlayers, setConnectedPlayers] = React.useState([]);
 
     const HandleMessage = () => {
-        ClientMediator.sendCommandAsync("Game", "GetPlayers", {}, true).then(setPlayers);
-        ClientMediator.sendCommandAsync("Game", "GetConnectedPlayers", {}, true).then(setConnectedPlayers);
+        ClientMediator.sendCommandWaitForRegister("Game", "GetPlayers", {}, true).then(setPlayers);
+        ClientMediator.sendCommandWaitForRegister("Game", "GetConnectedPlayers", {}, true).then(setConnectedPlayers);
     }
 
     const HandleEvent = (ev,data) =>

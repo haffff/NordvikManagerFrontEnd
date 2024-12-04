@@ -21,8 +21,8 @@ export const SecuritySettingsPanel = ({ dto, type }) => {
     const game = useGame();
 
     React.useEffect(() => {
-        ClientMediator.sendCommandAsync("Game", "GetPlayers", {}, true).then(setPlayers);
-        ClientMediator.sendCommandAsync("Game", "GetCurrentPlayer", {}, true).then(({id}) => setCurrentPlayerId(id));
+        ClientMediator.sendCommandWaitForRegister("Game", "GetPlayers", {}, true).then(setPlayers);
+        ClientMediator.sendCommandWaitForRegister("Game", "GetCurrentPlayer", {}, true).then(({id}) => setCurrentPlayerId(id));
     }, []);
 
     if(!game || !players) {
