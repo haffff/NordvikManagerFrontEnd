@@ -116,7 +116,7 @@ export const EditTable = ({ keyBase, dto, editableKeyLabelDict, onSave, gameData
                         <Tr key={keyBase + editable.key}>
                             <Td>{editable.label}</Td>
                             <Td>
-                                <Checkbox isInvalid={validationDict[key]} defaultChecked={dto[key]} onChange={(element) => OnChange(key, element.target.checked)} ><FormLabel>{`${editable.label}`}</FormLabel></Checkbox>
+                                <Checkbox isInvalid={validationDict[key]} defaultChecked={dto[key]} onChange={(element) => OnChange(key, element.target.checked)} ></Checkbox>
                             </Td>
                         </Tr>
                     );

@@ -42,8 +42,8 @@ export class OnAddElementBehavior {
           }
 
           canvas.requestRenderAll();
-
-          if (UtilityHelper.ParseBool(element?.properties["isToken"]?.value)) {
+          const isToken = await ClientMediator.sendCommandAsync("BattleMap_Token", "IsToken", { contextId: battleMapId, id: element.id });
+          if (isToken) {
             ClientMediator.sendCommand(
               "battlemap_token",
               "CanvasObjectLoadToken",

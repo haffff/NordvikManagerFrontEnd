@@ -236,7 +236,7 @@ class TokenManager {
 
           switch (source) {
             case "element":
-              properties = Object.values(object.properties);
+              parentId = object.id;
               break;
             case "card":
               parentId = object?.tokenData?.cardId;
@@ -297,6 +297,16 @@ class TokenManager {
         handleDeps(object, element, element.tokenData?.propDeps);
       });
     }
+  }
+
+  async IsToken({ objectId }) {
+    const isToken = await ClientMediator.sendCommandAsync("Properties", "GetByNames", { parentId: objectId, names: ["isToken"] });
+    return UtilityHelper.ParseBool(isToken[0]?.value ?? false);
+  }
+
+  async GetTokenCardID({ objectId }) {
+    const cardId = await ClientMediator.sendCommandAsync("Properties", "GetByNames", { parentId: objectId, names: ["cardId"] });
+    return cardId[0]?.value;
   }
 
   CreateToken({ cardId, position, x, y, isCommand }) {
@@ -398,10 +408,6 @@ class TokenManager {
         command: "element_add",
         data: {
           ...dto,
-          properties: [
-            { name: "isToken", value: "true" },
-            { name: "cardId", value: cardId }
-          ],
           withSelection: true,
         },
       });

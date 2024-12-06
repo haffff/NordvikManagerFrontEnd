@@ -3,13 +3,13 @@ import UtilityHelper from "../../../../helpers/UtilityHelper";
 import DTOConverter from "../../DTOConverter";
 
 export class OnUpdateElementBehavior {
-  Handle(response, canvas, battleMapId) {
+  async Handle(response, canvas, battleMapId) {
     ClientMediator.sendCommandWaitForRegister(
       "Game",
       "GetCurrentPlayer",
       {},
       true
-    ).then((currentPlayer) => {
+    ).then(async (currentPlayer) => {
       let obj = canvas.getObjects().find((x) => x.id === response.data.id);
       if (
         obj &&
@@ -19,28 +19,50 @@ export class OnUpdateElementBehavior {
         )
       ) {
         let parsedJson = DTOConverter.ConvertFromDTO(response.data);
+        const isToken = await ClientMediator.sendCommandAsync(
+          "BattleMap_Token",
+          "IsToken",
+          { contextId: battleMapId, objectId: parsedJson.id }
+        );
         //parsedJson.selectable = (response.data.permission & 4 === 4) && parsedJson.data.layer === battleMapObject.SelectedLayer;
+
+        obj?.additionalObjects?.forEach((element) => {
+          if (element.visibleBeforeDrag === undefined) {
+            element.set({ visibleBeforeDrag: element.visible });
+            element.set({ visible: false });
+          }
+        });
 
         if (response.action !== undefined) {
           const options = {
             duration: 100,
             onChange: canvas.renderAll.bind(canvas),
-            onCompletion: () => {
+            onComplete: async () => {
               obj.set(parsedJson);
+              if (isToken) {
+                await ClientMediator.sendCommandAsync(
+                  "BattleMap_Token",
+                  "UpdateTokenUIPositions",
+                  { object: obj, contextId: battleMapId }
+                );
+              }
+              obj?.additionalObjects?.forEach((element) => {
+                if (element.visibleBeforeDrag !== undefined) {
+                  element.set({
+                    visible: element.visibleBeforeDrag,
+                    visibleBeforeDrag: undefined,
+                  });
+                }
+              });
+
+              canvas.requestRenderAll();
             },
           };
           switch (response.action) {
             case "drag":
               let newX = parsedJson.left;
               let newY = parsedJson.top;
-              obj?.additionalObjects?.forEach((element) => {
-                if (element.visibleBeforeDrag === undefined) {
-                  element.set({ visibleBeforeDrag: element.visible });
-                  element.set({ visible: false });
-                }
-              });
               obj.animate({ left: newX, top: newY }, options);
-
               break;
             case "layer":
               let selectedLayer = ClientMediator.sendCommand(
@@ -66,30 +88,46 @@ export class OnUpdateElementBehavior {
                   : -1
               );
               break;
-            case "scale":
-              break;
             default:
               obj.set(parsedJson);
+              if (isToken) {
+                await ClientMediator.sendCommandAsync(
+                  "BattleMap_Token",
+                  "UpdateTokenUIPositions",
+                  { object: obj, contextId: battleMapId }
+                );
+              }
+              obj?.additionalObjects?.forEach((element) => {
+                if (element.visibleBeforeDrag !== undefined) {
+                  element.set({
+                    visible: element.visibleBeforeDrag,
+                    visibleBeforeDrag: undefined,
+                  });
+                }
+              });
+
+              canvas.requestRenderAll();
           }
         } else {
           obj.set(parsedJson);
-        }
-
-        if (UtilityHelper.ParseBool(obj.properties?.isToken?.value)) {
-          ClientMediator.sendCommandAsync(
-            "BattleMap_Token",
-            "UpdateTokenUIPositions",
-            { object: obj, contextId: battleMapId }
-          );
-        }
-        obj?.additionalObjects?.forEach((element) => {
-          if (element.visibleBeforeDrag !== undefined) {
-            element.set({
-              visible: element.visibleBeforeDrag,
-              visibleBeforeDrag: undefined,
-            });
+          if (isToken) {
+            await ClientMediator.sendCommandAsync(
+              "BattleMap_Token",
+              "UpdateTokenUIPositions",
+              { object: obj, contextId: battleMapId }
+            );
           }
-        });
+          obj?.additionalObjects?.forEach((element) => {
+            if (element.visibleBeforeDrag !== undefined) {
+              element.set({
+                visible: element.visibleBeforeDrag,
+                visibleBeforeDrag: undefined,
+              });
+            }
+          });
+
+          canvas.requestRenderAll();
+        }
 
         obj.set("dirty", true);
       }

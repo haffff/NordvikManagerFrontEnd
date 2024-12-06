@@ -1,14 +1,15 @@
+import ClientMediator from "../../../../ClientMediator";
 import WebSocketManagerInstance from "../../../game/WebSocketManager";
 import DTOConverter from "../../DTOConverter";
 import CommandFactory from "../../Factories/CommandFactory";
 import { fabric } from "fabric";
 
 export class OnNativeObjectModifiedClientBehavior {
-  Handle(event, canvas, map, keyboardEventsManagerRef, battleMapObject) {
+  Handle(event, canvas, map, battleMapId) {
     var renderGrid = map.gridVisible;
 
     //align to grid when exists and no alt is pressed
-    if (renderGrid && !keyboardEventsManagerRef.current.KeyboardMap.Shift) {
+    if (renderGrid && false) {
       var gridSize = map.gridSize;
       event.target.set({
         left: Math.round(event.target.left / gridSize) * gridSize,
@@ -17,21 +18,19 @@ export class OnNativeObjectModifiedClientBehavior {
     }
 
     if (event.target.type === "activeSelection") {
-      event.target.forEachObject((subelement) => {
-        subelement.additionalObjects?.forEach((element) => {
-          element.set({
-            left: event.target.left + subelement.left + element.originalLeft,
-            top: event.target.top + subelement.top + element.originalTop,
-          });
-        });
+      event.target.forEachObject(async (subelement) => {
+        await ClientMediator.sendCommandAsync(
+          "BattleMap_Token",
+          "UpdateTokenUIPositions",
+          { object: subelement, contextId: battleMapId }
+        );
       });
     } else {
-      event.target.additionalObjects?.forEach((element) => {
-        element.set({
-          left: event.target.left + element.originalLeft,
-          top: event.target.top + element.originalTop,
-        });
-      });
+      ClientMediator.sendCommandAsync(
+        "BattleMap_Token",
+        "UpdateTokenUIPositions",
+        { object: event.target, contextId: battleMapId }
+      );
     }
 
     if (event.target.type !== "activeSelection") {
@@ -60,7 +59,7 @@ export class OnNativeObjectModifiedClientBehavior {
       const dto = DTOConverter.ConvertToDTO(target); //battleMapObject.BattleMapServices.ElementsStorage.Get(target.id);
       let cmd = CommandFactory.CreateBattleMapUpdateCommand(
         dto,
-        battleMapObject.Id,
+        battleMapId,
         action
       );
       console.log(cmd);

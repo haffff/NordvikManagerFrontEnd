@@ -38,8 +38,7 @@ const LoadBMSubscriptions = (canvas, references) => {
           e,
           canvas,
           references.mapRef.current,
-          references.keyboardEventsManagerRef,
-          references.battleMapObjectRef.current
+          references.battleMapObjectRef.current.Id
         );
     });
   });

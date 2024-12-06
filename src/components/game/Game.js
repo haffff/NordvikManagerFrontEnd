@@ -79,6 +79,7 @@ export const Game = ({ gameID, onExit }) => {
   };
 
   const SetLayoutAndApply = (layout) => {
+    state.ref.current.rootPanel = undefined;
     LayoutHelper.LoadLayoutState(state, layout.value, CreateLayoutElement);
     setLayout(layout);
   };
@@ -210,7 +211,7 @@ export const Game = ({ gameID, onExit }) => {
         GetLayout: () => layout,
         CreateNewPanel: (allProps) => {
           const { type, props, battleMapId, isCommand } = allProps;
-          let finalProps = { ...props };
+          let finalProps = { ...props, battlemapId: battleMapId };
           if (isCommand) {
             finalProps = { ...allProps };
           }
@@ -218,7 +219,7 @@ export const Game = ({ gameID, onExit }) => {
           let createdElement = CreateLayoutElement({
             type,
             syncId: battleMapId,
-            props: { ...props },
+            props: { ...finalProps },
           });
 
           if (!createdElement && isCommand) {
