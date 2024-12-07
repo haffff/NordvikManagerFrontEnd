@@ -148,52 +148,42 @@ const LoadBMSubscriptions = (canvas, references) => {
     }
   });
 
-  canvas.on("object:moving", function (event) {
+  canvas.on("object:moving", async function (event) {
     var obj = event.target;
 
-    let isTokenRaw = obj.properties && obj.properties["isToken"]?.value;
-    if (isTokenRaw === undefined) {
-      //if not in obj check if its active selection
-      if (obj.type === "activeSelection") {
-        obj.forEachObject((subelement) => {
-          if (subelement.properties && subelement.properties["isToken"]?.value) {
-            isTokenRaw = isTokenRaw || subelement.properties["isToken"]?.value;
+    if (obj?.type === "activeSelection") {
+      obj.forEachObject(async (subelement) => {
+        if (
+          subelement.id && subelement.additionalObjects
+        ) {
+          subelement.additionalObjects?.forEach((element) => {
+            if (element.visibleBeforeDrag === undefined) {
+              element.set({ visibleBeforeDrag: element.visible });
+              element.set({ visible: false });
+            }
+          });
+        }
+
+        canvas.requestRenderAll();
+      });
+    } else {
+      if (
+        obj.id && obj.additionalObjects
+      ) {
+        obj.additionalObjects?.forEach((element) => {
+          if (element.visibleBeforeDrag === undefined) {
+            element.set({ visibleBeforeDrag: element.visible });
+            element.set({ visible: false });
+
+            canvas.requestRenderAll();
           }
         });
       }
     }
-
-    const isToken = isTokenRaw ? UtilityHelper.ParseBool(isTokenRaw) : false;
-
-    if (
-      obj &&
-      obj.properties &&
-      isToken
-      )
-    {
-      obj.additionalObjects?.forEach((element) => {
-        if (element.visibleBeforeDrag === undefined) {
-          element.set({ visibleBeforeDrag: element.visible });
-          element.set({ visible: false });
-        }
-      });
-    }
-
-    //Do same for active selection
-    if (obj.type === "activeSelection") {
-      obj.forEachObject((subelement) => {
-        subelement.additionalObjects?.forEach((element) => {
-          if (element.visibleBeforeDrag === undefined) {
-            element.set({ visibleBeforeDrag: element.visible });
-            element.set({ visible: false });
-          }
-        });
-      });
-    }
   });
 
   canvas.off("mouse:up");
-  canvas.on("mouse:up", (opt) => {
+  canvas.on("mouse:up", async (opt) => {
     // on mouse up we want to recalculate new interaction
     // for all objects, so we call setViewportTransform
     if (canvas.isDragging) {
@@ -203,50 +193,36 @@ const LoadBMSubscriptions = (canvas, references) => {
     }
 
     var obj = opt.target;
-    let isTokenRaw = obj?.properties && obj?.properties["isToken"]?.value;
-    //if not in obj check if its active selection
-    if (!isTokenRaw && obj?.type === "activeSelection") {
-      obj.forEachObject((subelement) => {
-        if (subelement.properties && subelement.properties["isToken"]?.value) {
-          isTokenRaw = isTokenRaw || subelement.properties["isToken"]?.value;
-        }
-      });
-    }
 
-    const isToken = isTokenRaw ? UtilityHelper.ParseBool(isTokenRaw) : false;
-
-    if (isToken) {
-      ClientMediator.sendCommandAsync(
-        "BattleMap_Token",
-        "UpdateTokenUIPositions",
-        { object: obj, contextId: references.battleMapObjectRef.current.Id }
-      ).then((result) => {
-        if (obj && obj.properties && isToken) {
-          obj.additionalObjects?.forEach((element) => {
+    if (obj?.type === "activeSelection") {
+      obj.forEachObject(async (subelement) => {
+        if (
+          subelement.id && subelement.additionalObjects
+        ) {
+          subelement.additionalObjects?.forEach((element) => {
             if (element.visibleBeforeDrag !== undefined) {
-              element.set({
-                visible: element.visibleBeforeDrag,
-                visibleBeforeDrag: undefined,
-              });
+              element.set({ visible: element.visibleBeforeDrag });
+              element.set({ visibleBeforeDrag: undefined });
             }
           });
-
-          //do same for active selection
-          if (obj.type === "activeSelection") {
-            obj.forEachObject((subelement) => {
-              subelement.additionalObjects?.forEach((element) => {
-                if (element.visibleBeforeDrag !== undefined) {
-                  element.set({
-                    visible: element.visibleBeforeDrag,
-                    visibleBeforeDrag: undefined,
-                  });
-                }
-              });
-            });
-          }
         }
+
+        canvas.requestRenderAll();
       });
+    } else {
+      if (
+        obj?.id && obj.additionalObjects
+      ) {
+        obj.additionalObjects?.forEach((element) => {
+          if (element.visibleBeforeDrag !== undefined) {
+            element.set({ visible: element.visibleBeforeDrag });
+            element.set({ visibleBeforeDrag: undefined });
+          }
+        });
+      }
+      canvas.requestRenderAll();
     }
+
 
     if (canvas.isDisplaying) {
       canvas.isDisplaying = false;

@@ -56,8 +56,7 @@ class TokenManager {
           element.selectable = false;
           element.isTokenUI = true;
 
-          if(element.tokenData?.showOnTokenControl)
-          {
+          if (element.tokenData?.showOnTokenControl) {
             element.visible = false;
           }
 
@@ -110,7 +109,9 @@ class TokenManager {
       if (!x.properties) {
         return false;
       }
-      const isToken = UtilityHelper.ParseBool(x?.properties["isToken"]?.value);
+
+      //To fix. check if theres simpler way
+      const isToken = x.tokenData !== undefined ? true : false;
       return isToken;
     });
 
@@ -204,8 +205,7 @@ class TokenManager {
     }
 
     if (rule) {
-      if(rule.name === null)
-      {
+      if (rule.name === null) {
         console.warn(`Rule ${rule.name} not found on object ${object.id}`);
         return;
       }
@@ -299,13 +299,28 @@ class TokenManager {
     }
   }
 
-  async IsToken({ objectId }) {
-    const isToken = await ClientMediator.sendCommandAsync("Properties", "GetByNames", { parentId: objectId, names: ["isToken"] });
+  async IsToken({ objectId, id, isCommand }) {
+    if (isCommand && !id) {
+      return "--id is required";
+    }
+
+    const isToken = await ClientMediator.sendCommandAsync(
+      "Properties",
+      "GetByNames",
+      { parentId: id ?? objectId, names: ["isToken"] }
+    );
     return UtilityHelper.ParseBool(isToken[0]?.value ?? false);
   }
 
-  async GetTokenCardID({ objectId }) {
-    const cardId = await ClientMediator.sendCommandAsync("Properties", "GetByNames", { parentId: objectId, names: ["cardId"] });
+  async GetTokenCardID({ objectId, id, isCommand }) {
+    if (isCommand && !id) {
+      return "--id is required";
+    }
+    const cardId = await ClientMediator.sendCommandAsync(
+      "Properties",
+      "GetByNames",
+      { parentId: id ?? objectId, names: ["cardId"] }
+    );
     return cardId[0]?.value;
   }
 
@@ -347,12 +362,10 @@ class TokenManager {
     );
 
     const tokenId = properties.find((p) => p.name === "token").value;
-    const characterName = properties.find(
-      (p) => p.name === "character_name"
-    )?.value ?? "Token";
-    const tokenSize = properties.find(
-      (p) => p.name === "drop_token_size"
-    )?.value ?? 1;
+    const characterName =
+      properties.find((p) => p.name === "character_name")?.value ?? "Token";
+    const tokenSize =
+      properties.find((p) => p.name === "drop_token_size")?.value ?? 1;
 
     const tokenRaw = await WebHelper.getMaterialAsync(
       tokenId,
@@ -409,6 +422,18 @@ class TokenManager {
         data: {
           ...dto,
           withSelection: true,
+          properties: [
+            {
+              name: "tokenSize",
+              value: tokenSize,
+              entityName: "CardModel",
+            },
+            {
+              name: "isToken",
+              value: "true",
+              entityName: "CardModel",
+            },
+          ],
         },
       });
     });
@@ -453,10 +478,10 @@ class TokenManager {
 
     console.log("getBoundingRectFactor", boundingRectFactor);
     //const zeroCenter = object.getPointByOrigin("center", "center");
-    
+
     const expectedAdditonalOffset = gridSize * (currentScale / gridSizeScale);
     const expectedCenter = expectedAdditonalOffset / 2;
-    const zero = {x: center.x - expectedCenter , y: center.y  - expectedCenter};
+    const zero = { x: center.x - expectedCenter, y: center.y - expectedCenter };
 
     token.additionalObjects.forEach((element) => {
       if (element?.tokenData?.ignoreRelativePosition) {

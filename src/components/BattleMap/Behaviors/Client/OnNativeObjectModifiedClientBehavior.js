@@ -19,18 +19,22 @@ export class OnNativeObjectModifiedClientBehavior {
 
     if (event.target.type === "activeSelection") {
       event.target.forEachObject(async (subelement) => {
-        await ClientMediator.sendCommandAsync(
-          "BattleMap_Token",
-          "UpdateTokenUIPositions",
-          { object: subelement, contextId: battleMapId }
-        );
+        if (subelement.id && subelement.additionalObjects) {
+          await ClientMediator.sendCommandAsync(
+            "BattleMap_Token",
+            "UpdateTokenUIPositions",
+            { object: subelement, contextId: battleMapId }
+          );
+        }
       });
     } else {
-      ClientMediator.sendCommandAsync(
-        "BattleMap_Token",
-        "UpdateTokenUIPositions",
-        { object: event.target, contextId: battleMapId }
-      );
+      if (event.target.id && event.target.additionalObjects) {
+        ClientMediator.sendCommandAsync(
+          "BattleMap_Token",
+          "UpdateTokenUIPositions",
+          { object: event.target, contextId: battleMapId }
+        );
+      }
     }
 
     if (event.target.type !== "activeSelection") {

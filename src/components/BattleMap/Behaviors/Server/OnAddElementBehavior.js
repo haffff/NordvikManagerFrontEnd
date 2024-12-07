@@ -42,12 +42,12 @@ export class OnAddElementBehavior {
           }
 
           canvas.requestRenderAll();
-          const isToken = await ClientMediator.sendCommandAsync("BattleMap_Token", "IsToken", { contextId: battleMapId, id: element.id });
+          const isToken = await ClientMediator.sendCommandAsync("BattleMap_Token", "IsToken", { contextId: battleMapId, id: response.data.id });
           if (isToken) {
             ClientMediator.sendCommand(
               "battlemap_token",
               "CanvasObjectLoadToken",
-              { contextId: battleMapId, id: element.id }
+              { contextId: battleMapId, id: response.data.id }
             );
           }
           

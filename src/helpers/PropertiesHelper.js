@@ -5,14 +5,64 @@ class PropertiesHelper {
   panel = "properties";
   id = "PropertiesHelper";
 
+  _propertyCache = {};
+
+  constructor() {
+    WebSocketManagerInstance.Subscribe("property_notify", (command) => {
+      //What to do?
+    });
+
+    WebSocketManagerInstance.Subscribe("property_update", (command) => {
+      this._propertyCache[command.data.id] = command.data;
+    });
+
+    WebSocketManagerInstance.Subscribe("property_add", (command) => {
+      this._propertyCache[command.data.id] = command.data;
+    });
+
+    WebSocketManagerInstance.Subscribe("property_delete", (command) => {
+      delete this._propertyCache[command.data];
+    });
+  }
+
   async Get({ parentId, isCommand }) {
     if (isCommand && !parentId) {
       return "--parentId is required";
     }
 
-    const properties = await WebHelper.getAsync(`properties/QueryProperties?parentIds=${parentId}`);
-    //add caching
+    const properties = await WebHelper.getAsync(
+      `properties/QueryProperties?parentIds=${parentId}`
+    );
+
+    properties?.forEach((x) => {
+      this._propertyCache[x.id] = x;
+    });
+
     return properties;
+  }
+
+  async AddToCache({properties, isCommand}) {
+    if (isCommand && !properties) {
+      return "--properties is required, since its complex object type this command is not supported (for now)";
+    }
+
+    properties.forEach((x) => {
+      this._propertyCache[x.id] = x;
+    });
+  }
+
+  async LoadToCache({parentId, isCommand}) {
+    if (isCommand && !parentId) {
+      return "--parentId is required";
+    }
+
+    const properties = await WebHelper.getAsync(
+      `properties/QueryProperties?parentIds=${parentId}`
+    );
+
+    properties?.forEach((x) => {
+      this._propertyCache[x.id] = x;
+    });
   }
 
   async GetByNames({ parentId, names, isCommand }) {
@@ -22,15 +72,43 @@ class PropertiesHelper {
 
     let namesVar = names;
 
-    if (Array.isArray(namesVar)) {
-      namesVar = namesVar.join(",");
+    if (!Array.isArray(namesVar)) {
+      namesVar = namesVar.split(",");
     }
 
+    //Check cache
+    const cachedProperties = [];
+    namesVar.forEach((name) => {
+      let found = Object.values(this._propertyCache).find(
+        (x) => x.name === name && x.parentID === parentId
+      );
+      if (found) {
+        cachedProperties.push(found);
+      }
+    });
+
+    if (cachedProperties.length === namesVar.length) {
+      return cachedProperties;
+    }
+
+    // find still missing properties
+    const missingNames = namesVar.filter((x) => !this._propertyCache[x]);
+
     const properties = await WebHelper.getAsync(
-      `properties/QueryProperties?parentIds=${parentId}&names=${namesVar}`
+      `properties/QueryProperties?parentIds=${parentId}&names=${missingNames.join(
+        ","
+      )}`
     );
+
     //add caching
-    return properties;
+    properties?.forEach((x) => {
+      this._propertyCache[x.id] = x;
+    });
+
+    //merge properties with cachedproperties
+    const mergedProperties = [...cachedProperties, ...properties];
+
+    return mergedProperties;
   }
 
   async GetByIds({ parentId, ids, isCommand }) {
@@ -44,11 +122,35 @@ class PropertiesHelper {
       idsVar = idsVar.join(",");
     }
 
+    //Check cache
+    const cachedProperties = [];
+    idsVar.forEach((id) => {
+      if (this._propertyCache[id]) {
+        cachedProperties.push(this._propertyCache[id]);
+      }
+    });
+
+    if (cachedProperties.length === idsVar.length) {
+      return cachedProperties;
+    }
+
+    // find still missing properties
+
+    const missingIds = idsVar.filter((x) => !this._propertyCache[x]);
+
     const properties = await WebHelper.getAsync(
-      `properties/QueryProperties?parentIds=${parentId}&ids=${ids.join(",")}`
+      `properties/QueryProperties?parentIds=${parentId}&ids=${missingIds.join(
+        ","
+      )}`
     );
     //add caching
-    return properties;
+    properties?.forEach((x) => {
+      this._propertyCache[x.id] = x;
+    });
+
+    //merge properties with cachedproperties
+    const mergedProperties = [...cachedProperties, ...properties];
+    return mergedProperties;
   }
 
   async Update({
@@ -73,9 +175,9 @@ class PropertiesHelper {
       } else {
         finalProperty = { id: propertyId };
       }
-    }
 
-    finalProperty = { ...finalProperty, value: propertyValue };
+      finalProperty = { ...finalProperty, value: propertyValue };
+    }
 
     WebSocketManagerInstance.Send({
       command: "property_update",
@@ -83,14 +185,49 @@ class PropertiesHelper {
     });
   }
 
-  async UpdateBulk({properties, isCommand}) {
-    if(isCommand && !properties) {
+  async UpdateBulk({ properties, isCommand }) {
+    if (isCommand && !properties) {
       return "--properties is required, since its complex object type this command is not supported (for now)";
     }
 
     await WebHelper.postAsync(`properties/UpdateBulk`, properties);
 
-    WebSocketManagerInstance.Send({command: "property_notify"})
+    //update cache
+    properties.forEach((x) => {
+      this._propertyCache[x.id] = x;
+    });
+
+    WebSocketManagerInstance.Send({ command: "property_notify" });
+  }
+
+  async Add({ property, isCommand, parentId, name, value, entityName }) {
+    if (isCommand && (!parentId || !name || !value || !entityName)) {
+      return "--parentId --name --value and --entityType are required";
+    }
+
+    if (isCommand) {
+      property = { parentId, name, value, entityName };
+    }
+
+    WebSocketManagerInstance.Send({
+      command: "property_add",
+      data: property,
+    });
+  }
+
+  async AddMany({ properties, isCommand }) {
+    if (isCommand && !properties) {
+      return "--properties is required, since its complex object type this command is not supported (for now)";
+    }
+
+    await WebHelper.postAsync(`properties/AddMany`, properties);
+
+    //update cache
+    properties.forEach((x) => {
+      this._propertyCache[x.id] = x;
+    });
+
+    WebSocketManagerInstance.Send({ command: "property_notify" });
   }
 }
 

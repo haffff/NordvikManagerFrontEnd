@@ -60,8 +60,30 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
 
   const ctx = Dockable.useContentContext();
 
+  React.useEffect(() => {
+    if (!editor || !editor.canvas) return;
+    const loadCanvas = async () => {
+      await LoadCanvas();
+      setLoaded(true);
+      console.log("Canvas: Loaded");
+    };
+
+    loadCanvas();
+  }, [battleMapModel, editor && editor.canvas]);
+
   //On destruction of battlemap(clicking 'x' in panel). set inform app that battlemap no longer exists(can be written better)
   React.useEffect(() => {
+    WebHelper.get(
+      `battlemap/getbattlemap?id=${withID}`,
+      async (resp) => {
+        ctx.setTitle(resp.name);
+        await ChangeMap(resp.mapId);
+        setBattleMapModel(resp);
+      },
+      (error) => {
+        setError(true);
+      }
+    );
     return () => {
       WebSocketManagerInstance.Unsubscribe("BattleMap" + uuid);
       ClientMediator.unregister("BMQueryService" + uuid);
@@ -83,11 +105,23 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
   };
 
   //change map
-  const ChangeMap = (mapId) => {
-    WebHelper.get(`map/get?mapId=${mapId}`, (respMap) => {
-      mapRef.current = respMap;
-      setLoading(true);
+  const ChangeMap = async (mapId) => {
+    const respMap = await WebHelper.getAsync(`map/get?mapId=${mapId}`);
+    mapRef.current = respMap;
+    const allProps = [];
+    allProps.push(...mapRef.current.properties);
+    await Promise.all(
+      mapRef.current.elements.map(async (element) => {
+        allProps.push(...element.properties);
+        return true;
+      })
+    );
+
+    await ClientMediator.sendCommandAsync("Properties", "AddToCache", {
+      properties: allProps,
     });
+
+    setLoading(true);
   };
 
   const DrawGrid = () => {
@@ -120,17 +154,6 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
 
   //Put in loadable
   if (!battleMapModel) {
-    WebHelper.get(
-      `battlemap/getbattlemap?id=${withID}`,
-      (resp) => {
-        ctx.setTitle(resp.name);
-        ChangeMap(resp.mapId);
-        setBattleMapModel(resp);
-      },
-      (error) => {
-        setError(true);
-      }
-    );
     return <>{"Loading..."}</>;
   }
 
@@ -146,17 +169,6 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
       width: ctx.layoutContent.layoutPanel.rect.w,
       height: ctx.layoutContent.layoutPanel.rect.h,
     });
-  }
-
-  //Check if canvas is ready
-  if (editor !== undefined && loading) {
-    LoadCanvas();
-    setLoaded(true);
-    console.log("Canvas: Loaded");
-  }
-
-  if (loading) {
-    return <>Loading...</>;
   }
 
   //Handle file drop on battlemap. I should move it to separate component. This will be also required for resources panel(when i will create one)
@@ -273,7 +285,7 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
     </Flex>
   );
 
-  function LoadCanvas() {
+  async function LoadCanvas() {
     const BattleMapServices = {
       BMQueryService: new InteractionsManger(),
       BMService: new BattleMapBMService(),
@@ -384,7 +396,7 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
       });
 
       try {
-        editor.canvas.loadFromJSON({ objects: canvasObjects }, () => {
+        editor.canvas.loadFromJSON({ objects: canvasObjects }, async () => {
           DrawGrid();
           editor.canvas._objects.sort((a, b) =>
             a.layer > b.layer || a.insideLayerIndex > b.insideLayerIndex
@@ -392,17 +404,37 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
               : -1
           );
 
-          editor.canvas
-            .getObjects()
-            .filter((x) => {
-              if (!x.properties) return false;
-              return UtilityHelper.ParseBool(x.properties["isToken"]?.value);
+          const objects = editor.canvas.getObjects();
+
+          // Get all card ids from objects
+          const cardIds = objects
+            .filter((obj) => obj.tokenData?.cardId)
+            .map((obj) => obj.tokenData?.cardId);
+
+          // distinct card ids
+          const distinctCardIds = [...new Set(cardIds)];
+          //load all to cache to not fire so many queries
+
+          await Promise.all(distinctCardIds.map(async (cardId) => {
+            await ClientMediator.sendCommandAsync("Properties", "LoadToCache", { parentId: cardId });
+            return true;
+          }));
+
+          await Promise.all(
+            objects.map(async (obj) => {
+              if (!obj.id) return false;
+
+              //originally there was Mediator request. i replaced with simpler check that should do a work.
+              let isToken = obj.tokenData !== undefined ? true : false;
+              if (isToken) {
+                BattleMapServices.TokenManager.CanvasObjectLoadToken({
+                  id: obj.id,
+                });
+              }
+
+              return true;
             })
-            .forEach((o) =>
-              BattleMapServices.TokenManager.CanvasObjectLoadToken(
-                {id: o.id}
-              )
-            );
+          );
         });
       } catch (error) {
         console.error(error);

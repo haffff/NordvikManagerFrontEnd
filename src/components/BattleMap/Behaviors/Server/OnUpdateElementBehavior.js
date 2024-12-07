@@ -19,11 +19,7 @@ export class OnUpdateElementBehavior {
         )
       ) {
         let parsedJson = DTOConverter.ConvertFromDTO(response.data);
-        const isToken = await ClientMediator.sendCommandAsync(
-          "BattleMap_Token",
-          "IsToken",
-          { contextId: battleMapId, objectId: parsedJson.id }
-        );
+        const isToken = (parsedJson.additionalObjects ? true : false);
         //parsedJson.selectable = (response.data.permission & 4 === 4) && parsedJson.data.layer === battleMapObject.SelectedLayer;
 
         obj?.additionalObjects?.forEach((element) => {

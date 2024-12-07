@@ -1,3 +1,4 @@
+import ClientMediator from "./ClientMediator";
 import WebSocketManagerInstance from "./components/game/WebSocketManager";
 import UtilityHelper from "./helpers/UtilityHelper";
 import WebHelper from "./helpers/WebHelper";
@@ -22,8 +23,6 @@ class CardAPI {
 
           this.GetMany(command.data.names).then((x) => {
             x.forEach((y) => {
-              this._propertyCache[y.name] = y;
-
               if (this._propertySubscriptions[y.name]) {
                 this._propertySubscriptions[y.name].forEach((callback) => {
                   callback(y);
@@ -39,8 +38,6 @@ class CardAPI {
             return;
           }
 
-          this._propertyCache[command.data.name] = command.data;
-
           if (this._propertySubscriptions[command.data.name]) {
             this._propertySubscriptions[command.data.name].forEach(
               (callback) => {
@@ -51,18 +48,9 @@ class CardAPI {
         }
 
         if (command.command === "property_update") {
-          if (!command.data.name) {
-            //find by id from cache
-            let foundProp = this._propertyCache.find(
-              (x) => x.id === command.data.id
-            );
-
-            command.data.name = foundProp.name;
-          } else {
-            let foundProp = this._propertyCache[command.data.name];
-            if (foundProp.id !== command.data.id) {
-              return;
-            }
+          //Check if the command is for this card
+          if (command.data.parentId !== this._cardId) {
+            return;
           }
 
           if (this._propertySubscriptions[command.data.name]) {
@@ -73,219 +61,157 @@ class CardAPI {
             );
           }
         }
-
-        if (command.command === "property_remove") {
-          let foundProp = this._propertyCache.find(
-            (x) => x.id === command.data
-          );
-
-          if (this._propertySubscriptions[foundProp.name]) {
-            this._propertySubscriptions[foundProp.name].forEach((callback) => {
-              callback(undefined);
-            });
-          }
-        }
       }
     });
   }
 
-  async InitApi() {
-    const properties = await WebHelper.getAsync(
-      "properties/QueryProperties?parentIds=" + this._cardId
-    );
-    properties.forEach((x) => {
-      this._propertyCache[x.name] = x;
-    });
-    return properties;
-  }
+  async InitApi() {}
 
   destroy() {
     WebSocketManagerInstance.Unsubscribe("CardAPI_" + this._id);
   }
 
   Properties = {
-    Init: (propertyName, value) => {
-      this.Properties.Get(propertyName).then((x) => {
-        if (!x) {
-          WebSocketManagerInstance.Send({
-            command: "property_add",
-            data: {
-              name: propertyName,
-              value: value,
-              parentId: this._cardId,
-              entityName: "CardModel",
-            },
-          });
+    Init: async (propertyName, value) => {
+      const propsFound = await ClientMediator.sendCommandAsync(
+        "Properties",
+        "GetByNames",
+        {
+          parentId: this._cardId,
+          names: propertyName,
         }
+      );
+
+      if (propsFound.length === 0) {
+        ClientMediator.sendCommandAsync("Properties", "Add", {
+          property: {
+            entityName: "CardModel",
+            name: propertyName,
+            value: value,
+            parentId: this._cardId,
+          },
+        });
+      }
+    },
+    InitMany: async (properties) => {
+      const propsFound = await ClientMediator.sendCommandAsync(
+        "Properties",
+        "GetByNames",
+        {
+          parentId: this._cardId,
+          names: properties.map((x) => x.name),
+        }
+      );
+
+      const missingProps = properties.filter(
+        (x) => !propsFound.find((y) => y.name === x.name)
+      );
+
+      missingProps.forEach((x) => {
+        ClientMediator.sendCommandAsync("Properties", "Add", {
+          property: {
+            entityName: "CardModel",
+            name: x.name,
+            value: x.value,
+            parentId: this._cardId,
+          },
+        });
       });
     },
-    InitMany: (properties) => {
-      this.Properties.GetMany(properties.map((x) => x.name)).then((x) => {
-        const missingProperties = properties.filter(
-          (x) => x.filter((y) => y.name === x.name).length === 0
-        );
-        WebHelper.post(
-          "properties/AddBulk",
-          missingProperties.map((x) => ({
+
+    Get: async (propertyName) => {
+      const result = await ClientMediator.sendCommandAsync("Properties", "GetByNames", {
+        parentId: this._cardId,
+        names: propertyName,
+      });
+
+      return result[0];
+    },
+
+    GetMany: async (propertyNames) => {
+      const result =  await ClientMediator.sendCommandAsync("Properties", "GetByNames", {
+        parentId: this._cardId,
+        names: propertyNames,
+      });
+
+      return result;
+    },
+
+    Set: async (propertyName, value) => {
+      let prop = await this.Properties.Get(propertyName);
+      if (prop && prop.value === value) {
+        return;
+      }
+      if (prop) {
+        ClientMediator.sendCommandAsync("Properties", "Update", {
+          property: {
+            id: prop.id,
+            name: propertyName,
+            value: value,
+            parentId: this._cardId,
+            entityName: "CardModel",
+          },
+        });
+      } else {
+        ClientMediator.sendCommandAsync("Properties", "Add", {
+          property: {
+            name: propertyName,
+            value: value,
+            parentId: this._cardId,
+            entityName: "CardModel",
+          },
+        });
+      }
+    },
+
+    SetMany: async (properties) => {
+      const propsFound = await ClientMediator.sendCommandAsync(
+        "Properties",
+        "GetByNames",
+        {
+          parentId: this._cardId,
+          names: properties.map((x) => x.name),
+        }
+      );
+
+      const propsToUpdate = propsFound.filter((x) => {
+        const prop = properties.find((y) => y.name === x.name);
+        return prop && prop.value !== x.value;
+      });
+
+      const propsToAdd = properties.filter(
+        (x) => !propsFound.find((y) => y.name === x.name)
+      );
+
+      propsToUpdate.forEach((x) => {
+        ClientMediator.sendCommandAsync("Properties", "Update", {
+          property: {
+            id: x.id,
             name: x.name,
             value: x.value,
             parentId: this._cardId,
             entityName: "CardModel",
-          })),
-          (response) => {
-            WebSocketManagerInstance.Send({
-              command: "property_notify",
-              data: {
-                cardId: this._cardId,
-                names: missingProperties.map((x) => x.name),
-              },
-            });
-          }
-        );
-      });
-    },
-    Get: (propertyName) => {
-      return new Promise((resolve, reject) => {
-        if (this._propertyCache[propertyName]) {
-          resolve(this._propertyCache[propertyName]);
-        } else {
-          WebHelper.get(
-            "properties/QueryProperties?names=" +
-              propertyName +
-              "&parentIds=" +
-              this._cardId,
-
-            (response) => {
-              if (response.length === 0) {
-                resolve(undefined);
-              } else {
-                this._propertyCache[propertyName] = response[0];
-                resolve(response[0]);
-              }
-            },
-            (error) => reject(error)
-          );
-        }
-      });
-    },
-    GetMany: (propertyNames) => {
-      return new Promise((resolve, reject) => {
-        //Create 2 collections. found properties and missing ones
-        const foundProperties = [];
-        const missingProperties = [];
-        propertyNames.forEach((x) => {
-          if (this._propertyCache[x]) {
-            foundProperties.push(this._propertyCache[x]);
-          } else {
-            missingProperties.push(x);
-          }
-        });
-
-        if (missingProperties.length === 0) {
-          resolve(foundProperties);
-        }
-
-        WebHelper.get(
-          "properties/QueryProperties?names=" +
-            missingProperties.join(",") +
-            "&parentIds=" +
-            this._cardId,
-          (response) => {
-            response.forEach((x) => {
-              this._propertyCache[x.name] = x.value;
-              foundProperties.push(x.value);
-            });
-
-            resolve(foundProperties);
           },
-          (error) => reject(error)
-        );
-      });
-    },
-
-    Set: (propertyName, value) => {
-      if (
-        this._propertyCache[propertyName] &&
-        this._propertyCache[propertyName].value === value
-      ) {
-        return;
-      }
-
-      //try to get the property
-      this.Properties.Get(propertyName).then((x) => {
-        if (x) {
-          //update the property
-          WebSocketManagerInstance.Send({
-            command: "property_update",
-            data: { id: x.id, name: propertyName, value: value },
-          });
-        } else {
-          //create the property
-          WebSocketManagerInstance.Send({
-            command: "property_add",
-            data: {
-              name: propertyName,
-              value: value,
-              parentId: this._cardId,
-              entityName: "CardModel",
-            },
-          });
-        }
-      });
-    },
-
-    SetMany: (properties) => {
-      properties = properties.filter(
-        (x) =>
-          x.name &&
-          x.value &&
-          !(
-            this._propertyCache[x.name] &&
-            this._propertyCache[x.name].value === x.value
-          )
-      );
-      //try to get the properties
-      this.Properties.GetMany(properties.map((x) => x.name)).then((x) => {
-        const existingProperties = x.filter((y) => y !== undefined);
-        const missingProperties = x.filter((y) => y === undefined);
-
-        //update existing properties
-        existingProperties.forEach((x) => {
-          const property = properties.find((y) => y.name === x.name);
-          WebSocketManagerInstance.Send({
-            command: "property_update",
-            data: {
-              id: x.id,
-              name: x.name ?? undefined,
-              value: property.value,
-            },
-          });
         });
+      });
 
-        //create missing properties
-        missingProperties.forEach((x) => {
-          const property = properties.find((y) => y.name === x);
-          WebSocketManagerInstance.Send({
-            command: "property_add",
-            data: {
-              name: property.name,
-              value: property.value,
-              parentId: this._cardId,
-              entityName: "CardModel",
-            },
-          });
+      propsToAdd.forEach((x) => {
+        ClientMediator.sendCommandAsync("Properties", "Add", {
+          property: {
+            name: x.name,
+            value: x.value,
+            parentId: this._cardId,
+            entityName: "CardModel",
+          },
         });
       });
     },
 
     Remove: (propertyName) => {
-      this.Properties.Get(propertyName).then((x) => {
-        if (x) {
-          WebSocketManagerInstance.Send({
-            command: "property_remove",
-            data: x.id,
-          });
-        }
+      const prop = this.Properties.Get(propertyName);
+
+      ClientMediator.sendCommandAsync("Properties", "Remove", {
+        propertyId: prop.id,
       });
     },
 
