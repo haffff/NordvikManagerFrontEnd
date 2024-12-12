@@ -1,19 +1,36 @@
-import { Card, Flex } from '@chakra-ui/react';
-import * as React from 'react';
+import { Card, Flex } from "@chakra-ui/react";
+import * as React from "react";
 
-export const DListItem = ({ isSelected, backgroundColor, children, padding, margin, gap, onClick, width, id }) => {
-    let usedMargin = margin !== undefined ? margin : "3px";
-    let usedPadding = padding !== undefined ? padding : "3px";
-    let usedGap = gap !== undefined ? gap : "15px";
+import "../../../../stylesheets/panel.css";
 
-    return (
-        <Flex className={id ? "representsElement" : ""} id={id} representsElement={id ?'1' : undefined} minWidth={width} paddingLeft={'5px'} paddingRight={'5px'}>
-            <Card onClick={onClick} style={{ backgroundColor: backgroundColor || (isSelected ? 'rgba(70,70,70,50.5)' : 'rgba(50,50,50,50.5)'), color: 'white', paddingLeft:'15px', paddingBottom:'5px', paddingTop:'5px' }} colorScheme="blackAlpha" variant="elevated" padding={usedPadding} margin={usedMargin} size='sm' width="100%">
-                <Flex grow={1} gap={usedGap} alignItems={'center'} justifyItems={'center'} verticalAlign={'middle'}>
-                {children}
-                </Flex>
-            </Card>
+export const DListItem = (props) => {
+  const { isSelected, children, onClick, width, withHover, flexProps } = props;
+  let className = "nm_dlistitem_card";
+  if(withHover){
+    className += " nm_dlistitem_card_hover";
+  }
+
+
+  return (
+    <Flex className="nm_dlistitem">
+      <Card {...props}
+        onClick={onClick}
+        size="sm"
+        className={
+          isSelected ? "nm_dlistitem_card_selected" : className
+        }
+      >
+        <Flex
+          grow={1}
+          alignItems={"center"}
+          justifyItems={"center"}
+          verticalAlign={"middle"}
+            {...flexProps}
+        >
+          {children}
         </Flex>
-    );
-}
+      </Card>
+    </Flex>
+  );
+};
 export default DListItem;

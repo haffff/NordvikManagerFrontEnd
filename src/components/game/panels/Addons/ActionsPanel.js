@@ -13,9 +13,6 @@ import DList from "../../../uiComponents/base/List/DList";
 import WebSocketManagerInstance from "../../WebSocketManager";
 import WebHelper from "../../../../helpers/WebHelper";
 import DContainer from "../../../uiComponents/base/Containers/DContainer";
-import DListItem from "../../../uiComponents/base/List/DListItem";
-import DLabel from "../../../uiComponents/base/Text/DLabel";
-import ActionConstants from "./ActionConstants";
 import DropDownButton from "../../../uiComponents/base/DDItems/DropDrownButton";
 import CollectionSyncer from "../../../uiComponents/base/CollectionSyncer";
 import { ActionStep } from "./ActionStep";
@@ -25,6 +22,7 @@ import { FaCheck, FaCross, FaMinus } from "react-icons/fa";
 
 export const ActionsPanel = ({ state, gameDataRef }) => {
   const [actions, setActions] = React.useState([]);
+  const [hooks, setHooks] = React.useState([]);
   const [selectedAction, setSelectedAction] = React.useState(null);
   const [stepDefinitions, setStepDefinitions] = React.useState([]);
   const [search, setSearch] = React.useState("");
@@ -43,6 +41,8 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
       "addon/stepdefinitions"
     );
     setStepDefinitions(stepDefinitionsWrapped.stepDefinitions);
+
+    setHooks(await WebHelper.getAsync("addon/hooks"));
   };
 
   React.useEffect(() => {
@@ -186,8 +186,8 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
                 setSelectedAction({ ...selectedAction, hook: e.target.value });
               }}
             >
-              {ActionConstants.Hooks.map((x, i) => (
-                <option value={i}>{x}</option>
+              {hooks.map((x) => (
+                <option value={x.value}>{x.name}</option>
               ))}
             </Select>
 

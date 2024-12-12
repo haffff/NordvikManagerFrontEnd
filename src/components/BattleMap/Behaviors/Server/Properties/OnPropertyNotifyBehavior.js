@@ -5,7 +5,7 @@ export class OnPropertyNotifyBehavior {
   async Handle(response, canvas, battleMapId) {
     let tokens = canvas
       .getObjects()
-      .filter((x) => UtilityHelper.ParseBool(x.properties?.isToken?.value));
+      .filter((x) => x.tokenData);
     tokens.forEach((token) => {
       ClientMediator.sendCommandAsync(
         "BattleMap_token",

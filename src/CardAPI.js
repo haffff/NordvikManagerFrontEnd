@@ -1,7 +1,6 @@
 import ClientMediator from "./ClientMediator";
 import WebSocketManagerInstance from "./components/game/WebSocketManager";
 import UtilityHelper from "./helpers/UtilityHelper";
-import WebHelper from "./helpers/WebHelper";
 
 class CardAPI {
   _propertySubscriptions = {};
@@ -17,7 +16,7 @@ class CardAPI {
       if (command.command.startsWith("property")) {
         if (command.command === "property_notify") {
           //Check if the command is for this card
-          if (command.data.cardId !== this._cardId) {
+          if (command.data.id !== this._cardId) {
             return;
           }
 
@@ -259,10 +258,6 @@ class CardAPI {
       ...additionalArgs,
     });
   }
-
-  SpellFunctions = {
-    RunSpellFunction: (propertyName, args) => {},
-  };
 }
 
 export default async (cardId) => {

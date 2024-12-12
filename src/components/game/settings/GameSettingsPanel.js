@@ -48,6 +48,10 @@ export const GameSettingsPanel = () => {
         { key : "defaultToken", property: true, label: "Default Token", additionalFilter: (foundItem) => foundItem.mimeType === "application/json" ,toolTip: "Image of game shown in game list menu for other players.", type: "materialSelect", category: "Character Sheets" },
     ];
 
+    const advancedEditables = [
+        { key: "untrustedClientScripts", property: true, label: "Use client scripts from not trusted source (Game will be marked as unsafe)", toolTip: "", type: "boolean" },
+    ];
+
     let gameData = useGame();
 
     const ctx = Dockable.useContentContext();
@@ -91,6 +95,7 @@ export const GameSettingsPanel = () => {
                         <Tab>Character Sheets</Tab>
                         <Tab>Permissions</Tab>
                         <Tab>Properties</Tab>
+                        <Tab>Advanced</Tab>
                     </TabList>
                     <TabPanels>
                         <TabPanel>
@@ -107,6 +112,9 @@ export const GameSettingsPanel = () => {
                         </TabPanel>
                         <TabPanel>
                             <PropertiesSettingsPanel gameId={gameData.id} dto={dto} type="GameModel" />
+                        </TabPanel>
+                        <TabPanel>
+                            <SettingsPanelWithPropertySettings dto={dto} entityName={"GameModel"} editableKeyLabelDict={advancedEditables} />
                         </TabPanel>
                     </TabPanels>
                 </Tabs>

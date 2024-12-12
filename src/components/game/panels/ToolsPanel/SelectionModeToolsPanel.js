@@ -9,14 +9,14 @@ import ClientMediator from '../../../../ClientMediator';
 export const SelectionModeToolsPanel = ({battleMapId, setAction, action, setManyMode }) => {
 
     const SelectMode = () => {
-        ClientMediator.sendCommand("BattleMap", "SetOperationMode", { contextId: battleMapId, mode: BattleMapOperations.SELECT });
+        ClientMediator.sendCommand("BattleMap", "SetDragMode", { contextId: battleMapId, enabled: false });
         setManyMode(false);
         setAction("SELECT");
     }
 
     const DragMode = () => {
         setManyMode(false);
-        ClientMediator.sendCommand("BattleMap", "SetOperationMode", { contextId: battleMapId, mode: BattleMapOperations.DRAG });
+        ClientMediator.sendCommand("BattleMap", "SetDragMode", { contextId: battleMapId, enabled: true });
         setAction("DRAG");
     }
 

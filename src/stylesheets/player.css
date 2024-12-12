@@ -1,0 +1,14 @@
+.nm_online_circle {
+    width: 15px;
+    height: 15px;
+    margin-right: 2px;
+}
+
+.nm_player_avatar {
+    padding: 5px;
+    margin: 5px;
+}
+
+.nm_player_avatar_image {
+    object-fit: cover;
+}

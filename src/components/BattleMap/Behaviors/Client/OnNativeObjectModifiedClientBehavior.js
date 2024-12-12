@@ -9,11 +9,21 @@ export class OnNativeObjectModifiedClientBehavior {
     var renderGrid = map.gridVisible;
 
     //align to grid when exists and no alt is pressed
-    if (renderGrid && false) {
+    if (renderGrid && canvas.align) {
       var gridSize = map.gridSize;
+
+      let x = Math.round(event.target.left / gridSize) * gridSize;
+      let y = Math.round(event.target.top / gridSize) * gridSize;
+
+      if(canvas.align === "center")
+      {
+        x += gridSize / 2;
+        y += gridSize / 2;
+      }
+
       event.target.set({
-        left: Math.round(event.target.left / gridSize) * gridSize,
-        top: Math.round(event.target.top / gridSize) * gridSize,
+        left: x,
+        top: y,
       });
     }
 

@@ -48,7 +48,7 @@ export const RulersToolsPanel = ({ battleMapId, setAction, action, setManyMode, 
         let rawDistance = Math.sqrt(dx * dx + dy * dy) / map.gridSize;
         let distanceWithoutUnits = rawDistance.toFixed(0);
         let distanceWithUnits = distanceWithoutUnits * 5;
-        ClientMediator.sendCommand("BattleMap", "SetPopup", { contextId: battleMapId , content: (<div>{distanceWithUnits} ft</div>) });
+        ClientMediator.sendCommand("BattleMap", "ShowPopup", { contextId: battleMapId , content: (<div>{distanceWithUnits} ft</div>) });
     }
 
     const PreviewRuler = () => {
@@ -90,7 +90,7 @@ export const RulersToolsPanel = ({ battleMapId, setAction, action, setManyMode, 
 
         const onEnd = (coords, canvas) => {
             canvas.remove(arrow);
-            ClientMediator.sendCommand("BattleMap", "SetPopup", { contextId: battleMapId , content: undefined });
+            ClientMediator.sendCommand("BattleMap", "HidePopup", { contextId: battleMapId });
             if (optionsRef.current.visibleToOthers) {
                 WebSocketManagerInstance.Send(CommandFactory.CreatePreviewEndCommand(arrow.id));
             }
@@ -228,7 +228,7 @@ export const RulersToolsPanel = ({ battleMapId, setAction, action, setManyMode, 
         const onEnd = (coords, canvas) => {
             canvas.remove(arrow);
             canvas.remove(circle);
-            ClientMediator.sendCommand("BattleMap", "SetPopup", { contextId: battleMapId , content: undefined });
+            ClientMediator.sendCommand("BattleMap", "HidePopup", { contextId: battleMapId });
             
 
             if (optionsRef.current.visibleToOthers) {

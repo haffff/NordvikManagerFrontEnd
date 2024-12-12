@@ -16,6 +16,8 @@ import ClientMediator from "../../ClientMediator";
 import QuickCommandDialog from "../QuickCommandDialog";
 import PropertiesHelperInstance from "../../helpers/PropertiesHelper";
 import UtilityHelper from "../../helpers/UtilityHelper";
+import ScriptAPI from "../../ScriptAPI";
+import ClientScript from "../uiComponents/ClientScript";
 
 export const BattleMapInstance = { battleMap: undefined };
 
@@ -25,6 +27,9 @@ export const Game = ({ gameID, onExit }) => {
   const [battleMapContexts, setBattleMapContexts] = React.useState({});
   const battleMapsContextsRef = React.useRef({});
   const quickCommandDialogOpenRef = React.useRef(null);
+
+  const [clientScripts, setClientScripts] = React.useState([]);
+
   battleMapsContextsRef.current = battleMapContexts;
   //This is refresh after some time
   // to make all components load properly
@@ -170,6 +175,20 @@ export const Game = ({ gameID, onExit }) => {
     state.commit();
   };
 
+  const HandleExecuteClientScript = async (resp) => {
+    const checkResult = await WebHelper.getAsync(`addon/confirmscriptrequest?id=${resp.data.requestId}`);
+
+    //if (!checkResult || !checkResult.result) {
+    //  return;
+    //}
+
+    if(clientScripts?.find(x => x.key === resp.data.script)) {
+      return;
+    }
+
+    setClientScripts([...clientScripts, {key: resp.data.script, value:(<ClientScript key={resp.data.script} script={resp.data.script} />)}]);
+  };
+
   React.useEffect(() => {
     if (!WebSocketManagerInstance.WebSocketStarted) {
       return;
@@ -250,9 +269,14 @@ export const Game = ({ gameID, onExit }) => {
 
       ClientMediator.register(PropertiesHelperInstance);
       WebSocketManagerInstance.Send({ command: "player_list" });
+      
 
-      //Attach API method
+      //Attach API methods
       window.CreateCardAPI = CardAPI;
+      window.ScriptAPI = ScriptAPI;
+      DockableHelper.State = state;
+
+      WebSocketManagerInstance.Send({ command: "client_loaded" });
     });
   }, [WebSocketManagerInstance.WebSocketStarted]);
 
@@ -283,10 +307,10 @@ export const Game = ({ gameID, onExit }) => {
         commandPrefix={"settings"}
       />
       <Subscribable onMessage={HandlePlayers} commandPrefix={"player"} />
+      <Subscribable onMessage={HandleExecuteClientScript} commandPrefix={"clientscript_execute"} />
       <Subscribable
         onMessage={HandleShowBattleMap}
-        commandPrefix={"battlemap_show"}
-      />
+        commandPrefix={"battlemap_show"} />
       <Subscribable onMessage={HandleShowPanel} commandPrefix={"show_panel"} />
       {/* <Subscribable onMessage={HandleShowLayout} commandPrefix={"panel_show"} /> */}
       <MainToolbar
@@ -299,6 +323,7 @@ export const Game = ({ gameID, onExit }) => {
         <Dockable.Container state={state} />
       </Flex>
       <QuickCommandDialog state={state} openRef={quickCommandDialogOpenRef} />
+      {clientScripts.map(x => x.value)}
     </div>
   );
 };

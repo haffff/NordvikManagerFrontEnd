@@ -1,16 +1,10 @@
 import { fabric } from 'fabric';
-import UtilityHelper from '../../../../helpers/UtilityHelper';
 
 export class OnTokenSelectedClientBehavior {
-    Handle(event, canvas, map, keyboardEventsManagerRef, battleMapObject) {
+    Handle(event, canvas, map) {
         let oldSelections = event.deselected;
         oldSelections?.forEach(element => {
-            if(element.properties === undefined)
-            {
-                return;
-            }
-
-            let isToken = UtilityHelper.ParseBool(element.properties["isToken"]?.value);
+            let isToken = element.tokenData !== undefined;
             if (!isToken) {
                 return;
             }
@@ -36,7 +30,7 @@ export class OnTokenSelectedClientBehavior {
 
         let token = event.selected[0];
 
-        if (!token || !token.properties || !UtilityHelper.ParseBool(token.properties["isToken"]?.value)) {
+        if (!token || !token.tokenData) {
             return;
         }
 

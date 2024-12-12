@@ -21,7 +21,7 @@ export const DContainer = ({ children, maxHeight, maxWidth, height, width, backg
                     <Flex paddingLeft={'15px'} grow={1}><DLabel>{title}</DLabel></Flex>
                 </Flex> : <></>
             }
-            <Stack padding={'10px'} margin={'5px'} spacing={'15px'} display={visible ? 'inherit' : 'none'}>
+            <Stack padding={'10px'} margin={'5px'} display={visible ? 'inherit' : 'none'}>
                 {children}
             </Stack>
         </Stack>

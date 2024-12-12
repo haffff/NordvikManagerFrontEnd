@@ -17,6 +17,7 @@ import { FaMinusCircle } from "react-icons/fa";
 import { Image } from "@chakra-ui/react";
 import CardSettingsPanel from "../settings/CardSettingsPanel";
 import { GiGears } from "react-icons/gi";
+import DTreeListItem from "../../uiComponents/base/List/DTreeListItem";
 
 export const CardsPanel = ({ state }) => {
   const [panels, setPanels] = React.useState([]);
@@ -152,9 +153,11 @@ export const CardsPanel = ({ state }) => {
           );
         }}
         generateItem={(x) => (
-          <DListItem
+          <DTreeListItem
             gap={"15px"}
             width={"300"}
+            entityId={x.id}
+            entityType={"CardModel"}
             key={x.id}
             onClick={() => {
               DockableHelper.NewFloating(
@@ -165,7 +168,7 @@ export const CardsPanel = ({ state }) => {
           >
             <Image src={x.image} width={"50px"} height={"50px"} />
             <DLabel>{x.name}</DLabel>
-          </DListItem>
+          </DTreeListItem>
         )}
       ></DTreeList>
       <CollectionSyncer

@@ -1,4 +1,5 @@
 import WebSocketManagerInstance from "../components/game/WebSocketManager";
+import UtilityHelper from "./UtilityHelper";
 import WebHelper from "./WebHelper";
 
 class PropertiesHelper {
@@ -8,20 +9,16 @@ class PropertiesHelper {
   _propertyCache = {};
 
   constructor() {
-    WebSocketManagerInstance.Subscribe("property_notify", (command) => {
-      //What to do?
-    });
-
-    WebSocketManagerInstance.Subscribe("property_update", (command) => {
-      this._propertyCache[command.data.id] = command.data;
-    });
-
-    WebSocketManagerInstance.Subscribe("property_add", (command) => {
-      this._propertyCache[command.data.id] = command.data;
-    });
-
-    WebSocketManagerInstance.Subscribe("property_delete", (command) => {
-      delete this._propertyCache[command.data];
+    WebSocketManagerInstance.Subscribe("PropertiesHelper_subs", (command) => {
+      if (command.command === "property_update") {
+        this._propertyCache[command.data.id] = command.data;
+      }
+      if (command.command === "property_add") {
+        this._propertyCache[command.data.id] = command.data;
+      }
+      if (command.command === "property_delete") {
+        delete this._propertyCache[command.data];
+      }
     });
   }
 
@@ -41,7 +38,7 @@ class PropertiesHelper {
     return properties;
   }
 
-  async AddToCache({properties, isCommand}) {
+  async AddToCache({ properties, isCommand }) {
     if (isCommand && !properties) {
       return "--properties is required, since its complex object type this command is not supported (for now)";
     }
@@ -51,7 +48,7 @@ class PropertiesHelper {
     });
   }
 
-  async LoadToCache({parentId, isCommand}) {
+  async LoadToCache({ parentId, isCommand }) {
     if (isCommand && !parentId) {
       return "--parentId is required";
     }
@@ -92,7 +89,9 @@ class PropertiesHelper {
     }
 
     // find still missing properties
-    const missingNames = namesVar.filter((x) => !this._propertyCache[x]);
+    const missingNames = namesVar.filter(
+      (x) => cachedProperties.findIndex((y) => y.name === x) === -1
+    );
 
     const properties = await WebHelper.getAsync(
       `properties/QueryProperties?parentIds=${parentId}&names=${missingNames.join(
@@ -109,6 +108,28 @@ class PropertiesHelper {
     const mergedProperties = [...cachedProperties, ...properties];
 
     return mergedProperties;
+  }
+
+  async GetByPrefix({ parentId, prefix, getFromCache, isCommand }) {
+    if (isCommand && !parentId) {
+      return "--parentId is required";
+    }
+
+    if (getFromCache) {
+      return Object.values(this._propertyCache).filter(
+        (x) => x.parentID === parentId && x.name.startsWith(prefix)
+      );
+    }
+
+    const properties = await WebHelper.getAsync(
+      `properties/QueryProperties?parentIds=${parentId}&prefix=${prefix}`
+    );
+
+    properties?.forEach((x) => {
+      this._propertyCache[x.id] = x;
+    });
+
+    return properties;
   }
 
   async GetByIds({ parentId, ids, isCommand }) {
@@ -197,7 +218,10 @@ class PropertiesHelper {
       this._propertyCache[x.id] = x;
     });
 
-    WebSocketManagerInstance.Send({ command: "property_notify" });
+    WebSocketManagerInstance.Send({
+      command: "property_notify",
+      data: { id: properties[0].parentID },
+    });
   }
 
   async Add({ property, isCommand, parentId, name, value, entityName }) {

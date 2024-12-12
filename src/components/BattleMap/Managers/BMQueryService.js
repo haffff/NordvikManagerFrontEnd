@@ -2,7 +2,6 @@ class BMQueryService {
     _canvas = undefined;
     _game = undefined;
     _map = undefined;
-    _getSelectedLayer = undefined;
     _battleMapModel = undefined;
     _popupRef = undefined;
     _operationModeRef = undefined;
@@ -46,17 +45,12 @@ class BMQueryService {
 
     GetSelectedLayer()
     {
-        return this._getSelectedLayer().current;
+        return this._canvas.selectedLayer;
     }
 
     GetOperationMode()
     {
         return this._operationModeRef.current;
-    }
-
-    GetPopupRef()
-    {
-        return this._popupRef;
     }
 
     GetSelectedGroupCoords()
@@ -90,6 +84,11 @@ class BMQueryService {
     GetSelectedMap()
     {
         return this._map;
+    }
+
+    GetDragMode()
+    {
+        return this._canvas.draggingMode ?? null;
     }
 
     _onDestruction = () => {

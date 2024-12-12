@@ -1,0 +1,51 @@
+.nm_basePanel
+{
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    width: 100%;
+    padding: 5px;
+    overflow: auto;
+}
+
+.nm_adminIconButton
+{
+    position: relative;
+}
+
+.nm_dlistitem
+{
+    padding-left:5px;
+    padding-right:5px;
+    display: flex;
+    margin: 5px;
+}
+
+.nm_dlistitem_card_selected
+{
+    flex-grow: 1;
+    color: white;
+    background-color: rgba(100,100,100,1);
+    padding-left: 15px;
+    padding-right: 15px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    width: 100%;
+}
+
+.nm_dlistitem_card
+{
+    flex-grow: 1;
+    color: white;
+    background-color: rgb(50,50,50);
+    padding-left: 15px;
+    padding-right: 15px;
+    padding-top: 5px;
+    padding-bottom: 5px;
+    width: 100%;
+}
+
+.nm_dlistitem_card_hover:hover
+{
+    background-color: rgb(60,60,60);
+}

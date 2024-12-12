@@ -12,9 +12,6 @@ export const ClientMediator = {
     _awaitingRequests: [],
 
     sendCommand: function (panel, command, data) {
-        console.log("Sent command: " + command + " to panel: " + panel);
-        console.log(data);
-
         let clients = this._clientsHashSet[panel.toLowerCase()];
 
         if (!clients) {
@@ -47,9 +44,6 @@ export const ClientMediator = {
     },
 
     sendCommandWaitForRegister: async function (panel, command, data, waitUntilAvailable = false) {
-        console.log("Sent async command: " + command + " to panel: " + panel);
-        console.log(data);
-
         return new Promise((resolve, reject) => {
             let found = false;
 
@@ -71,9 +65,6 @@ export const ClientMediator = {
     },
     
     sendCommandAsync: async function (panel, command, data) {
-        console.log("Sent command: " + command + " to panel: " + panel);
-        console.log(data);
-
         let clients = this._clientsHashSet[panel.toLowerCase()];
 
         if (!clients) {

@@ -1,0 +1,37 @@
+.nm_bm_overlay
+{
+    display: none;
+    position: absolute;
+    padding: 5px;
+    margin: 10px;
+    background-color: #353535;
+    border: 1px solid #ddd;
+    top: 5px;
+    left: 5px;
+}
+
+.nm_bm_popup
+{
+    display: none;
+    position: absolute;
+    padding: 5px;
+    margin: 10px;
+    background-color: #353535;
+    border: 1px solid #ddd;
+    top: 5px;
+    left: 5px;
+}
+
+.nm_bm_contextMenu
+{
+    display: none;
+    position: absolute;
+}
+
+.nm_battleMap
+{
+    height: 100%;
+    width: 100%;
+    flex-grow: 1;
+    flex-direction: row;
+}

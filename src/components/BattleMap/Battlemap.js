@@ -4,10 +4,6 @@ import CommandFactory from "./Factories/CommandFactory";
 import GridFactoryInstance from "./Factories/GridFactory";
 import { useFabricJSEditor } from "fabricjs-react";
 import { FabricJSCanvas } from "fabricjs-react";
-import {
-  BehaviorDictionaryClient,
-  BehaviorDictionaryServer,
-} from "./Behaviors/BehaviorDictionary";
 import * as Dockable from "@hlorenzi/react-dockable";
 import WebHelper from "../../helpers/WebHelper";
 import WebSocketManagerInstance from "../game/WebSocketManager";
@@ -15,12 +11,13 @@ import InteractionsManger from "./Managers/BMQueryService";
 import BattleMapBMService from "./Managers/BMService";
 import { Flex } from "@chakra-ui/react";
 import LoadBMSubscriptions from "./Loaders/LoadBMSubscriptions";
-import BattleMapOperations from "./BattlemapModes";
 import DTOConverter from "./DTOConverter";
 import BattleMapContextMenu from "../game/ToolBar/ContextMenus/BattleMapContextMenu";
-import UtilityHelper from "../../helpers/UtilityHelper";
 import ClientMediator from "../../ClientMediator";
 import TokenManager from "./Managers/TokenManager";
+import { PopupBMOverlay } from "./Overlays/PopupBMOverlay";
+import { InfoBMOverlay } from "./Overlays/InfoBMOverlay";
+import "../../stylesheets/battlemap.css";
 
 export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
   const [uuid, _setUUID] = React.useState(withID);
@@ -32,23 +29,11 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
   const [loading, setLoading] = React.useState(false);
   const [loaded, setLoaded] = React.useState(false);
 
-  const [selectedLayer, setSelectedLayer] = React.useState(100);
   // map reference for loading elements into the battlemap
   const mapRef = React.useRef(undefined);
-  const layerRef = React.useRef(selectedLayer);
   const battleMapContainerRef = React.useRef(null);
 
-  const popupRef = React.useRef(null);
-  const popupVisible = React.useRef(null);
-  const operationRef = React.useRef(BattleMapOperations.SELECT);
-  const argumentsRef = React.useRef({});
   const contextMenuRef = React.useRef(null);
-  const contextMenuVisibleRef = React.useRef(null);
-
-  const [popupContent, setPopupContent] = React.useState(undefined);
-
-  layerRef.current = selectedLayer;
-  const getSelectedLayer = () => layerRef;
 
   // battlemap object is used for contexts, in short you can have many contexts and open separate panel with it. albo keyboard have to process it
   const battleMapObjectRef = React.useRef({});
@@ -193,7 +178,7 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
                   object: JSON.stringify(obj),
                   properties: [],
                   mapId: map.id,
-                  layer: selectedLayer,
+                  layer: editor.canvas.selectedLayer,
                 });
                 WebSocketManagerInstance.Send(cmd);
               }
@@ -224,7 +209,7 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
                     object: JSON.stringify(obj),
                     properties: [],
                     mapId: map.id,
-                    layer: selectedLayer,
+                    layer: editor.canvas.selectedLayer,
                   });
                   WebSocketManagerInstance.Send(cmd);
                 }
@@ -242,11 +227,7 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
   return (
     <Flex
       ref={battleMapContainerRef}
-      flexGrow={1}
-      direction={"row"}
-      height="100%"
-      width="100%"
-      className="content"
+      className="nm_battleMap"
       tabIndex={-1}
       onDrop={(e) => {
         e.preventDefault();
@@ -258,23 +239,9 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
       }}
     >
       <FabricJSCanvas onReady={onReady} />
-      <div
-        ref={popupRef}
-        style={{
-          display: "none",
-          position: "absolute",
-          padding: "5px",
-          margin: "10px",
-          backgroundColor: "#353535",
-          border: "1px solid #ddd",
-        }}
-      >
-        {popupContent}
-      </div>
-      <div
-        ref={contextMenuRef}
-        style={{ display: "none", position: "absolute" }}
-      >
+      <PopupBMOverlay battleMapId={uuid} />
+      <InfoBMOverlay battleMapId={uuid} />
+      <div ref={contextMenuRef} className="nm_bm_contextMenu">
         <BattleMapContextMenu
           contextMenuReference={contextMenuRef}
           loaded={loaded}
@@ -297,34 +264,27 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
     editor.canvas.clear();
     editor.canvas.fireRightClick = true;
     editor.canvas.fireMiddleClick = true;
+    editor.canvas.align = "left";
+    editor.canvas.selectedLayer = 100;
 
     //Assing battlemap instance when necessary
     BattleMapServices.BMQueryService._canvas = editor.canvas;
     BattleMapServices.BMQueryService._battleMapModel = battleMapModel;
-    BattleMapServices.BMQueryService._getSelectedLayer = getSelectedLayer;
-    BattleMapServices.BMQueryService._popupRef = popupRef;
-    BattleMapServices.BMQueryService._operationModeRef = operationRef;
     BattleMapServices.BMQueryService.Load();
     BattleMapServices.BMService._canvas = editor.canvas;
-    BattleMapServices.BMService._argumentsRef = argumentsRef;
+    //BattleMapServices.BMService._argumentsRef = argumentsRef;
     BattleMapServices.BMService._refreshCommand = forceUpdate;
     BattleMapServices.BMService._reloadCommand = ReloadBattleMap;
     BattleMapServices.BMService._changeMapCommand = ChangeMap;
-    BattleMapServices.BMService._setSelectedLayerCommand = setSelectedLayer;
     BattleMapServices.BMService._setEditModeCommand = setEditLayerMode;
-    BattleMapServices.BMService._setPopupContent = setPopupContent;
-    BattleMapServices.BMService._popupVisible = popupVisible;
-    BattleMapServices.BMService._operationModeRef = operationRef;
+    BattleMapServices.BMService._contextMenuRef = contextMenuRef;
     BattleMapServices.BMService._battleMapModel = battleMapModel;
     BattleMapServices.BMService.Load();
 
     BattleMapServices.TokenManager = new TokenManager();
     BattleMapServices.TokenManager._canvas = editor.canvas;
     BattleMapServices.TokenManager._battleMapModel = battleMapModel;
-    BattleMapServices.TokenManager._operationModeRef = operationRef;
-    BattleMapServices.TokenManager._argumentsRef = argumentsRef;
-    BattleMapServices.TokenManager._setPopupContent = setPopupContent;
-    BattleMapServices.TokenManager._popupVisible = popupVisible;
+    //BattleMapServices.TokenManager._argumentsRef = argumentsRef;
     BattleMapServices.TokenManager._refreshCommand = forceUpdate;
     BattleMapServices.TokenManager.Load(() => editor.canvas);
 
@@ -347,15 +307,11 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
     });
 
     const references = {
-      operationRef,
-      popupRef,
       mapRef,
-      popupVisibleRef: popupVisible,
       keyboardEventsManagerRef,
       battleMapObjectRef,
-      argumentsRef,
+      //argumentsRef,
       battleMapContainerRef,
-      contextMenuVisibleRef,
       contextMenuRef,
     };
 
@@ -391,7 +347,8 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
         object.properties = object.properties || {};
 
         object.selectable =
-          object.selectablePermission && dto.layer == selectedLayer;
+          object.selectablePermission &&
+          dto.layer == editor.canvas.selectedLayer;
         canvasObjects.push(object);
       });
 
@@ -415,10 +372,16 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
           const distinctCardIds = [...new Set(cardIds)];
           //load all to cache to not fire so many queries
 
-          await Promise.all(distinctCardIds.map(async (cardId) => {
-            await ClientMediator.sendCommandAsync("Properties", "LoadToCache", { parentId: cardId });
-            return true;
-          }));
+          await Promise.all(
+            distinctCardIds.map(async (cardId) => {
+              await ClientMediator.sendCommandAsync(
+                "Properties",
+                "LoadToCache",
+                { parentId: cardId }
+              );
+              return true;
+            })
+          );
 
           await Promise.all(
             objects.map(async (obj) => {

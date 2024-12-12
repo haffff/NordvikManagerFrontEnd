@@ -43,10 +43,6 @@ class TokenManager {
             element.visible = false;
           }
 
-          element.enabled = UtilityHelper.ParseBool(
-            object.properties["show_" + element.name]?.value
-          );
-
           if (element.enabled === false) {
             element.visible = false;
           }
@@ -106,7 +102,7 @@ class TokenManager {
 
     const canvas = this._getCanvas();
     const objects = canvas.getObjects().filter((x) => {
-      if (!x.properties) {
+      if (!x.tokenData) {
         return false;
       }
 
@@ -216,7 +212,7 @@ class TokenManager {
       });
     }
 
-    targetElement[objectProperty] = propValue;
+    targetElement.set(objectProperty, propValue);
   }
 
   UpdateTokenBasedOnProperties({ tokenId, isCommand }) {
@@ -286,9 +282,6 @@ class TokenManager {
 
     if (object.additionalObjects) {
       object.additionalObjects.forEach((element) => {
-        element.enabled = UtilityHelper.ParseBool(
-          object.properties["show_" + element.name]?.value
-        );
         element.visible = !(element.enabled === false);
         if (!element.visible) {
           return;
@@ -388,12 +381,6 @@ class TokenManager {
           propDeps: [
             ...(token?.tokenData?.propDeps ?? []),
             {
-              dtoProperty: "tokenSize",
-              objectProperty: "scaleX",
-              type: "number",
-              source: "card",
-            },
-            {
               dtoProperty: "tokenImage",
               objectProperty: "src",
               type: "string",
@@ -426,12 +413,10 @@ class TokenManager {
             {
               name: "tokenSize",
               value: tokenSize,
-              entityName: "CardModel",
             },
             {
               name: "isToken",
               value: "true",
-              entityName: "CardModel",
             },
           ],
         },

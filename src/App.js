@@ -17,7 +17,7 @@ function App() {
   }
 
   return (
-    <ChakraProvider>
+    <ChakraProvider cssVarsRoot={'#NordvikManagerMain'}>
         {loggedIn ?
           <MainApp /> :
           <LoginPanel OnSuccess={() => setLoggedIn(true)} />

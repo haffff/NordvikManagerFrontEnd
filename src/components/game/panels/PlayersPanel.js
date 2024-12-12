@@ -8,6 +8,7 @@ import DListItemsButtonContainer from '../../uiComponents/base/List/DListItemsBu
 import DLabel from '../../uiComponents/base/Text/DLabel';
 import ClientMediator from '../../../ClientMediator';
 import useClientMediator from '../../uiComponents/hooks/useClientMediator';
+import '../../../stylesheets/player.css';
 
 export const PlayersPanel = () => {
     const [players, setPlayers] = React.useState([]);
@@ -53,7 +54,7 @@ export const PlayersPanel = () => {
     const createPlayerPanel = (x) => {
         return (
             <DListItem key={x.id} isSelected={x.isPlayer}>
-                    <Circle width={3} height={3} marginRight={2} backgroundColor={x.isConnected ? 'green' : 'red'} />
+                    <Circle className='nm_online_circle' backgroundColor={x.isConnected ? 'green' : 'red'} />
                     <DLabel>{x.player.name ? x.player.name : x.player.Name}</DLabel>
                     <DListItemsButtonContainer>
                         <PlayerAvatar player={x.player} />

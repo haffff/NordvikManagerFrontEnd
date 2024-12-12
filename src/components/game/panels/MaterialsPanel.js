@@ -17,6 +17,7 @@ import WebSocketManagerInstance from '../WebSocketManager';
 import RefreshInfo from '../../uiComponents/treeList/RefreshInfoCard';
 import DockableHelper from '../../../helpers/DockableHelper';
 import LookupPanel from './Addons/LookupPanel';
+import DTreeListItem from '../../uiComponents/base/List/DTreeListItem';
 
 export const MaterialsPanel = ({ state }) => {
     const [resources, setResources] = React.useState([]);
@@ -160,9 +161,9 @@ export const MaterialsPanel = ({ state }) => {
                         }}
                         generateItem={(item) => {
                             const itemBody = GetItemBody(item) || <DLabel>{item.name}</DLabel>;
-                            return <DListItem drag width='300px'>
+                            return <DTreeListItem entityId={item.id} entityType={"ResourceModel"} drag width='300px'>
                                 {itemBody}
-                            </DListItem>;
+                            </DTreeListItem>;
                         }}
                         entityType={"ResourceModel"} />
                 </DList>

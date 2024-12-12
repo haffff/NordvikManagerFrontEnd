@@ -50,7 +50,7 @@ export const GameList = ({ OnSuccess, OnLogout }) => {
   function getGameList() {
     if (gameList !== undefined) {
       return gameList.map((x) => (
-        <GameListItem game={x} onClick={() => OnSuccess(x.id)} />
+        <GameListItem key={x.id} game={x} onClick={() => OnSuccess(x.id)} />
       ));
     }
     return <></>;

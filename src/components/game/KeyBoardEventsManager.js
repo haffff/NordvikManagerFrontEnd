@@ -32,6 +32,7 @@ class KeyboardEventsManager {
     }
 
     HandleKeyboardEventDown(ev) {
+        if(ev.target.matches("input") || ev.target.matches("textarea")) return;
         this.KeyboardMap[ev.key] = true;
         console.log(this.KeyboardMap[ev.key]);
     }
@@ -44,6 +45,7 @@ class KeyboardEventsManager {
     }
 
     HandleKeyboardEventUp(ev) {
+        if(ev.target.matches("input") || ev.target.matches("textarea")) return;
         let actionName = this.CreateActionName(ev);
         console.log(actionName);
         console.log(this.ShortCuts[actionName]);
