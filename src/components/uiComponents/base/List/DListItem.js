@@ -19,6 +19,7 @@ export const DListItem = (props) => {
         className={
           isSelected ? "nm_dlistitem_card_selected" : className
         }
+        bg={isSelected && "rgb(100,100,100,1)"}
       >
         <Flex
           grow={1}

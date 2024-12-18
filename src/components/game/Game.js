@@ -251,6 +251,10 @@ export const Game = ({ gameID, onExit }) => {
         OpenRun() {
           quickCommandDialogOpenRef.current();
         },
+        GetCurrentPlayerColor: () => {
+          let player = gameDataManagerRef.current.CurrentPlayer();
+          return player ? player.color : "black";
+        },
       };
 
       ClientMediator.register({ id: "Game", panel: "Game", ...gameMethods });

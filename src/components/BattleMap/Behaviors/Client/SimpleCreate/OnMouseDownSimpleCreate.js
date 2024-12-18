@@ -9,12 +9,13 @@ export class OnMouseDownSimpleCreateClientBehavior {
         
         //get client rect of battlemap
         let rect = canvas.getElement().getBoundingClientRect();
-
+        let canvasCoords = canvas.getPointer(opt);
         //Create object
         fabric.util.enlivenObjects([element], function([object]) {
             object.set({
-                left: opt.e.offsetX - rect.left,
-                top: opt.e.offsetY - rect.top,
+                left: canvasCoords.x,
+                top: canvasCoords.y,
+                selectable: false,
             });
             canvas.add(object);
             canvas.previewObject = object;

@@ -6,17 +6,17 @@ export class OnMouseMoveSimpleCreateClientBehavior {
       canvas.previewObject
     ) {
       //get client rect of battlemap
-      let rect = canvas.getElement().getBoundingClientRect();
+      const canvasCoords = canvas.getPointer(opt);
       let element = canvas.previewObject;
       if (canvas.withSizing) {
         element.set({
-          width: opt.e.offsetX - element.left - rect.left,
-          height: opt.e.offsetY - element.top - rect.top,
+            width: canvasCoords.x - element.left,
+            height: canvasCoords.y - element.top,
         });
       } else {
         element.set({
-          left: opt.e.offsetX,
-          top: opt.e.offsetY,
+            left: canvasCoords.x,
+            top: canvasCoords.y
         });
       }
       canvas.requestRenderAll();

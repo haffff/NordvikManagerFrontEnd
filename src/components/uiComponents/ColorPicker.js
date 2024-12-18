@@ -25,16 +25,29 @@ class ColorPicker extends React.Component {
         super(props);
         this.state = {
             displayColorPicker: false,
-            color: this.fromString(this.props.color)
+            color: this.fromString(this.props.color),
+            isAbsolute: this.props.isAbsolute
         };
     }
     
     handleClick = () => {
         this.setState({ ...this.state, displayColorPicker: !this.state.displayColorPicker })
+        if(!this.state.displayColorPicker)
+        {
+            if(this.props.onOpen)
+                this.props.onOpen();
+        }
+        else
+        {
+            if(this.props.onClose)
+                this.props.onClose();
+        }
     };
 
     handleClose = () => {
         this.setState({ ...this.state, displayColorPicker: false })
+        if(this.props.onClose)
+            this.props.onClose();
     };
 
     handleChange = (color) => {
@@ -60,10 +73,10 @@ class ColorPicker extends React.Component {
                     cursor: 'pointer',
                 },
                 popover: {
-                    position: 'relative',
+                    position: this.state.isAbsolute ? 'absolute' : 'relative',
                 },
                 cover: {
-                    position: 'relative',
+                    position: this.state.isAbsolute ? 'absolute' : 'relative',
                     top: '0px',
                     right: '0px',
                     bottom: '0px',
@@ -71,6 +84,11 @@ class ColorPicker extends React.Component {
                 },
             },
         });
+
+        if(this.props.color !== this.toString(this.state.color))
+        {
+            this.setState({ ...this.state, color: this.fromString(this.props.color) });
+        }
 
         return (
             <div>

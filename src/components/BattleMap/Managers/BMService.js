@@ -10,7 +10,6 @@ class BMService {
   _reloadCommand = undefined;
   _changeMapCommand = undefined;
   _BMQueryService = undefined;
-  _isPreviewModel = false;
   _battleMapModel = undefined;
   _contextMenuRef = undefined;
 
@@ -117,9 +116,20 @@ class BMService {
     const layerMode = withEditMode ? true : false;
 
     this.SetLayerEditMode({ editMode: layerMode, layer: layerId });
+
+    ClientMediator.fireEvent("BattleMap_LayerChanged", {
+      layer: layerId,
+      withEditMode: layerMode,
+    });
   }
 
-  SetTokenSelectMode({ minTokens, maxTokens, message, isCommand }) {
+  SetTokenSelectMode({
+    minTokens,
+    maxTokens,
+    popupContent,
+    overlayContent,
+    isCommand,
+  }) {
     const canvas = this._canvas;
 
     if (canvas.modeLock) {
@@ -134,11 +144,10 @@ class BMService {
     canvas.minTokens = minTokens ?? 1;
     canvas.maxTokens = maxTokens ?? 1;
     canvas.tokens = [];
-    canvas.tokenSelectMessage = message;
 
-    this.SetSelectedLayer({ layerId: 100, withEditMode:false });
+    this.SetSelectedLayer({ layerId: 100, withEditMode: false });
 
-    ClientMediator.sendCommand("BattleMap", "ShowPopup", {contextId: this.contextId ,content: `${canvas.tokenSelectMessage}. Tokens selected: ${canvas.tokens.length}/${canvas.maxTokens}`});
+    this._addPopupAndOverlay(overlayContent, popupContent);
 
     const objects = canvas._objects;
 
@@ -157,6 +166,10 @@ class BMService {
         object.set("opacity", 0.4);
       }
     });
+
+    ClientMediator.fireEvent("BattleMap_ModeChanged", {
+      mode: "TokenSelect",
+    });
   }
 
   UnsetTokenSelectMode({ isCommand }) {
@@ -173,9 +186,8 @@ class BMService {
     canvas.minTokens = undefined;
     canvas.maxTokens = undefined;
     canvas.tokens = undefined;
-    canvas.tokenSelectMessage = undefined;
 
-    ClientMediator.sendCommand("BattleMap", "HidePopup", {contextId: this.contextId});
+    this._removePopupAndOverlay();
 
     const objects = canvas._objects;
 
@@ -193,6 +205,11 @@ class BMService {
         object.set("opacity", object.beforeTokenSelectOpacity);
         object.set("beforeTokenSelectOpacity", undefined);
       }
+    });
+
+    ClientMediator.fireEvent("BattleMap_ModeChanged", {
+      mode: undefined,
+      modeType: undefined,
     });
   }
 
@@ -306,7 +323,7 @@ class BMService {
       return "align is required.";
     }
 
-    ClientMediator.fireEvent("BattleMap_AlignChanged", {align});
+    ClientMediator.fireEvent("BattleMap_AlignChanged", { align });
     this._canvas.align = align;
   }
 
@@ -315,7 +332,7 @@ class BMService {
       return "enabled is required.";
     }
 
-    ClientMediator.fireEvent("BattleMap_DragModeChanged", {enabled});
+    ClientMediator.fireEvent("BattleMap_DragModeChanged", { enabled });
     this._canvas.draggingMode = enabled ? true : undefined;
   }
 
@@ -324,11 +341,12 @@ class BMService {
       return "x and y are required.";
     }
 
-    if(this._canvas.contextMenuLock) {
+    if (this._canvas.contextMenuLock) {
       return;
     }
 
-    let clientRect = this._contextMenuRef.current.parentElement.getBoundingClientRect();
+    let clientRect =
+      this._contextMenuRef.current.parentElement.getBoundingClientRect();
     this._contextMenuRef.current.style.left = `${x - clientRect.x}px`;
     this._contextMenuRef.current.style.top = `${y - clientRect.y}px`;
 
@@ -342,33 +360,246 @@ class BMService {
     this._canvas.isContextMenuVisible = undefined;
   }
 
-  SetSimpleCreateMode({ enabled, element, withSizing })
-  {
+  SetCreateElement({ element }) {
+    if (this._canvas.simpleCreateMode) {
+      this._canvas.simpleCreateElement = element;
+    }
+  }
+
+  SetFreeDrawMode({ enabled, overlayContent, popupContent, isCommand, brush }) {
+    if (isCommand && enabled === undefined) {
+      return "enabled is required.";
+    }
+
     const canvas = this._canvas;
-    if(enabled)
-    {
-      if(canvas.modeLock)
-      {
+
+    if (enabled) {
+      if (canvas.modeLock) {
+        console.warn("Mode is locked, cannot change free draw mode.");
+        return;
+      }
+
+      canvas.modeLock = true;
+      canvas.discardActiveObject();
+      canvas.freeDrawMode = true;
+      canvas.selection = false;
+
+      canvas.isDrawingMode = true;
+      if (brush) {
+        canvas.freeDrawingBrush = brush;
+        canvas.freeDrawingBrush.initialize(canvas);
+      } else {
+        canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
+        canvas.freeDrawingBrush.width = 5;
+        canvas.freeDrawingBrush.color = "rgba(0,0,0,1)";
+      }
+
+      canvas.on("path:created", this._path_created);
+
+      this._addPopupAndOverlay(overlayContent, popupContent);
+
+      canvas._objects.forEach((object) => {
+        object.set("beforeFreeDrawSelectable", object.selectable);
+        object.set("selectable", false);
+      });
+
+      ClientMediator.fireEvent("BattleMap_ModeChanged", {
+        mode: "Draw",
+      });
+    } else {
+      if (canvas.freeDrawMode) {
+        canvas.modeLock = undefined;
+        canvas.freeDrawMode = undefined;
+        canvas.selection = true;
+
+        canvas.isDrawingMode = false;
+        canvas.freeDrawingBrush = undefined;
+
+        canvas.off("path:created", this._path_created);
+
+        canvas._objects.forEach((object) => {
+          if (object.beforeFreeDrawSelectable !== undefined) {
+            object.set("selectable", object.beforeFreeDrawSelectable);
+            object.set("beforeFreeDrawSelectable", undefined);
+          }
+        });
+
+        ClientMediator.fireEvent("BattleMap_ModeChanged", {
+          mode: undefined,
+          type: undefined,
+        });
+      }
+    }
+  }
+
+  SetSimpleCreateMode({
+    enabled,
+    element,
+    overlayContent,
+    popupContent,
+    type,
+    withSizing,
+  }) {
+    const canvas = this._canvas;
+    if (enabled) {
+      if (canvas.modeLock) {
         console.warn("Mode is locked, cannot change simple create mode.");
         return;
       }
+
       canvas.modeLock = true;
       canvas.discardActiveObject();
       canvas.simpleCreateMode = true;
       canvas.simpleCreateElement = element;
       canvas.withSizing = withSizing;
+      canvas.selection = false;
+      canvas.modeType = type;
+
+      this._addPopupAndOverlay(overlayContent, popupContent);
+
+      //ensure that object is in proper layer and has map id
+      element.layer = canvas.selectedLayer;
+      element.mapId = this._BMQueryService.GetSelectedMapID();
 
       canvas._objects.forEach((object) => {
         //save selectable state in other prop
         object.set("beforeSimpleCreateSelectable", object.selectable);
         object.set("selectable", false);
       });
+
+      ClientMediator.fireEvent("BattleMap_ModeChanged", {
+        mode: "SimpleCreate",
+        type: canvas.modeType,
+      });
+    } else {
+      if (canvas.simpleCreateMode) {
+        canvas.modeLock = undefined;
+        canvas.simpleCreateMode = undefined;
+        canvas.simpleCreateElement = undefined;
+        canvas.withSizing = undefined;
+        canvas.selection = true;
+        canvas.modeType = undefined;
+
+        this._removePopupAndOverlay();
+
+        canvas._objects.forEach((object) => {
+          if (object.beforeSimpleCreateSelectable !== undefined) {
+            object.set("selectable", object.beforeSimpleCreateSelectable);
+            object.set("beforeSimpleCreateSelectable", undefined);
+          }
+        });
+
+        ClientMediator.fireEvent("BattleMap_ModeChanged", {
+          mode: undefined,
+          type: undefined,
+        });
+      }
     }
-    else
-    {
-      this._isPreviewModel = false;
-      this._canvas.remove(this._canvas._objects[this._canvas._objects.length - 1]);
+  }
+
+  SetMeasureMode({ enabled, overlayContent, popupContent, type, isCommand, arrowObject, additionalObject }) {
+    if (isCommand && enabled === undefined) {
+      return "enabled is required.";
     }
+
+    const canvas = this._canvas;
+
+    if (enabled) {
+      if (canvas.modeLock) {
+        console.warn("Mode is locked, cannot change measure mode.");
+        return;
+      }
+
+      canvas.modeLock = true;
+      canvas.discardActiveObject();
+      canvas.measureMode = true;
+      canvas.selection = false;
+      canvas.modeType = type;
+
+      canvas.measureArrow = arrowObject ?? new fabric.LineArrow([0, 0, 0, 0], {
+        stroke: "rgba(0,0,0,1)",
+        strokeWidth: 2,
+        fill: "rgba(0,0,0,1)",
+        selectable: false,
+      });
+
+      canvas.measureAdditionalObject = additionalObject;
+
+      this._addPopupAndOverlay(overlayContent, popupContent);
+
+      canvas._objects.forEach((object) => {
+        object.set("beforeMeasureSelectable", object.selectable);
+        object.set("selectable", false);
+      });
+
+      ClientMediator.fireEvent("BattleMap_ModeChanged", {
+        mode: "Measure",
+        type: type,
+      });
+    } else {
+      if (canvas.measureMode) {
+        canvas.modeLock = undefined;
+        canvas.measureMode = undefined;
+        canvas.selection = true;
+        canvas.modeType = undefined;
+
+        this._removePopupAndOverlay();
+
+        canvas._objects.forEach((object) => {
+          if (object.beforeMeasureSelectable !== undefined) {
+            object.set("selectable", object.beforeMeasureSelectable);
+            object.set("beforeMeasureSelectable", undefined);
+          }
+        });
+
+        ClientMediator.fireEvent("BattleMap_ModeChanged", {
+          mode: undefined,
+          type: undefined,
+        });
+      }
+    }
+  }
+
+  SetMeasureObjects({ arrowObject, additionalObject }) {
+    const canvas = this._canvas;
+
+    if (canvas.measureMode) {
+      canvas.measureArrow ??= arrowObject;
+      canvas.measureAdditionalObject ??= additionalObject;
+    }
+  }
+
+  DisableAllModes() {
+    this.SetSimpleCreateMode({ enabled: false });
+    this.SetFreeDrawMode({ enabled: false });
+    this.UnsetTokenSelectMode({});
+    this.SetLayerEditMode({ editMode: false });
+  }
+
+  _addPopupAndOverlay(overlayContent, popupContent) {
+    if (overlayContent) {
+      ClientMediator.sendCommand("BattleMap", "ShowOverlay", {
+        contextId: this.contextId,
+        content: overlayContent,
+      });
+    }
+
+    if (popupContent) {
+      ClientMediator.sendCommand("BattleMap", "ShowPopup", {
+        contextId: this.contextId,
+        content: popupContent,
+      });
+    }
+  }
+
+  _removePopupAndOverlay() {
+    ClientMediator.sendCommand("BattleMap", "HideOverlay", {
+      contextId: this.contextId,
+    });
+
+    ClientMediator.sendCommand("BattleMap", "HidePopup", {
+      contextId: this.contextId,
+    });
   }
 }
 

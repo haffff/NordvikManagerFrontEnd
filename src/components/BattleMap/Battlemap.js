@@ -330,6 +330,7 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
           parentId: this.parentId,
           originalLeft: this.originalLeft,
           originalTop: this.originalTop,
+          fontSize: this.fontSize,
         });
       };
     })(fabric.Object.prototype.toObject);

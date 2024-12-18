@@ -26,6 +26,10 @@ import { OnMouseMovePopupLocationUpdateClientBehavior } from "./Client/OnMouseMo
 import { OnMouseDownSimpleCreateClientBehavior } from "./Client/SimpleCreate/OnMouseDownSimpleCreate";
 import { OnMouseUpSimpleCreateClientBehavior } from "./Client/SimpleCreate/OnMouseUpSimpleCreate";
 import { OnMouseMoveSimpleCreateClientBehavior } from "./Client/SimpleCreate/OnMouseMoveSimpleCreate";
+import { OnPathCreatedFreeDrawClientBehavior } from "./Client/Draw/OnPathCreatedFreeDraw";
+import { OnMouseDownMeasureStartClientBehavior } from "./Client/Measure/OnMouseDownMeasureStart";
+import { OnMouseUpMeasureEndsClientBehavior } from "./Client/Measure/OnMouseUpMeasureEnds";
+import { OnMouseMoveMeasureUpdateClientBehavior } from "./Client/Measure/OnMouseMoveMeasureUpdate";
 
 export const BehaviorDictionaryServer = {
   element_add: new OnAddElementBehavior(),
@@ -57,18 +61,24 @@ export const BehaviorDictionaryClient = {
     new OnDragStartClientBehavior(),
     new OnClickContextMenuHandleClientBehavior(),
     new OnMouseDownSimpleCreateClientBehavior(),
+    new OnMouseDownMeasureStartClientBehavior(),
   ],
   "mouse:up": [
     new OnDragEndClientBehavior(),
     new OnTokenClickedInSelectModeClientBehavior(),
     new OnMouseUpSimpleCreateClientBehavior(),
+    new OnMouseUpMeasureEndsClientBehavior(),
   ],
   "mouse:move": [
     new OnDragMoveClientBehavior(),
     new OnMouseMovePopupLocationUpdateClientBehavior(),
     new OnMouseMoveSimpleCreateClientBehavior(),
+    new OnMouseMoveMeasureUpdateClientBehavior(),
   ],
   "mouse:wheel": [new OnMouseWheelChangeZoomClientBehavior()],
+  "path:created": [
+    new OnPathCreatedFreeDrawClientBehavior(),
+  ],
 };
 
 export const UserActionDictionary = {};

@@ -42,7 +42,6 @@ const ArrowTypeInit = () => {
             ctx.fill();
 
             ctx.restore();
-
         }
     });
 

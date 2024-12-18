@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import ClientMediator from "../../../ClientMediator";
 
-export const PopupBMOverlay = ({ battleMapId }) => {
+export const PopupBMOverlay = ({ battleMapId, canvas }) => {
   const [show, setShow] = useState(false);
   const [content, setPopupContent] = useState(undefined);
   const popupRef = useRef(undefined);
