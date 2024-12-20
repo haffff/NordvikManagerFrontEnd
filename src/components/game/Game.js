@@ -255,6 +255,9 @@ export const Game = ({ gameID, onExit }) => {
           let player = gameDataManagerRef.current.CurrentPlayer();
           return player ? player.color : "black";
         },
+        Exit: () => {
+          onExit();
+        }
       };
 
       ClientMediator.register({ id: "Game", panel: "Game", ...gameMethods });

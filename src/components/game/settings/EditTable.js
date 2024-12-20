@@ -53,7 +53,7 @@ export const EditTable = ({ keyBase, dto, editableKeyLabelDict, onSave, gameData
             let item = [...ev.dataTransfer.items][0];
             if (item.kind === "file") {
                 WebHelper.postImage(item.getAsFile(), gameDataManagerRef.current.Game.id, (result) => {
-                    OnChange(key, `${WebHelper.ApiAddress}/Materials/Resource?gameid=${gameDataManagerRef.current.Game.id}&id=${result.id}`);
+                    OnChange(key, WebHelper.getResourceString(result));
                 });
             }
         }

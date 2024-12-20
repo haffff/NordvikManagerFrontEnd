@@ -19,6 +19,8 @@ import {
   Image,
   Editable,
   Select,
+  HStack,
+  Button,
 } from "@chakra-ui/react";
 import DropDownButton from "../../uiComponents/base/DDItems/DropDrownButton";
 import ColorPicker from "../../uiComponents/ColorPicker";
@@ -97,7 +99,7 @@ export const SettingsPanel = ({
         WebHelper.postImage(item.getAsFile(), dto.name, (result) => {
           OnChange(
             key,
-            `${WebHelper.ApiAddress}/Materials/Resource?id=${result.id}`
+            WebHelper.getResourceString(result)
           );
         });
       }
@@ -394,13 +396,9 @@ export const SettingsPanel = ({
           ) : (
             <></>
           )}
-          <DButtonHorizontalContainer>
-            <DropDownButton
-              width={200}
-              name={"Save"}
-              onClick={() => validateAndSave(updatedDto)}
-            />
-          </DButtonHorizontalContainer>
+          <HStack margin={"10px"} gap={"10px"}>
+            <Button onClick={() => validateAndSave(updatedDto)}>Save</Button>
+          </HStack>
         </>
       )}
     </BasePanel>

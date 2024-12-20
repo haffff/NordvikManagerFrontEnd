@@ -25,7 +25,7 @@ export const DTreeList = ({ withAddItem, selectedItemOverwrite, onAddItem, items
     const filterRef = React.useRef(filter);
     filterRef.current = filter;
 
-    const itemsRef = React.useRef(items);
+    const itemsRef = React.useRef(items ?? []);
     itemsRef.current = items;
 
     const treeItemsRef = React.useRef(treeItems);
@@ -188,7 +188,7 @@ export const DTreeList = ({ withAddItem, selectedItemOverwrite, onAddItem, items
     };
 
     const renderTree = (treeItems, items) => {
-        if (!treeItems || items.length === 0)
+        if (!treeItems)
             return;
         let data = [];
 
@@ -230,7 +230,7 @@ export const DTreeList = ({ withAddItem, selectedItemOverwrite, onAddItem, items
                     addArray(firstChild, children, path + "/" + item.parent?.name);
                     const foundItem = items.find(x => x.id === item.targetId);
 
-                    if (!item.isFolder && !foundItem.name.includes(filterRef.current)) {
+                    if (!item.isFolder && (!foundItem || !foundItem.name.includes(filterRef.current))) {
                         item = item.nextInstance;
                         continue;
                     }
@@ -240,7 +240,7 @@ export const DTreeList = ({ withAddItem, selectedItemOverwrite, onAddItem, items
                 else {
                     const foundItem = items.find(x => x.id === item.targetId);
 
-                    if (!item.isFolder && !foundItem.name.includes(filterRef.current)) {
+                    if (!item.isFolder && (!foundItem || !foundItem.name.includes(filterRef.current))) {
                         item = item.nextInstance;
                         continue;
                     }

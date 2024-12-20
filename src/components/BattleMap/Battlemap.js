@@ -166,7 +166,7 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
           if (dragObj.entityType === "ResourceModel") {
             console.log(dragObj);
             fabric.Image.fromURL(
-              `${WebHelper.ApiAddress}/Materials/Resource?id=${dragObj.id}`,
+              WebHelper.getResourceString(dragObj.id),
               (img) => {
                 const obj = img;
                 if (!obj.width) {
@@ -197,10 +197,9 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
         if (item.kind === "file") {
           WebHelper.postMaterial(
             item.getAsFile(),
-            `${mapRef.current.name}/images`,
             (result) => {
               fabric.Image.fromURL(
-                `${WebHelper.ImageAddress}${result.id}`,
+                WebHelper.getResourceString(result.id),
                 (img) => {
                   const obj = img;
                   obj.left = coords.x + 10 * i;

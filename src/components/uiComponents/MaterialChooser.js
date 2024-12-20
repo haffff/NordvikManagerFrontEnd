@@ -104,7 +104,6 @@ export const MaterialChooser = ({
         if (item.kind === "file") {
           WebHelper.postMaterial(
             item.getAsFile(),
-            `dropped`,
             (result) => {
               LoadData(() => {
                 let selectedMaterial = materials.find(

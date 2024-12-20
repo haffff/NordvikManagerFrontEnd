@@ -7,6 +7,7 @@ import {
   Select,
   Checkbox,
   Stack,
+  Button,
 } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import DList from "../../../uiComponents/base/List/DList";
@@ -19,6 +20,7 @@ import { ActionStep } from "./ActionStep";
 import UtilityHelper from "../../../../helpers/UtilityHelper";
 import { ReactTreeList } from "@bartaxyz/react-tree-list";
 import { FaCheck, FaCross, FaMinus } from "react-icons/fa";
+import { DUIBox } from "../../../uiComponents/base/List/DUIBox";
 
 export const ActionsPanel = ({ state, gameDataRef }) => {
   const [actions, setActions] = React.useState([]);
@@ -87,8 +89,12 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
     const treeGroups = Object.keys(groupd).map((x) => ({
       id: x,
       label: x,
-      open: treeData.find( y => y.id === x)?.open || false,
-      children: groupd[x].map((y) => ({ id: y.id, label: y.name, icon: y.isEnabled ? <FaCheck /> : <FaMinus /> })),
+      open: treeData.find((y) => y.id === x)?.open || false,
+      children: groupd[x].map((y) => ({
+        id: y.id,
+        label: y.name,
+        icon: y.isEnabled ? <FaCheck /> : <FaMinus />,
+      })),
     }));
     return treeGroups;
   };
@@ -101,7 +107,7 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
         setCollection={setActions}
       />
       <Flex overflowY={"auto"} height={"100%"}>
-        <DContainer width={"300px"} maxWidth={"700px"}>
+        <DContainer title={"Actions"} width={"300px"} maxWidth={"700px"}>
           <DList
             mainComponent={true}
             withAddButton
@@ -117,7 +123,6 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
               });
             }}
           >
-            <FormLabel>Actions</FormLabel>
             <Input
               placeholder={"Search"}
               onChange={(e) => setSearch(e.target.value)}
@@ -125,7 +130,7 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
             <ReactTreeList
               onChange={setTreeData}
               onSelected={({ id }) => {
-                selectItem({id});
+                selectItem({ id });
               }}
               data={treeData}
               draggable={false}
@@ -134,22 +139,19 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
           </DList>
         </DContainer>
         {selectedAction ? (
-          <Stack key={selectedAction?.id} padding={"10px"} width={"100%"}>
-            <FormLabel>Action</FormLabel>
-            <Flex>
-              <Checkbox
-                isChecked={selectedAction?.isEnabled}
-                onChange={(e) => {
-                  setSelectedAction({
-                    ...selectedAction,
-                    isEnabled: e.target.checked,
-                  });
-                }}
-              >
-                Enabled
-              </Checkbox>
-            </Flex>
-            <Flex>
+          <DUIBox key={selectedAction?.id} padding={"10px"} width={"100%"}>
+            <Checkbox
+              isChecked={selectedAction?.isEnabled}
+              onChange={(e) => {
+                setSelectedAction({
+                  ...selectedAction,
+                  isEnabled: e.target.checked,
+                });
+              }}
+            >
+              Enabled
+            </Checkbox>
+            <Flex gap={"5px"}>
               <Input
                 width={"200px"}
                 value={selectedAction?.prefix}
@@ -170,50 +172,53 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
                 }}
               />
             </Flex>
-            <Input
-              value={selectedAction?.description}
-              onChange={(e) => {
-                setSelectedAction({
-                  ...selectedAction,
-                  description: e.target.value,
-                });
-              }}
-            />
-            <Select
-              defaultValue={-1}
-              value={selectedAction?.hook}
-              onChange={(e) => {
-                setSelectedAction({ ...selectedAction, hook: e.target.value });
-              }}
-            >
-              {hooks.map((x) => (
-                <option value={x.value}>{x.name}</option>
-              ))}
-            </Select>
-
-            <DContainer title={"Steps"} withVisibilityToggle={true}>
-              <DList
-                mainComponent={true}
-                withAddButton
-                handleAdd={() =>
-                  setSteps([
-                    ...stepsRef.current,
-                    {
-                      id: UtilityHelper.GenerateUUID(),
-                      Data: { Label: "Step" },
-                      Type: "SetVariable",
-                    },
-                  ])
-                }
+            <Stack>
+              <Input
+                value={selectedAction?.description}
+                onChange={(e) => {
+                  setSelectedAction({
+                    ...selectedAction,
+                    description: e.target.value,
+                  });
+                }}
+              />
+              <Select
+                defaultValue={-1}
+                value={selectedAction?.hook}
+                onChange={(e) => {
+                  setSelectedAction({
+                    ...selectedAction,
+                    hook: e.target.value,
+                  });
+                }}
               >
-                {stepsRef.current?.map((x, i) => HandleStep(x, i)) || []}
-              </DList>
-            </DContainer>
-            <Flex padding={"5px"}>
-              <DropDownButton
-                name={"Update"}
-                height={"50px"}
-                width="300px"
+                {hooks.map((x) => (
+                  <option value={x.value}>{x.name}</option>
+                ))}
+              </Select>
+
+              <DContainer title={"Steps"} withVisibilityToggle={true}>
+                <DList
+                  gap={"10px"}
+                  mainComponent={true}
+                  withAddButton
+                  handleAdd={() =>
+                    setSteps([
+                      ...stepsRef.current,
+                      {
+                        id: UtilityHelper.GenerateUUID(),
+                        Data: { Label: "Step" },
+                        Type: "SetVariable",
+                      },
+                    ])
+                  }
+                >
+                  {stepsRef.current?.map((x, i) => HandleStep(x, i)) || []}
+                </DList>
+              </DContainer>
+            </Stack>
+            <HStack gap={"10px"}>
+              <Button
                 onClick={() => {
                   selectedAction.content = JSON.stringify(stepsRef.current);
                   WebSocketManagerInstance.Send({
@@ -221,11 +226,10 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
                     data: selectedAction,
                   });
                 }}
-              />
-              <DropDownButton
-                name={"Delete"}
-                height={"50px"}
-                width="300px"
+              >
+                Update
+              </Button>
+              <Button
                 onClick={() => {
                   selectedAction.content = JSON.stringify(stepsRef.current);
                   WebSocketManagerInstance.Send({
@@ -233,9 +237,36 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
                     data: selectedAction.id,
                   });
                 }}
-              />
-            </Flex>
-          </Stack>
+              >
+                Delete
+              </Button>
+              <Button
+                onClick={() => {
+                  let selectedActionNew = {
+                    ...selectedAction,
+                    hook: parseInt(selectedAction.hook),
+                  };
+                  let serialized = JSON.stringify(selectedActionNew, null, 2);
+                  var element = document.createElement("a");
+                  element.setAttribute(
+                    "href",
+                    "data:text/plain;charset=utf-8," +
+                      encodeURIComponent(serialized)
+                  );
+                  element.setAttribute(
+                    "download",
+                    selectedAction.name + ".json"
+                  );
+                  element.style.display = "none";
+                  document.body.appendChild(element);
+                  element.click();
+                  document.body.removeChild(element);
+                }}
+              >
+                Export
+              </Button>
+            </HStack>
+          </DUIBox>
         ) : (
           <></>
         )}

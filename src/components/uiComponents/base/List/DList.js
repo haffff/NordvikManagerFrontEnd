@@ -2,11 +2,11 @@ import { Button, Center, Flex, Icon, Stack } from '@chakra-ui/react';
 import * as React from 'react';
 import { FaPlus } from 'react-icons/fa';
 
-export const DList = ({mainComponent, withAddButton, handleAdd, children}) => {
-    
+export const DList = (props) => {
+    const {mainComponent, withAddButton, withSearch, handleAdd, children} = props;
     return (
-        <Flex 
-        direction="column" 
+        <Stack 
+        {...props}
         width={mainComponent ? "100%" : undefined} 
         overflowY={mainComponent ? "auto" : undefined}>
             {children}
@@ -15,7 +15,7 @@ export const DList = ({mainComponent, withAddButton, handleAdd, children}) => {
                 <Center><Icon as={FaPlus} /></Center>
             </Button>) : 
             undefined}
-        </Flex>
+        </Stack>
     );
 }
 export default DList;

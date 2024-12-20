@@ -1,105 +1,231 @@
-import * as React from 'react';
-import { TabPanels, Tabs, TabList, Tab, TabPanel, Box, Input, Button, Checkbox, Flex, useToast } from '@chakra-ui/react'
-import * as Dockable from "@hlorenzi/react-dockable"
-import WebHelper from '../../../../helpers/WebHelper';
-import BasePanel from '../../../uiComponents/base/BasePanel';
-import DContainer from '../../../uiComponents/base/Containers/DContainer';
-import DListItem from '../../../uiComponents/base/List/DListItem';
-import DListItemsButtonContainer from '../../../uiComponents/base/List/DListItemsButtonContainer';
-import DListItemButton from '../../../uiComponents/base/List/ListItemDetails/DListItemButton';
-import { FaDumpster, FaMinus } from 'react-icons/fa';
-import DLabel from '../../../uiComponents/base/Text/DLabel';
-import UtilityHelper from '../../../../helpers/UtilityHelper';
+import * as React from "react";
+import {
+  TabPanels,
+  Tabs,
+  TabList,
+  Tab,
+  TabPanel,
+  Box,
+  Input,
+  Button,
+  Checkbox,
+  Flex,
+  useToast,
+  HStack,
+  FormLabel,
+  Stack,
+} from "@chakra-ui/react";
+import * as Dockable from "@hlorenzi/react-dockable";
+import WebHelper from "../../../../helpers/WebHelper";
+import BasePanel from "../../../uiComponents/base/BasePanel";
+import DContainer from "../../../uiComponents/base/Containers/DContainer";
+import DListItem from "../../../uiComponents/base/List/DListItem";
+import DListItemsButtonContainer from "../../../uiComponents/base/List/DListItemsButtonContainer";
+import DListItemButton from "../../../uiComponents/base/List/ListItemDetails/DListItemButton";
+import { FaDumpster, FaMinus } from "react-icons/fa";
+import DLabel from "../../../uiComponents/base/Text/DLabel";
+import UtilityHelper from "../../../../helpers/UtilityHelper";
+import DList from "../../../uiComponents/base/List/DList";
+import { DUIBox } from "../../../uiComponents/base/List/DUIBox";
 
-export const AddonsManagePanel = ({ state, gameDataRef }) => {
-    const forceUpdate = React.useReducer(x => x + 1, 0)[1];
-    const [addons, setAddons] = React.useState([]);
-    const [panels, setPanels] = React.useState([]);
-    const [actions, setActions] = React.useState([]);
-    const [prefix, setPrefix] = React.useState("");
-    const [name, setName] = React.useState("");
-    const [createAddon, setCreateAddon] = React.useState({});//{name, description, version, author, url, actions, views}
-    const [filteredActions, setFilteredActions] = React.useState([...actions]);
+export const AddonsManagePanel = ({ state }) => {
+  const forceUpdate = React.useReducer((x) => x + 1, 0)[1];
+  const [addons, setAddons] = React.useState([]);
+  const [fileSelected, setFileSelected] = React.useState(false);
+  const [url, setUrl] = React.useState("");
+  const [search, setSearch] = React.useState("");
+  const [selectedAddon, setSelectedAddon] = React.useState(null);
 
-    const toast = useToast();
+  const fileRef = React.useRef(null);
 
-    const inputFile = React.useRef(null);
-    React.useEffect(() => {
-        HandleReload();
-    }, []);
+  const toast = useToast();
 
-    const HandleReload = () => {
-        WebHelper.get("addon/addons?gameid=" + gameDataRef.current?.Game?.id, (response) => { setAddons(response) }, (error) => console.log(error));
-        WebHelper.get("addon/customPanels?gameid=" + gameDataRef.current?.Game?.id, (response) => { setPanels(response) }, (error) => console.log(error));
-        WebHelper.get("addon/actions?gameid=" + gameDataRef.current?.Game?.id, (response) => { setActions(response) }, (error) => console.log(error));
+  const inputFile = React.useRef(null);
+  React.useEffect(() => {
+    HandleReload();
+  }, []);
+
+  const HandleReload = async () => {
+    var result = await WebHelper.getAsync("addon/addons");
+    setAddons(result);
+  };
+
+  const Install = async () => {
+    var formData = new FormData();
+    formData.append("file", fileRef.current);
+    formData.append("url", url);
+    var result = await WebHelper.postAsync("addon/install", formData, true);
+    if (result.ok) {
+      toast({
+        title: "Addon installed",
+        status: "success",
+        duration: 9000,
+        isClosable: true,
+      });
+    } else {
+      toast({
+        title: "Addon installation failed",
+        status: "error",
+        duration: 9000,
+        isClosable: true,
+      });
     }
+    HandleReload();
+  };
 
-    const Install = (file) => {
-        if (file) {
-            var reader = new FileReader();
-            reader.onload = function (e) {
-                var data = e.target.result;
-                var addon = JSON.parse(data);
-                WebHelper.post("addon/install?gameId=" + gameDataRef.current?.Game?.id, { ...addon }, (response) => {
-                    HandleReload();
-                    toast({
-                        title: 'Addon installed!',
-                        status: 'success',
-                        duration: 9000,
-                        isClosable: true
-                    });
-                }, (error) => 
-                toast({
-                    title: 'Something went wrong!',
-                    status: 'error',
-                    duration: 9000,
-                    isClosable: true
-                })
-            );
-            }
-            reader.readAsText(file);
-        }
+  const HandleDrop = (ev) => {
+    if (ev.dataTransfer.items) {
+      var file = [...ev.dataTransfer.items]
+        .find((x) => x.kind === "file")
+        .getAsFile();
+      if (file) {
+        fileRef.current = file;
+        setFileSelected(true);
+      }
     }
+  };
 
-    const HandleDrop = (ev) => {
-        if (ev.dataTransfer.items) {
-            var file = [...ev.dataTransfer.items].find(x => x.kind === 'file').getAsFile();
-            if (file) {
-                Install(file);
-            }
-        }
+  const HandleSelectFile = () => {
+    inputFile.current.click();
+  };
+
+  const HandleFileSelected = (e) => {
+    if (e.target.files.length > 0) {
+      let file = e.target.files[0];
+      fileRef.current = file;
+      setFileSelected(true);
     }
+  };
 
-    const ctx = Dockable.useContentContext();
-    ctx.setTitle(`Addons Manage Panel`);
+  const ctx = Dockable.useContentContext();
+  ctx.setTitle(`Addons Manage Panel`);
 
-    return (
-        <BasePanel>
-            <Tabs>
-                <TabList>
-                    <Tab>Installed</Tab>
-                    <Tab>Install</Tab>
-                    <Tab>Create</Tab>
-                </TabList>
-                <TabPanels>
-                    <TabPanel>
-                        {addons.map((addon) => {
-                            return <DListItem><p style={{ padding: '3px', paddingRight: '15px' }}>{addon.name}</p> <i style={{ color: "rgb(100,100,100)" }}>{addon.description}</i>
-                                <DListItemsButtonContainer>
-                                    <DListItemButton label={"Uninstall"} icon={FaMinus} onClick={() => { WebHelper.post("addon/uninstall", { gameId: gameDataRef.current?.Game?.id, addonId: addon.id }, HandleReload) }} />
-                                </DListItemsButtonContainer>
-                            </DListItem>;
-                        })}
-                    </TabPanel>
-                    <TabPanel>
-                        Drop addon file here:
-                        <Box onDragOver={(ev) => ev.preventDefault()} onDrop={(ev) => { ev.preventDefault(); HandleDrop(ev); }} onClick={() => { inputFile.current.click() }} width={'200px'} height={'100px'} borderWidth={'2px'} borderRadius={'10px'} borderStyle={'dashed'} alignContent={'center'} textAlign={'center'}>Drop here</Box>
-                        <input type='file' id='file' ref={inputFile} onChange={(e) => Install(e.target.files[0])} style={{ display: 'none' }} />
-                        Or provide URL:
-                        <Input placeholder="Addon URL" />
-                        <Button>Install</Button>
-                    </TabPanel>
-                    <TabPanel>
+  return (
+    <BasePanel>
+      <Tabs>
+        <TabList>
+          <Tab>Installed</Tab>
+          <Tab>Install</Tab>
+          {/* <Tab>Create</Tab> */}
+        </TabList>
+        <TabPanels>
+          <TabPanel>
+            <Flex dir="row" overflowY={"auto"} height={"100%"}>
+              <DContainer title={"Addons"} width={"300px"} maxWidth={"700px"}>
+                <DList mainComponent={true}>
+                  <Input
+                    placeholder={"Search"}
+                    onChange={(e) => setSearch(e.target.value)}
+                  />
+                  {addons
+                    .filter((x) => x.name.includes(search))
+                    .map((addon) => (
+                      <DListItem
+                        onClick={() => {
+                          setSelectedAddon(addon);
+                        }}
+                        isSelected={selectedAddon?.id === addon.id}
+                      >
+                        <DLabel>{addon.name}</DLabel>
+                      </DListItem>
+                    ))}
+                </DList>
+              </DContainer>
+              {selectedAddon ? (
+                <Stack key={selectedAddon?.id} padding={"10px"} width={"100%"}>
+                  <DUIBox>
+                    <FormLabel>{selectedAddon.name}</FormLabel>
+                    <table>
+                      <tr>
+                        <td>Description:</td>
+                        <td>{selectedAddon.description}</td>
+                      </tr>
+                      <tr>
+                        <td>Version:</td>
+                        <td>{selectedAddon.version}</td>
+                      </tr>
+                      <tr>
+                        <td>Author:</td>
+                        <td>{selectedAddon.author}</td>
+                      </tr>
+                      <tr>
+                        <td>Website:</td>
+                        <td>
+                          <a href={selectedAddon.website}>
+                            {selectedAddon.website}
+                          </a>
+                        </td>
+                      </tr>
+                      <tr>
+                        <td>License:</td>
+                        <td>{selectedAddon.license}</td>
+                      </tr>
+                      <tr>
+                        <Checkbox isChecked={selectedAddon?.isEnabled}>
+                          Enabled
+                        </Checkbox>
+                      </tr>
+                    </table>
+                  </DUIBox>
+                  <HStack gap={"10px"}>
+                    <Button>Update</Button>
+                    <Button>Delete</Button>
+                    <Button>Export</Button>
+                  </HStack>
+                </Stack>
+              ) : (
+                <></>
+              )}
+            </Flex>
+          </TabPanel>
+          <TabPanel>
+            Drop addon file here:
+            <Box
+              onDragOver={(ev) => ev.preventDefault()}
+              onDrop={(ev) => {
+                ev.preventDefault();
+                HandleDrop(ev);
+              }}
+              onClick={HandleSelectFile}
+              width={"200px"}
+              height={"100px"}
+              borderWidth={"2px"}
+              borderRadius={"10px"}
+              borderStyle={"dashed"}
+              alignContent={"center"}
+              textAlign={"center"}
+            >
+              Drop here
+            </Box>
+            <input
+              type="file"
+              id="file"
+              ref={inputFile}
+              onChange={HandleFileSelected}
+              style={{ display: "none" }}
+            />
+            Or provide URL:
+            <Input
+              value={url}
+              onChange={(e) => setUrl(e.target.value)}
+              placeholder="Addon URL"
+            />
+            {fileSelected && (
+              <DListItem>Item selected: {fileRef.current.name}</DListItem>
+            )}
+            <HStack gap={"10px"}>
+              <Button onClick={() => Install()}>Install</Button>
+              <Button
+                onClick={() => {
+                  fileRef.current = null;
+                  setFileSelected(false);
+                }}
+              >
+                Clear
+              </Button>
+            </HStack>
+          </TabPanel>
+          {/* <TabPanel>
                         <DContainer title={"Information"} withVisibilityToggle >
                             <DLabel>Name</DLabel>
                             <Input placeholder="Addon Name" onChange={(e) => setCreateAddon({ ...createAddon, Name: e.target.value })} />
@@ -138,10 +264,10 @@ export const AddonsManagePanel = ({ state, gameDataRef }) => {
                                 WebHelper.post("addon/createaddon", { ...createAddon }, (response) => { UtilityHelper.DownloadObjectAsFile(response, createAddon.Name) }, (error) => console.log(error));
                             }}>Create</Button>
                         <Button onClick={HandleReload}>Reload</Button>
-                    </TabPanel>
-                </TabPanels>
-            </Tabs>
-        </BasePanel>
-    )
-}
+                    </TabPanel> */}
+        </TabPanels>
+      </Tabs>
+    </BasePanel>
+  );
+};
 export default AddonsManagePanel;
