@@ -2,16 +2,25 @@ import ClientMediator from "../../../../../ClientMediator";
 
 export class OnPreviewUpdateBehavior {
   Handle(response, canvas, battleMapId) {
-
-    ClientMediator.sendCommandWaitForRegister("Game", "GetCurrentPlayer", {}, true).then((currentPlayer) => {
-      let obj = canvas.getObjects().find(x => x.id === response.data.id);
-      if (obj &&
-        !(response.battleMapId === battleMapId && response.playerId === currentPlayer.id)
-      ) {
-        obj.set(response.data);
-        canvas.requestRenderAll();
-      }
+    const updates = response.data;
+    if (
+      updates &&
+      !(
+        response.battleMapId === battleMapId
+      )
+    ) {
+      updates.forEach((update) => {
+        //Find object by previewId
+        const obj = canvas
+          .getObjects()
+          .find((o) => o.previewId === update.previewId);
+        if (!obj) {
+          return;
+        }
+        obj.set(update);
+      });
       canvas.requestRenderAll();
-    });
+    }
+    canvas.requestRenderAll();
   }
 }

@@ -33,8 +33,7 @@ export const PlayersPanel = () => {
         HandleMessage();
     }, []);
 
-    const ctx = Dockable.useContentContext();
-    ctx.setTitle(`Players`);
+
 
     const createPlayersList = () => {
 

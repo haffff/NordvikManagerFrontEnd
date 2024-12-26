@@ -4,7 +4,7 @@ import SettingsPanel from './SettingsPanel';
 import WebSocketManagerInstance from '../WebSocketManager';
 import ClientMediator from '../../../ClientMediator';
 
-export const SettingsPanelWithPropertySettings = ({ dto, editableKeyLabelDict, onSave, onValidation, entityName, hideSaveButton, saveOnLeave }) => {
+export const SettingsPanelWithPropertySettings = ({ dto, editableKeyLabelDict, onSave, withExport, onValidation, entityName, hideSaveButton, saveOnLeave }) => {
     const [properties, setProperties] = React.useState([]);
     const [savedDto, setSavedDto] = React.useState(structuredClone(dto));
     const [show, setShow] = React.useState(false);
@@ -63,6 +63,7 @@ export const SettingsPanelWithPropertySettings = ({ dto, editableKeyLabelDict, o
         <>
             {show ? <SettingsPanel
                 dto={savedDto}
+                withExport={withExport}
                 editableKeyLabelDict={editableKeyLabelDict}
                 onSave={propertySave}
                 onValidation={onValidation}

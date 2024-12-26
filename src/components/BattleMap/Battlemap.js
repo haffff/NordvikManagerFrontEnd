@@ -330,6 +330,7 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
           originalLeft: this.originalLeft,
           originalTop: this.originalTop,
           fontSize: this.fontSize,
+          previewId: this.previewId,
         });
       };
     })(fabric.Object.prototype.toObject);
@@ -398,6 +399,27 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
               return true;
             })
           );
+
+          //set default settings
+          editor.canvas.alignMode = "corners";
+          editor.canvas.getPointerWithAlign = function (e) {
+            let pointer = editor.canvas.getPointer(e, false);
+            let align = editor.canvas.alignMode;
+            //if align mode different than none, align to grid
+            if (align !== "none") {
+              let gridSize = map.gridSize;
+              let x,
+                y = 0;
+              x = Math.round(pointer.x / gridSize) * gridSize;
+              y = Math.round(pointer.y / gridSize) * gridSize;
+              if (align === "center") {
+                x += gridSize / 2;
+                y += gridSize / 2;
+              }
+              pointer = { x: x, y: y };
+            }
+            return pointer;
+          };
         });
       } catch (error) {
         console.error(error);

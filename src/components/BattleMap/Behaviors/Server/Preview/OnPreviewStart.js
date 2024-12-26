@@ -1,21 +1,22 @@
-import { fabric } from 'fabric';
-import ClientMediator from '../../../../../ClientMediator';
+import { fabric } from "fabric";
+import ClientMediator from "../../../../../ClientMediator";
 
 export class OnPreviewStartBehavior {
-
   Handle(response, canvas, battleMapId) {
-    ClientMediator.sendCommandWaitForRegister("Game", "GetCurrentPlayer", {}, true).then((currentPlayer) => {
-      if (response.data &&
-        !(response.battleMapId === battleMapId &&
-          response.playerId === currentPlayer.id)
-      ) {
-        const obj = response.data;
-        obj.selectable = false;
-        fabric.util.enlivenObjects([obj], elements => {
-          canvas.add(elements[0]);
-          canvas.requestRenderAll();
+    if (response.data && !(response.battleMapId === battleMapId)) {
+      const objects = response.data;
+      fabric.util.enlivenObjects(objects, (elements) => {
+        elements.forEach((element, i) => {
+          let previewId = objects[i].previewId;
+          element.set({
+            selectable: false,
+            previewId: previewId,
+            preview: true,
+          });
+          canvas.add(element);
         });
-      }
-    });
+        canvas.requestRenderAll();
+      });
+    }
   }
 }

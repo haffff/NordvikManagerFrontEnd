@@ -17,19 +17,22 @@ import {
   AccordionPanel,
   AccordionIcon,
   Image,
-  Editable,
   Select,
   HStack,
   Button,
+  Tooltip,
 } from "@chakra-ui/react";
-import DropDownButton from "../../uiComponents/base/DDItems/DropDrownButton";
 import ColorPicker from "../../uiComponents/ColorPicker";
 import WebHelper from "../../../helpers/WebHelper";
 import BasePanel from "../../uiComponents/base/BasePanel";
-import DButtonHorizontalContainer from "../../uiComponents/base/Containers/DButtonHorizontalContainer";
 import DynamicIconChooser from "../../uiComponents/icons/DynamicIconChooser";
 import { MaterialChooser } from "../../uiComponents/MaterialChooser";
 import { PlayerChooser } from "../../uiComponents/PlayerChooser";
+import {
+  FaQuestion,
+  FaQuestionCircle,
+  FaRegQuestionCircle,
+} from "react-icons/fa";
 
 export const SettingsPanel = ({
   dto,
@@ -38,6 +41,7 @@ export const SettingsPanel = ({
   onValidation,
   hideSaveButton,
   saveOnLeave,
+  withExport,
 }) => {
   const [updatedDto, setUpdatedDto] = React.useState({});
   const [validationDict, setValidationDict] = React.useState({});
@@ -58,7 +62,7 @@ export const SettingsPanel = ({
     }
   };
 
-  const validateAndSave = (updatedDto) => {
+  const validate = () => {
     const validationResult = {};
     editableKeyLabelDict.forEach((editable) => {
       let combinedDto = { ...dto, ...updatedDto };
@@ -89,6 +93,11 @@ export const SettingsPanel = ({
     }
 
     if (onValidation) onValidation(true, updatedDto, validationResult);
+    return true;
+  };
+
+  const validateAndSave = (updatedDto) => {
+    if (validate() === false) return;
     onSave(updatedDto);
   };
 
@@ -97,10 +106,7 @@ export const SettingsPanel = ({
       let item = [...ev.dataTransfer.items][0];
       if (item.kind === "file") {
         WebHelper.postImage(item.getAsFile(), dto.name, (result) => {
-          OnChange(
-            key,
-            WebHelper.getResourceString(result)
-          );
+          OnChange(key, WebHelper.getResourceString(result));
         });
       }
     }
@@ -121,7 +127,16 @@ export const SettingsPanel = ({
           margin={1}
           size="sm"
         >
-          <FormLabel>{`${editable.label}:`}</FormLabel>
+          <Tooltip showArrow content={editable.toolTip}>
+            <Flex justifyContent={"space-between"} dir="row">
+              <FormLabel>{`${editable.label}:`}</FormLabel>
+              {editable.helpUrl && (
+                <a href={WebHelper.HelpURL + "/" + editable.helpUrl}>
+                  <FaRegQuestionCircle color="gray" />
+                </a>
+              )}
+            </Flex>
+          </Tooltip>
           {validationDict[key] ? (
             <p style={{ color: "red" }}>{validationDict[key]}</p>
           ) : (
@@ -279,7 +294,7 @@ export const SettingsPanel = ({
                   OnChange(
                     key,
                     name && name != ""
-                      ? WebHelper.ImageAddress + name
+                      ? WebHelper.getResourceString(name)
                       : undefined
                   )
                 }
@@ -398,6 +413,26 @@ export const SettingsPanel = ({
           )}
           <HStack margin={"10px"} gap={"10px"}>
             <Button onClick={() => validateAndSave(updatedDto)}>Save</Button>
+            {withExport ? (
+              <Button
+                onClick={() => {
+                  if (validate() === false) return;
+                  const element = document.createElement("a");
+                  const file = new Blob(
+                    [JSON.stringify({ ...dto, ...updatedDto })],
+                    { type: "text/plain" }
+                  );
+                  element.href = URL.createObjectURL(file);
+                  element.download = dto.name.replaceAll(" ", "_") + ".json";
+                  document.body.appendChild(element); // Required for this to work in FireFox
+                  element.click();
+                }}
+              >
+                Export
+              </Button>
+            ) : (
+              <></>
+            )}
           </HStack>
         </>
       )}

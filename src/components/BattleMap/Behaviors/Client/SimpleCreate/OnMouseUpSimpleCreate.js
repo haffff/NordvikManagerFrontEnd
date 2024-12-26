@@ -9,6 +9,7 @@ export class OnMouseUpSimpleCreateClientBehavior {
       canvas.previewObject
     ) {
       let element = canvas.previewObject;
+      
       if (!canvas.withSizing || element.width > 10 && element.height > 10) {
         let dto = DTOConverter.ConvertToDTO(element);
         WebSocketManagerInstance.Send({

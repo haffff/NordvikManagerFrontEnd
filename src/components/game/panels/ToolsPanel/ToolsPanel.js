@@ -4,14 +4,18 @@ import BasePanel from "../../../uiComponents/base/BasePanel";
 import useBMName from "../../../uiComponents/hooks/useBattleMapName";
 import DListItem from "../../../uiComponents/base/List/DListItem";
 import {
+  FaBorderNone,
+  FaBox,
   FaChess,
   FaCircle,
+  FaDotCircle,
   FaHandPaper,
   FaMap,
   FaMousePointer,
   FaPaintBrush,
   FaRuler,
   FaSquare,
+  FaSquareRootAlt,
 } from "react-icons/fa";
 import ClientMediator from "../../../../ClientMediator";
 import UtilityHelper from "../../../../helpers/UtilityHelper";
@@ -24,6 +28,7 @@ import { MdTextFields } from "react-icons/md";
 import { AddCircleOptions } from "./AddCircleOptions";
 import { AddTextOptions } from "./AddTextOptions";
 import { DrawOptions } from "./DrawOptions";
+import { MeasureOptions } from "./MeasureOptions";
 
 export const ToolsPanel = ({ battleMapId }) => {
   const panelRef = React.useRef(null);
@@ -31,6 +36,7 @@ export const ToolsPanel = ({ battleMapId }) => {
   const [drag, setDrag] = React.useState(false);
   const [mode, setMode] = React.useState(undefined);
   const [layer, setLayer] = React.useState(undefined);
+  const [alignMode, setAlign] = React.useState(undefined);
   const [playerColor, setPlayerColor] = React.useState("rgba(0,0,0,1)");
 
   const ctx = Dockable.useContentContext();
@@ -72,6 +78,11 @@ export const ToolsPanel = ({ battleMapId }) => {
   };
 
   const handleRect = () => {
+    if (mode === "SimpleCreate_Rectangle") {
+      clearMode();
+      return;
+    }
+
     clearMode();
     const obj = new fabric.Rect({
       fill: playerColor,
@@ -86,6 +97,11 @@ export const ToolsPanel = ({ battleMapId }) => {
   };
 
   const handleCircle = () => {
+    if (mode === "SimpleCreate_Circle") {
+      clearMode();
+      return;
+    }
+
     clearMode();
     const obj = new fabric.Circle({
       fill: playerColor,
@@ -100,6 +116,11 @@ export const ToolsPanel = ({ battleMapId }) => {
   };
 
   const handleText = () => {
+    if (mode === "SimpleCreate_Text") {
+      clearMode();
+      return;
+    }
+
     clearMode();
     const obj = new fabric.IText("Text", {
       fill: playerColor,
@@ -112,6 +133,11 @@ export const ToolsPanel = ({ battleMapId }) => {
   };
 
   const handleFreeDraw = () => {
+    if (mode === "Draw_undefined") {
+      clearMode();
+      return;
+    }
+
     clearMode();
 
     const brush = new fabric.PencilBrush();
@@ -124,6 +150,14 @@ export const ToolsPanel = ({ battleMapId }) => {
       enabled: true,
       brush: brush,
     });
+  };
+
+  const handleAlign = (mode) => {
+    ClientMediator.sendCommand("BattleMap", "SetAlign", {
+      contextId: battleMapId,
+      align: mode,
+    });
+    setAlign(mode);
   };
 
   const horizontal = height < 200;
@@ -157,6 +191,13 @@ export const ToolsPanel = ({ battleMapId }) => {
       ClientMediator.sendCommand("BattleMap", "GetSelectedLayer", {
         contextId: battleMapId,
       })
+    );
+
+    const align = ClientMediator.sendCommand("BattleMap", "GetAlign", {
+      contextId: battleMapId,
+    });
+    setAlign(
+      align
     );
 
     // get player color
@@ -200,19 +241,17 @@ export const ToolsPanel = ({ battleMapId }) => {
   };
 
   const handleMeasureLine = () => {
+    if (mode === "Measure_undefined") {
+      clearMode();
+      return;
+    }
     clearMode();
-
-    let arrow = new fabric.LineArrow([0, 0, 0, 0], {
-      stroke: "rgba(0,0,0,1)",
-      strokeWidth: 5,
-      fill: playerColor,
-      selectable: false,
-    });
 
     ClientMediator.sendCommand("BattleMap", "SetMeasureMode", {
       contextId: battleMapId,
       enabled: true,
-      arrowObject: arrow,
+      playerColor: playerColor,
+      overlayContent: <MeasureOptions key={mode} battleMapId={battleMapId} />
     });
   };
 
@@ -278,6 +317,29 @@ export const ToolsPanel = ({ battleMapId }) => {
         "Line",
         () => handleMeasureLine(),
         mode === "Measure_Line"
+      )}
+
+      {vertical && <DLabel>Align</DLabel>}
+      {horizontal && <Divider orientation="vertical" />}
+      {optionDefinition(
+        <FaSquare />,
+        "Corners",
+        () => handleAlign("corners"),
+        alignMode === "corners"
+      )}
+
+      {optionDefinition(
+        <FaDotCircle />,
+        "Center",
+        () => handleAlign("center"),
+        alignMode === "center"
+      )}
+
+      {optionDefinition(
+        <FaBorderNone />,
+        "None",
+        () => handleAlign("none"),
+        alignMode === "none"
       )}
     </BasePanel>
   );

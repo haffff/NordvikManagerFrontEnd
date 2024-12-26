@@ -18,6 +18,9 @@ import PropertiesHelperInstance from "../../helpers/PropertiesHelper";
 import UtilityHelper from "../../helpers/UtilityHelper";
 import ScriptAPI from "../../ScriptAPI";
 import ClientScript from "../uiComponents/ClientScript";
+import { NewWindow } from "./WindowsHandler";
+import PlayersPanel from "./panels/PlayersPanel";
+import { useInstantLayoutTransition } from "framer-motion";
 
 export const BattleMapInstance = { battleMap: undefined };
 
@@ -25,6 +28,7 @@ export const Game = ({ gameID, onExit }) => {
   // States
   const [layout, setLayout] = React.useState(undefined);
   const [battleMapContexts, setBattleMapContexts] = React.useState({});
+  const [portaledPanels, setPortaledPanels] = React.useState([]);
   const battleMapsContextsRef = React.useRef({});
   const quickCommandDialogOpenRef = React.useRef(null);
 
@@ -176,17 +180,27 @@ export const Game = ({ gameID, onExit }) => {
   };
 
   const HandleExecuteClientScript = async (resp) => {
-    const checkResult = await WebHelper.getAsync(`addon/confirmscriptrequest?id=${resp.data.requestId}`);
+    const checkResult = await WebHelper.getAsync(
+      `addon/confirmscriptrequest?id=${resp.data.requestId}`
+    );
 
     //if (!checkResult || !checkResult.result) {
     //  return;
     //}
 
-    if(clientScripts?.find(x => x.key === resp.data.script)) {
+    if (clientScripts?.find((x) => x.key === resp.data.script)) {
       return;
     }
 
-    setClientScripts([...clientScripts, {key: resp.data.script, value:(<ClientScript key={resp.data.script} script={resp.data.script} />)}]);
+    setClientScripts([
+      ...clientScripts,
+      {
+        key: resp.data.script,
+        value: (
+          <ClientScript key={resp.data.script} script={resp.data.script} />
+        ),
+      },
+    ]);
   };
 
   React.useEffect(() => {
@@ -229,7 +243,7 @@ export const Game = ({ gameID, onExit }) => {
         GetGame: () => gameDataManagerRef.current.Game,
         GetLayout: () => layout,
         CreateNewPanel: (allProps) => {
-          const { type, props, battleMapId, isCommand } = allProps;
+          const { type, props, battleMapId, isCommand, inWindow } = allProps;
           let finalProps = { ...props, battlemapId: battleMapId };
           if (isCommand) {
             finalProps = { ...allProps };
@@ -244,9 +258,14 @@ export const Game = ({ gameID, onExit }) => {
           if (!createdElement && isCommand) {
             return "Wrong panel type";
           }
-
-          let panel = DockableHelper.NewFloating(state, createdElement);
-          return panel;
+          if (inWindow) {
+            let newPortales = [...portaledPanels];
+            newPortales.push(<NewWindow key={UtilityHelper.GenerateUUID()}>{createdElement}</NewWindow>);
+            setPortaledPanels(newPortales);
+          } else {
+            let panel = DockableHelper.NewFloating(state, createdElement);
+            return panel;
+          }
         },
         OpenRun() {
           quickCommandDialogOpenRef.current();
@@ -257,7 +276,7 @@ export const Game = ({ gameID, onExit }) => {
         },
         Exit: () => {
           onExit();
-        }
+        },
       };
 
       ClientMediator.register({ id: "Game", panel: "Game", ...gameMethods });
@@ -276,7 +295,6 @@ export const Game = ({ gameID, onExit }) => {
 
       ClientMediator.register(PropertiesHelperInstance);
       WebSocketManagerInstance.Send({ command: "player_list" });
-      
 
       //Attach API methods
       window.CreateCardAPI = CardAPI;
@@ -297,8 +315,7 @@ export const Game = ({ gameID, onExit }) => {
     <div
       style={{
         display: "grid",
-        gridTemplate: "auto-flow  / 1fr 1fr",
-        width: "100%",
+        gridTemplateRows: "35px calc(100vh - 35px)",
       }}
       onKeyDown={(e) =>
         keyboardEventsManagerRef.current.HandleKeyboardEventDown(e)
@@ -314,23 +331,29 @@ export const Game = ({ gameID, onExit }) => {
         commandPrefix={"settings"}
       />
       <Subscribable onMessage={HandlePlayers} commandPrefix={"player"} />
-      <Subscribable onMessage={HandleExecuteClientScript} commandPrefix={"clientscript_execute"} />
+      <Subscribable
+        onMessage={HandleExecuteClientScript}
+        commandPrefix={"clientscript_execute"}
+      />
       <Subscribable
         onMessage={HandleShowBattleMap}
-        commandPrefix={"battlemap_show"} />
+        commandPrefix={"battlemap_show"}
+      />
       <Subscribable onMessage={HandleShowPanel} commandPrefix={"show_panel"} />
       {/* <Subscribable onMessage={HandleShowLayout} commandPrefix={"panel_show"} /> */}
       <MainToolbar
+        key={gameID}
         state={state}
         gameDataManagerRef={gameDataManagerRef}
         battlemapsRef={battleMapContexts}
         forceRefreshGame={forceUpdate}
       />
-      <Flex className="content">
+      <Flex>
         <Dockable.Container state={state} />
       </Flex>
       <QuickCommandDialog state={state} openRef={quickCommandDialogOpenRef} />
-      {clientScripts.map(x => x.value)}
+      {portaledPanels}
+      {clientScripts.map((x) => x.value)}
     </div>
   );
 };
