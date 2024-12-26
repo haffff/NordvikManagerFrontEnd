@@ -58,16 +58,21 @@ export const WebHelper = {
     }
   },
 
-  postAsync: async (adress, body) => {
+  postAsync: async (adress, body, formData = false) => {
     let address = WebHelper.addGameId(`${WebHelper.ApiAddress}/${adress}`);
+
+    const headers = {};
+    if(!formData) {
+      headers["Content-Type"] = "application/json";
+    }
+
+    headers.withCredentials = true;
+
     return await fetch(address, {
-      body: JSON.stringify(body),
+      body: formData ? body : JSON.stringify(body),
       method: "POST",
       credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        withCredentials: true,
-      },
+      headers
     });
   },
 
@@ -99,9 +104,7 @@ export const WebHelper = {
   },
 
   getMaterialAsync: async (id, mimeType) => {
-    let address = WebHelper.addGameId(
-      `${WebHelper.ApiAddress}/materials/Resource?id=${id}`
-    );
+    let address = this.getResourceString(id);
 
     const result = await fetch(address, {
       method: "GET",
@@ -124,9 +127,7 @@ export const WebHelper = {
   },
 
   getMaterial: (id, mimeType, onok, onerror, onException) => {
-    let address = WebHelper.addGameId(
-      `${WebHelper.ApiAddress}/materials/Resource?id=${id}`
-    );
+    let address = WebHelper.getResourceString(id);
     return fetch(address, {
       method: "GET",
       credentials: "include",
@@ -190,12 +191,11 @@ export const WebHelper = {
     });
   },
 
-  postMaterial: (file, path, onok, onerror, onException) => {
+  postMaterial: (file, onok, onerror, onException) => {
     let obj = {};
     console.log(`${file.name}`);
     UtilityHelper.ConvertBlobToB64(file).then((result) => {
       obj.Name = file.name;
-      obj.Path = path;
       obj.Data = result;
       obj.GameID = WebHelper.GameId;
       obj.MimeType = file.type.toString();
@@ -207,6 +207,10 @@ export const WebHelper = {
         onException
       );
     });
+  },
+
+  getResourceString: (id) => {
+    return WebHelper.addGameId(`${WebHelper.ApiAddress}/Materials/Resource?id=${id}`);
   },
 };
 

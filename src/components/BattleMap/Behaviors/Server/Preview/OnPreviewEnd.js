@@ -1,12 +1,17 @@
 
 export class OnPreviewEndBehavior {
   Handle(response, canvas, battleMapId) {
-    // if (response.data &&
-    //   !(response.battleMapId === battleMapId && response.playerId === gameDataRef.current.CurrentPlayerId)
-    // ) {
-    //   let obj = canvas.getObjects().find(x => x.id === response.data.id);
-    //   canvas.remove(obj);
-    //   canvas.requestRenderAll();
-    // }
+    if (response.data &&
+      !(response.battleMapId === battleMapId)
+    ) {
+
+      const removes = response.data;
+
+      removes.forEach(element => {
+        let object = canvas.getObjects().find(x => x.previewId === element.previewId);
+        canvas.remove(object);
+      });
+      canvas.requestRenderAll();
+    }
   }
 }

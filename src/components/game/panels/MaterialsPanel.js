@@ -45,7 +45,7 @@ export const MaterialsPanel = ({ state }) => {
         [...ev.dataTransfer.items].forEach((item, i) => {
             if (item.kind === "file") {
                 doneArr[i] = false;
-                WebHelper.postMaterial(item.getAsFile(), "", (result) => {
+                WebHelper.postMaterial(item.getAsFile(), (result) => {
                     doneArr[i] = true;
                     if (Object.values(doneArr).every(x => x)) {
                         setIgnoreRefresh(false);
@@ -57,7 +57,7 @@ export const MaterialsPanel = ({ state }) => {
     }
 
     const GetLink = (id) => {
-        return `${WebHelper.ApiAddress}/Materials/Resource?id=${id}`;
+        return WebHelper.getResourceString(id);
     }
 
     const GenerateLink = (id) => {

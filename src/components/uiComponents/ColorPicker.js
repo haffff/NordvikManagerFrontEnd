@@ -16,8 +16,12 @@ class ColorPicker extends React.Component {
         if (typeof stringARGB !== typeof "") {
             return { r: 0, g: 0, b: 0, a: 0.5 }
         }
-        let result = stringARGB.slice(5, -1).split(',').map(Number); // split and convert all parts to Number
-        return { r: result[0], g: result[1], b: result[2], a: result[3] };
+
+        //remove rgb/rgba first
+        let noRgb = stringARGB.replace('rgba(', '').replace('rgb(', '').replace(')', '');
+        //get values
+        let result = noRgb.split(',').map(Number); // split and convert all parts to Number
+        return { r: result[0], g: result[1], b: result[2], a: result[3] ?? 1 };
     }
 
     constructor(props)
@@ -85,7 +89,14 @@ class ColorPicker extends React.Component {
             },
         });
 
-        if(this.props.color !== this.toString(this.state.color))
+        const compareColors = () => {
+            let color1Str = this.fromString(this.props.color);
+            let color2Str = this.state.color;
+
+            return color1Str.r === color2Str.r && color1Str.g === color2Str.g && color1Str.b === color2Str.b && color1Str.a === color2Str.a;
+        }
+
+        if(this.props.color && this.state.color && !compareColors())
         {
             this.setState({ ...this.state, color: this.fromString(this.props.color) });
         }

@@ -132,7 +132,7 @@ class BMService {
   }) {
     const canvas = this._canvas;
 
-    if (canvas.modeLock) {
+    if (canvas.modeLock || canvas.editLock) {
       console.warn("Mode is locked, cannot change token select mode.");
       return;
     }
@@ -233,7 +233,7 @@ class BMService {
     if (editMode) {
       canvas.editMode = editMode;
       canvas.editLayer = layer;
-      canvas.modeLock = true;
+      canvas.editLock = true;
 
       canvas._objects.forEach((object) => {
         if (object.editLayer === layer) {
@@ -254,7 +254,7 @@ class BMService {
         }
       });
     } else {
-      canvas.editMode = undefined;
+      canvas.editLock = false;
       canvas.editLayer = undefined;
       canvas.modeLock = undefined;
       canvas._objects.forEach((object) => {
@@ -324,7 +324,7 @@ class BMService {
     }
 
     ClientMediator.fireEvent("BattleMap_AlignChanged", { align });
-    this._canvas.align = align;
+    this._canvas.alignMode = align;
   }
 
   SetDragMode({ enabled, isCommand }) {
@@ -416,6 +416,7 @@ class BMService {
         canvas.freeDrawingBrush = undefined;
 
         canvas.off("path:created", this._path_created);
+        this._removePopupAndOverlay();
 
         canvas._objects.forEach((object) => {
           if (object.beforeFreeDrawSelectable !== undefined) {
@@ -497,7 +498,17 @@ class BMService {
     }
   }
 
-  SetMeasureMode({ enabled, overlayContent, popupContent, type, isCommand, arrowObject, additionalObject }) {
+  async SetMeasureMode({
+    enabled,
+    overlayContent,
+    popupContent,
+    type,
+    isCommand,
+    arrowObject,
+    measureObject,
+    additionalObject,
+    playerColor,
+  }) {
     if (isCommand && enabled === undefined) {
       return "enabled is required.";
     }
@@ -515,15 +526,55 @@ class BMService {
       canvas.measureMode = true;
       canvas.selection = false;
       canvas.modeType = type;
+      canvas.measure = {
+        visibleToOthers: true,
+      };
 
-      canvas.measureArrow = arrowObject ?? new fabric.LineArrow([0, 0, 0, 0], {
-        stroke: "rgba(0,0,0,1)",
-        strokeWidth: 2,
-        fill: "rgba(0,0,0,1)",
-        selectable: false,
+      canvas.measure.measureArrow =
+        arrowObject ??
+        new fabric.LineArrow([0, 0, 0, 0], {
+          stroke: "rgba(0,0,0,1)",
+          strokeWidth: 2,
+          stroke: playerColor,
+          selectable: false,
+        });
+
+      canvas.measure.measureObject =
+        measureObject ??
+        new fabric.Textbox("0", {
+          left: 0,
+          top: 0,
+          width: 200,
+          height: 90,
+          fontSize: 56,
+          fill: playerColor,
+          selectable: false,
+          editable: false,
+        });
+
+      let map = await ClientMediator.sendCommandAsync("BattleMap", "GetSelectedMap", {
+        contextId: this.contextId,
       });
 
-      canvas.measureAdditionalObject = additionalObject;
+      canvas.measure.additionalObject = additionalObject ?? undefined;
+      let unitArray = await ClientMediator.sendCommandAsync(
+        "Properties",
+        "GetByNames",
+        { parentId: map.id ?? map.Id, names: ["baseDistanceUnit"] }
+      );
+      canvas.measure.units = unitArray[0]?.value ?? "ft";
+      let realisticMeasureArray = await ClientMediator.sendCommandAsync(
+        "Properties",
+        "GetByNames",
+        { parentId: map.id ?? map.Id, names: ["useSquaredSystem"] }
+      );
+      canvas.measure.realisticMeasure = realisticMeasureArray[0]?.value?.toLowerCase() === "true" ?? false;
+      let distancePerSquareArray = await ClientMediator.sendCommandAsync(
+        "Properties",
+        "GetByNames",
+        { parentId: map.id ?? map.Id, names: ["baseDistancePerSquare"] }
+      );
+      canvas.measure.distancePerSquare = distancePerSquareArray[0]?.value ? parseInt(distancePerSquareArray[0].value) : 5;
 
       this._addPopupAndOverlay(overlayContent, popupContent);
 
@@ -542,6 +593,7 @@ class BMService {
         canvas.measureMode = undefined;
         canvas.selection = true;
         canvas.modeType = undefined;
+        canvas.measure = undefined;
 
         this._removePopupAndOverlay();
 
@@ -564,8 +616,8 @@ class BMService {
     const canvas = this._canvas;
 
     if (canvas.measureMode) {
-      canvas.measureArrow ??= arrowObject;
-      canvas.measureAdditionalObject ??= additionalObject;
+      canvas.measure.measureArrow ??= arrowObject;
+      canvas.measure.additionalObject ??= additionalObject;
     }
   }
 
@@ -574,6 +626,7 @@ class BMService {
     this.SetFreeDrawMode({ enabled: false });
     this.UnsetTokenSelectMode({});
     this.SetLayerEditMode({ editMode: false });
+    this.SetMeasureMode({ enabled: false });
   }
 
   _addPopupAndOverlay(overlayContent, popupContent) {

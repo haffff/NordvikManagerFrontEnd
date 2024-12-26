@@ -20,14 +20,8 @@ export const CustomViewsPanel = ({ gameDataRef, state }) => {
     const editableDict = [
         { key: "name", label: "UI Name", type: "string" },
         { key: "description", label: "Description", type: "textarea" },
-        {
-            key: "content", label: "Content", type: "custom", customComponent: (key,dto, onChange) => (
-                <>
-                    <Textarea rows={10} readOnly >{dto[key]}</Textarea>
-                    <Flex margin="15px" ><CreateDropDownButton width="200px" name={"Edit..."} state={state} element={<></>}/></Flex>
-                </>)
-        },
-        { key: "dataCommandPrefix", label: "Data command prefix", type: "string" },
+        { key: "mainResource", label: "Main content (Javascript)", type: "materialSelect", additionalFilter: (item) => item.mimeType == "text/javascript" },
+        { key: "additionalResources", label: "Additional Resources", type: "materialSelect", multiple: true },
     ]
     const [panels, setPanels] = React.useState([]);
     const [selectedPanel, setSelectedPanel] = React.useState(null);
@@ -77,7 +71,7 @@ export const CustomViewsPanel = ({ gameDataRef, state }) => {
                 <Flex grow={1} height={'100%'}>
                     <DContainer width={'100%'} height={'100%'}>
                         {selectedPanel ?
-                            <SettingsPanel editableKeyLabelDict={editableDict} dto={selectedPanel} onSave={(dto) => { WebSocketManagerInstance.Send({ command: "custom_panel_update", data: { ...selectedPanel, ...dto } }) }} />
+                            <SettingsPanel withExport editableKeyLabelDict={editableDict} dto={selectedPanel} onSave={(dto) => { WebSocketManagerInstance.Send({ command: "custom_panel_update", data: { ...selectedPanel, ...dto } }) }} />
                             : <></>}
                     </DContainer>
                 </Flex>

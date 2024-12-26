@@ -90,6 +90,15 @@ class BMQueryService {
     }
   }
 
+  GetAlign()
+  {
+    return this._canvas.alignMode;
+  }
+
+  GetMeasureOptions() {
+    return this._canvas.measure;
+  }
+
   GetCurrentMode() {
     const canvas = this._canvas;
     if (canvas.modeLock) {

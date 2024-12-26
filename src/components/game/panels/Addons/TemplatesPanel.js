@@ -62,7 +62,7 @@ export const TemplatesPanel = ({ gameDataRef }) => {
                 <Flex grow={1} height={'100%'}>
                     <DContainer width={'100%'} height={'100%'}>
                         {selectedPanel ?
-                            <SettingsPanelWithPropertySettings key={selectedPanel.id} entityName={"CardModel"} gameDataManagerRef={gameDataRef} editableKeyLabelDict={editableDict} dto={selectedPanel} onSave={(dto) => { 
+                            <SettingsPanelWithPropertySettings withExport key={selectedPanel.id} entityName={"CardModel"} gameDataManagerRef={gameDataRef} editableKeyLabelDict={editableDict} dto={selectedPanel} onSave={(dto) => { 
                                 WebSocketManagerInstance.Send({ command: "template_update", data: {...selectedPanel, ...dto} }) 
                             }} />
                             : <></>}

@@ -6,7 +6,8 @@ export class OnMouseMoveSimpleCreateClientBehavior {
       canvas.previewObject
     ) {
       //get client rect of battlemap
-      const canvasCoords = canvas.getPointer(opt);
+      let canvasCoords = canvas.getPointerWithAlign(opt);
+
       let element = canvas.previewObject;
       if (canvas.withSizing) {
         element.set({

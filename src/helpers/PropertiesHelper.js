@@ -67,6 +67,12 @@ class PropertiesHelper {
       return "--parentId and --names are required";
     }
 
+    if(!parentId)
+    {
+      console.error("parentId is required");
+      return [];
+    }
+
     let namesVar = names;
 
     if (!Array.isArray(namesVar)) {
