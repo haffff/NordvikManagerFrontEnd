@@ -2,6 +2,7 @@ import { fabric } from "fabric";
 import WebSocketManagerInstance from "../../../../game/WebSocketManager";
 import DTOConverter from "../../../DTOConverter";
 import UtilityHelper from "../../../../../helpers/UtilityHelper";
+import ClientMediator from "../../../../../ClientMediator";
 
 export class OnMouseDownMeasureStartClientBehavior {
   Handle(opt, canvas, map, battleMapId) {
@@ -13,17 +14,33 @@ export class OnMouseDownMeasureStartClientBehavior {
       //get client rect of battlemap
       let { x, y } = canvas.getPointerWithAlign(opt);
 
+      //get current player
+      let player = ClientMediator.sendCommand("Game", "GetCurrentPlayer");
+
       //Create object
       fabric.util.enlivenObjects([arrow, measure], function ([arrow, measure]) {
-        arrow.set({ x1: x, y1: y, x2: x, y2: y });
-        canvas.add(arrow);
-        arrow.previewId = UtilityHelper.GenerateUUID();
+        arrow.set({
+          x1: x,
+          y1: y,
+          x2: x,
+          y2: y,
+          previewId: UtilityHelper.GenerateUUID(),
+          stayVisible: canvas.measure.dissappearAfter ? true : false,
+          playerId: player.id,
+        });
         canvas.previewArrow = arrow;
+        canvas.add(arrow);
 
-        canvas.add(measure);
-        canvas.set({ top: y + 10, left: x + 10 });
+        measure.set({
+          previewId: UtilityHelper.GenerateUUID(),
+          stayVisible: canvas.measure.dissappearAfter ? true : false,
+          playerId: player.id,
+          top: y + 10,
+          left: x + 10,
+        });
+
         canvas.previewMeasure = measure;
-        measure.previewId = UtilityHelper.GenerateUUID();
+        canvas.add(measure);
 
         if (canvas.measure.visibleToOthers === true) {
           WebSocketManagerInstance.Send({

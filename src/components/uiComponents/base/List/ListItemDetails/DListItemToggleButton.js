@@ -3,7 +3,7 @@ import * as React from 'react';
 import { FaPlus } from 'react-icons/fa';
 import DListItemButton from './DListItemButton';
 
-export const DListItemToggleButton = ({ label, onClick, color, selectedColor, bgColor, selectedBgColor, icon, margin, variant, isToggled }) => {
+export const DListItemToggleButton = ({ label,style, onClick, color, selectedColor, bgColor, selectedBgColor, icon, margin, variant, isToggled }) => {
     let activeColor = isToggled ? selectedColor : color;
     let activeBgColor = isToggled ? selectedBgColor : bgColor;
 
@@ -16,6 +16,7 @@ export const DListItemToggleButton = ({ label, onClick, color, selectedColor, bg
         icon={icon} 
         margin={margin} 
         variant={variant} 
+        style={style}
         />
     );
 }

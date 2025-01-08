@@ -7,14 +7,13 @@ import ClientMediator from "../../../../ClientMediator";
 import { MdCircle, MdLineWeight, MdTextIncrease } from "react-icons/md";
 import { MdOutlineFormatColorFill } from "react-icons/md";
 import { MdBorderColor } from "react-icons/md";
-import { FaClock, FaCogs, FaEye, FaTimes } from "react-icons/fa";
+import { FaClock, FaCogs, FaEye, FaTimes, FaTrash } from "react-icons/fa";
 import DList from "../../../uiComponents/base/List/DList";
 import DListItemToggleButton from "../../../uiComponents/base/List/ListItemDetails/DListItemToggleButton";
 
 export const MeasureOptions = ({ battleMapId }) => {
   const [visibleToOthers, setVisibleToOthers] = useState(false);
   const [dissappearAfter, setDissappearAfter] = useState(0);
-  const [advancedMode, setAdvancedMode] = useState(false);
 
   const measureRef = React.useRef();
 
@@ -25,7 +24,6 @@ export const MeasureOptions = ({ battleMapId }) => {
     if (measure) {
       setVisibleToOthers(measure.visibleToOthers);
       setDissappearAfter(measure.dissappearAfter);
-      setAdvancedMode(measure.advancedMode);
       measureRef.current = measure;
     }
 
@@ -43,6 +41,9 @@ export const MeasureOptions = ({ battleMapId }) => {
         selectedColor={"gold"}
         selectedBgColor={"rgba(50,50,50,0.5)"}
         onClick={() => {
+          if(visibleToOthers){
+            ClientMediator.sendCommand("BattleMap", "CleanPreviews", {contextId: battleMapId});
+          }
           setVisibleToOthers(!visibleToOthers);
           handleUpdate("visibleToOthers", !visibleToOthers);
         }}
@@ -56,21 +57,12 @@ export const MeasureOptions = ({ battleMapId }) => {
         onClick={() => {
           setDissappearAfter(!dissappearAfter);
           handleUpdate("dissappearAfter", !dissappearAfter);
+          ClientMediator.sendCommand("BattleMap", "CleanPreviews", {contextId: battleMapId});
         }}
         label={"Don't dissapear"}
         icon={FaClock}
       />
-      <DListItemToggleButton
-        isToggled={advancedMode}
-        selectedColor={"gold"}
-        selectedBgColor={"rgba(50,50,50,0.5)"}
-        onClick={() => {
-          setAdvancedMode(!advancedMode);
-          handleUpdate("advancedMode", !advancedMode);
-        }}
-        label={"Advanced mode"}
-        icon={FaCogs}
-      />
+      { dissappearAfter && <DListItemButton style={{position:"absolute", top: 65, left: 65}} color={'red'} bgColor={'rgba(0,0,0,0.5)'} variant={'elevated'}  label={"Clean"} icon={FaTrash} />}
       <Stack alignItems={"center"}>
         <DListItemButton
           label={"Exit"}

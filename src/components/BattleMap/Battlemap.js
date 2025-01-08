@@ -106,7 +106,10 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
       properties: allProps,
     });
 
-    setLoading(true);
+    ctx.setTitle("BattleMap - " + respMap.name);
+    if (editor && editor.canvas) {
+      await LoadCanvas();
+    }
   };
 
   const DrawGrid = () => {
@@ -252,6 +255,8 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
   );
 
   async function LoadCanvas() {
+    const map = mapRef.current;
+
     const BattleMapServices = {
       BMQueryService: new InteractionsManger(),
       BMService: new BattleMapBMService(),
@@ -356,11 +361,13 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
       try {
         editor.canvas.loadFromJSON({ objects: canvasObjects }, async () => {
           DrawGrid();
-          editor.canvas._objects.sort((a, b) =>
-            a.layer > b.layer || a.insideLayerIndex > b.insideLayerIndex
-              ? 1
-              : -1
-          );
+          editor.canvas
+            .getObjects()
+            .sort((a, b) =>
+              a.layer > b.layer || a.insideLayerIndex > b.insideLayerIndex
+                ? 1
+                : -1
+            );
 
           const objects = editor.canvas.getObjects();
 
@@ -399,33 +406,32 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
               return true;
             })
           );
-
-          //set default settings
-          editor.canvas.alignMode = "corners";
-          editor.canvas.getPointerWithAlign = function (e) {
-            let pointer = editor.canvas.getPointer(e, false);
-            let align = editor.canvas.alignMode;
-            //if align mode different than none, align to grid
-            if (align !== "none") {
-              let gridSize = map.gridSize;
-              let x,
-                y = 0;
-              x = Math.round(pointer.x / gridSize) * gridSize;
-              y = Math.round(pointer.y / gridSize) * gridSize;
-              if (align === "center") {
-                x += gridSize / 2;
-                y += gridSize / 2;
-              }
-              pointer = { x: x, y: y };
-            }
-            return pointer;
-          };
         });
       } catch (error) {
         console.error(error);
       }
-    } else {
     }
+
+    //set default settings
+    editor.canvas.alignMode = "corners";
+    editor.canvas.getPointerWithAlign = function (e) {
+      let pointer = editor.canvas.getPointer(e, false);
+      let align = editor.canvas.alignMode;
+      //if align mode different than none, align to grid
+      if (align !== "none") {
+        let gridSize = map.gridSize;
+        let x,
+          y = 0;
+        x = Math.round(pointer.x / gridSize) * gridSize;
+        y = Math.round(pointer.y / gridSize) * gridSize;
+        if (align === "center") {
+          x += gridSize / 2;
+          y += gridSize / 2;
+        }
+        pointer = { x: x, y: y };
+      }
+      return pointer;
+    };
 
     DrawGrid();
     setLoading(false);

@@ -89,7 +89,7 @@ class BMService {
   }
 
   SortLayers() {
-    this._canvas._objects.sort((a, b) =>
+    this._canvas.getObjects().sort((a, b) =>
       a.layer > b.layer || a.insideLayerIndex > b.insideLayerIndex ? 1 : -1
     );
     this._canvas.renderAll();
@@ -106,7 +106,7 @@ class BMService {
     }
 
     this._canvas.selectedLayer = layerId;
-    this._canvas._objects.forEach((object) => {
+    this._canvas.getObjects().forEach((object) => {
       object.set(
         "selectable",
         object.selectablePermission && object.layer === layerId
@@ -149,7 +149,7 @@ class BMService {
 
     this._addPopupAndOverlay(overlayContent, popupContent);
 
-    const objects = canvas._objects;
+    const objects = canvas.getObjects();
 
     objects.forEach((object) => {
       object.set("beforeTokenSelectSelectable", object.selectable);
@@ -189,7 +189,7 @@ class BMService {
 
     this._removePopupAndOverlay();
 
-    const objects = canvas._objects;
+    const objects = canvas.getObjects();
 
     objects.forEach((object) => {
       object.set("selectable", object.beforeTokenSelectSelectable);
@@ -235,7 +235,7 @@ class BMService {
       canvas.editLayer = layer;
       canvas.editLock = true;
 
-      canvas._objects.forEach((object) => {
+      canvas.getObjects().forEach((object) => {
         if (object.editLayer === layer) {
           if (object.currentlyEdited !== undefined) {
             return;
@@ -257,7 +257,7 @@ class BMService {
       canvas.editLock = false;
       canvas.editLayer = undefined;
       canvas.modeLock = undefined;
-      canvas._objects.forEach((object) => {
+      canvas.getObjects().forEach((object) => {
         if (object.origOpacity) {
           object.set("opacity", object.origOpacity);
           object.set("origOpacity", undefined);
@@ -398,7 +398,7 @@ class BMService {
 
       this._addPopupAndOverlay(overlayContent, popupContent);
 
-      canvas._objects.forEach((object) => {
+      canvas.getObjects().forEach((object) => {
         object.set("beforeFreeDrawSelectable", object.selectable);
         object.set("selectable", false);
       });
@@ -418,7 +418,7 @@ class BMService {
         canvas.off("path:created", this._path_created);
         this._removePopupAndOverlay();
 
-        canvas._objects.forEach((object) => {
+        canvas.getObjects().forEach((object) => {
           if (object.beforeFreeDrawSelectable !== undefined) {
             object.set("selectable", object.beforeFreeDrawSelectable);
             object.set("beforeFreeDrawSelectable", undefined);
@@ -462,7 +462,7 @@ class BMService {
       element.layer = canvas.selectedLayer;
       element.mapId = this._BMQueryService.GetSelectedMapID();
 
-      canvas._objects.forEach((object) => {
+      canvas.getObjects().forEach((object) => {
         //save selectable state in other prop
         object.set("beforeSimpleCreateSelectable", object.selectable);
         object.set("selectable", false);
@@ -483,7 +483,7 @@ class BMService {
 
         this._removePopupAndOverlay();
 
-        canvas._objects.forEach((object) => {
+        canvas.getObjects().forEach((object) => {
           if (object.beforeSimpleCreateSelectable !== undefined) {
             object.set("selectable", object.beforeSimpleCreateSelectable);
             object.set("beforeSimpleCreateSelectable", undefined);
@@ -552,9 +552,13 @@ class BMService {
           editable: false,
         });
 
-      let map = await ClientMediator.sendCommandAsync("BattleMap", "GetSelectedMap", {
-        contextId: this.contextId,
-      });
+      let map = await ClientMediator.sendCommandAsync(
+        "BattleMap",
+        "GetSelectedMap",
+        {
+          contextId: this.contextId,
+        }
+      );
 
       canvas.measure.additionalObject = additionalObject ?? undefined;
       let unitArray = await ClientMediator.sendCommandAsync(
@@ -568,17 +572,20 @@ class BMService {
         "GetByNames",
         { parentId: map.id ?? map.Id, names: ["useSquaredSystem"] }
       );
-      canvas.measure.realisticMeasure = realisticMeasureArray[0]?.value?.toLowerCase() === "true" ?? false;
+      canvas.measure.realisticMeasure =
+        realisticMeasureArray[0]?.value?.toLowerCase() === "true" ?? false;
       let distancePerSquareArray = await ClientMediator.sendCommandAsync(
         "Properties",
         "GetByNames",
         { parentId: map.id ?? map.Id, names: ["baseDistancePerSquare"] }
       );
-      canvas.measure.distancePerSquare = distancePerSquareArray[0]?.value ? parseInt(distancePerSquareArray[0].value) : 5;
+      canvas.measure.distancePerSquare = distancePerSquareArray[0]?.value
+        ? parseInt(distancePerSquareArray[0].value)
+        : 5;
 
       this._addPopupAndOverlay(overlayContent, popupContent);
 
-      canvas._objects.forEach((object) => {
+      canvas.getObjects().forEach((object) => {
         object.set("beforeMeasureSelectable", object.selectable);
         object.set("selectable", false);
       });
@@ -589,6 +596,7 @@ class BMService {
       });
     } else {
       if (canvas.measureMode) {
+        this.CleanPreviews();
         canvas.modeLock = undefined;
         canvas.measureMode = undefined;
         canvas.selection = true;
@@ -597,17 +605,13 @@ class BMService {
 
         this._removePopupAndOverlay();
 
-        canvas._objects.forEach((object) => {
-          if (object.beforeMeasureSelectable !== undefined) {
-            object.set("selectable", object.beforeMeasureSelectable);
-            object.set("beforeMeasureSelectable", undefined);
-          }
-        });
 
         ClientMediator.fireEvent("BattleMap_ModeChanged", {
           mode: undefined,
           type: undefined,
         });
+
+        canvas.requestRenderAll();
       }
     }
   }
@@ -627,6 +631,30 @@ class BMService {
     this.UnsetTokenSelectMode({});
     this.SetLayerEditMode({ editMode: false });
     this.SetMeasureMode({ enabled: false });
+  }
+
+  CleanPreviews() {
+    const currentPlayer = ClientMediator.sendCommand("Game", "GetCurrentPlayer");
+    const canvas = this._canvas;
+    const filteredObjects = canvas.getObjects().filter((object) => object.previewId && object.playerId === currentPlayer.id);
+
+    filteredObjects.forEach((object) => {
+      canvas.remove(object);
+    });
+    if(canvas.measure.visibleToOthers === true)
+    {
+      WebSocketManagerInstance.Send({
+        command: "preview_end",
+        battleMapId: this.contextId,
+        data: [
+          filteredObjects.map((object) => ({ previewId: object.previewId, playerId: object.playerId })),
+        ],
+      });
+    }
+
+
+
+    canvas.requestRenderAll();
   }
 
   _addPopupAndOverlay(overlayContent, popupContent) {
