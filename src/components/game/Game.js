@@ -9,7 +9,7 @@ import KeyboardEventsManager from "./KeyBoardEventsManager";
 import LayoutHelper from "../../helpers/LayoutCloneHelper";
 import Subscribable from "../uiComponents/base/Subscribable";
 import CardAPI, { API } from "../../CardAPI";
-import { Flex } from "@chakra-ui/react";
+import { Flex, Toast, useToast } from "@chakra-ui/react";
 import DockableHelper from "../../helpers/DockableHelper";
 import PanelList from "../../helpers/PanelsList";
 import ClientMediator from "../../ClientMediator";
@@ -33,6 +33,8 @@ export const Game = ({ gameID, onExit }) => {
   const quickCommandDialogOpenRef = React.useRef(null);
 
   const [clientScripts, setClientScripts] = React.useState([]);
+
+  const toast = useToast();
 
   battleMapsContextsRef.current = battleMapContexts;
   //This is refresh after some time
@@ -110,6 +112,28 @@ export const Game = ({ gameID, onExit }) => {
       }
     }
   };
+
+  const HandleError = (resp) => {
+    switch (resp.command) {
+      case "error_permission":
+        let t = UtilityHelper.GenerateErrorToast("No Permissions!", resp.data);
+        toast(t);
+        break;
+      case "error_arguments":
+        let t1 = UtilityHelper.GenerateErrorToast("Wrong arguments usage", resp.data);
+        toast(t1);
+        break;
+      case "error_resource":
+        let t2 = UtilityHelper.GenerateErrorToast("No resource found", resp.data);
+        toast(t2);
+        break;
+      default:
+        ClientMediator.sendCommand("Game","CreateNewPanel", { type: "LookupPanel", props: { title: "Error", content: resp.data } });
+        let t3 = UtilityHelper.GenerateErrorToast("Error!", resp.data);
+        toast(t3);
+        break;
+    }
+  }
 
   const HandlePlayers = (resp) => {
     switch (resp.command) {
@@ -338,6 +362,10 @@ export const Game = ({ gameID, onExit }) => {
       <Subscribable
         onMessage={HandleShowBattleMap}
         commandPrefix={"battlemap_show"}
+      />
+      <Subscribable
+        onMessage={HandleError}
+        commandPrefix={"error"}
       />
       <Subscribable onMessage={HandleShowPanel} commandPrefix={"show_panel"} />
       {/* <Subscribable onMessage={HandleShowLayout} commandPrefix={"panel_show"} /> */}

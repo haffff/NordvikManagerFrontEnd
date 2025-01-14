@@ -52,9 +52,13 @@ export const UtilityHelper = {
     },
 
     GenerateConnectionErrorToast: () => {
+        this.GenerateErrorToast('Connection failed.', 'Seems like connection to server failed.');
+    },
+
+    GenerateErrorToast: (title, error) => {
         return {
-            title: 'Connection failed.',
-            description: "Seems like connection to server failed.",
+            title: title || 'Error!',
+            description: error,
             status: 'error',
             duration: 9000,
             isClosable: true
@@ -62,13 +66,7 @@ export const UtilityHelper = {
     },
 
     GenerateNoPermissionToast: () => {
-        return {
-            title: 'No permissions!',
-            description: "Seems like you cannot do that!.",
-            status: 'error',
-            duration: 9000,
-            isClosable: true
-        };
+        this.GenerateErrorToast('No permissions!', 'Seems like you cannot do that!.');
     },
     GenerateCannotRemoveExistingBattlemapToast: () => {
         return {
