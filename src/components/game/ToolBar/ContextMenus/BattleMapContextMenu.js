@@ -74,6 +74,11 @@ export const BattleMapContextMenu = ({ loaded, width, battleMapId, canvas, conte
 
         WebSocketManagerInstance.Send({ command: "element_update", data: DTOConverter.ConvertToDTO(selectedObjects[0]), action: "layer" });
     }
+    let perm = false;
+    if(selectedObjects === 1)
+    {
+        
+    }
 
     width = width || 150;
 
@@ -98,15 +103,15 @@ export const BattleMapContextMenu = ({ loaded, width, battleMapId, canvas, conte
                         <DropDownItem width={width} name={"Properties"} onClick={HandleSpawnProperties} icon={FaWrench} />
                     </>
                 ) : <>
-                    <DropDownMenu expandableLocationName={"context_menu_add"} expandableWithAction submenu={true} width={width} name={"Add"} icon={FaPlus}>
+                    <DropDownMenu submenu={true} width={width} name={"Add"} icon={FaPlus}>
 
                     </DropDownMenu>
                     <DropDownItem width={width} name={"Paste"} icon={FaPaste} onClick={() => PasteElements()} />
-                    <DropDownMenu expandableLocationName={"context_menu_battlemap"} expandableWithAction submenu={true} width={width} name={"Battle Map"} icon={FaMap}>
-                        <DropDownItem width={width} name={"Show"} onClick={HandleSpawnBattleMap} icon={FaEye} />
+                    <DropDownMenu submenu={true} width={width} name={"Battle Map"} icon={FaMap}>
+                        <DropDownItem gmOnly width={width} name={"Show"} onClick={HandleSpawnBattleMap} icon={FaEye} />
                         <DropDownItem width={width} name={"Tools"} onClick={HandleSpawnTools} icon={FaWrench} />
                     </DropDownMenu>
-                    <DropDownItem width={width} name={"Map Settings"} onClick={HandleSpawnMapSettings} icon={FaCog} />
+                    <DropDownItem gmOnly width={width} name={"Map Settings"} onClick={HandleSpawnMapSettings} icon={FaCog} />
                 </>}
             </Loadable>
         </div>

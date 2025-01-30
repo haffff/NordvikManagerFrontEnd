@@ -4,7 +4,7 @@ import { Game } from './game/Game';
 import WebHelper from '../helpers/WebHelper';
 import FabricTypesInitialize from './FabricTypesInitializer';
 import WebSocketManagerInstance from './game/WebSocketManager';
-
+import { RegisterForm } from './gameLobby/RegisterForm';
 
 export const MainApp = () => {
 
@@ -14,7 +14,10 @@ export const MainApp = () => {
 
     if(gameID === undefined)
     {
-        return (<GameList OnSuccess={setGameID} OnLogout={ () => WebHelper.getNoResp("user/logout",()=>{})} />);
+        return (<GameList OnSuccess={setGameID} OnLogout={ () => WebHelper.getNoResp("user/logout",()=>{
+            //remove Authorization cookie
+            window.location.reload();
+        })} />);
     }
 
     const onExit = () => {
@@ -25,6 +28,8 @@ export const MainApp = () => {
         setGameID(undefined);
     }
 
-    return (<Game onExit={onExit} gameID={gameID} />);
+    //Dopisać ilustratora do kosztów
+
+    return (<Game key={gameID} onExit={onExit} gameID={gameID} />);
 }
 export default MainApp;

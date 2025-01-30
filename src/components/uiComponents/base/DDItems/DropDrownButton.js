@@ -2,7 +2,11 @@ import { Box, Icon } from '@chakra-ui/react';
 import * as React from 'react';
 import { IoMdArrowDropdown } from 'react-icons/io';
 
-export const DropDownButton = ({ name, icon, onClick, dropdown, width, height, onMouseEnter, onMouseLeave }) => {
+export const DropDownButton = ({ name, icon, onClick, dropdown, width, height, onMouseEnter, onMouseLeave, gmOnly }) => {
+
+    if (gmOnly && localStorage.getItem("gmMode") !== "true") {
+        return null;
+    }
 
     return (
         <Box

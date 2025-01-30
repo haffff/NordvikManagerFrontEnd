@@ -46,10 +46,8 @@ export const MainToolbar = ({ Dockable,
 
     return (
         <ToolBar>
-            <DropDownMenu name={"Game"} width={100}>
-                <OnlyOwner gameDataRef={gameDataManagerRef}>
-                    <DropDownItem width={150} name={"Get Invite URL"} onClick={GenerateInviteLink} />
-                </OnlyOwner>
+            <DropDownMenu viewId={"game"} name={"Game"} width={100}>
+                <DropDownItem gmOnly width={150} name={"Get Invite URL"} onClick={GenerateInviteLink} />
                 <DropDownItem width={150} name={"Run command"} icon={FaCode} onClick={() => ClientMediator.sendCommand("game", "OpenRun")} />
                 <DropDownItem width={150} name={"Exit"} icon={IoIosExit} onClick={() => ClientMediator.sendCommand("game", "Exit")} />
             </DropDownMenu>

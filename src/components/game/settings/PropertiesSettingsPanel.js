@@ -11,6 +11,7 @@ import BasePanel from '../../uiComponents/base/BasePanel';
 import DLabel from '../../uiComponents/base/Text/DLabel';
 import { Flex, Input, Table, TableContainer, Tbody, Td, Th, Thead, Tr } from '@chakra-ui/react';
 import DropDownButton from '../../uiComponents/base/DDItems/DropDrownButton';
+import { SearchInput } from '../../uiComponents/SearchInput';
 
 export const PropertiesSettingsPanel = ({ gameId, dto, type, initProperties }) => {
     const [properties, setProperties] = React.useState(initProperties || []);
@@ -144,8 +145,8 @@ export const PropertiesSettingsPanel = ({ gameId, dto, type, initProperties }) =
 
     return (
         <BasePanel>
-            <Flex>
-                <DLabel>Search:</DLabel><Input onChange={(e) => setSearch(e.target.value)} size={'xs'} type='text'></Input>
+            <Flex margin={'5px'}>
+                <SearchInput value={search} onChange={(v) => setSearch(v)} />
             </Flex>
             <TableContainer overflowY={'scroll'} onScroll={handleScroll}>
                 <Table size={'xs'} variant='simple'>

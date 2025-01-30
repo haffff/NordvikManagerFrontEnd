@@ -1,14 +1,18 @@
 import ClientMediator from "../../../../../ClientMediator";
 
 export class OnPreviewUpdateBehavior {
-  Handle(response, canvas, battleMapId) {
+  currentPlayer = null;
+
+  async Handle(response, canvas, battleMapId) {
+    if (this.currentPlayer === null) {
+      this.currentPlayer = await ClientMediator.sendCommandAsync(
+        "Game",
+        "GetCurrentPlayer"
+      );
+    }
+
     const updates = response.data;
-    if (
-      updates &&
-      !(
-        response.battleMapId === battleMapId
-      )
-    ) {
+    if (updates && response.battleMapId === battleMapId && this.currentPlayer.id !== response.playerId) {
       updates.forEach((update) => {
         //Find object by previewId
         const obj = canvas

@@ -41,8 +41,8 @@ export const ChatPanel = () => {
 
   const game = useGame();
 
-  const ctx = Dockable.useContentContext();
-  ctx.setTitle(`Chat`);
+  const ctx = Dockable?.useContentContext();
+  ctx?.setTitle(`Chat`);
 
   if (game === undefined) {
     return <></>;
@@ -211,8 +211,8 @@ export const ChatPanel = () => {
             justifyItems={"center"}
             verticalAlign={"middle"}
           >
-            <PlayerAvatar size={"25px"} player={player} />
-            <Heading size="sm">{player.name}</Heading>
+            {player && <PlayerAvatar size={"25px"} player={player} />}
+            <Heading size="sm">{player?.name || "[No longer exists]"}</Heading>
           </Flex>
         )}
       </>

@@ -10,6 +10,7 @@ import DListItemButton from '../base/List/ListItemDetails/DListItemButton';
 import DListItem from '../base/List/DListItem';
 import DynamicIcon from '../icons/DynamicIcon';
 import UtilityHelper from '../../../helpers/UtilityHelper';
+import { SearchInput } from '../SearchInput';
 
 export const DTreeList = ({ withAddItem, selectedItemOverwrite, onAddItem, items, generateItem, entityType, onFolderDelete, onGenerateEditButtons, onSelect }) => {
     generateItem = generateItem || ((x) => x.name);
@@ -308,7 +309,7 @@ export const DTreeList = ({ withAddItem, selectedItemOverwrite, onAddItem, items
                     </> : (onGenerateEditButtons ? onGenerateEditButtons(items.find(x => x.id === selectedItem?.targetId)) : <></>)}
             </HStack>
             <HStack>
-                <Input size={'xs'} placeholder="Search" value={filter} onChange={(e) => setFilter(e.target.value)} />
+                <SearchInput value={filter} onChange={(v) => setFilter(v)} />
             </HStack>
             <div id={treeId}>
                 <ReactTreeList itemDefaults={{ arrow: "▸" }} data={treeData} onSelected={(s) => {

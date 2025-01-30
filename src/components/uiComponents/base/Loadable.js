@@ -1,4 +1,5 @@
 import * as React from 'react';
+import { LoadingScreen } from '../LoadingScreen';
 
 export const Loadable = ({OnLoad, ReloadRef,children}) => {
     const [isLoading, setIsLoading] = React.useState(true);
@@ -17,7 +18,7 @@ export const Loadable = ({OnLoad, ReloadRef,children}) => {
     {
         OnLoad(Finish);       
         return(
-            <>LOADING ...</>
+            <LoadingScreen />
         );
     }
 

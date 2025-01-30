@@ -67,7 +67,7 @@ export const LayoutsMenu = ({
     }
 
     return (
-        <DropDownMenu width={width} name={"Layouts"}>
+        <DropDownMenu viewId={"layouts"} width={width} name={"Layouts"}>
             <DropDownMenu submenu={true} width={width} name={"Local"}>
                 <DropDownItem width={width} name={"Save current"} onClick={() => {
                     let rootPanel = state.ref.current.rootPanel;
@@ -98,7 +98,7 @@ export const LayoutsMenu = ({
                 {serverLayouts !== undefined && serverLayouts !== null ? serverLayouts.map(x => <DeletableDropDownButton key={x.id} width={width} name={x.name} onClick={() => ClientMediator.sendCommand("Game", "SetLayout", x)} onDeleteClick={() => DeleteServerLayout(x)} />) : <></>}
             </DropDownMenu>
             <DropDownItem width={width} name={"Reset"} />
-            <CreateDropDownButton icon={FaBook} width={width} name={"Layout Manager"} state={state} element={<LayoutsManagerPanel state={state} />} />
+            <CreateDropDownButton gmOnly icon={FaBook} width={width} name={"Layout Manager"} state={state} element={<LayoutsManagerPanel state={state} />} />
             <CollectionSyncer collection={serverLayouts} setCollection={setServerLayouts} commandPrefix={"layout"} />
         </DropDownMenu>
     );

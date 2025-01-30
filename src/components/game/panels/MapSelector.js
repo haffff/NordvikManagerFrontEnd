@@ -75,7 +75,8 @@ export const MapSelector = ({ battleMapId, state }) => {
         commandPrefix={"map"}
         selectItemCommand={"map_change"}
         onSelectedChanged={(item) => {
-          setValue(item.mapId);
+          if(item.battleMapId === battleMapId)
+            setValue(item.mapId);
         }}
       />
       <DList
@@ -84,10 +85,15 @@ export const MapSelector = ({ battleMapId, state }) => {
         handleAdd={HandleAdd}
       >
         {maps.map((x) => (
-          <DListItem
+          <DListItem 
             key={x.id}
             selected={x.id === value}
             bgColor={x.id === value ? "rgba(120,120,120,0.5)" : ""}
+            draggable={true}
+            onDragStart={(e) => {
+              e.dataTransfer.setData("text", "map");
+              sessionStorage.setItem("draggable", JSON.stringify({ entityType: "MapModel", id: x.id }));
+            }}
           >
             <Box
               onClick={() => {

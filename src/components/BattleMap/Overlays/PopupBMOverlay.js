@@ -24,7 +24,7 @@ export const PopupBMOverlay = ({ battleMapId, canvas }) => {
     return () => {
       ClientMediator.unregister("BattleMap_Popup_" + battleMapId);
     };
-  });
+  },[]);
 
   useEffect(() => {
     const updatePos = (e) => {

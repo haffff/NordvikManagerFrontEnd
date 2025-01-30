@@ -28,11 +28,8 @@ import BasePanel from "../../uiComponents/base/BasePanel";
 import DynamicIconChooser from "../../uiComponents/icons/DynamicIconChooser";
 import { MaterialChooser } from "../../uiComponents/MaterialChooser";
 import { PlayerChooser } from "../../uiComponents/PlayerChooser";
-import {
-  FaQuestion,
-  FaQuestionCircle,
-  FaRegQuestionCircle,
-} from "react-icons/fa";
+import { FaRegQuestionCircle } from "react-icons/fa";
+import { SearchInput } from "../../uiComponents/SearchInput";
 
 export const SettingsPanel = ({
   dto,
@@ -42,9 +39,11 @@ export const SettingsPanel = ({
   hideSaveButton,
   saveOnLeave,
   withExport,
+  showSearch
 }) => {
   const [updatedDto, setUpdatedDto] = React.useState({});
   const [validationDict, setValidationDict] = React.useState({});
+  const [search, setSearch] = React.useState("");
 
   const updateDtoRef = React.useRef();
   updateDtoRef.current = updatedDto;
@@ -158,6 +157,14 @@ export const SettingsPanel = ({
 
     editableKeyLabelDict.forEach((editable) => {
       const key = editable.key;
+
+      //if editable name doesnt match search, skip
+      if (
+        search !== "" &&
+        !editable.label.toLowerCase().includes(search.toLowerCase())
+      ) {
+        return;
+      }
 
       let element = {
         category:
@@ -280,7 +287,11 @@ export const SettingsPanel = ({
           input = (
             <>
               {dto[key] ? (
-                <Image src={dto[key]} boxSize="300px" objectFit={"contain"} />
+                <Image
+                  src={WebHelper.getResourceString(dto[key])}
+                  boxSize="300px"
+                  objectFit={"contain"}
+                />
               ) : (
                 <></>
               )}
@@ -291,12 +302,7 @@ export const SettingsPanel = ({
                 }
                 materialsSelected={dto[key]}
                 onSelect={(name) =>
-                  OnChange(
-                    key,
-                    name && name != ""
-                      ? WebHelper.getResourceString(name)
-                      : undefined
-                  )
+                  OnChange(key, name && name != "" ? name : undefined)
                 }
               />
             </>
@@ -377,6 +383,9 @@ export const SettingsPanel = ({
         width="100%"
         heigth="100%"
       >
+        {showSearch && (
+          <SearchInput value={search} onChange={(v) => setSearch(v)} />
+        )}
         <Grid width="95%" margin={15}>
           {groupless}
         </Grid>

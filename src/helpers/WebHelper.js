@@ -7,11 +7,11 @@ export const WebHelper = {
   ImageAddress: process.env.REACT_APP_IMAGE_URL,
   GameId: undefined,
 
-  addGameId: (addr) => {
+  addGameId: (addr, customGameId = undefined) => {
     if (addr.includes("?")) {
-      return `${addr}&gameid=${WebHelper.GameId}`;
+      return `${addr}&gameid=${customGameId || WebHelper.GameId}`;
     }
-    return `${addr}?gameid=${WebHelper.GameId}`;
+    return `${addr}?gameid=${customGameId || WebHelper.GameId}`;
   },
 
   post: (adress, body, onok, onerror, onException) => {
@@ -102,6 +102,27 @@ export const WebHelper = {
         else console.error(e);
       });
   },
+
+  deleteAsync: async (adress, onok, onerror, onException) => {
+
+    let address = WebHelper.addGameId(`${WebHelper.ApiAddress}/${adress}`);
+
+    let result = await fetch(address, {
+      method: "DELETE",
+      credentials: "include",
+      headers: {
+        "Content-Type": "application/json",
+        withCredentials: true,
+      },
+    });
+
+    if (result.ok) {
+      return await result.json();
+    }
+
+    return undefined;
+  },
+      
 
   getMaterialAsync: async (id, mimeType) => {
     let address = this.getResourceString(id);
@@ -209,8 +230,14 @@ export const WebHelper = {
     });
   },
 
-  getResourceString: (id) => {
-    return WebHelper.addGameId(`${WebHelper.ApiAddress}/Materials/Resource?id=${id}`);
+  getResourceString: (id, key, gameId = undefined) => {
+    if ((id === undefined || id === null) && (key === undefined || key === null)) {
+      key = "emptyImage";
+    }
+
+    const keyStr = key ? `key=${key}` : "";
+    const idStr = id ? `id=${id}` : "";
+    return WebHelper.addGameId(`${WebHelper.ApiAddress}/Materials/Resource?${idStr || keyStr}`, gameId);
   },
 };
 
