@@ -16,8 +16,8 @@ export const SettingsMenu = ({ Dockable,
     }
 
     return (
-        <DropDownMenu name={"Settings"} width={100} expandableLocationName={"settings"} expandableWithAction={true} state={state}>
-            <CreateDropDownButton width={150} name={"Game"} state={state} element={<GameSettingsPanel />} />
+        <DropDownMenu viewId={"settings"} name={"Settings"} width={100} expandableLocationName={"settings"} expandableWithAction={true} state={state}>
+            <CreateDropDownButton gmOnly width={150} name={"Game"} state={state} element={<GameSettingsPanel />} />
             <CreateDropDownButton width={150} name={"Player"} state={state} element={<PlayerSettingsPanel player={currentPlayer} />} />
         </DropDownMenu>
     );

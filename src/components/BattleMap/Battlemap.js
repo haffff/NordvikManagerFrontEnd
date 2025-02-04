@@ -18,6 +18,7 @@ import TokenManager from "./Managers/TokenManager";
 import { PopupBMOverlay } from "./Overlays/PopupBMOverlay";
 import { InfoBMOverlay } from "./Overlays/InfoBMOverlay";
 import "../../stylesheets/battlemap.css";
+import { LoadingScreen } from "../uiComponents/LoadingScreen";
 
 export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
   const [uuid, _setUUID] = React.useState(withID);
@@ -177,6 +178,8 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
                 }
                 obj.left = coords.x + 10 * i;
                 obj.top = coords.y + 10 * i;
+                obj.resourceId = dragObj.id;
+                obj.resourceKey = dragObj.key;
                 var cmd = CommandFactory.CreateAddCommand({
                   object: JSON.stringify(obj),
                   properties: [],
@@ -195,6 +198,11 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
               position: coords,
             });
           }
+
+          if (dragObj.entityType === "MapModel") {
+            let command = CommandFactory.CreateChangeMapCommand(dragObj.id, battleMapObjectRef.current.Id);
+            WebSocketManagerInstance.Send(command);
+          }
         }
 
         if (item.kind === "file") {
@@ -207,6 +215,8 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
                   const obj = img;
                   obj.left = coords.x + 10 * i;
                   obj.top = coords.y + 10 * i;
+                  obj.resourceId = result.id;
+                  obj.resourceKey = result.key;
                   var cmd = CommandFactory.CreateAddCommand({
                     object: JSON.stringify(obj),
                     properties: [],
@@ -240,8 +250,9 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
         e.preventDefault();
       }}
     >
+      {!loaded && <LoadingScreen />}
       <FabricJSCanvas onReady={onReady} />
-      <PopupBMOverlay battleMapId={uuid} />
+      <PopupBMOverlay key={uuid+"popup"} battleMapId={uuid} />
       <InfoBMOverlay battleMapId={uuid} />
       <div ref={contextMenuRef} className="nm_bm_contextMenu">
         <BattleMapContextMenu
@@ -336,6 +347,11 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
           originalTop: this.originalTop,
           fontSize: this.fontSize,
           previewId: this.previewId,
+          playerId: this.playerId,
+          //We use resourceID instead of src. We want to construct URL's on the fly
+          resourceId: this.resourceId,
+          resourceKey: this.resourceKey,
+          src: undefined,
         });
       };
     })(fabric.Object.prototype.toObject);
@@ -394,6 +410,8 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
           await Promise.all(
             objects.map(async (obj) => {
               if (!obj.id) return false;
+
+              obj.set('src', WebHelper.getResourceString(obj.resourceId, obj.resourceKey));
 
               //originally there was Mediator request. i replaced with simpler check that should do a work.
               let isToken = obj.tokenData !== undefined ? true : false;

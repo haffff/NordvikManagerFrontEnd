@@ -231,8 +231,18 @@ class CardAPI {
       }
     },
   };
-
-  GetBattleMaps() {}
+  
+  ClientMediator = {
+    sendCommand: (command, data, additionalArgs) => {
+      return ClientMediator.sendCommand(command, data, additionalArgs);
+    },
+    sendCommandAsync: (command, data, additionalArgs) => {
+      return ClientMediator.sendCommandAsync(command, data, additionalArgs);
+    },
+    register: (client) => {
+      return ClientMediator.register(client);
+    },
+  };
 
   SendChatMessage(message) {
     WebSocketManagerInstance.Send({

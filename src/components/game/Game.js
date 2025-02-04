@@ -21,6 +21,7 @@ import ClientScript from "../uiComponents/ClientScript";
 import { NewWindow } from "./WindowsHandler";
 import PlayersPanel from "./panels/PlayersPanel";
 import { useInstantLayoutTransition } from "framer-motion";
+import { LoadingScreen } from "../uiComponents/LoadingScreen";
 
 export const BattleMapInstance = { battleMap: undefined };
 
@@ -120,20 +121,29 @@ export const Game = ({ gameID, onExit }) => {
         toast(t);
         break;
       case "error_arguments":
-        let t1 = UtilityHelper.GenerateErrorToast("Wrong arguments usage", resp.data);
+        let t1 = UtilityHelper.GenerateErrorToast(
+          "Wrong arguments usage",
+          resp.data
+        );
         toast(t1);
         break;
       case "error_resource":
-        let t2 = UtilityHelper.GenerateErrorToast("No resource found", resp.data);
+        let t2 = UtilityHelper.GenerateErrorToast(
+          "No resource found",
+          resp.data
+        );
         toast(t2);
         break;
       default:
-        ClientMediator.sendCommand("Game","CreateNewPanel", { type: "LookupPanel", props: { title: "Error", content: resp.data } });
+        ClientMediator.sendCommand("Game", "CreateNewPanel", {
+          type: "LookupPanel",
+          props: { title: "Error", content: resp.data },
+        });
         let t3 = UtilityHelper.GenerateErrorToast("Error!", resp.data);
         toast(t3);
         break;
     }
-  }
+  };
 
   const HandlePlayers = (resp) => {
     switch (resp.command) {
@@ -231,15 +241,20 @@ export const Game = ({ gameID, onExit }) => {
     if (!WebSocketManagerInstance.WebSocketStarted) {
       return;
     }
+    
+    const loadGame = async () => {
+      //WebSocketManagerInstance.ClearSubscription();
 
-    //WebSocketManagerInstance.ClearSubscription();
-    WebHelper.get(`battlemap/getplayer`, (x) => {
-      gameDataManagerRef.current.CurrentPlayerId = x.id;
-    });
-    //Load everything when we have full game only
-    WebHelper.get(`battlemap/getfullgame`, (x) => {
+      let player = await WebHelper.getAsync(`battlemap/getplayer`);
+      gameDataManagerRef.current.CurrentPlayerId = player.id;
+
+      //Load everything when we have full game only
+      let game = await WebHelper.getAsync(`battlemap/getfullgame`);
+
+      localStorage.setItem("gmMode", game.master.id === player.id ? "true" : "false");
+
       //Assign data to GameDataManagerInstance. its used in all panels.
-      gameDataManagerRef.current.Load(x);
+      gameDataManagerRef.current.Load(game);
 
       const gameMethods = {
         SetLayout: SetLayoutAndApply,
@@ -284,7 +299,11 @@ export const Game = ({ gameID, onExit }) => {
           }
           if (inWindow) {
             let newPortales = [...portaledPanels];
-            newPortales.push(<NewWindow key={UtilityHelper.GenerateUUID()}>{createdElement}</NewWindow>);
+            newPortales.push(
+              <NewWindow key={UtilityHelper.GenerateUUID()}>
+                {createdElement}
+              </NewWindow>
+            );
             setPortaledPanels(newPortales);
           } else {
             let panel = DockableHelper.NewFloating(state, createdElement);
@@ -326,12 +345,14 @@ export const Game = ({ gameID, onExit }) => {
       DockableHelper.State = state;
 
       WebSocketManagerInstance.Send({ command: "client_loaded" });
-    });
+    };
+
+    loadGame();
   }, [WebSocketManagerInstance.WebSocketStarted]);
 
   if (!WebSocketManagerInstance.WebSocketStarted) {
     WebSocketManagerInstance.Start(gameID);
-    return <>Loading :)</>;
+    return <LoadingScreen />;
   }
 
   //To refactor toolbar. it will be in Toolbar directory probably. but i need to make map system and write tools panel properly.
@@ -363,10 +384,7 @@ export const Game = ({ gameID, onExit }) => {
         onMessage={HandleShowBattleMap}
         commandPrefix={"battlemap_show"}
       />
-      <Subscribable
-        onMessage={HandleError}
-        commandPrefix={"error"}
-      />
+      <Subscribable onMessage={HandleError} commandPrefix={"error"} />
       <Subscribable onMessage={HandleShowPanel} commandPrefix={"show_panel"} />
       {/* <Subscribable onMessage={HandleShowLayout} commandPrefix={"panel_show"} /> */}
       <MainToolbar

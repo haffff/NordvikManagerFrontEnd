@@ -2,8 +2,17 @@ import { fabric } from "fabric";
 import ClientMediator from "../../../../../ClientMediator";
 
 export class OnPreviewStartBehavior {
-  Handle(response, canvas, battleMapId) {
-    if (response.data && !(response.battleMapId === battleMapId)) {
+  currentPlayer = null;
+
+  async Handle(response, canvas, battleMapId) {
+    if (this.currentPlayer === null) {
+      this.currentPlayer = await ClientMediator.sendCommandAsync(
+        "Game",
+        "GetCurrentPlayer"
+      );
+    }
+
+    if (response.data && response.battleMapId === battleMapId && this.currentPlayer.id !== response.playerId) {
       const objects = response.data;
       fabric.util.enlivenObjects(objects, (elements) => {
         elements.forEach((element, i) => {

@@ -53,6 +53,13 @@ export class OnMouseMoveMeasureUpdateClientBehavior {
       });
 
       if (canvas.measure.visibleToOthers) {
+        
+        //Calculate if its worth to send preview update
+        let distance = Math.sqrt( Math.pow(element.x1 - element.x2, 2) + Math.pow(element.y1 - element.y2, 2) );
+        if (distance < 10) {
+          return;
+        }
+
         WebSocketManagerInstance.Send({
           command: "preview_update",
           battleMapId: battleMapId,
