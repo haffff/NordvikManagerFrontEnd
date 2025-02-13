@@ -59,7 +59,7 @@ export const UtilityHelper = {
         return {
             title: title || 'Error!',
             description: error,
-            status: 'error',
+            type: 'error',
             duration: 9000,
             isClosable: true
         };

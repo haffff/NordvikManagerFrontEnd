@@ -88,36 +88,34 @@ export const GameSettingsPanel = () => {
     return (
         <Subscribable commandPrefix={"settings_game"} onMessage={updateSettings}>
             <BasePanel>
-                <Tabs marginTop={3} size='md' variant='enclosed'>
-                    <TabList>
-                        <Tab>General Settings</Tab>
-                        <Tab>Grid Settings</Tab>
-                        <Tab>Character Sheets</Tab>
-                        <Tab>Permissions</Tab>
-                        <Tab>Properties</Tab>
-                        <Tab>Advanced</Tab>
-                    </TabList>
-                    <TabPanels>
-                        <TabPanel>
+                <Tabs.Root defaultValue={"settings"}  lazyMount size='md' variant='enclosed'>
+                    <Tabs.List>
+                        <Tabs.Trigger value='general'>General Settings</Tabs.Trigger>
+                        <Tabs.Trigger value='grid'>Grid Settings</Tabs.Trigger>
+                        <Tabs.Trigger value='character'>Character Sheets</Tabs.Trigger>
+                        <Tabs.Trigger value='permissions'>Permissions</Tabs.Trigger>
+                        <Tabs.Trigger value='props'>Properties</Tabs.Trigger>
+                        <Tabs.Trigger value='adv'>Advanced</Tabs.Trigger>
+                    </Tabs.List>
+                        <Tabs.Content value='general'>
                             <SettingsPanelWithPropertySettings dto={dto} entityName={"GameModel"}  editableKeyLabelDict={editables} onSave={sendSettingsUpdate} />
-                        </TabPanel>
-                        <TabPanel>
+                        </Tabs.Content>
+                        <Tabs.Content value='grid'>
                             <SettingsPanelWithPropertySettings dto={dto} entityName={"GameModel"} editableKeyLabelDict={battleMapEditables} />
-                        </TabPanel>
-                        <TabPanel>
+                        </Tabs.Content>
+                        <Tabs.Content value='character'>
                             <SettingsPanelWithPropertySettings dto={dto} entityName={"GameModel"} editableKeyLabelDict={characterSheetEditables} />
-                        </TabPanel>
-                        <TabPanel>
+                        </Tabs.Content>
+                        <Tabs.Content value='permissions'>
                             <SecuritySettingsPanel dto={dto} type="GameModel" />
-                        </TabPanel>
-                        <TabPanel>
+                        </Tabs.Content>
+                        <Tabs.Content value='props'>
                             <PropertiesSettingsPanel gameId={gameData.id} dto={dto} type="GameModel" />
-                        </TabPanel>
-                        <TabPanel>
+                        </Tabs.Content>
+                        <Tabs.Content value='adv'>
                             <SettingsPanelWithPropertySettings dto={dto} entityName={"GameModel"} editableKeyLabelDict={advancedEditables} />
-                        </TabPanel>
-                    </TabPanels>
-                </Tabs>
+                        </Tabs.Content>
+                </Tabs.Root>
             </BasePanel>
         </Subscribable>
     );

@@ -1,10 +1,10 @@
 import * as React from 'react';
-import { Stack, Heading, Input, InputGroup, InputRightElement, Button, useToast } from '@chakra-ui/react'
+import { Stack, Heading, Input, InputGroup, InputRightElement, Button } from '@chakra-ui/react'
 import WebHelper from '../../helpers/WebHelper';
 import UtilityHelper from '../../helpers/UtilityHelper';
+import { toaster } from '../ui/toaster';
 
 export const LoginPanel = ({ OnSuccess }) => {
-    const toast = useToast();
     const [isLogging, setisLogging] = React.useState(false);
     const [error, setError] = React.useState(false);
     const [loginForm, setLoginForm] = React.useState({});
@@ -16,7 +16,7 @@ export const LoginPanel = ({ OnSuccess }) => {
             OnSuccess();
         }, 
         (result) => { setError(true)}, 
-        () => {toast(UtilityHelper.GenerateConnectionErrorToast());})
+        () => {toaster.create(UtilityHelper.GenerateConnectionErrorToast());})
     }
 
     return (
@@ -26,7 +26,7 @@ export const LoginPanel = ({ OnSuccess }) => {
                 <Input placeholder="Login" size="md" onInput={(input) => setLoginForm({ ...loginForm, UserName: input.target.value })} />
                 <Heading as="h6" size="xs">Password</Heading>
                 <Input pr="4.5rem" type="password" placeholder="Enter password" onInput={(input) => setLoginForm({ ...loginForm, password: input.target.value })} borderColor={error ? "tomato" : "gray.200"}/>
-                <Button isLoading={isLogging} onClick={onFormSubmit}>
+                <Button variant={'outline'} isLoading={isLogging} onClick={onFormSubmit}>
                     Login
                 </Button>
             </Stack>

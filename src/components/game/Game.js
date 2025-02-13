@@ -9,7 +9,7 @@ import KeyboardEventsManager from "./KeyBoardEventsManager";
 import LayoutHelper from "../../helpers/LayoutCloneHelper";
 import Subscribable from "../uiComponents/base/Subscribable";
 import CardAPI, { API } from "../../CardAPI";
-import { Flex, Toast, useToast } from "@chakra-ui/react";
+import { Flex } from "@chakra-ui/react";
 import DockableHelper from "../../helpers/DockableHelper";
 import PanelList from "../../helpers/PanelsList";
 import ClientMediator from "../../ClientMediator";
@@ -19,9 +19,8 @@ import UtilityHelper from "../../helpers/UtilityHelper";
 import ScriptAPI from "../../ScriptAPI";
 import ClientScript from "../uiComponents/ClientScript";
 import { NewWindow } from "./WindowsHandler";
-import PlayersPanel from "./panels/PlayersPanel";
-import { useInstantLayoutTransition } from "framer-motion";
 import { LoadingScreen } from "../uiComponents/LoadingScreen";
+import { toaster } from '../ui/toaster';
 
 export const BattleMapInstance = { battleMap: undefined };
 
@@ -32,10 +31,9 @@ export const Game = ({ gameID, onExit }) => {
   const [portaledPanels, setPortaledPanels] = React.useState([]);
   const battleMapsContextsRef = React.useRef({});
   const quickCommandDialogOpenRef = React.useRef(null);
+  const gameContainerRef = React.useRef(null);
 
   const [clientScripts, setClientScripts] = React.useState([]);
-
-  const toast = useToast();
 
   battleMapsContextsRef.current = battleMapContexts;
   //This is refresh after some time
@@ -118,21 +116,21 @@ export const Game = ({ gameID, onExit }) => {
     switch (resp.command) {
       case "error_permission":
         let t = UtilityHelper.GenerateErrorToast("No Permissions!", resp.data);
-        toast(t);
+        toaster.create(t);
         break;
       case "error_arguments":
         let t1 = UtilityHelper.GenerateErrorToast(
           "Wrong arguments usage",
           resp.data
         );
-        toast(t1);
+        toaster.create(t1);
         break;
       case "error_resource":
         let t2 = UtilityHelper.GenerateErrorToast(
           "No resource found",
           resp.data
         );
-        toast(t2);
+        toaster.create(t2);
         break;
       default:
         ClientMediator.sendCommand("Game", "CreateNewPanel", {
@@ -140,7 +138,7 @@ export const Game = ({ gameID, onExit }) => {
           props: { title: "Error", content: resp.data },
         });
         let t3 = UtilityHelper.GenerateErrorToast("Error!", resp.data);
-        toast(t3);
+        toaster.create(t3);
         break;
     }
   };
@@ -255,6 +253,7 @@ export const Game = ({ gameID, onExit }) => {
 
       //Assign data to GameDataManagerInstance. its used in all panels.
       gameDataManagerRef.current.Load(game);
+      gameDataManagerRef.current.ContainerRef = gameContainerRef;
 
       const gameMethods = {
         SetLayout: SetLayoutAndApply,
@@ -280,6 +279,7 @@ export const Game = ({ gameID, onExit }) => {
           gameDataManagerRef.current.GetConnectedPlayers(),
         GetCurrentPlayer: () => gameDataManagerRef.current.CurrentPlayer(),
         GetGame: () => gameDataManagerRef.current.Game,
+        GetContainerRef: () => gameDataManagerRef.current.ContainerRef,
         GetLayout: () => layout,
         CreateNewPanel: (allProps) => {
           const { type, props, battleMapId, isCommand, inWindow } = allProps;
@@ -358,6 +358,7 @@ export const Game = ({ gameID, onExit }) => {
   //To refactor toolbar. it will be in Toolbar directory probably. but i need to make map system and write tools panel properly.
   return (
     <div
+      ref={gameContainerRef}
       style={{
         display: "grid",
         gridTemplateRows: "35px calc(100vh - 35px)",

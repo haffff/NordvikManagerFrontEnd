@@ -3,7 +3,7 @@ import "../../stylesheets/generic.css";
 
 export const LoadingScreen = ({ children }) => {
   return (
-    <Fade in out duration={0.5} unmountOnExit>
+    // <Fade in out duration={0.5} unmountOnExit>
       <div className="loading-screen">
         <div className="loading-screen-inner">
           <Stack>
@@ -18,6 +18,6 @@ export const LoadingScreen = ({ children }) => {
           </Stack>
         </div>
       </div>
-    </Fade>
+    // </Fade>
   );
 };

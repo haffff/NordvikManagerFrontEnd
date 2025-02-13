@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { HStack, Button, Box, Stack, Divider, Textarea, Grid, GridItem, Flex, Card, CardHeader, CardBody, Heading, Center, Badge, FormLabel, Input, Checkbox, NumberInput, NumberInputField } from '@chakra-ui/react'
+import { HStack, Button, Box, Stack, Textarea, Grid, GridItem, Flex, Card, CardHeader, CardBody, Heading, Center, Badge, FormLabel, Input, Checkbox, NumberInput, NumberInputField } from '@chakra-ui/react'
 import * as Dockable from "@hlorenzi/react-dockable"
 import SettingsPanel from './SettingsPanel';
 import CommandFactory from '../../BattleMap/Factories/CommandFactory';

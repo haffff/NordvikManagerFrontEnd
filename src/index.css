@@ -22,6 +22,31 @@ code {
     monospace;
 }
 
+/* COLOR VARIABLES */
+:root {
+  --nordvik-text-color: #f0f0f0;
+  --nordvik-secondary-color: #0b0b0b;
+  --nordvik-background-color: rgb(30,30,30);
+  --nordvik-selection-color: rgb(189, 24, 24);
+  --nordvik-item-color: rgb(70, 70, 70);
+  --nordvik-button-color: rgb(23, 23, 23);
+  --nordvik-button-border-color: rgb(206, 206, 206);
+  --nordvik-button-color-hover: rgb(52, 52, 52);
+  --nordvik-button-color-active: rgb(127, 127, 127);
+
+  /* --primary-color: #f0f0f0;
+  --secondary-color: #f0f0f0;
+  --tertiary-color: #f0f0f0;
+  --quaternary-color: #f0f0f0;
+  --quinary-color: #f0f0f0;
+  --senary-color: #f0f0f0;
+  --septenary-color: #f0f0f0;
+  --octonary-color: #f0f0f0;
+  --nonary-color: #f0f0f0;
+  --denary-color: #f0f0f0; */
+
+}
+
 /* CHROME SCROLL STYLING */
 
 /* Set scrollbar width */

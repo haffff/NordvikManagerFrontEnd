@@ -24,6 +24,20 @@ export const LayoutsMenu = ({
 
     React.useEffect(() => {
         WebHelper.get("Battlemap/GetLayouts",setServerLayouts);
+        const id = UtilityHelper.GenerateUUID();
+        ClientMediator.register({
+            panel: "LayoutsMenu",
+            clientId: id,
+            onEvent: (event, data) => {
+                if(event === "ClientLayoutsChanged")
+                {
+                    setClientLayouts(JSON.parse(localStorage.getItem("Layouts")));
+                }
+            }});
+
+            return () => {
+                ClientMediator.unregister(id);
+            }
     }, []);
 
 
@@ -51,6 +65,8 @@ export const LayoutsMenu = ({
         let layoutArr = JSON.parse(layouts);
         layoutArr.push({ uuid: uuid, name: "Layout", value: JSON.stringify(val) });
         localStorage.setItem("Layouts", JSON.stringify(layoutArr));
+        ClientMediator.fireEvent("ClientLayoutsChanged", {  });
+        
         setClientLayouts(layoutArr);
     }
 
@@ -59,6 +75,8 @@ export const LayoutsMenu = ({
         let layoutArr = JSON.parse(layouts);
         let newArr = layoutArr.filter(x => x.uuid !== uuid);
         localStorage.setItem("Layouts", JSON.stringify(newArr));
+        ClientMediator.fireEvent("ClientLayoutsChanged", {  });
+
         setClientLayouts(newArr);
     }
 
@@ -80,6 +98,7 @@ export const LayoutsMenu = ({
                 {clientLayouts !== undefined && clientLayouts !== null ? clientLayouts.map(x => <DeletableDropDownButton key={x.uuid}
                     width={width}
                     name={x.name}
+                    id={x.uuid}
                     onClick={() => ClientMediator.sendCommand("Game", "SetLayout", x)}
                     onDeleteClick={() => DeleteClientLayout(x.uuid)} />) : <></>}
             </DropDownMenu>

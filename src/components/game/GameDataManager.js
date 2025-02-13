@@ -24,6 +24,7 @@ class GameDataManger {
     CurrentPlayerId = undefined;
     CurrentPlayer = undefined;
     ConnectedPlayers = undefined;
+    ContainerRef = undefined;
 }
 
 export default GameDataManger;

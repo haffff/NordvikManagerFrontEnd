@@ -1,5 +1,12 @@
 import * as React from "react";
-import { Tabs, TabList, Tab, TabPanels, TabPanel } from "@chakra-ui/react";
+import {
+  Tabs,
+  TabList,
+  Tab,
+  TabPanels,
+  TabPanel,
+  Flex,
+} from "@chakra-ui/react";
 import { Box, Textarea } from "@chakra-ui/react";
 import WebSocketManagerInstance from "../WebSocketManager";
 import SettingsPanel from "./SettingsPanel";
@@ -229,37 +236,38 @@ export const ElementSettingsPanel = ({ dto, battlemapId }) => {
 
   return (
     <Subscribable commandPrefix={"element"} onMessage={updateSettings}>
-      <Tabs marginTop={3} size="md" variant="enclosed">
-        <TabList>
-          <Tab>Settings</Tab>
-          <Tab>Permissions</Tab>
-          <Tab>Properties</Tab>
-          <Tab color={"darkgray"}>Direct Edit</Tab>
-        </TabList>
-        <TabPanels>
-          <TabPanel>
-            <SettingsPanel
-              dto={dto}
-              editableKeyLabelDict={JsonProperties()}
-              onSave={sendSettingsUpdate}
-              showSearch={true}
+      <Tabs.Root lazyMount marginTop={3} size="md" variant="enclosed">
+        <Tabs.List>
+          <Tabs.Trigger value="settings">Settings</Tabs.Trigger>
+          <Tabs.Trigger value="permissions">Permissions</Tabs.Trigger>
+          <Tabs.Trigger value="props">Properties</Tabs.Trigger>
+          <Tabs.Trigger value="direct" color={"darkgray"}>
+            Direct Edit
+          </Tabs.Trigger>
+        </Tabs.List>
+        <Tabs.Content value="settings">
+          <SettingsPanel
+            dto={dto}
+            editableKeyLabelDict={JsonProperties()}
+            onSave={sendSettingsUpdate}
+            showSearch={true}
+          />
+        </Tabs.Content>
+        <Tabs.Content value="permissions">
+          <SecuritySettingsPanel dto={dto} type="ElementModel" />
+        </Tabs.Content>
+        <Tabs.Content value="props">
+          <PropertiesSettingsPanel dto={dto} type="ElementModel" />
+        </Tabs.Content>
+        <Tabs.Content value="direct">
+          <Flex justifyContent={'stretch'} align={'stretch'} justifySelf={'stretch'} flexDir="column" flex={1} grow={1}>
+            <Textarea
+              flexGrow={1}
+              flex={1}
+              value={directJson}
+              onChange={(e) => setDirectJson(e.target.value)}
+              readOnly={false}
             />
-          </TabPanel>
-          <TabPanel>
-            <SecuritySettingsPanel dto={dto} type="ElementModel" />
-          </TabPanel>
-          <TabPanel>
-            <PropertiesSettingsPanel dto={dto} type="ElementModel" />
-          </TabPanel>
-          <TabPanel>
-            <Box>
-              <Textarea
-                height={"100%"}
-                value={directJson}
-                onChange={(e) => setDirectJson(e.target.value)}
-                readOnly={false}
-              />
-            </Box>
             <DButtonHorizontalContainer>
               <DropDownButton
                 name={"Save"}
@@ -269,9 +277,9 @@ export const ElementSettingsPanel = ({ dto, battlemapId }) => {
                 }}
               />
             </DButtonHorizontalContainer>
-          </TabPanel>
-        </TabPanels>
-      </Tabs>
+          </Flex>
+        </Tabs.Content>
+      </Tabs.Root>
     </Subscribable>
   );
 };

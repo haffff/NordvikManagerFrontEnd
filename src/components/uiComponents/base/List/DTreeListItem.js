@@ -8,11 +8,11 @@ export const DTreeListItem = ({ isSelected, backgroundColor, children, padding, 
 
     return (
         <Flex className={id ? "representsElement" : ""} id={id} representsElement={id ?'1' : undefined} minWidth={width} paddingLeft={'5px'} paddingRight={'5px'}>
-            <Card onClick={onClick} style={{ backgroundColor: backgroundColor || (isSelected ? 'rgba(70,70,70,50.5)' : 'rgba(50,50,50,50.5)'), color: 'white', paddingLeft:'15px', paddingBottom:'5px', paddingTop:'5px' }} colorScheme="blackAlpha" variant="elevated" padding={usedPadding} margin={usedMargin} size='sm' width="100%">
+            <Card.Root onClick={onClick} style={{ backgroundColor: backgroundColor || (isSelected ? 'var(--nordvik-selection-color)' : 'var(--nordvik-item-color)'), color: 'var(--nordvik-text-color)', paddingLeft:'15px', paddingBottom:'5px', paddingTop:'5px' }} colorScheme="blackAlpha" variant="elevated" padding={usedPadding} margin={usedMargin} size='sm' width="100%">
                 <Flex grow={1} gap={usedGap} alignItems={'center'} justifyItems={'center'} verticalAlign={'middle'}>
                 {children}
                 </Flex>
-            </Card>
+            </Card.Root>
         </Flex>
     );
 }

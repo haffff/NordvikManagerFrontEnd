@@ -336,30 +336,6 @@ class BMService {
     this._canvas.draggingMode = enabled ? true : undefined;
   }
 
-  ShowContextMenu({ x, y, isCommand }) {
-    if (isCommand && !x && !y) {
-      return "x and y are required.";
-    }
-
-    if (this._canvas.contextMenuLock) {
-      return;
-    }
-
-    let clientRect =
-      this._contextMenuRef.current.parentElement.getBoundingClientRect();
-    this._contextMenuRef.current.style.left = `${x - clientRect.x}px`;
-    this._contextMenuRef.current.style.top = `${y - clientRect.y}px`;
-
-    this._contextMenuRef.current.style.display = "block";
-
-    this._canvas.isContextMenuVisible = true;
-  }
-
-  HideContextMenu() {
-    this._contextMenuRef.current.style.display = "none";
-    this._canvas.isContextMenuVisible = undefined;
-  }
-
   SetCreateElement({ element }) {
     if (this._canvas.simpleCreateMode) {
       this._canvas.simpleCreateElement = element;

@@ -16,6 +16,7 @@ import CreateDropDownButton from '../../../uiComponents/base/DDItems/SpecialButt
 import ClientMediator from '../../../../ClientMediator';
 import useClientMediator from '../../../uiComponents/hooks/useClientMediator';
 import DropDownButton from '../../../uiComponents/base/DDItems/DropDrownButton';
+import DropDownItem from '../../../uiComponents/base/DDItems/DropDownItem';
 
 export const ViewsMenu = ({ state,
     onDropDown
@@ -71,9 +72,6 @@ export const ViewsMenu = ({ state,
             {/*Add 'disabled' option here*/}
             <BattleMapsMenu key={'1'} state={state} />
             <CreateDropDownButton width={150} name={"Chat"} icon={IoMdChatboxes} state={state} element={<ChatPanel />} />
-            <DropDownButton width={150} name={"Chat(Window)"} icon={IoMdChatboxes} state={state} onClick={() => {
-                ClientMediator.sendCommand("Game", "CreateNewPanel", { type: "ChatPanel", inWindow: true });
-            }} />
             <CreateDropDownButton width={150} name={"Players"} icon={FaUserFriends} state={state} element={<PlayersPanel />} />
             <CreateDropDownButton width={150} name={"Cards"} icon={FaUserAlt} state={state} element={<CardsPanel state={state} />} />
             <CreateDropDownButton width={150} name={"Materials"} icon={FaPaintBrush} state={state} element={<MaterialsPanel state={state} />} />

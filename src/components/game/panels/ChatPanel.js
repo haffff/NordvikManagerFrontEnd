@@ -1,12 +1,13 @@
 import * as React from "react";
+import { Textarea, Flex, Heading, Badge, Input, For } from "@chakra-ui/react";
 import {
-  Textarea,
-  Flex,
-  Heading,
-  Badge,
-  Input,
-  Select,
-} from "@chakra-ui/react";
+  SelectContent,
+  SelectItem,
+  SelectLabel,
+  SelectRoot,
+  SelectTrigger,
+  SelectValueText,
+} from "../../ui/select";
 import Loadable from "../../uiComponents/base/Loadable";
 import * as Dockable from "@hlorenzi/react-dockable";
 import WebHelper from "../../../helpers/WebHelper";
@@ -23,6 +24,7 @@ import DContainer from "../../uiComponents/base/Containers/DContainer";
 import DropDownButton from "../../uiComponents/base/DDItems/DropDrownButton";
 import useGame from "../../uiComponents/hooks/useGameHook";
 import CommandExecutionHelper from "../../../helpers/CommandExecutionHelper";
+import { LoadingScreen } from "../../uiComponents/LoadingScreen";
 
 export const ChatPanel = () => {
   const [items, setItems] = React.useState([]);
@@ -270,17 +272,31 @@ export const ChatPanel = () => {
               }}
             />
             <DLabel>From: </DLabel>
-            <Select
+            <SelectRoot
               onChange={(e) => {
                 setFrom(e.target.value);
                 setReloadChat(true);
               }}
+              multiple={false}
+              value={from}
             >
-              <option value={null}>Any</option>
-              {game.players.map((x) => (
-                <option value={x.id}>{x.name}</option>
-              ))}
-            </Select>
+              <SelectLabel />
+              <SelectTrigger>
+                <SelectValueText placeholder="Any" />
+              </SelectTrigger>
+              {/* <SelectContent>
+                <For each={game.players} fallback={<LoadingScreen />}>
+                  {(x) => (
+                    <SelectItem
+                      item={x}
+                      value={x.id || x.Id}
+                      key={x.id || x.Id}>
+                      {x.name || x.Name}
+                    </SelectItem>
+                  )}
+                </For>
+              </SelectContent> */}
+            </SelectRoot>
           </DContainer>
         </Flex>
         <Flex direction="row">

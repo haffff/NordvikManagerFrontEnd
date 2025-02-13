@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Box, Image, useToast } from '@chakra-ui/react'
+import { Box, Image } from '@chakra-ui/react'
 import * as Dockable from "@hlorenzi/react-dockable"
 import DList from '../../uiComponents/base/List/DList';
 import DListItem from '../../uiComponents/base/List/DListItem';
@@ -18,11 +18,11 @@ import RefreshInfo from '../../uiComponents/treeList/RefreshInfoCard';
 import DockableHelper from '../../../helpers/DockableHelper';
 import LookupPanel from './Addons/LookupPanel';
 import DTreeListItem from '../../uiComponents/base/List/DTreeListItem';
+import { toaster } from '../../ui/toaster';
 
 export const MaterialsPanel = ({ state }) => {
     const [resources, setResources] = React.useState([]);
     const [ignoreRefresh, setIgnoreRefresh] = React.useState(false);
-    const toast = useToast();
     const inputFile = React.useRef(null);
 
     const LoadData = () => {
@@ -64,7 +64,7 @@ export const MaterialsPanel = ({ state }) => {
         let url = GetLink(id);
         if (navigator.clipboard) {
             navigator.clipboard.writeText(url);
-            toast(UtilityHelper.GenerateCopiedToast());
+            toaster.create(UtilityHelper.GenerateCopiedToast());
         }
         else {
             window.prompt("Copy to clipboard: Ctrl+C, Enter", url);

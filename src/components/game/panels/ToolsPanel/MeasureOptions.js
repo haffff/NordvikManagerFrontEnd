@@ -1,5 +1,4 @@
 import { Flex, IconButton, Input, Stack, Text } from "@chakra-ui/react";
-import ColorPicker from "../../../uiComponents/ColorPicker";
 import React, { useEffect, useState } from "react";
 import DListItemButton from "../../../uiComponents/base/List/ListItemDetails/DListItemButton";
 import { IoMdClose, IoMdExit } from "react-icons/io";
