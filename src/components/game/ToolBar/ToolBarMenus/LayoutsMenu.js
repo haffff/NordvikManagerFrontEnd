@@ -114,7 +114,7 @@ export const LayoutsMenu = ({
 
                 <DropDownSeparator title="Layouts" />
 
-                {serverLayouts !== undefined && serverLayouts !== null ? serverLayouts.map(x => <DeletableDropDownButton key={x.id} width={width} name={x.name} onClick={() => ClientMediator.sendCommand("Game", "SetLayout", x)} onDeleteClick={() => DeleteServerLayout(x)} />) : <></>}
+                {serverLayouts !== undefined && serverLayouts !== null ? serverLayouts.map(x => <DeletableDropDownButton id={x.id} key={x.id} width={width} name={x.name} onClick={() => ClientMediator.sendCommand("Game", "SetLayout", x)} onDeleteClick={() => DeleteServerLayout(x)} />) : <></>}
             </DropDownMenu>
             <DropDownItem width={width} name={"Reset"} />
             <CreateDropDownButton gmOnly icon={FaBook} width={width} name={"Layout Manager"} state={state} element={<LayoutsManagerPanel state={state} />} />

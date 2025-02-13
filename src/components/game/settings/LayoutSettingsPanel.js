@@ -1,26 +1,5 @@
 import * as React from "react";
 import { Tabs, TabList, Tab, TabPanels, TabPanel } from "@chakra-ui/react";
-import {
-  HStack,
-  Button,
-  Box,
-  Stack,
-  Textarea,
-  Grid,
-  GridItem,
-  Flex,
-  Card,
-  CardHeader,
-  CardBody,
-  Heading,
-  Center,
-  Badge,
-  FormLabel,
-  Input,
-  Checkbox,
-  NumberInput,
-  NumberInputField,
-} from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import WebSocketManagerInstance from "../WebSocketManager";
 import SettingsPanel from "./SettingsPanel";
@@ -77,21 +56,21 @@ export const LayoutSettingsPanel = ({ layout }) => {
   return (
     <Subscribable commandPrefix={"layout_update"} onMessage={updateSettings}>
       <BasePanel>
-        <Tabs.Root marginTop={3} size="md" variant="enclosed">
+        <Tabs.Root defaultValue={'settings'} marginTop={3} size="md" variant="enclosed">
           <Tabs.List>
-            <Tabs.Trigger>Settings</Tabs.Trigger>
-            <Tabs.Trigger>Permissions</Tabs.Trigger>
+            <Tabs.Trigger value="settings">Settings</Tabs.Trigger>
+            <Tabs.Trigger value="permissions">Permissions</Tabs.Trigger>
           </Tabs.List>
-          <Tabs.Context>
+          <Tabs.Content value="settings">
             <SettingsPanel
               dto={layout}
               editableKeyLabelDict={editables}
               onSave={sendSettingsUpdate}
             />
-          </Tabs.Context>
-          <Tabs.Context>
+          </Tabs.Content>
+          <Tabs.Content value="permissions">
             <SecuritySettingsPanel dto={layout} type="LayoutModel" />
-          </Tabs.Context>
+          </Tabs.Content>
         </Tabs.Root>
       </BasePanel>
     </Subscribable>
