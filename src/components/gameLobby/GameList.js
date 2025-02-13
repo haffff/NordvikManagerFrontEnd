@@ -87,7 +87,7 @@ export const GameList = ({ OnSuccess, OnLogout }) => {
   function getGameList() {
     if (gameList !== undefined) {
       return gameList.map((x) => (
-        <GameListItem key={x.id} game={x} onClick={() => OnSuccess(x.id)} />
+        <GameListItem key={x.id} game={x} onClick={() => OnSuccess(x.id)} reload={() => WebHelper.get("gamelist/getgames", setGameList)} />
       ));
     }
     return <></>;

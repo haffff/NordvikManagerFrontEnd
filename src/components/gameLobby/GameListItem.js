@@ -18,15 +18,15 @@ import React from "react";
 import { DialogContainer } from "../uiComponents/base/Containers/DialogContainer";
 import { DialogBackdrop, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogRoot } from "../ui/dialog";
 
-const GameListItem = ({ game, onClick }) => {
+const GameListItem = ({ game, onClick, reload }) => {
   const [open, setOpen] = React.useState(false);
   const [selectedSettingsGame, setSelectedSettingsGame] =
     React.useState(undefined);
 
-  const DeleteGame = (gameID) => {
-    WebHelper.post("gamelist/deletegame", { gameID: gameID }, () => {
-      setOpen(false);
-    });
+  const DeleteGame = async (gameID) => {
+    await WebHelper.deleteAsync("gamelist/deletegame?gameId=" + gameID, { gameID: gameID });
+    setOpen(false);
+    reload();
   };
 
   return (
