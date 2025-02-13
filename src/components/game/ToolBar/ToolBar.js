@@ -6,11 +6,12 @@ const ToolbarStyle = {
     'minWidth': '100vh',
     'alignItems': 'left',
     'justifyContent': 'left',
+    'padding': '2px',
 }
 
 export const ToolBar = ({ children }) => {
     return (
-        <HStack style={ToolbarStyle}>
+        <HStack margin={'10px'} style={ToolbarStyle}>
             {children}
         </HStack>
     )

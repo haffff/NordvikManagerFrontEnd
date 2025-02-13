@@ -8,6 +8,8 @@ import {
   Checkbox,
   Stack,
   Button,
+  createListCollection,
+  For,
 } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import DList from "../../../uiComponents/base/List/DList";
@@ -21,6 +23,8 @@ import UtilityHelper from "../../../../helpers/UtilityHelper";
 import { ReactTreeList } from "@bartaxyz/react-tree-list";
 import { FaCheck, FaCross, FaMinus } from "react-icons/fa";
 import { DUIBox } from "../../../uiComponents/base/List/DUIBox";
+import { Switch } from "../../../ui/switch";
+import { SelectContent, SelectItem, SelectRoot, SelectTrigger, SelectValueText } from "../../../ui/select";
 
 export const ActionsPanel = ({ state, gameDataRef }) => {
   const [actions, setActions] = React.useState([]);
@@ -99,6 +103,8 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
     return treeGroups;
   };
 
+  const hooksCollection = createListCollection({items: hooks})
+
   return (
     <>
       <CollectionSyncer
@@ -140,7 +146,7 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
         </DContainer>
         {selectedAction ? (
           <DUIBox key={selectedAction?.id} padding={"10px"} width={"100%"}>
-            <Checkbox
+            <Switch
               isChecked={selectedAction?.isEnabled}
               onChange={(e) => {
                 setSelectedAction({
@@ -150,7 +156,7 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
               }}
             >
               Enabled
-            </Checkbox>
+            </Switch>
             <Flex gap={"5px"}>
               <Input
                 width={"200px"}
@@ -182,20 +188,40 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
                   });
                 }}
               />
-              <Select
-                defaultValue={-1}
-                value={selectedAction?.hook}
+
+              <SelectRoot
+                multiple={false}
+                collection={hooksCollection}
                 onChange={(e) => {
                   setSelectedAction({
                     ...selectedAction,
                     hook: e.target.value,
                   });
                 }}
+                
               >
-                {hooks.map((x) => (
-                  <option value={x.value}>{x.name}</option>
-                ))}
-              </Select>
+                <SelectTrigger>
+                  <SelectValueText placeholder="Select...">
+                    {(items) => {
+                      return <>{selectedAction.hook}</>;
+                    }}
+                  </SelectValueText>
+                </SelectTrigger>
+                <SelectContent>
+                  <For each={hooksCollection.items}>
+                    {(option, index) => (
+                      <SelectItem
+                        key={index}
+                        selected={selectedAction.hook === option.value}
+                        item={option}
+                        value={option.value}
+                      >
+                        {option.name}
+                      </SelectItem>
+                    )}
+                  </For>
+                </SelectContent>
+              </SelectRoot>
 
               <DContainer title={"Steps"} withVisibilityToggle={true}>
                 <DList

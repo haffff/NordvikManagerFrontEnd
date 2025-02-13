@@ -54,17 +54,17 @@ export const PropertiesSettingsPanel = ({ gameId, dto, type, initProperties }) =
         color = property.toAdd ? 'darkgreen' : color;
 
         return (
-            <Tr key={property.id}>
-                <Td>
+            <Table.Row key={property.id}>
+                <Table.Cell>
                     <Input size='xs' backgroundColor={color} fontWeight={'bold'} value={property.name} onChange={(e) => HandleNameChange(e, property)} />
-                </Td>
-                <Td>
+                </Table.Cell>
+                <Table.Cell>
                     <Input size='xs' backgroundColor={color} value={property.value} onChange={(e) => HandleValueChange(e, property)} />
-                </Td>
-                <Td>
+                </Table.Cell>
+                <Table.Cell>
                     <DListItemButton label={'Remove'} color={'red'} icon={IoIosRemoveCircleOutline} onClick={() => HandleDelete(property)} />
-                </Td>
-            </Tr>
+                </Table.Cell>
+            </Table.Row>
         );
     }
 
@@ -148,20 +148,18 @@ export const PropertiesSettingsPanel = ({ gameId, dto, type, initProperties }) =
             <Flex margin={'5px'}>
                 <SearchInput value={search} onChange={(v) => setSearch(v)} />
             </Flex>
-            <TableContainer overflowY={'scroll'} onScroll={handleScroll}>
-                <Table size={'xs'} variant='simple'>
-                    <Thead>
-                        <Tr>
-                            <Th>Name</Th>
-                            <Th>Value</Th>
-                            <Th>Actions</Th>
-                        </Tr>
-                    </Thead>
-                    <Tbody>
+                <Table.Root size={'xs'} variant='simple'>
+                    <Table.Header>
+                        <Table.Row>
+                            <Table.ColumnHeader>Name</Table.ColumnHeader>
+                            <Table.ColumnHeader>Value</Table.ColumnHeader>
+                            <Table.ColumnHeader>Actions</Table.ColumnHeader>
+                        </Table.Row>
+                    </Table.Header>
+                    <Table.Body>
                         {properties.filter(x => x.name.includes(search)).map((x, index) => preparePanel(x, index))}
-                    </Tbody>
-                </Table>
-            </TableContainer>
+                    </Table.Body>
+                </Table.Root>
 
             <DList withAddButton={true} handleAdd={HandleAdd}></DList>
             <DButtonHorizontalContainer>

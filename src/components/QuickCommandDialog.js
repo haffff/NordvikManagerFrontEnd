@@ -2,15 +2,10 @@ import * as React from "react";
 import {
   Box,
   Button,
-  Divider,
+  For,
   HStack,
   Input,
-  Modal,
-  ModalBody,
-  ModalCloseButton,
-  ModalContent,
-  ModalHeader,
-  ModalOverlay,
+  Separator,
   Stack,
   Text,
   useDisclosure,
@@ -18,19 +13,21 @@ import {
 import CommandExecutionHelper from "../helpers/CommandExecutionHelper";
 import DockableHelper from "../helpers/DockableHelper";
 import LookupPanel from "./game/panels/Addons/LookupPanel";
+import { DialogBackdrop, DialogBody, DialogCloseTrigger, DialogContent, DialogHeader, DialogRoot } from "./ui/dialog";
+
 
 export const QuickCommandDialog = ({ state, openRef, onCloseModal }) => {
-  const { isOpen, onOpen, onClose } = useDisclosure();
+  const [open, setOpen] = React.useState(false);
   const [command, setCommand] = React.useState("");
   const [suggestions, setSuggestions] = React.useState([]);
   const initialRef = React.useRef();
   const stackRef = React.useRef();
-  openRef.current = onOpen;
+  openRef.current = () => setOpen(true);
   //Check why ref is not working here
 
   React.useEffect(() => {
     CommandExecutionHelper.LoadSuggestions();
-  }, [isOpen]);
+  }, [open]);
 
   React.useEffect(() => {
     setSuggestions(CommandExecutionHelper.GetSuggestions(command));
@@ -51,89 +48,90 @@ export const QuickCommandDialog = ({ state, openRef, onCloseModal }) => {
   }
 
   return (
-    <Modal
-      blockScrollOnMount={false}
-      isOpen={isOpen}
-      onClose={onClose}
-      initialFocusRef={initialRef}
-      size={"4xl"}
-    >
-      <ModalOverlay />
-      <ModalContent>
-        <ModalHeader>Run command</ModalHeader>
-        <ModalCloseButton />
-        <ModalBody marginBottom={"20px"}>
-          <HStack>
-            <Input
-              onKeyDown={(e) => {
-                //on arrow down
-                if (e.key === "ArrowDown") {
-                  e.preventDefault();
-                  stackRef.current.firstChild.focus();
-                }
-                if (e.key === "Enter") {
-                  //run command
-                  RunCommand();
-                  onClose();
-                }
-              }}
-              ref={initialRef}
-              placeholder="Command"
-              value={command}
-              onChange={(e) => setCommand(e.target.value)}
-            />
-            <Button
-              colorScheme="blue"
-              mr={3}
-              onClick={(e) => {
-                //run command
-                RunCommand();
-                onClose();
-              }}
-            >
-              Run
-            </Button>
-          </HStack>
-          <Divider margin={"10px"} />
-          <Stack ref={stackRef}>
-            {suggestions.map((suggestion) => (
-              <Box
-                as="button"
-                padding={"5px"}
-                key={suggestion.panel + "." + suggestion.command}
-                backgroundColor={"gray"}
+      <DialogRoot
+        blockScrollOnMount={false}
+        open={open}
+        onOpenChange={(e) => setOpen(e.open)}
+        initialFocusRef={initialRef}
+        size={"xl"}
+      >
+        <DialogBackdrop />
+        <DialogContent>
+          <DialogHeader>Run command</DialogHeader>
+          <DialogCloseTrigger />
+          <DialogBody marginBottom={"20px"}>
+            <HStack>
+              <Input
                 onKeyDown={(e) => {
                   //on arrow down
                   if (e.key === "ArrowDown") {
                     e.preventDefault();
-                    if (e.target.nextSibling) e.target.nextSibling.focus();
+                    stackRef.current.firstChild.focus();
                   }
-                  if (e.key === "ArrowUp") {
-                    e.preventDefault();
-                    if (e.target.previousSibling)
-                      e.target.previousSibling.focus();
+                  if (e.key === "Enter") {
+                    //run command
+                    RunCommand();
+                    setOpen(false);
                   }
                 }}
+                ref={initialRef}
+                placeholder="Command"
+                value={command}
+                onChange={(e) => setCommand(e.target.value)}
+              />
+              <Button
+                variant={"outline"}
+                mr={3}
                 onClick={(e) => {
-                  setCommand(suggestion.panel + "." + suggestion.command);
-                  initialRef.current.focus();
+                  //run command
+                  RunCommand();
+                  setOpen(false);
                 }}
               >
-                <HStack gap={1}>
-                  <Text color="darkgray">{suggestion.panel}.</Text>
-                  <Text fontWeight={"bold"}>{suggestion.command}</Text>
-                  {suggestion?.requiresContext && (
-                    <Text color="darkgray" fontStyle={"italic"}>
-                      (Bm context required)
-                    </Text>
-                  )}
-                </HStack>
-              </Box>
-            ))}
-          </Stack>
-        </ModalBody>
-      </ModalContent>
-    </Modal>
+                Run
+              </Button>
+            </HStack>
+            <Separator margin={"10px"} />
+            <Stack ref={stackRef}>
+              <For each={suggestions} fallback={<Text>No suggestions</Text>}>
+              {(suggestion) => (
+                <Box
+                  as="button"
+                  padding={"5px"}
+                  key={suggestion.panel + "." + suggestion.command}
+                  onKeyDown={(e) => {
+                    //on arrow down
+                    if (e.key === "ArrowDown") {
+                      e.preventDefault();
+                      if (e.target.nextSibling) e.target.nextSibling.focus();
+                    }
+                    if (e.key === "ArrowUp") {
+                      e.preventDefault();
+                      if (e.target.previousSibling)
+                        e.target.previousSibling.focus();
+                    }
+                  }}
+                  onClick={(e) => {
+                    setCommand(suggestion.panel + "." + suggestion.command);
+                    initialRef.current.focus();
+                  }}
+                >
+                  <HStack gap={1}>
+                    <Text>{suggestion.panel}.</Text>
+                    <Text fontWeight={"bold"}>{suggestion.command}</Text>
+                    {suggestion?.requiresContext && (
+                      <Text fontStyle={"italic"}>
+                        (Bm context required)
+                      </Text>
+                    )}
+                  </HStack>
+                </Box>
+              )}
+              </For>
+            </Stack>
+          </DialogBody>
+        </DialogContent>
+      </DialogRoot>
   );
 };
 export default QuickCommandDialog;

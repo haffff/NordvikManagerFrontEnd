@@ -10,6 +10,7 @@ export const ContextMenu = ({ children, location, isOpen }) => {
             margin: 0,
             left: location[0],
             top: location[1],
+            backgroundColor: 'var(--nordvik-secondary-color)',
         }} >
             <Stack>
                 {children}

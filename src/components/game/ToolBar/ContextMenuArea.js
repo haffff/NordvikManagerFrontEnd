@@ -32,7 +32,7 @@ export const ContextMenuArea = ({ children, target , id , contextMenuItems }) =>
           }}
           >
                 {children}
-                <ContextMenu id={id} location={rightClickLocation} isOpen={dropdown} onClick={() => console.log("ASDDF")}>
+                <ContextMenu id={id} location={rightClickLocation} isOpen={dropdown}>
                     {contextMenuItems}
                 </ContextMenu>
         </div>

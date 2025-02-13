@@ -34,8 +34,6 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
   const mapRef = React.useRef(undefined);
   const battleMapContainerRef = React.useRef(null);
 
-  const contextMenuRef = React.useRef(null);
-
   // battlemap object is used for contexts, in short you can have many contexts and open separate panel with it. albo keyboard have to process it
   const battleMapObjectRef = React.useRef({});
 
@@ -200,7 +198,10 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
           }
 
           if (dragObj.entityType === "MapModel") {
-            let command = CommandFactory.CreateChangeMapCommand(dragObj.id, battleMapObjectRef.current.Id);
+            let command = CommandFactory.CreateChangeMapCommand(
+              dragObj.id,
+              battleMapObjectRef.current.Id
+            );
             WebSocketManagerInstance.Send(command);
           }
         }
@@ -251,17 +252,15 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
       }}
     >
       {!loaded && <LoadingScreen />}
-      <FabricJSCanvas onReady={onReady} />
-      <PopupBMOverlay key={uuid+"popup"} battleMapId={uuid} />
+      <BattleMapContextMenu
+        loaded={loaded}
+        battleMapId={uuid}
+        canvas={editor?.canvas}
+      >
+        <FabricJSCanvas onReady={onReady} />{" "}
+      </BattleMapContextMenu>
+      <PopupBMOverlay key={uuid + "popup"} battleMapId={uuid} />
       <InfoBMOverlay battleMapId={uuid} />
-      <div ref={contextMenuRef} className="nm_bm_contextMenu">
-        <BattleMapContextMenu
-          contextMenuReference={contextMenuRef}
-          loaded={loaded}
-          battleMapId={uuid}
-          canvas={editor?.canvas}
-        />
-      </div>
     </Flex>
   );
 
@@ -292,7 +291,6 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
     BattleMapServices.BMService._reloadCommand = ReloadBattleMap;
     BattleMapServices.BMService._changeMapCommand = ChangeMap;
     BattleMapServices.BMService._setEditModeCommand = setEditLayerMode;
-    BattleMapServices.BMService._contextMenuRef = contextMenuRef;
     BattleMapServices.BMService._battleMapModel = battleMapModel;
     BattleMapServices.BMService.Load();
 
@@ -327,7 +325,6 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
       battleMapObjectRef,
       //argumentsRef,
       battleMapContainerRef,
-      contextMenuRef,
     };
 
     LoadBMSubscriptions(editor.canvas, references);
@@ -411,7 +408,10 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
             objects.map(async (obj) => {
               if (!obj.id) return false;
 
-              obj.set('src', WebHelper.getResourceString(obj.resourceId, obj.resourceKey));
+              obj.set(
+                "src",
+                WebHelper.getResourceString(obj.resourceId, obj.resourceKey)
+              );
 
               //originally there was Mediator request. i replaced with simpler check that should do a work.
               let isToken = obj.tokenData !== undefined ? true : false;

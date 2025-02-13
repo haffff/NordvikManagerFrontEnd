@@ -10,7 +10,6 @@ import {
   Button,
   Checkbox,
   Flex,
-  useToast,
   HStack,
   FormLabel,
   Stack,
@@ -46,30 +45,32 @@ export const AddonsManagePanel = ({ state }) => {
     var toDownload = await WebHelper.getAsync("addon/AddonsToDowload");
     setToDownload(toDownload);
   };
-  
+
   const ctx = Dockable.useContentContext();
   ctx.setTitle(`Addons Manage Panel`);
 
   return (
     <BasePanel>
       <Tabs>
-        <TabList>
-          <Tab>Installed</Tab>
-          <Tab>Install</Tab>
-          <Tab>Browse</Tab>
+        <Tabs.List>
+          <Tabs.Trigger value="installed">Installed</Tabs.Trigger>
+          <Tabs.Trigger value="install">Install</Tabs.Trigger>
+          <Tabs.Trigger value="browse">Browse</Tabs.Trigger>
           {/* <Tab>Create</Tab> */}
-        </TabList>
-        <TabPanels>
-          <TabPanel>
-            <BrowseInstalledTab handleReload={HandleReload} addons={addons} />
-          </TabPanel>
-          <TabPanel>
-            <InstallFromFileTab handleReload={HandleReload} />
-          </TabPanel>
-          <TabPanel>
-            <BrowseAddonsTab handleReload={HandleReload} toDownload={toDownload} addons={addons} />
-          </TabPanel>
-        </TabPanels>
+        </Tabs.List>
+        <Tabs.Content value="installed">
+          <BrowseInstalledTab handleReload={HandleReload} addons={addons} />
+        </Tabs.Content>
+        <Tabs.Content value="install">
+          <InstallFromFileTab handleReload={HandleReload} />
+        </Tabs.Content>
+        <Tabs.Content value="browse">
+          <BrowseAddonsTab
+            handleReload={HandleReload}
+            toDownload={toDownload}
+            addons={addons}
+          />
+        </Tabs.Content>
       </Tabs>
     </BasePanel>
   );

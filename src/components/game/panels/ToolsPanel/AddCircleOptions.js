@@ -1,5 +1,4 @@
 import { Flex, Input, Stack, Text } from "@chakra-ui/react";
-import ColorPicker from "../../../uiComponents/ColorPicker";
 import { useEffect, useState } from "react";
 import DListItemButton from "../../../uiComponents/base/List/ListItemDetails/DListItemButton";
 import { IoMdClose, IoMdExit } from "react-icons/io";
@@ -7,6 +6,7 @@ import ClientMediator from "../../../../ClientMediator";
 import { MdCircle, MdLineWeight } from "react-icons/md";
 import { MdOutlineFormatColorFill } from "react-icons/md";
 import { MdBorderColor } from "react-icons/md";
+import { DColorPicker } from "../../../uiComponents/settingsComponents/ColorPicker";
 
 export const AddCircleOptions = ({ battleMapId }) => {
   const [fillColor, setFillColor] = useState("rgba(0,0,0,1)");
@@ -38,26 +38,24 @@ export const AddCircleOptions = ({ battleMapId }) => {
         <Text>
           <MdOutlineFormatColorFill />
         </Text>
-        <ColorPicker
-          onChange={(color) => {
+        <DColorPicker
+          onValueChange={(color) => {
             handleUpdate("fill", color);
             setFillColor(color);
           }}
-          color={fillColor}
-          isAbsolute={true}
+          initColor={fillColor}
         />
       </Stack>
       <Stack alignItems={"center"}>
         <Text>
           <MdBorderColor />
         </Text>
-        <ColorPicker
-          onChange={(color) => {
+        <DColorPicker
+          onValueChange={(color) => {
             handleUpdate("stroke", color);
             setStrokeColor(color);
           }}
-          color={strokeColor}
-          isAbsolute={true}
+          initColor={strokeColor}
         />
       </Stack>
       <Stack alignItems={"center"}>

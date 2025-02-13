@@ -2,7 +2,8 @@ import React, { useEffect } from "react";
 import EditTable from "../../settings/EditTable";
 import DContainer from "../../../uiComponents/base/Containers/DContainer";
 import useUUID from "../../../uiComponents/hooks/useUUID";
-import { HStack, Select, Stack } from "@chakra-ui/react";
+import { For, HStack, Select, Stack, createListCollection } from "@chakra-ui/react";
+import { SelectContent, SelectItem, SelectRoot, SelectTrigger, SelectValueText } from "../../../ui/select";
 import DListItemButton from "../../../uiComponents/base/List/ListItemDetails/DListItemButton";
 import {
   FaArrowAltCircleDown,
@@ -107,6 +108,8 @@ export const ActionStep = ({
     );
   };
 
+  const stepDefinitionsCollection = createListCollection({items: stepDefinitions});
+
   return (
     <DContainer
       key={initStep.id}
@@ -134,16 +137,34 @@ export const ActionStep = ({
             onClick={Delete}
           />
         </HStack>
-        <Select
-          value={step.Type}
-          onChange={(e) => {
-            setStep({ ...step, Type: e.target.value });
-          }}
-        >
-          {stepDefinitions?.map((x) => (
-            <option value={x.name}>{x.name}</option>
-          ))}
-        </Select>
+
+        {/* <SelectRoot
+              collection={collection}
+              onChange={(element) => setStep({ ...step, Type: element.value })}
+            >
+              <SelectTrigger>
+                <SelectValueText placeholder="Select...">
+                  {(items) => {
+                    const { name } = items[0];
+                    return <>{name}</>;
+                  }}
+                </SelectValueText>
+              </SelectTrigger>
+              <SelectContent>
+                <For each={stepDefinitionsCollection.items}>
+                  {(option, index) => (
+                    <SelectItem
+                      key={index}
+                      selected={dto[key] === option.id}
+                      item={option}
+                    >
+                      {option.label}
+                    </SelectItem>
+                  )}
+                </For>
+              </SelectContent>
+            </SelectRoot> */}
+
         <DContainer title={"Data"} withVisibilityToggle={true}>
           {GenerateStepData(step)}
         </DContainer>

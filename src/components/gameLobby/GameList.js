@@ -3,10 +3,10 @@ import {
   Stack,
   Box,
   Button,
-  Divider,
-  Wrap,
   ButtonGroup,
   Heading,
+  HStack,
+  Separator,
 } from "@chakra-ui/react";
 import WebHelper from "../../helpers/WebHelper";
 import { JoinDialog } from "./JoinDialog";
@@ -37,6 +37,9 @@ export const GameList = ({ OnSuccess, OnLogout }) => {
 
   return (
     <Loadable OnLoad={Load}>
+      <UserManagementDialog openRef={openUserManagementRef} />
+      <AppSettingsDialog openRef={openAppSettingsRef} />
+      <JoinDialog OnSuccess={(r) => OnSuccess(r)} />
       <Stack
         style={{
           width: "60%",
@@ -44,23 +47,40 @@ export const GameList = ({ OnSuccess, OnLogout }) => {
           height: "100vh",
         }}
       >
-        <Heading padding={4} size={"md"}>Hello, {userData.userName}</Heading>
-        <ButtonGroup margin={'25px'} marginBottom={'50px'}>
-          {userData.admin && <Button onClick={() => openAppSettingsRef.current()} leftIcon={<FaCog />}> Application Settings </Button>}
-          {userData.admin && <Button onClick={() => openUserManagementRef.current()} leftIcon={<FaUserFriends />}> User Management </Button>}
-          <Button leftIcon={<IoMdLogOut />} onClick={OnLogout}>Logout</Button>
+        <Heading padding={4} size={"md"}>
+          Hello, {userData.userName}
+        </Heading>
+        <ButtonGroup margin={"25px"} marginBottom={"50px"}>
+          {userData.admin && (
+            <Button variant={'outline'}
+              onClick={() => openAppSettingsRef.current()}
+              leftIcon={<FaCog />}
+            >
+              {" "}
+              Application Settings{" "}
+            </Button>
+          )}
+          {userData.admin && (
+            <Button variant={'outline'}
+              onClick={() => openUserManagementRef.current()}
+              leftIcon={<FaUserFriends />}
+            >
+              {" "}
+              User Management{" "}
+            </Button>
+          )}
+          <Button variant={'outline'} leftIcon={<IoMdLogOut />} onClick={OnLogout}>
+            Logout
+          </Button>
         </ButtonGroup>
         <Box width={"100%"} height={"80%"}>
-          <Wrap>{getGameList()}</Wrap>
+          <HStack wrap={"wrap"}>{getGameList()}</HStack>
         </Box>
-        <Divider />
-        <UserManagementDialog openRef={openUserManagementRef} />
-        <AppSettingsDialog openRef={openAppSettingsRef} />
+        <Separator />
         <CreateNewDialog
           OnSuccess={() => WebHelper.get("gamelist/getgames", setGameList)}
         />
       </Stack>
-      <JoinDialog OnSuccess={(r) => OnSuccess(r)} />
     </Loadable>
   );
 

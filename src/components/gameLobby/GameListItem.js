@@ -3,39 +3,64 @@ import {
   Card,
   CardBody,
   CardFooter,
-  CardHeader,
-  Divider,
+  Dialog,
   Flex,
   Heading,
   IconButton,
   Image,
-  Modal,
-  ModalBody,
-  ModalContent,
-  ModalFooter,
-  ModalHeader,
-  ModalOverlay,
+  Separator,
   Text,
-  WrapItem,
   useDisclosure,
 } from "@chakra-ui/react";
 import { IoIosSettings, IoMdMore } from "react-icons/io";
 import WebHelper from "../../helpers/WebHelper";
 import React from "react";
+import { DialogContainer } from "../uiComponents/base/Containers/DialogContainer";
+import { DialogBackdrop, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogRoot } from "../ui/dialog";
 
 const GameListItem = ({ game, onClick }) => {
-  const { isOpen, onOpen, onClose } = useDisclosure();
-  const [selectedSettingsGame, setSelectedSettingsGame] = React.useState(undefined);
+  const [open, setOpen] = React.useState(false);
+  const [selectedSettingsGame, setSelectedSettingsGame] =
+    React.useState(undefined);
 
   const DeleteGame = (gameID) => {
     WebHelper.post("gamelist/deletegame", { gameID: gameID }, () => {
-      onClose();
+      setOpen(false);
     });
-  }
+  };
 
   return (
-    <WrapItem>
-      <Card
+    <Flex align={"flex-start"}>
+        <DialogRoot open={open} onOpenChange={(e) => setOpen(e.open)}>
+          <DialogBackdrop />
+          <DialogContent>
+            <DialogHeader>Game Settings</DialogHeader>
+            <DialogBody>
+              <Flex direction={"column"} gap={"10px"}>
+                <Heading size={"md"}>{selectedSettingsGame?.name}</Heading>
+                <Text>{selectedSettingsGame?.description}</Text>
+                <Separator />
+                <Button
+                  colorPalette={"red"}
+                  variant={"outline"}
+                  onClick={() =>
+                    window.confirm("Are you sure?")
+                      ? DeleteGame(game.id)
+                      : undefined
+                  }
+                >
+                  <p>Delete Game</p>
+                </Button>
+              </Flex>
+            </DialogBody>
+            <DialogFooter>
+              <Button variant={"outline"} onClick={() => setOpen(false)}>
+                Close
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </DialogRoot>
+      <Card.Root
         justify={"center"}
         width={200}
         height={350}
@@ -43,7 +68,7 @@ const GameListItem = ({ game, onClick }) => {
         key={game.id}
         bgColor={game.color}
       >
-        <CardBody>
+        <Card.Body>
           <Flex
             direction={"column"}
             padding="5"
@@ -57,12 +82,13 @@ const GameListItem = ({ game, onClick }) => {
               src={WebHelper.getResourceString(game.image, undefined, game.id)}
               alt={game.name}
             />
-            <Divider />
+            <Separator />
             {game.shortDescription}
           </Flex>
-        </CardBody>
-        <CardFooter gap={"10px"}>
+        </Card.Body>
+        <Card.Footer gap={"10px"}>
           <Button
+            variant={"outline"}
             key={game.id}
             onClick={() => {
               onClick(game.id);
@@ -71,37 +97,21 @@ const GameListItem = ({ game, onClick }) => {
             <p>Join</p>
           </Button>
           {game.isOwner ? (
-            <IconButton icon={<IoMdMore />} onClick={() => {
-              setSelectedSettingsGame(game);
-              onOpen();
-            }} />
+            <IconButton
+              variant={"outline"}
+              onClick={() => {
+                setSelectedSettingsGame(game);
+                setOpen(true);
+              }}
+            >
+              <IoMdMore />
+            </IconButton>
           ) : (
             <></>
           )}
-        </CardFooter>
-      </Card>
-      <Modal isOpen={isOpen} onClose={onClose}>
-        <ModalOverlay />
-        <ModalContent>
-          <ModalHeader>Game Settings</ModalHeader>
-          <ModalBody>
-            <Flex direction={"column"} gap={"10px"}>
-              <Heading size={"md"}>{selectedSettingsGame?.name}</Heading>
-              <Text>{selectedSettingsGame?.description}</Text>
-              <Divider />
-              <Button colorScheme="red" onClick={() => window.confirm("Are you sure?") ? DeleteGame(game.id) : undefined}>
-                <p>Delete Game</p>
-              </Button>
-            </Flex>
-          </ModalBody>
-          <ModalFooter>
-            <Button onClick={onClose}>
-              Close
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
-    </WrapItem>
+        </Card.Footer>
+      </Card.Root>
+    </Flex>
   );
 };
 

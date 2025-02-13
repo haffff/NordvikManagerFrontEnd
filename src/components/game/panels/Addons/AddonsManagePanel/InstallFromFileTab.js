@@ -1,14 +1,14 @@
-import { Box, Button, HStack, Input, useToast } from "@chakra-ui/react";
+import { Box, Button, HStack, Input } from "@chakra-ui/react";
 import DListItem from "../../../../uiComponents/base/List/DListItem";
 import React from "react";
 import WebHelper from "../../../../../helpers/WebHelper";
+import { toaster } from "../../../../ui/toaster"
 
 export const InstallFromFileTab = ({handleReload}) => {
   const [fileSelected, setFileSelected] = React.useState(false);
   const [url, setUrl] = React.useState("");
 
   const fileRef = React.useRef(null);
-  const toast = useToast();
   const inputFile = React.useRef(null);
 
   const Install = async () => {
@@ -17,14 +17,14 @@ export const InstallFromFileTab = ({handleReload}) => {
     formData.append("url", url);
     var result = await WebHelper.postAsync("addon/install", formData, true);
     if (result.ok) {
-      toast({
+      toaster.create({
         title: "Addon installed",
         status: "success",
         duration: 9000,
         isClosable: true,
       });
     } else {
-      toast({
+      toaster.create({
         title: "Addon installation failed",
         status: "error",
         duration: 9000,

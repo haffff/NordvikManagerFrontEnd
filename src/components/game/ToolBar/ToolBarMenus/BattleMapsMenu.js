@@ -8,7 +8,7 @@ import WebSocketManagerInstance from '../../WebSocketManager';
 import Subscribable from '../../../uiComponents/base/Subscribable';
 import DropDownMenu from '../../../uiComponents/base/DDItems/DropDownMenu';
 import DropDownItem from '../../../uiComponents/base/DDItems/DropDownItem';
-import CreateAndDeleteDropDownButton from '../../../uiComponents/base/DDItems/SpecialButtons/CreateAndDeleteDropDownButton';
+import CreateAndDeleteDropDownItem from '../../../uiComponents/base/DDItems/SpecialButtons/CreateAndDeleteDropDownButton';
 import ClientMediator from '../../../../ClientMediator';
 import InputModal from '../../../uiComponents/base/Modals/InputModal';
 import CollectionSyncer from '../../../uiComponents/base/CollectionSyncer';
@@ -64,7 +64,7 @@ export const BattleMapsMenu = ({ state }) => {
                 }
             }} />
             {battleMaps.filter(x => !openedBattleMaps.find(y => y.Id === x.id)).map(x =>
-                <CreateAndDeleteDropDownButton
+                <CreateAndDeleteDropDownItem
                     width={350}
                     name={x.name}
 

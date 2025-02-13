@@ -1,13 +1,5 @@
 import {
   Box,
-  Button,
-  Checkbox,
-  Flex,
-  FormLabel,
-  HStack,
-  Input,
-  Stack,
-  useToast,
 } from "@chakra-ui/react";
 import DListItem from "../../../../uiComponents/base/List/DListItem";
 import React from "react";
@@ -19,25 +11,25 @@ import { DUIBox } from "../../../../uiComponents/base/List/DUIBox";
 import DListItemButton from "../../../../uiComponents/base/List/ListItemDetails/DListItemButton";
 import DListItemsButtonContainer from "../../../../uiComponents/base/List/DListItemsButtonContainer";
 import { FaArrowUp, FaCheck, FaDownload } from "react-icons/fa";
+import {toaster} from "../../../../ui/toaster"
 
 export const BrowseAddonsTab = ({ toDownload, addons, handleReload }) => {
   const [installing, setInstalling] = React.useState(false);
   const [search, setSearch] = React.useState("");
-  const toast = useToast();
   const Install = async (key) => {
     setInstalling(true);
     var formData = new FormData();
     formData.append("key", key);
     var result = await WebHelper.postAsync("addon/install", formData, true);
     if (result.ok) {
-      toast({
+      toaster.create({
         title: "Addon installed",
         status: "success",
         duration: 9000,
         isClosable: true,
       });
     } else {
-      toast({
+      toaster.create({
         title: "Addon installation failed",
         status: "error",
         duration: 9000,

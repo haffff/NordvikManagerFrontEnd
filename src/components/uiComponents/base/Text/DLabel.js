@@ -1,12 +1,12 @@
-import { FormLabel } from '@chakra-ui/react';
+import { FormLabel, Heading } from '@chakra-ui/react';
 import * as React from 'react';
 
 export const DLabel = ({children}) => {
     
     return (
-        <FormLabel padding={'2px'}>
+        <Heading size={'xs'} padding={'2px'}>
             {children}
-        </FormLabel>
+        </Heading>
     );
 }
 export default DLabel;

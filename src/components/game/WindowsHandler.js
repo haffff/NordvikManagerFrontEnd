@@ -1,5 +1,7 @@
+import { useDockable } from "@hlorenzi/react-dockable";
 import React, { useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
+import { Provider } from "../ui/provider";
 
 export const WindowsHandler = () => {
   useEffect(() => {}, []);
@@ -22,9 +24,10 @@ export const NewWindow = ({ children, close, x, y }) => {
       return;
     }
 
-    document.head.querySelectorAll("link, style").forEach((htmlElement) => {
+    document.head.querySelectorAll("meta, script, link, style").forEach((htmlElement) => {
       newWindow.current.document.head.appendChild(htmlElement.cloneNode(true));
     });
+
     setLoaded(true);
     return () => newWindow.current?.close();
   }, []);
@@ -39,5 +42,5 @@ export const NewWindow = ({ children, close, x, y }) => {
     }
   };
 
-  return createPortal(children, newWindow.current.document.body);
+  return createPortal((children), newWindow.current.document.body);
 };

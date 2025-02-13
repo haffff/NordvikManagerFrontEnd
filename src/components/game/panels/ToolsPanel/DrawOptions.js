@@ -1,10 +1,10 @@
 import { Flex, Input, Stack, Text } from "@chakra-ui/react";
-import ColorPicker from "../../../uiComponents/ColorPicker";
 import { useEffect, useState } from "react";
 import DListItemButton from "../../../uiComponents/base/List/ListItemDetails/DListItemButton";
 import { IoMdClose } from "react-icons/io";
 import ClientMediator from "../../../../ClientMediator";
 import { MdBrush, MdLineWeight } from "react-icons/md";
+import { DColorPicker } from "../../../uiComponents/settingsComponents/ColorPicker";
 
 export const DrawOptions = ({ battleMapId }) => {
   const [color, setColor] = useState("rgba(0,0,0,1)");
@@ -34,13 +34,12 @@ export const DrawOptions = ({ battleMapId }) => {
         <Text>
           <MdBrush />
         </Text>
-        <ColorPicker
-          onChange={(color) => {
+        <DColorPicker
+          onValueChange={(color) => {
             handleUpdate("color", color);
             setColor(color);
           }}
           color={color}
-          isAbsolute={true}
         />
       </Stack>
         <Stack>

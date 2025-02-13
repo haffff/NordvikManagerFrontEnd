@@ -1,4 +1,4 @@
-import { Button, Flex, Input, Wrap, WrapItem } from "@chakra-ui/react";
+import { Button, Flex, HStack, Input, Wrap, WrapItem } from "@chakra-ui/react";
 import React from "react";
 import { FaSearch } from "react-icons/fa";
 import * as icons from 'react-icons/gi';
@@ -36,9 +36,9 @@ export const DynamicIconChooser = ({ onSelect, iconSelected, isDisabled }) => {
 
             {showSelect ?
                 <><Flex><FaSearch /><Input size={'xs'} onChange={(e) => setFilter(e.target.value)} /></Flex>
-                    <Wrap overflowY={'auto'} height={'200px'}>
-                        {getIcons().map((Icon) => (<WrapItem onClick={() => { setSelectedIcon(Icon.name); setShowSelect(false); if(onSelect) onSelect(Icon.name); }}><Icon size='40' /></WrapItem>))}
-                    </Wrap> 
+                    <HStack wrap='wrap' overflowY={'auto'} height={'200px'}>
+                        {getIcons().map((Icon) => (<Flex align='flex-start' onClick={() => { setSelectedIcon(Icon.name); setShowSelect(false); if(onSelect) onSelect(Icon.name); }}><Icon size='40' /></Flex>))}
+                    </HStack> 
                     <Button isDisabled={isDisabled} width={45} size={'xs'} onClick={() => setShowAll(!showAll)}>{showAll ? "Less..." : "More..."}</Button></>
                 : <Button isDisabled={isDisabled} size={'xs'} onClick={() => {setShowSelect(true); setShowAll(false);}}>Select Icon</Button> }
         </>

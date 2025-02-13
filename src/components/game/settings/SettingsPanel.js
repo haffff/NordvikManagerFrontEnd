@@ -6,23 +6,31 @@ import {
   GridItem,
   Flex,
   Card,
-  FormLabel,
   Input,
-  Checkbox,
-  NumberInput,
-  NumberInputField,
+  Field,
   Accordion,
-  AccordionButton,
-  AccordionItem,
-  AccordionPanel,
-  AccordionIcon,
   Image,
-  Select,
   HStack,
   Button,
-  Tooltip,
+  Heading,
+  For,
+  FieldErrorText,
+  createListCollection,
+  Stack,
 } from "@chakra-ui/react";
-import ColorPicker from "../../uiComponents/ColorPicker";
+import {
+  SelectRoot,
+  SelectItem,
+  SelectValueText,
+  SelectContent,
+  SelectTrigger,
+} from "../../ui/select";
+import { Switch } from "../../ui/switch";
+import {
+  NumberInputField,
+  NumberInputLabel,
+  NumberInputRoot,
+} from "../../ui/number-input";
 import WebHelper from "../../../helpers/WebHelper";
 import BasePanel from "../../uiComponents/base/BasePanel";
 import DynamicIconChooser from "../../uiComponents/icons/DynamicIconChooser";
@@ -30,6 +38,7 @@ import { MaterialChooser } from "../../uiComponents/MaterialChooser";
 import { PlayerChooser } from "../../uiComponents/PlayerChooser";
 import { FaRegQuestionCircle } from "react-icons/fa";
 import { SearchInput } from "../../uiComponents/SearchInput";
+import { DColorPicker } from "../../uiComponents/settingsComponents/ColorPicker";
 
 export const SettingsPanel = ({
   dto,
@@ -39,7 +48,7 @@ export const SettingsPanel = ({
   hideSaveButton,
   saveOnLeave,
   withExport,
-  showSearch
+  showSearch,
 }) => {
   const [updatedDto, setUpdatedDto] = React.useState({});
   const [validationDict, setValidationDict] = React.useState({});
@@ -118,31 +127,30 @@ export const SettingsPanel = ({
           editable.disableOn && editable.disableOn(dto)
         }`}
       >
-        <Card
+        <Card.Root
           style={{ backgroundColor: "rgba(40,40,40,0.5)", color: "white" }}
           colorScheme="blackAlpha"
-          variant="elevated"
+          variant="outline"
           padding={3}
+          pointerEvents={"all"}
           margin={1}
           size="sm"
         >
-          <Tooltip showArrow content={editable.toolTip}>
-            <Flex justifyContent={"space-between"} dir="row">
-              <FormLabel>{`${editable.label}:`}</FormLabel>
-              {editable.helpUrl && (
-                <a href={WebHelper.HelpURL + "/" + editable.helpUrl}>
-                  <FaRegQuestionCircle color="gray" />
-                </a>
-              )}
-            </Flex>
-          </Tooltip>
-          {validationDict[key] ? (
-            <p style={{ color: "red" }}>{validationDict[key]}</p>
-          ) : (
-            <></>
-          )}
-          {content}
-        </Card>
+          <Field.Root
+            invalid={validationDict[key]}
+            required={editable.required}
+          >
+            <Field.Label>
+              {editable.label}
+              <Field.RequiredIndicator />
+            </Field.Label>
+            <FieldErrorText>
+              <Field.ErrorIcon boxSize={"15px"} />
+              {validationDict[key]}
+            </FieldErrorText>
+            {content}
+          </Field.Root>
+        </Card.Root>
       </GridItem>
     );
   };
@@ -177,30 +185,42 @@ export const SettingsPanel = ({
         case "string":
           input = (
             <Input
+              label={editable.label}
               disabled={editable.disableOn && editable.disableOn(dto)}
-              isInvalid={validationDict[key]}
               defaultValue={dto[key]}
               onChange={(element) => OnChange(key, element.target.value)}
-            ></Input>
+            />
           );
           break;
         case "select":
+          const collection = createListCollection({ items: editable.options });
           input = (
-            <Select
-              isDisabled={editable.disableOn && editable.disableOn(dto)}
-              isInvalid={validationDict[key]}
-              onChange={(element) => OnChange(key, element.target.value)}
+            <SelectRoot
+              collection={collection}
+              onChange={(element) => OnChange(key, element.target?.value)}
             >
-              {editable.options.map((option, index) => (
-                <option
-                  key={index}
-                  selected={dto[key] === option.value}
-                  value={option.value}
-                >
-                  {option.label}
-                </option>
-              ))}
-            </Select>
+              <SelectTrigger>
+                <SelectValueText placeholder="Select...">
+                  {(items) => {
+                    const { label } = items.find(x=>x.value === dto[key]) || {label: "Select..."};
+                    return <>{label}</>;
+                  }}
+                </SelectValueText>
+              </SelectTrigger>
+              <SelectContent zIndex={9999}>
+                <For each={collection.items}>
+                  {(option, index) => (
+                    <SelectItem
+                      key={index}
+                      selected={dto[key] === option.value}
+                      item={option}
+                    >
+                      {option.label}
+                    </SelectItem>
+                  )}
+                </For>
+              </SelectContent>
+            </SelectRoot>
           );
           break;
         case "number":
@@ -215,8 +235,8 @@ export const SettingsPanel = ({
           }
           input = (
             <>
-              <>{infoAboutMinimumMaximum}</>
-              <NumberInput
+              <Field.HelperText>{infoAboutMinimumMaximum}</Field.HelperText>
+              <NumberInputRoot
                 isDisabled={editable.disableOn && editable.disableOn(dto)}
                 isInvalid={validationDict[key]}
                 defaultValue={dto[key]}
@@ -228,58 +248,29 @@ export const SettingsPanel = ({
                     OnChange(key, parseFloat(element.target.value))
                   }
                 />
-              </NumberInput>
+              </NumberInputRoot>
             </>
           );
           break;
         case "boolean":
-          element = {
-            category:
-              editable.category !== undefined ? editable.category : "default",
-            value: (
-              <GridItem
-                key={`${dto.id}_${key}_${
-                  editable.disableOn && editable.disableOn(dto)
-                }`}
-              >
-                <Card
-                  style={{
-                    backgroundColor: "rgba(40,40,40,0.5)",
-                    color: "white",
-                  }}
-                  colorScheme="blackAlpha"
-                  variant="elevated"
-                  padding={3}
-                  margin={1}
-                  size="sm"
-                >
-                  {validationDict[key] ? (
-                    <p style={{ color: "red" }}>{validationDict[key]}</p>
-                  ) : (
-                    <></>
-                  )}
-                  <Checkbox
-                    isDisabled={editable.disableOn && editable.disableOn(dto)}
-                    isInvalid={validationDict[key]}
-                    defaultChecked={dto[key]}
-                    onChange={(element) =>
-                      OnChange(key, element.target.checked)
-                    }
-                  >
-                    <FormLabel>{`${editable.label}`}</FormLabel>
-                  </Checkbox>
-                </Card>
-              </GridItem>
-            ),
-          };
+          input = (
+            <>
+              <Switch
+                defaultValue={dto[key]}
+                onChange={(e) => {
+                  OnChange(key, e.target.value);
+                }}
+              />
+            </>
+          );
           break;
         case "color":
           input = (
-            <ColorPicker
+            <DColorPicker
               isDisabled={editable.disableOn && editable.disableOn(dto)}
               isInvalid={validationDict[key]}
-              color={dto[key]}
-              onChange={(element) => OnChange(key, element)}
+              initColor={dto[key]}
+              onValueChange={(element) => OnChange(key, element)}
             />
           );
           break;
@@ -386,28 +377,17 @@ export const SettingsPanel = ({
         {showSearch && (
           <SearchInput value={search} onChange={(v) => setSearch(v)} />
         )}
-        <Grid width="95%" margin={15}>
-          {groupless}
-        </Grid>
-        <Accordion allowMultiple>
-          {Object.keys(grouped)
-            .filter((x) => x !== "default")
-            .map((x) => (
-              <AccordionItem key={x}>
-                <h2>
-                  <AccordionButton>
-                    <Box as="span" flex="1" textAlign="left">
-                      {x}
-                    </Box>
-                    <AccordionIcon />
-                  </AccordionButton>
-                </h2>
-                <AccordionPanel pb={4}>
-                  {grouped[x].map((y) => y.value)}
-                </AccordionPanel>
-              </AccordionItem>
-            ))}
-        </Accordion>
+        {groupless}
+        {Object.keys(grouped)
+          .filter((x) => x !== "default")
+          .map((x) => (
+            <Stack>
+              <Heading size={"md"} margin={"10px"}>
+                {x}
+              </Heading>
+              {grouped[x].map((y) => y.value)}
+            </Stack>
+          ))}
       </Flex>
       {hideSaveButton ? (
         <></>
@@ -421,7 +401,12 @@ export const SettingsPanel = ({
             <></>
           )}
           <HStack margin={"10px"} gap={"10px"}>
-            <Button onClick={() => validateAndSave(updatedDto)}>Save</Button>
+            <Button
+              variant={"outline"}
+              onClick={() => validateAndSave(updatedDto)}
+            >
+              Save
+            </Button>
             {withExport ? (
               <Button
                 onClick={() => {

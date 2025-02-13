@@ -5,9 +5,9 @@ import {
   Flex,
   FormLabel,
   HStack,
+  Heading,
   Input,
   Stack,
-  useToast,
 } from "@chakra-ui/react";
 import DListItem from "../../../../uiComponents/base/List/DListItem";
 import React from "react";
@@ -52,7 +52,7 @@ export const BrowseInstalledTab = ({ handleReload, addons }) => {
         {selectedAddon ? (
           <Stack key={selectedAddon?.id} padding={"10px"} width={"100%"}>
             <DUIBox>
-              <FormLabel>{selectedAddon.name}</FormLabel>
+              <Heading size={'xs'}>{selectedAddon.name}</Heading>
               <table>
                 <tr>
                   <td>Description:</td>

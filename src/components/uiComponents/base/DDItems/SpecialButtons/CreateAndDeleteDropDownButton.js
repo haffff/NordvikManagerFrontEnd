@@ -3,9 +3,9 @@ import * as React from 'react';
 import DockableHelper from '../../../../../helpers/DockableHelper';
 import DeletableDropDownButton from './DeletableDropDownButton';
 
-export const CreateAndDeleteDropDownButton = ({ name, icon, width, state, element, onDelete }) => {
+export const CreateAndDeleteDropDownItem = ({ name, icon, width, state, element, onDelete }) => {
     return (
         <DeletableDropDownButton width={width} icon={icon} onClick={() => DockableHelper.NewFloating(state, element)} onDeleteClick={onDelete} name={name} />
     )
 }
-export default CreateAndDeleteDropDownButton;
+export default CreateAndDeleteDropDownItem;

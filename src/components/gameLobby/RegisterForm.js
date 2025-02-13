@@ -1,9 +1,9 @@
-import { Box, Button, Center, Heading, Input, Stack, useToast } from "@chakra-ui/react";
+import { Box, Button, Center, Heading, Input, Stack } from "@chakra-ui/react";
 import React from "react";
+import { toaster } from '../ui/toaster';
 import WebHelper from "../../helpers/WebHelper";
 
 export const RegisterForm = ({ OnSuccess, code }) => {
-  const toast = useToast();
   const [form, setForm] = React.useState({ inviteCode: code });
   const [error, setError] = React.useState(false);
   const [codeError, setCodeError] = React.useState(false);
@@ -44,7 +44,7 @@ export const RegisterForm = ({ OnSuccess, code }) => {
       "user/register",
       form,
       () => {
-        toast({
+        toaster.create({
           title: "Account created.",
           description: "We've created your account for you.",
           status: "success",

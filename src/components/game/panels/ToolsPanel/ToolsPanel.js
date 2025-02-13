@@ -14,21 +14,20 @@ import {
   FaMousePointer,
   FaPaintBrush,
   FaRuler,
-  FaSquare,
-  FaSquareRootAlt,
+  FaSquare
 } from "react-icons/fa";
 import ClientMediator from "../../../../ClientMediator";
 import UtilityHelper from "../../../../helpers/UtilityHelper";
 import DLabel from "../../../uiComponents/base/Text/DLabel";
 import { useDimensions } from "../../../uiComponents/hooks/useDimensions";
 import { fabric } from "fabric";
-import { Divider } from "@chakra-ui/react";
 import { AddShapeOptions } from "./AddShapeOptions";
 import { MdTextFields } from "react-icons/md";
 import { AddCircleOptions } from "./AddCircleOptions";
 import { AddTextOptions } from "./AddTextOptions";
 import { DrawOptions } from "./DrawOptions";
 import { MeasureOptions } from "./MeasureOptions";
+import { Separator } from "@chakra-ui/react";
 
 export const ToolsPanel = ({ battleMapId }) => {
   const panelRef = React.useRef(null);
@@ -271,7 +270,7 @@ export const ToolsPanel = ({ battleMapId }) => {
         drag
       )}
       {vertical && <DLabel>Layer</DLabel>}
-      {horizontal && <Divider orientation="vertical" />}
+      {horizontal && <Separator orientation="vertical" />}
       {optionDefinition(
         <FaChess />,
         "Token",
@@ -285,7 +284,7 @@ export const ToolsPanel = ({ battleMapId }) => {
         layer === -100
       )}
       {vertical && <DLabel>Draw</DLabel>}
-      {horizontal && <Divider orientation="vertical" />}
+      {horizontal && <Separator orientation="vertical" />}
       {optionDefinition(
         <FaSquare />,
         "Rectangle",
@@ -311,7 +310,7 @@ export const ToolsPanel = ({ battleMapId }) => {
         mode === "Draw_undefined"
       )}
       {vertical && <DLabel>Measure</DLabel>}
-      {horizontal && <Divider orientation="vertical" />}
+      {horizontal && <Separator orientation="vertical" />}
       {optionDefinition(
         <FaRuler />,
         "Line",
@@ -320,7 +319,7 @@ export const ToolsPanel = ({ battleMapId }) => {
       )}
 
       {vertical && <DLabel>Align</DLabel>}
-      {horizontal && <Divider orientation="vertical" />}
+      {horizontal && <Separator orientation="vertical" />}
       {optionDefinition(
         <FaSquare />,
         "Corners",

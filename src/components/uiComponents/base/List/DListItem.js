@@ -10,16 +10,16 @@ export const DListItem = (props) => {
     className += " nm_dlistitem_card_hover";
   }
 
-
+  // TODO Make it better
   return (
     <Flex className="nm_dlistitem">
-      <Card {...props}
+      <Card.Root {...props}
         onClick={onClick}
         size="sm"
         className={
           isSelected ? "nm_dlistitem_card_selected" : className
         }
-        bg={isSelected && "rgb(100,100,100,1)"}
+        bg={isSelected && "var(--nordvik-selection-color)"}
       >
         <Flex
           grow={1}
@@ -30,7 +30,7 @@ export const DListItem = (props) => {
         >
           {children}
         </Flex>
-      </Card>
+      </Card.Root>
     </Flex>
   );
 };

@@ -1,12 +1,11 @@
-import * as React from 'react';
+
+import { toaster } from '../../ui/toaster';import * as React from 'react';
 import UtilityHelper from '../../../helpers/UtilityHelper';
 import WebSocketManagerInstance from '../../game/WebSocketManager';
-import { useToast } from '@chakra-ui/react';
 import { __esModule } from '@testing-library/jest-dom/dist/matchers';
 
 export const Subscribable = ({ commandPrefix, onMessage, children }) => {
     const [uuid, _setUUID] = React.useState(UtilityHelper.GenerateUUID());
-    const toast = useToast();
     
     React.useEffect(() => {
         WebSocketManagerInstance.Subscribe(commandPrefix + uuid, (event) => {
@@ -14,11 +13,11 @@ export const Subscribable = ({ commandPrefix, onMessage, children }) => {
             {
                 if(event.result === "NoPermission")
                 {
-                    toast(UtilityHelper.GenerateNoPermissionToast());
+                    toaster.create(UtilityHelper.GenerateNoPermissionToast());
                 } else
                 if(event.result === "WrongArguments")
                 {
-                    toast({
+                    toaster.create({
                         title: 'Something went wrong!',
                         description: "Seems like wrong arguments were provided. Try to check your action or contact with support",
                         status: 'error',
@@ -28,7 +27,7 @@ export const Subscribable = ({ commandPrefix, onMessage, children }) => {
                 } else
                 if(event.result === "NoResource")
                 {
-                    toast({
+                    toaster.create({
                         title: 'No resource found!',
                         description: "Seems like resource you are looking for does not exist",
                         status: 'error',

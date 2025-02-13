@@ -1,14 +1,14 @@
 import { useState } from "react";
 import { LoginPanel } from "./components/auth/LoginPanel";
 import { MainApp } from "./components/MainApp";
-import { ChakraProvider, useToast } from "@chakra-ui/react";
+import { Provider } from "./components/ui/provider"
 import WebHelper from "./helpers/WebHelper";
 import UtilityHelper from "./helpers/UtilityHelper";
 import { RegisterForm } from "./components/gameLobby/RegisterForm";
+import { Toaster, toaster } from "./components/ui/toaster";
 
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
-  const toast = useToast();
 
   if (loggedIn !== true) {
     WebHelper.getNoResp(
@@ -21,7 +21,7 @@ function App() {
       },
       () => {
         setLoggedIn(false);
-        toast(UtilityHelper.GenerateConnectionErrorToast());
+        toaster.create(UtilityHelper.GenerateConnectionErrorToast());
       }
     );
   }
@@ -52,9 +52,10 @@ function App() {
   
 
   return (
-    <ChakraProvider cssVarsRoot={"#NordvikManagerMain"}>
+    <Provider cssVarsRoot={"#NordvikManagerMain"}>
       {content}
-    </ChakraProvider>
+      <Toaster />
+    </Provider>
   );
 }
 
