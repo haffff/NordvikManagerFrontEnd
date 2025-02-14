@@ -76,7 +76,7 @@ export const ActionStep = ({
     ];
 
     //Find step type
-    const stepDefinition = stepDefinitions.find((x) => x.name == step.Type);
+    const stepDefinition = stepDefinitions.find((x) => x.value == step.Type);
     const stepArguments = stepDefinition?.arguments?.map((argument) => {
       let type = argument.type.toLowerCase() === "jtoken" ? "string" : argument.type.toLowerCase();
       
@@ -109,7 +109,7 @@ export const ActionStep = ({
   };
 
   const stepDefinitionsCollection = createListCollection({items: stepDefinitions});
-
+  console.log(step.Type);
   return (
     <DContainer
       key={initStep.id}
@@ -138,16 +138,16 @@ export const ActionStep = ({
           />
         </HStack>
 
-        {/* <SelectRoot
-              collection={collection}
-              onChange={(element) => setStep({ ...step, Type: element.value })}
+        <SelectRoot
+              collection={stepDefinitionsCollection}
+              value={[step.Type]}
+              onValueChange={(element) => {
+                setStep({ ...step, Type: element.value[0] })
+              }}
             >
               <SelectTrigger>
                 <SelectValueText placeholder="Select...">
-                  {(items) => {
-                    const { name } = items[0];
-                    return <>{name}</>;
-                  }}
+                  {(items) => items[0].name || "Select..."}
                 </SelectValueText>
               </SelectTrigger>
               <SelectContent>
@@ -155,15 +155,16 @@ export const ActionStep = ({
                   {(option, index) => (
                     <SelectItem
                       key={index}
-                      selected={dto[key] === option.id}
+                      selected={step.Type === option.value}
                       item={option}
+                      value={option.value}
                     >
-                      {option.label}
+                      {option.name}
                     </SelectItem>
                   )}
                 </For>
               </SelectContent>
-            </SelectRoot> */}
+            </SelectRoot>
 
         <DContainer title={"Data"} withVisibilityToggle={true}>
           {GenerateStepData(step)}
