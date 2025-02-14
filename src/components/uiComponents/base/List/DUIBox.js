@@ -1,15 +1,16 @@
-import { Box } from "@chakra-ui/react";
+import { Box, Flex } from "@chakra-ui/react";
 
 export const DUIBox = (props) => {
   return (
-    <Box
+    <Flex
+      direction={'column'}
       margin={"5px"}
       padding={"15px"}
       borderRadius={"5px"}
-      bgColor={"gray.800"}
+      gap={"10px"}
       {...props}
     >
       {props.children}
-    </Box>
+    </Flex>
   );
 };

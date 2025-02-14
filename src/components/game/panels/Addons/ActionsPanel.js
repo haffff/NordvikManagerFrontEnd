@@ -10,6 +10,7 @@ import {
   Button,
   createListCollection,
   For,
+  Heading,
 } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import DList from "../../../uiComponents/base/List/DList";
@@ -21,10 +22,17 @@ import CollectionSyncer from "../../../uiComponents/base/CollectionSyncer";
 import { ActionStep } from "./ActionStep";
 import UtilityHelper from "../../../../helpers/UtilityHelper";
 import { ReactTreeList } from "@bartaxyz/react-tree-list";
-import { FaCheck, FaCross, FaMinus } from "react-icons/fa";
+import { FaCheck, FaCross, FaMinus, FaPlay } from "react-icons/fa";
 import { DUIBox } from "../../../uiComponents/base/List/DUIBox";
 import { Switch } from "../../../ui/switch";
-import { SelectContent, SelectItem, SelectRoot, SelectTrigger, SelectValueText } from "../../../ui/select";
+import {
+  SelectContent,
+  SelectItem,
+  SelectLabel,
+  SelectRoot,
+  SelectTrigger,
+  SelectValueText,
+} from "../../../ui/select";
 
 export const ActionsPanel = ({ state, gameDataRef }) => {
   const [actions, setActions] = React.useState([]);
@@ -32,6 +40,7 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
   const [selectedAction, setSelectedAction] = React.useState(null);
   const [stepDefinitions, setStepDefinitions] = React.useState([]);
   const [search, setSearch] = React.useState("");
+  const [group, setGroup] = React.useState("");
 
   const [steps, setSteps] = React.useState([]);
   const stepsRef = React.useRef(steps);
@@ -60,9 +69,16 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
   }, [actions, search]);
 
   const selectItem = async (e) => {
-    const response = await WebHelper.getAsync("addon/action?id=" + e.id);
-    setSelectedAction(response);
-    setSteps(JSON.parse(response.content));
+    if (e.isGroup) {
+      setSelectedAction(null);
+      setSteps([]);
+      setGroup(e.label);
+    } else {
+      const response = await WebHelper.getAsync("addon/action?id=" + e.id);
+      setSelectedAction(response);
+      setSteps(JSON.parse(response.content));
+      setGroup(null);
+    }
   };
 
   const HandleStep = (step, index) => {
@@ -94,6 +110,7 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
       id: x,
       label: x,
       open: treeData.find((y) => y.id === x)?.open || false,
+      isGroup: true,
       children: groupd[x].map((y) => ({
         id: y.id,
         label: y.name,
@@ -103,7 +120,7 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
     return treeGroups;
   };
 
-  const hooksCollection = createListCollection({items: hooks})
+  const hooksCollection = createListCollection({ items: hooks });
 
   return (
     <>
@@ -135,8 +152,8 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
             />
             <ReactTreeList
               onChange={setTreeData}
-              onSelected={({ id }) => {
-                selectItem({ id });
+              onSelected={({ id, isGroup, label }) => {
+                selectItem({ id, isGroup, label });
               }}
               data={treeData}
               draggable={false}
@@ -144,14 +161,34 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
             />
           </DList>
         </DContainer>
+
+        {group && (
+          <DUIBox padding={"10px"} width={"100%"}>
+            <Heading size={"sm"}>{group}</Heading>
+            Number of actions: {actions.filter((x) => x.prefix === group).length}
+
+            <HStack gap={"10px"}><Button variant={'outline'} onClick={() => {
+              if(window.confirm("You are going to run all " + group + " actions. Are you sure?")) {
+                actions.filter((x) => x.prefix === group).forEach(element => {
+                  WebSocketManagerInstance.Send({
+                    command: "execute_action",
+                    data: { Action: element.name },
+                  });
+                });
+              }
+            }}><FaPlay /> Run all</Button></HStack>
+            
+          </DUIBox>
+        )}
+
         {selectedAction ? (
           <DUIBox key={selectedAction?.id} padding={"10px"} width={"100%"}>
             <Switch
-              isChecked={selectedAction?.isEnabled}
-              onChange={(e) => {
+              checked={selectedAction?.isEnabled}
+              onCheckedChange={(e) => {
                 setSelectedAction({
                   ...selectedAction,
-                  isEnabled: e.target.checked,
+                  isEnabled: e.checked,
                 });
               }}
             >
@@ -192,33 +229,34 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
               <SelectRoot
                 multiple={false}
                 collection={hooksCollection}
-                onChange={(e) => {
+                value={[selectedAction.hook]}
+                onValueChange={(e) => {
                   setSelectedAction({
                     ...selectedAction,
-                    hook: e.target.value,
+                    hook: e.value[0],
                   });
                 }}
-                
               >
+                <SelectLabel>Trigger</SelectLabel>
                 <SelectTrigger>
                   <SelectValueText placeholder="Select...">
-                    {(items) => {
-                      return <>{selectedAction.hook}</>;
-                    }}
+                    {(items) => <>{items[0].name}</>}
                   </SelectValueText>
                 </SelectTrigger>
                 <SelectContent>
                   <For each={hooksCollection.items}>
-                    {(option, index) => (
-                      <SelectItem
-                        key={index}
-                        selected={selectedAction.hook === option.value}
-                        item={option}
-                        value={option.value}
-                      >
-                        {option.name}
-                      </SelectItem>
-                    )}
+                    {(option) => {
+                      return (
+                        <SelectItem
+                          key={option.value}
+                          selected={selectedAction.hook === option.value}
+                          item={option}
+                          value={option.value}
+                        >
+                          {option.name}
+                        </SelectItem>
+                      );
+                    }}
                   </For>
                 </SelectContent>
               </SelectRoot>
@@ -245,6 +283,18 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
             </Stack>
             <HStack gap={"10px"}>
               <Button
+                variant={"outline"}
+                onClick={() => {
+                  WebSocketManagerInstance.Send({
+                    command: "execute_action",
+                    data: { Action: selectedAction.name },
+                  });
+                }}
+              >
+                <FaPlay /> Run
+              </Button>
+              <Button
+                variant={"outline"}
                 onClick={() => {
                   selectedAction.content = JSON.stringify(stepsRef.current);
                   WebSocketManagerInstance.Send({
@@ -256,6 +306,7 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
                 Update
               </Button>
               <Button
+                variant={"outline"}
                 onClick={() => {
                   selectedAction.content = JSON.stringify(stepsRef.current);
                   WebSocketManagerInstance.Send({
@@ -267,6 +318,7 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
                 Delete
               </Button>
               <Button
+                variant={"outline"}
                 onClick={() => {
                   let selectedActionNew = {
                     ...selectedAction,

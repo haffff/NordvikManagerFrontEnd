@@ -8,6 +8,8 @@ import {
   Tr,
   Td,
   Select,
+  createListCollection,
+  For,
 } from "@chakra-ui/react";
 import WebHelper from "../../../helpers/WebHelper";
 import BasePanel from "../../uiComponents/base/BasePanel";
@@ -15,6 +17,14 @@ import DButtonHorizontalContainer from "../../uiComponents/base/Containers/DButt
 import DropDownButton from "../../uiComponents/base/DDItems/DropDrownButton";
 import { NumberInputRoot, NumberInputField } from "../../ui/number-input";
 import { DColorPicker } from "../../uiComponents/settingsComponents/ColorPicker";
+import {
+  SelectRoot,
+  SelectItem,
+  SelectValueText,
+  SelectContent,
+  SelectTrigger,
+} from "../../ui/select";
+import { Switch } from "../../ui/switch";
 
 export const EditTable = ({
   keyBase,
@@ -108,22 +118,39 @@ export const EditTable = ({
           );
           break;
         case "select":
+          const collection = createListCollection({ items: editable.options });
           element.value = (
             <Table.Row key={keyBase + editable.key}>
               <Table.Cell>{editable.label}</Table.Cell>
               <Table.Cell>
-                <Select
-                  isInvalid={validationDict[key]}
-                  size={"xs"}
-                  defaultValue={dto[editable.key]}
-                  onChange={(e) => OnChange(editable.key, e.target.value)}
+                <SelectRoot
+                  collection={collection}
+                  onChange={(element) => OnChange(key, element.target?.value)}
                 >
-                  {editable.options.map((option, index) => (
-                    <option key={index} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </Select>
+                  <SelectTrigger>
+                    <SelectValueText placeholder="Select...">
+                      {(items) => {
+                        const { label } = items.find(
+                          (x) => x.value === dto[key]
+                        ) || { label: "Select..." };
+                        return <>{label}</>;
+                      }}
+                    </SelectValueText>
+                  </SelectTrigger>
+                  <SelectContent zIndex={9999}>
+                    <For each={collection.items}>
+                      {(option, index) => (
+                        <SelectItem
+                          key={index}
+                          selected={dto[key] === option.value}
+                          item={option}
+                        >
+                          {option.label}
+                        </SelectItem>
+                      )}
+                    </For>
+                  </SelectContent>
+                </SelectRoot>
               </Table.Cell>
             </Table.Row>
           );
@@ -166,11 +193,12 @@ export const EditTable = ({
             <Table.Row key={keyBase + editable.key}>
               <Table.Cell>{editable.label}</Table.Cell>
               <Table.Cell>
-                <Checkbox
-                  isInvalid={validationDict[key]}
-                  defaultChecked={dto[key]}
-                  onChange={(element) => OnChange(key, element.target.checked)}
-                ></Checkbox>
+                <Switch
+                  checked={dto[key]}
+                  onCheckedChange={(e) => {
+                    OnChange(key, e.checked);
+                  }}
+                />
               </Table.Cell>
             </Table.Row>
           );
@@ -181,6 +209,7 @@ export const EditTable = ({
               <Table.Cell>{editable.label}</Table.Cell>
               <Table.Cell>
                 <DColorPicker
+                  isDisabled={editable.disableOn && editable.disableOn(dto)}
                   isInvalid={validationDict[key]}
                   initColor={dto[key]}
                   onValueChange={(element) => OnChange(key, element)}
@@ -259,7 +288,7 @@ export const EditTable = ({
         width="100%"
         heigth="100%"
       >
-        <Table size={"xs"} variant="simple">
+        <Table.Root size={"xs"} variant="simple">
           <Table.Header>
             <Table.Row>
               <Table.ColumnHeader>Name</Table.ColumnHeader>
@@ -267,7 +296,7 @@ export const EditTable = ({
             </Table.Row>
           </Table.Header>
           <Table.Body>{groupless}</Table.Body>
-        </Table>
+        </Table.Root>
       </Flex>
       {!hideSaveButton ? (
         <DButtonHorizontalContainer>

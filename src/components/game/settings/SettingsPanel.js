@@ -197,12 +197,15 @@ export const SettingsPanel = ({
           input = (
             <SelectRoot
               collection={collection}
-              onChange={(element) => OnChange(key, element.target?.value)}
+              value={[dto[key]]}
+              onValueChange={(element) => OnChange(key, element.value[0])}
             >
               <SelectTrigger>
                 <SelectValueText placeholder="Select...">
                   {(items) => {
-                    const { label } = items.find(x=>x.value === dto[key]) || {label: "Select..."};
+                    const { label } = items.find(
+                      (x) => x.value === dto[key]
+                    ) || { label: "Select..." };
                     return <>{label}</>;
                   }}
                 </SelectValueText>
@@ -256,9 +259,9 @@ export const SettingsPanel = ({
           input = (
             <>
               <Switch
-                defaultValue={dto[key]}
-                onChange={(e) => {
-                  OnChange(key, e.target.value);
+                checked={dto[key]}
+                onCheckedChange={(e) => {
+                  OnChange(key, e.checked);
                 }}
               />
             </>
