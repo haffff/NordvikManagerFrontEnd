@@ -8,11 +8,11 @@ export const RefreshInfo = ({ commandPrefix, onRefresh, ignoreRefresh }) => {
     return (
         <>
             <Subscribable commandPrefix={commandPrefix} onMessage={() => { if(!ignoreRefresh) setShow(true) }} />
-            {show ? <Card colorScheme='success'>
-                <CardBody>
+            {show ? <Card.Root colorPalette='success'>
+                <Card.Body>
                     <Flex><Text>New items are available.</Text> <DListItemsButtonContainer><Button onClick={() => { setShow(false); onRefresh(); }}>Refresh</Button></DListItemsButtonContainer></Flex>
-                </CardBody>
-            </Card> : <></>}
+                </Card.Body>
+            </Card.Root> : <></>}
         </>);
 }
 

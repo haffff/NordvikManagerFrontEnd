@@ -15,8 +15,8 @@ export const DrawOptions = ({ battleMapId }) => {
       contextId: battleMapId,
     });
     if (element) {
-        setColor(element.color);
-        setWidth(element.width);
+      setColor(element.color);
+      setWidth(element.width);
     }
     return () => {};
   }, []);
@@ -30,43 +30,48 @@ export const DrawOptions = ({ battleMapId }) => {
 
   return (
     <Flex gap={"10px"} direction={"row"}>
-      <Stack>
+      <Stack alignItems={"center"}>
         <Text>
           <MdBrush />
         </Text>
         <DColorPicker
+          minimal={true}
           onValueChange={(color) => {
             handleUpdate("color", color);
             setColor(color);
           }}
-          color={color}
+          initColor={color}
         />
       </Stack>
-        <Stack>
-            <Text>
-            <MdLineWeight />
-            </Text>
-            <Input
-            type="number"
-            value={width}
-            onChange={(e) => {
-                handleUpdate("width", e.target.value);
-                setWidth(e.target.value);
-            }}
-            />
-        </Stack>
-        <DListItemButton
-          label={"Exit"}
-          icon={IoMdClose}
-          color={"red"}
-          variant={"elevated"}
-          onClick={() => {
-            ClientMediator.sendCommand("BattleMap", "SetFreeDrawMode", {
-              contextId: battleMapId,
-              enabled: false,
-            });
+      <Stack alignItems={"center"}>
+        <Text>
+          <MdLineWeight />
+        </Text>
+        <Input
+          boxSize={"40px"}
+          value={width}
+          onChange={(e) => {
+            if (isNaN(e.target.value) || e.target.value < 0) {
+              return;
+            }
+
+            handleUpdate("width", e.target.value);
+            setWidth(e.target.value);
           }}
         />
+      </Stack>
+      <DListItemButton
+        label={"Exit"}
+        icon={IoMdClose}
+        color={"red"}
+        variant={"elevated"}
+        onClick={() => {
+          ClientMediator.sendCommand("BattleMap", "SetFreeDrawMode", {
+            contextId: battleMapId,
+            enabled: false,
+          });
+        }}
+      />
     </Flex>
   );
 };

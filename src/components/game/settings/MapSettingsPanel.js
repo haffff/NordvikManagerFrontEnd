@@ -97,6 +97,7 @@ export const MapSettingsPanel = ({ map }) => {
     dtoToSave.elements = undefined;
 
     let command = CommandFactory.CreateMapSettingsCommand(dtoToSave);
+    console.log(command);
     WebSocketManagerInstance.Send(command);
   };
 

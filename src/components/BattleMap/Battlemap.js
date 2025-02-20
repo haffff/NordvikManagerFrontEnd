@@ -60,7 +60,6 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
     WebHelper.get(
       `battlemap/getbattlemap?id=${withID}`,
       async (resp) => {
-        ctx.setTitle(resp.name);
         await ChangeMap(resp.mapId);
         setBattleMapModel(resp);
       },
@@ -105,13 +104,14 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
       properties: allProps,
     });
 
-    ctx.setTitle("BattleMap - " + respMap.name);
+    //todo find name of battlemap
     if (editor && editor.canvas) {
       await LoadCanvas();
     }
   };
 
   const DrawGrid = () => {
+    const map = mapRef.current;
     let objects = editor.canvas
       .getObjects("group")
       .filter((x) => x.name === ".grid");
@@ -125,7 +125,7 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
       var grid = GridFactoryInstance.DrawGrid(map.gridSize, [
         map.width,
         map.height,
-      ]);
+      ], map.id);
 
       let found = editor.canvas._objects.findIndex((x) => x.layer >= 0);
 
@@ -237,6 +237,8 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
     }
   };
 
+  ctx?.setTitle("BM - " + battleMapModel.name);
+
   return (
     <Flex
       ref={battleMapContainerRef}
@@ -274,12 +276,16 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
 
     BattleMapServices.BMService._BMQueryService =
       BattleMapServices.BMQueryService;
-
+    //for now save editGridMode
+    let oldEditGridMode = editor.canvas.editGridMode;
     editor.canvas.clear();
+    editor.canvas.editGridMode = oldEditGridMode;
     editor.canvas.fireRightClick = true;
     editor.canvas.fireMiddleClick = true;
     editor.canvas.align = "left";
     editor.canvas.selectedLayer = 100;
+    editor.canvas.defaultCursor = "default";
+    editor.canvas.hoverCursor = "default";
 
     //Assing battlemap instance when necessary
     BattleMapServices.BMQueryService._canvas = editor.canvas;
@@ -452,6 +458,13 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
     };
 
     DrawGrid();
+
+    if (editor.canvas.editGridMode) {
+      let grid = editor.canvas.getObjects().find((x) => x.name === ".grid");
+      editor.canvas.setActiveObject(grid);
+      editor.canvas.requestRenderAll();
+    }
+
     setLoading(false);
   }
 };

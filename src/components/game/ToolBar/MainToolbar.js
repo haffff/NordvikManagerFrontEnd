@@ -1,4 +1,4 @@
-import { FaCode } from "react-icons/fa";
+import { FaCode, FaMailBulk, FaMailchimp, FaTerminal } from "react-icons/fa";
 import { DropDownItem } from "../../uiComponents/base/DDItems/DropDownItem";
 import { DropDownMenu } from "../../uiComponents/base/DDItems/DropDownMenu";
 import ToolBar from "./ToolBar";
@@ -55,17 +55,18 @@ export const MainToolbar = ({
           width={150}
           name={"Get Invite URL"}
           onClick={GenerateInviteLink}
+          icon={<FaMailBulk />}
         />
         <DropDownItem
           width={150}
           name={"Run command"}
-          icon={FaCode}
+          icon={<FaTerminal />}
           onClick={() => ClientMediator.sendCommand("game", "OpenRun")}
         />
         <DropDownItem
           width={150}
           name={"Exit"}
-          icon={IoIosExit}
+          icon={<IoIosExit />}
           onClick={() => ClientMediator.sendCommand("game", "Exit")}
         />
       </DropDownMenu>

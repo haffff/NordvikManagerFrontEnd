@@ -16,6 +16,7 @@ import DContainer from "../../../../uiComponents/base/Containers/DContainer";
 import DList from "../../../../uiComponents/base/List/DList";
 import DLabel from "../../../../uiComponents/base/Text/DLabel";
 import { DUIBox } from "../../../../uiComponents/base/List/DUIBox";
+import { Switch } from "../../../../ui/switch";
 
 export const BrowseInstalledTab = ({ handleReload, addons }) => {
   const [search, setSearch] = React.useState("");
@@ -77,9 +78,9 @@ export const BrowseInstalledTab = ({ handleReload, addons }) => {
                   <td>{selectedAddon.license}</td>
                 </tr>
                 <tr>
-                  <Checkbox isChecked={selectedAddon?.isEnabled}>
+                  <Switch checked={selectedAddon?.isEnabled}>
                     Enabled
-                  </Checkbox>
+                  </Switch>
                 </tr>
               </table>
             </DUIBox>

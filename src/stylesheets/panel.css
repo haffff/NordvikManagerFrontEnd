@@ -51,3 +51,45 @@
 {
     background-color: rgb(60,60,60);
 }
+
+.nm_dwrapitem
+{
+    color: var(--nordvik-text-color);
+    background-color: var(--nordvik-item-color);
+    padding: 15px;
+    align-items: center;
+    justify-content: center;
+    display: flex;
+    margin: 5px;
+    border-radius: 5px;
+    cursor: pointer;
+    box-shadow: 0px 0px 5px 0px rgba(0,0,0,0.75);
+}
+
+.nm_dwrapitem:hover
+{
+    color: var(--nordvik-text-color);
+    padding: 15px;
+    align-items: center;
+    justify-content: center;
+    display: flex;
+    margin: 5px;
+    border-radius: 5px;
+    cursor: pointer;
+    box-shadow: 0px 0px 5px 0px rgba(0,0,0,0.75);
+    background-color: var(--nordvik-item-hover-color);
+}
+
+.nm_dwrapitem_selected
+{
+    align-items: center;
+    justify-content: center;
+    display: flex;
+    margin: 5px;
+    border-radius: 5px;
+    cursor: pointer;
+    box-shadow: 0px 0px 5px 0px rgba(0,0,0,0.75);
+    color: var(--nordvik-text-color);
+    background-color: var(--nordvik-selection-color);
+    padding: 15px;
+}

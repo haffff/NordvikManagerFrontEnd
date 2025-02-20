@@ -71,7 +71,7 @@ export class OnNativeObjectModifiedClientBehavior {
     }
 
     function SendObject(target, action) {
-      const dto = DTOConverter.ConvertToDTO(target); //battleMapObject.BattleMapServices.ElementsStorage.Get(target.id);
+      const dto = DTOConverter.ConvertToDTO(target);
       let cmd = CommandFactory.CreateBattleMapUpdateCommand(
         dto,
         battleMapId,

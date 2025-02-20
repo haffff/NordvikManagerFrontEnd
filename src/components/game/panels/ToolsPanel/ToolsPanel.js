@@ -14,7 +14,7 @@ import {
   FaMousePointer,
   FaPaintBrush,
   FaRuler,
-  FaSquare
+  FaSquare,
 } from "react-icons/fa";
 import ClientMediator from "../../../../ClientMediator";
 import UtilityHelper from "../../../../helpers/UtilityHelper";
@@ -27,7 +27,8 @@ import { AddCircleOptions } from "./AddCircleOptions";
 import { AddTextOptions } from "./AddTextOptions";
 import { DrawOptions } from "./DrawOptions";
 import { MeasureOptions } from "./MeasureOptions";
-import { Separator } from "@chakra-ui/react";
+import { Box, For, Separator } from "@chakra-ui/react";
+import { DWrapItem } from "../../../uiComponents/base/DWrapItem";
 
 export const ToolsPanel = ({ battleMapId }) => {
   const panelRef = React.useRef(null);
@@ -36,22 +37,118 @@ export const ToolsPanel = ({ battleMapId }) => {
   const [mode, setMode] = React.useState(undefined);
   const [layer, setLayer] = React.useState(undefined);
   const [alignMode, setAlign] = React.useState(undefined);
+  const [_battleMapId, set_battleMapId] = React.useState(battleMapId);
   const [playerColor, setPlayerColor] = React.useState("rgba(0,0,0,1)");
 
+  const colorRef = React.useRef(playerColor);
+
+  const config = [
+    { type: "label", name: "Select", ignoreAsSeparator: true },
+    {
+      type: "option",
+      icon: <FaMousePointer />,
+      name: "Select",
+      onClick: () => handleDragMode(false),
+      selected: !drag,
+    },
+    {
+      type: "option",
+      icon: <FaHandPaper />,
+      name: "Drag",
+      onClick: () => handleDragMode(true),
+      selected: drag,
+      enabled: !mode || mode === "_",
+    },
+    { type: "label", name: "Layer" },
+    {
+      type: "option",
+      icon: <FaChess />,
+      name: "Token",
+      onClick: () => handleLayer(100),
+      selected: layer === 100,
+    },
+    {
+      type: "option",
+      icon: <FaMap />,
+      name: "Map",
+      onClick: () => handleLayer(-100, true),
+      selected: layer === -100,
+    },
+    { type: "label", name: "Draw" },
+    {
+      type: "option",
+      icon: <FaSquare />,
+      name: "Rectangle",
+      onClick: () => handleRect(),
+      selected: mode === "SimpleCreate_Rectangle",
+    },
+    {
+      type: "option",
+      icon: <FaCircle />,
+      name: "Circle",
+      onClick: () => handleCircle(),
+      selected: mode === "SimpleCreate_Circle",
+    },
+    {
+      type: "option",
+      icon: <MdTextFields />,
+      name: "Text",
+      onClick: () => handleText(),
+      selected: mode === "SimpleCreate_Text",
+    },
+    {
+      type: "option",
+      icon: <FaPaintBrush />,
+      name: "Paint",
+      onClick: () => handleFreeDraw(),
+      selected: mode === "Draw_undefined",
+    },
+    { type: "label", name: "Measure" },
+    {
+      type: "option",
+      icon: <FaRuler />,
+      name: "Line",
+      onClick: () => handleMeasureLine(),
+      selected: mode === "Measure_Line",
+    },
+    { type: "label", name: "Align" },
+    {
+      type: "option",
+      icon: <FaSquare />,
+      name: "Corners",
+      onClick: () => handleAlign("corners"),
+      selected: alignMode === "corners",
+    },
+    {
+      type: "option",
+      icon: <FaDotCircle />,
+      name: "Center",
+      onClick: () => handleAlign("center"),
+      selected: alignMode === "center",
+    },
+    {
+      type: "option",
+      icon: <FaBorderNone />,
+      name: "None",
+      onClick: () => handleAlign("none"),
+      selected: alignMode === "none",
+    },
+  ];
+
   const ctx = Dockable.useContentContext();
-  let name = useBMName(battleMapId);
+  let name = useBMName(_battleMapId);
   ctx.setTitle(`Tools - ` + name);
 
   const handleDragMode = (mode) => {
     ClientMediator.sendCommand("BattleMap", "SetDragMode", {
-      contextId: battleMapId,
+      contextId: _battleMapId,
       enabled: mode,
     });
   };
 
   const handleLayer = (layerId, withEditMode = false) => {
     ClientMediator.sendCommand("BattleMap", "SetSelectedLayer", {
-      contextId: battleMapId,
+      contextId: _battleMapId,
       layerId,
       withEditMode,
     });
@@ -59,7 +156,7 @@ export const ToolsPanel = ({ battleMapId }) => {
 
   const sendCreateMode = (element, sizing, type, overlayOptionsRender) => {
     ClientMediator.sendCommandAsync("BattleMap", "SetSimpleCreateMode", {
-      contextId: battleMapId,
+      contextId: _battleMapId,
       enabled: true,
       element: element,
       withSizing: sizing,
@@ -71,7 +168,7 @@ export const ToolsPanel = ({ battleMapId }) => {
   const clearMode = () => {
     if (mode !== "_" || mode !== undefined) {
       ClientMediator.sendCommand("BattleMap", "DisableAllModes", {
-        contextId: battleMapId,
+        contextId: _battleMapId,
       });
     }
   };
@@ -91,7 +188,7 @@ export const ToolsPanel = ({ battleMapId }) => {
     });
 
     sendCreateMode(obj, true, "Rectangle", () => (
-      <AddShapeOptions key={mode} battleMapId={battleMapId} />
+      <AddShapeOptions key={mode} battleMapId={_battleMapId} />
     ));
   };
 
@@ -110,7 +207,7 @@ export const ToolsPanel = ({ battleMapId }) => {
       radius: 100,
     });
     sendCreateMode(obj, false, "Circle", () => (
-      <AddCircleOptions key={mode} battleMapId={battleMapId} />
+      <AddCircleOptions key={mode} battleMapId={_battleMapId} />
     ));
   };
 
@@ -127,7 +224,7 @@ export const ToolsPanel = ({ battleMapId }) => {
       text: "Text",
     });
     sendCreateMode(obj, false, "Text", () => (
-      <AddTextOptions key={mode} battleMapId={battleMapId} />
+      <AddTextOptions key={mode} battleMapId={_battleMapId} />
     ));
   };
 
@@ -144,8 +241,8 @@ export const ToolsPanel = ({ battleMapId }) => {
     brush.width = 5;
 
     ClientMediator.sendCommand("BattleMap", "SetFreeDrawMode", {
-      contextId: battleMapId,
-      overlayContent: <DrawOptions key={mode} battleMapId={battleMapId} />,
+      contextId: _battleMapId,
+      overlayContent: <DrawOptions key={mode} battleMapId={_battleMapId} />,
       enabled: true,
       brush: brush,
     });
@@ -153,51 +250,52 @@ export const ToolsPanel = ({ battleMapId }) => {
 
   const handleAlign = (mode) => {
     ClientMediator.sendCommand("BattleMap", "SetAlign", {
-      contextId: battleMapId,
+      contextId: _battleMapId,
       align: mode,
     });
     setAlign(mode);
   };
 
-  const horizontal = height < 200;
-  const vertical = height > 200;
-
   React.useEffect(() => {
+    if(!_battleMapId)
+    {
+      var bmId = ClientMediator.sendCommand("Game", "GetActiveBattleMapId");
+      set_battleMapId(bmId);
+      return;
+    }
+
     // Register changes on
     const uuid = UtilityHelper.GenerateUUID();
-    const name = "ToolsPanel" + uuid;
 
     const dragMode = ClientMediator.sendCommand("BattleMap", "GetDragMode", {
-      contextId: battleMapId,
+      contextId: _battleMapId,
     });
 
     setDrag(dragMode);
 
     // get mode and mode type
     const mode = ClientMediator.sendCommand("BattleMap", "GetCurrentMode", {
-      contextId: battleMapId,
+      contextId: _battleMapId,
     });
 
     const modeType = ClientMediator.sendCommand(
       "BattleMap",
       "GetCurrentModeType",
       {
-        contextId: battleMapId,
+        contextId: _battleMapId,
       }
     );
 
     setLayer(
       ClientMediator.sendCommand("BattleMap", "GetSelectedLayer", {
-        contextId: battleMapId,
+        contextId: _battleMapId,
       })
     );
 
     const align = ClientMediator.sendCommand("BattleMap", "GetAlign", {
-      contextId: battleMapId,
+      contextId: _battleMapId,
     });
-    setAlign(
-      align
-    );
+    setAlign(align);
 
     // get player color
     const playerColor = ClientMediator.sendCommand(
@@ -211,30 +309,71 @@ export const ToolsPanel = ({ battleMapId }) => {
       panel: "ToolsPanel",
       id: "ToolsPanel" + uuid,
       onEvent: (event, data) => {
+        if (event === "ActivePanelChanged") {
+          if (data.panel !== "BattleMap" || data.contextId === _battleMapId) {
+            return;
+          }
+
+          set_battleMapId(data.contextId);
+
+          ClientMediator.unregister(uuid);
+        }
+
+        if (
+          data.battleMapId === undefined ||
+          data.battleMapId !== _battleMapId
+        ) {
+          return;
+        }
         if (event === "BattleMap_DragModeChanged") {
           setDrag(data.enabled);
         }
         if (event === "BattleMap_ModeChanged") {
-          setMode(data.mode + "_" + data.type);
+          if (data.mode === undefined && data.type === undefined)
+            setMode(undefined);
+          else {
+            setMode(data.mode + "_" + data.type);
+          }
         }
         if (event === "BattleMap_LayerChanged") {
           setLayer(data.layer);
         }
+        if (event === "BattleMap_AlignChanged") {
+          setAlign(data.align);
+        }
       },
     });
-  }, []);
+  }, [_battleMapId]);
 
-  const optionDefinition = (icon, name, onClick, selected) => {
+  const wrapOptionDefinition = (icon, name, onClick, selected, enabled) => {
+    return (
+      <DWrapItem
+        isSelected={selected}
+        justifyContent={"center"}
+        flexWrap={"wrap"}
+        tooltip={name}
+        opacity={enabled ? 1 : 0.5}
+        onClick={onClick}
+        key={"Tools_" + _battleMapId + "_" + name + enabled}
+      >
+        {icon}
+      </DWrapItem>
+    );
+  };
+
+  const optionDefinition = (icon, name, onClick, selected, enabled) => {
     return (
       <DListItem
         isSelected={selected}
         flexProps={{ gap: "10px" }}
         withHover
-        justifyContent={width > 100 ? "center" : "flex-start"}
+        justifyContent={"center"}
         onClick={onClick}
+        opacity={enabled ? 1 : 0.5}
+        key={"Tools_" + _battleMapId + "_" + name + enabled}
       >
         {icon}
-        {width > 100 ? name : ""}
+        {name}
       </DListItem>
     );
   };
@@ -247,99 +386,80 @@ export const ToolsPanel = ({ battleMapId }) => {
     clearMode();
 
     ClientMediator.sendCommand("BattleMap", "SetMeasureMode", {
-      contextId: battleMapId,
+      contextId: _battleMapId,
       enabled: true,
       playerColor: playerColor,
-      overlayContent: <MeasureOptions key={mode} battleMapId={battleMapId} />
+      overlayContent: <MeasureOptions key={mode} battleMapId={_battleMapId} />,
     });
   };
 
+  // List
+
+  let items = undefined;
+
+  if (width > 150 && height > 200) {
+    items = (
+      <For each={config}>
+        {(item) => {
+          if (item.type === "label") {
+            return <DLabel>{item.name}</DLabel>;
+          } else {
+            return optionDefinition(
+              item.icon,
+              item.name,
+              item.onClick,
+              item.selected,
+              item.enabled !== undefined ? item.enabled : true
+            );
+          }
+        }}
+      </For>
+    );
+  } else {
+    items = (
+      <Box display={"flex"} flexWrap={"wrap"} flexDir={"column"}>
+        <For each={config}>
+          {(item) => {
+            if (item.type === "label") {
+              if (item.ignoreAsSeparator) {
+                return undefined;
+              }
+              let additionalProps = {
+                marginTop: "10px",
+                marginBottom: "10px",
+                orientation: "horizontal",
+              };
+              if (height < 200 && width > 200) {
+                additionalProps = {
+                  marginLeft: "10px",
+                  marginRight: "10px",
+                  orientation: "vertical",
+                };
+              }
+
+              return <Separator size={"lg"} {...additionalProps} />;
+            } else {
+              return wrapOptionDefinition(
+                item.icon,
+                item.name,
+                item.onClick,
+                item.selected,
+                item.enabled !== undefined ? item.enabled : true
+              );
+            }
+          }}
+        </For>
+      </Box>
+    );
+  }
+
   return (
-    <BasePanel direction={height > 200 ? "column" : "row"} baseRef={panelRef}>
-      {vertical && <DLabel>Select</DLabel>}
-      {optionDefinition(
-        <FaMousePointer />,
-        "Select",
-        () => handleDragMode(false),
-        !drag
-      )}
-      {optionDefinition(
-        <FaHandPaper />,
-        "Drag",
-        () => handleDragMode(true),
-        drag
-      )}
-      {vertical && <DLabel>Layer</DLabel>}
-      {horizontal && <Separator orientation="vertical" />}
-      {optionDefinition(
-        <FaChess />,
-        "Token",
-        () => handleLayer(100),
-        layer === 100
-      )}
-      {optionDefinition(
-        <FaMap />,
-        "Map",
-        () => handleLayer(-100, true),
-        layer === -100
-      )}
-      {vertical && <DLabel>Draw</DLabel>}
-      {horizontal && <Separator orientation="vertical" />}
-      {optionDefinition(
-        <FaSquare />,
-        "Rectangle",
-        () => handleRect(),
-        mode === "SimpleCreate_Rectangle"
-      )}
-      {optionDefinition(
-        <FaCircle />,
-        "Circle",
-        () => handleCircle(),
-        mode === "SimpleCreate_Circle"
-      )}
-      {optionDefinition(
-        <MdTextFields />,
-        "Text",
-        () => handleText(),
-        mode === "SimpleCreate_Text"
-      )}
-      {optionDefinition(
-        <FaPaintBrush />,
-        "Paint",
-        () => handleFreeDraw(),
-        mode === "Draw_undefined"
-      )}
-      {vertical && <DLabel>Measure</DLabel>}
-      {horizontal && <Separator orientation="vertical" />}
-      {optionDefinition(
-        <FaRuler />,
-        "Line",
-        () => handleMeasureLine(),
-        mode === "Measure_Line"
-      )}
-
-      {vertical && <DLabel>Align</DLabel>}
-      {horizontal && <Separator orientation="vertical" />}
-      {optionDefinition(
-        <FaSquare />,
-        "Corners",
-        () => handleAlign("corners"),
-        alignMode === "corners"
-      )}
-
-      {optionDefinition(
-        <FaDotCircle />,
-        "Center",
-        () => handleAlign("center"),
-        alignMode === "center"
-      )}
-
-      {optionDefinition(
-        <FaBorderNone />,
-        "None",
-        () => handleAlign("none"),
-        alignMode === "none"
-      )}
+    <BasePanel
+      key={"Tools_" + _battleMapId}
+      direction={height > 200 ? "column" : "row"}
+      baseRef={panelRef}
+    >
+      {items}
     </BasePanel>
   );
 };

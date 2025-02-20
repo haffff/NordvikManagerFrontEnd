@@ -48,7 +48,7 @@ export const BattleMapsMenu = ({ state }) => {
     }
 
     return (
-        <DropDownMenu viewId={"views_battlemaps"} name={"Battle Maps"} submenu={true} icon={FaMap} width={150}>
+        <DropDownMenu viewId={"views_battlemaps"} name={"Battle Maps"} submenu={true} icon={<FaMap/>} width={150}>
             <InputModal
                 title={"Add new Battle Map"}
                 getConfigDict={() => [

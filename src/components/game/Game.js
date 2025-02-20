@@ -22,8 +22,6 @@ import { NewWindow } from "./WindowsHandler";
 import { LoadingScreen } from "../uiComponents/LoadingScreen";
 import { toaster } from '../ui/toaster';
 
-export const BattleMapInstance = { battleMap: undefined };
-
 export const Game = ({ gameID, onExit }) => {
   // States
   const [layout, setLayout] = React.useState(undefined);
@@ -32,6 +30,8 @@ export const Game = ({ gameID, onExit }) => {
   const battleMapsContextsRef = React.useRef({});
   const quickCommandDialogOpenRef = React.useRef(null);
   const gameContainerRef = React.useRef(null);
+
+  const [selectedBattleMapId, setSelectedBattleMapId] = React.useState(undefined);
 
   const [clientScripts, setClientScripts] = React.useState([]);
 
@@ -281,6 +281,16 @@ export const Game = ({ gameID, onExit }) => {
         GetGame: () => gameDataManagerRef.current.Game,
         GetContainerRef: () => gameDataManagerRef.current.ContainerRef,
         GetLayout: () => layout,
+        GetActiveBattleMapId: () => {
+          if(selectedBattleMapId === undefined)
+          {
+            let first = Object.values(battleMapsContextsRef.current)[0]?.Id;
+            setSelectedBattleMapId(first);
+            return first;
+          }
+
+          return selectedBattleMapId;
+        },
         CreateNewPanel: (allProps) => {
           const { type, props, battleMapId, isCommand, inWindow } = allProps;
           let finalProps = { ...props, battlemapId: battleMapId };
@@ -320,6 +330,12 @@ export const Game = ({ gameID, onExit }) => {
         Exit: () => {
           onExit();
         },
+        onEvent: (eventName, data) => {
+          if(eventName === "ActivePanelChanged" && data.panel === "BattleMap")
+          {
+            setSelectedBattleMapId(data.contextId);
+          }
+        }
       };
 
       ClientMediator.register({ id: "Game", panel: "Game", ...gameMethods });
@@ -387,7 +403,6 @@ export const Game = ({ gameID, onExit }) => {
       />
       <Subscribable onMessage={HandleError} commandPrefix={"error"} />
       <Subscribable onMessage={HandleShowPanel} commandPrefix={"show_panel"} />
-      {/* <Subscribable onMessage={HandleShowLayout} commandPrefix={"panel_show"} /> */}
       <MainToolbar
         key={gameID}
         state={state}

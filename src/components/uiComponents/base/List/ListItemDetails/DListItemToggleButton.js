@@ -1,11 +1,5 @@
 import {
-  Button,
-  Center,
-  Flex,
   Icon,
-  IconButton,
-  Stack,
-  Tooltip,
 } from "@chakra-ui/react";
 import * as React from "react";
 import { FaPlus } from "react-icons/fa";
@@ -36,8 +30,8 @@ export const DListItemToggleButton = ({
       margin={margin}
       variant={variant}
       style={style}
+      icon={icon}
     >
-      <Icon color={activeColor || "var(--nordvik-text-color)"} as={icon} />
     </DListItemButton>
   );
 };

@@ -45,12 +45,7 @@ export const ViewsMenu = ({ state,
     }});
 
     const GetBMViewMenu = (battleMapId) => {
-        let menu = [(<CreateDropDownButton width={150} name={"Tools"} icon={FaTools} state={state} element={<ToolsPanel battleMapId={battleMapId} />} />)];
-
-        menu.push([
-            (<OnlyOwner><CreateDropDownButton gmOnly width={150} name={"Map Selector"} icon={FaMapSigns} state={state} element={<MapSelector battleMapId={battleMapId} state={state} />} /></OnlyOwner>),
-            (<OnlyOwner><CreateDropDownButton gmOnly width={150} name={"Properties"} icon={IoMdSettings} state={state} element={<PropertiesPanel battlemapId={battleMapId} />} /></OnlyOwner>),
-        ]);
+        let menu = [<OnlyOwner><CreateDropDownButton gmOnly width={150} name={"Map Selector"} icon={FaMapSigns} state={state} element={<MapSelector battleMapId={battleMapId} state={state} />} /></OnlyOwner>];
 
         return menu;
     }
@@ -71,11 +66,12 @@ export const ViewsMenu = ({ state,
         <DropDownMenu viewId={"views"} onDropDown={onDropDown} name={"View"} width={150} expandableWithAction={true} expandableLocationName={"views"}>
             {/*Add 'disabled' option here*/}
             <BattleMapsMenu key={'1'} state={state} />
-            <CreateDropDownButton width={150} name={"Chat"} icon={IoMdChatboxes} state={state} element={<ChatPanel />} />
-            <CreateDropDownButton width={150} name={"Players"} icon={FaUserFriends} state={state} element={<PlayersPanel />} />
-            <CreateDropDownButton width={150} name={"Cards"} icon={FaUserAlt} state={state} element={<CardsPanel state={state} />} />
-            <CreateDropDownButton width={150} name={"Materials"} icon={FaPaintBrush} state={state} element={<MaterialsPanel state={state} />} />
-            <CreateDropDownButton gmOnly width={150} name={"Manage Players"} icon={FaUserCog} state={state} element={<AdminPlayersPanel state={state} />} />
+            <CreateDropDownButton width={150} name={"Tools"} icon={<FaTools/>} state={state} element={<ToolsPanel />} />
+            <CreateDropDownButton width={150} name={"Chat"} icon={<IoMdChatboxes/>} state={state} element={<ChatPanel />} />
+            <CreateDropDownButton width={150} name={"Players"} icon={<FaUserFriends/>} state={state} element={<PlayersPanel />} />
+            <CreateDropDownButton width={150} name={"Cards"} icon={<FaUserAlt/>} state={state} element={<CardsPanel state={state} />} />
+            <CreateDropDownButton width={150} name={"Materials"} icon={<FaPaintBrush/>} state={state} element={<MaterialsPanel state={state} />} />
+            <CreateDropDownButton gmOnly width={150} name={"Manage Players"} icon={<FaUserCog/>} state={state} element={<AdminPlayersPanel state={state} />} />
             {GetViewBMRelatedMenus()}
         </DropDownMenu>
     );

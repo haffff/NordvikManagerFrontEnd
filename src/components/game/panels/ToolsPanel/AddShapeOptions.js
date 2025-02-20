@@ -30,7 +30,7 @@ export const AddShapeOptions = ({ battleMapId }) => {
     });
     element[name] = value;
   };
-  
+
   return (
     <Flex gap={"10px"} direction={"row"}>
       <Stack alignItems={"center"}>
@@ -38,6 +38,7 @@ export const AddShapeOptions = ({ battleMapId }) => {
           <MdOutlineFormatColorFill />
         </Text>
         <DColorPicker
+          minimal
           onValueChange={(color) => {
             handleUpdate("fill", color);
             setFillColor(color);
@@ -50,6 +51,7 @@ export const AddShapeOptions = ({ battleMapId }) => {
           <MdBorderColor />
         </Text>
         <DColorPicker
+          minimal
           onValueChange={(color) => {
             handleUpdate("stroke", color);
             setStrokeColor(color);
@@ -63,11 +65,14 @@ export const AddShapeOptions = ({ battleMapId }) => {
           <MdLineWeight />
         </Text>
         <Input
-          type={"number"}
-          width={"50px"}
+          boxSize={"40px"}
           variant={"outline"}
           value={lineWidth}
           onChange={(e) => {
+            //Check if number
+            if (isNaN(e.target.value) || e.target.value < 0) {
+              return;
+            }
             handleUpdate("strokeWidth", e.target.value);
             setLineWidth(e.target.value);
           }}
