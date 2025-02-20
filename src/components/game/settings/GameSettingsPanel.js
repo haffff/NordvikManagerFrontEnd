@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Tabs, TabList, Tab, TabPanels, TabPanel } from '@chakra-ui/react'
+import { Tabs, TabList, Tab, TabPanels, TabPanel, Toast } from '@chakra-ui/react'
 import * as Dockable from "@hlorenzi/react-dockable"
 import WebSocketManagerInstance from '../WebSocketManager';
 import SettingsPanel from './SettingsPanel';
@@ -12,6 +12,8 @@ import EditTable from './EditTable';
 import { SettingsPanelWithPropertySettings } from './SettingsPanelWithPropertySettings';
 import WebHelper from '../../../helpers/WebHelper';
 import useGame from '../../uiComponents/hooks/useGameHook';
+import ClientMediator from '../../../ClientMediator';
+import { Toaster, toaster } from '../../ui/toaster';
 
 export const GameSettingsPanel = () => {
 
@@ -72,7 +74,7 @@ export const GameSettingsPanel = () => {
 
 
     const sendSettingsUpdate = (dtoToSend) => {
-        let dtoToSave = structuredClone(dto);
+        let dtoToSave = { id: gameData.id };
         Object.keys(dtoToSend).forEach(key => {
             dtoToSave[key] = dtoToSend[key];
         });
@@ -83,6 +85,11 @@ export const GameSettingsPanel = () => {
 
     const updateSettings = (event) => {
         gameData.name = event.data.name;
+        let player = ClientMediator.sendCommand("Game","GetCurrentPlayer");
+        if(event.playerId === player.id)
+        {
+            toaster.create({description: "Game settings updated", type: "success", duration: 5000});
+        }
     }
 
     return (

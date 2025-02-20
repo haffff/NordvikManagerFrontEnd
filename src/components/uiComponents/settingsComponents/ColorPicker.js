@@ -11,14 +11,20 @@ import {
   ColorPickerValueSwatch,
   ColorPickerValueText,
 } from "../../ui/color-picker";
-import { useState } from "react";
+import React, { useState } from "react";
 
-export const DColorPicker = ({ initColor, onValueChange }) => {
+export const DColorPicker = ({ initColor, onValueChange, minimal }) => {
   const [color, setColor] = useState(initColor || "rgb(0,0,0)");
+
+  React.useEffect(() => {
+    if (initColor) {
+      setColor(initColor);
+    }
+  }, [initColor]);
 
   return (
     <ColorPickerRoot
-      defaultValue={parseColor(color)}
+      value={parseColor(color)}
       onValueChange={({ valueAsString }) => {
         setColor(valueAsString);
         if (onValueChange) {
@@ -30,7 +36,7 @@ export const DColorPicker = ({ initColor, onValueChange }) => {
       <ColorPickerControl>
         <ColorPickerTrigger px="2">
           <ColorPickerValueSwatch boxSize="6" />
-          <ColorPickerValueText minW="160px" />
+          {!minimal && <ColorPickerValueText minW="160px" />}
         </ColorPickerTrigger>
       </ColorPickerControl>
       <ColorPickerContent zIndex={9999}>

@@ -46,20 +46,6 @@ const LoadBMSubscriptions = (canvas, references) => {
       });
     });
   });
-
-  // canvas.on('mouse:move', (e) => {
-  //   if(popupVisible.current)
-  //   {
-  //     console.log(e);
-  //     popupRef.current.style.left = `${e.e.clientX}px`;
-  //     popupRef.current.style.top = `${e.e.clientY}px`;
-  //     popupRef.current.style.display = 'block';
-  //   }
-  //   else
-  //   {
-  //     popupRef.current.style.display = 'none';
-  //   }
-  // });
 };
 
 export default LoadBMSubscriptions;

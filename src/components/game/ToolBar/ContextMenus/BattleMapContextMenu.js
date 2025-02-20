@@ -126,7 +126,7 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
       action: "layer",
     });
   };
-  let perm = false;
+
   if (selectedObjects === 1) {
   }
 
@@ -222,32 +222,32 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
               submenu={true}
               width={width}
               name={"Add"}
-              icon={FaPlus}
+              icon={<FaPlus/>}
             ></DropDownMenu>
             <DropDownItem
               width={width}
               name={"Paste"}
-              icon={FaPaste}
+              icon={<FaPaste/>}
               onClick={() => PasteElements()}
             />
             <DropDownMenu
               submenu={true}
               width={width}
               name={"Battle Map"}
-              icon={FaMap}
+              icon={<FaMap/>}
             >
               <DropDownItem
                 gmOnly
                 width={width}
                 name={"Show"}
                 onClick={HandleSpawnBattleMap}
-                icon={FaEye}
+                icon={<FaEye/>}
               />
               <DropDownItem
                 width={width}
                 name={"Tools"}
                 onClick={HandleSpawnTools}
-                icon={FaWrench}
+                icon={<FaWrench/>}
               />
             </DropDownMenu>
             <DropDownItem
@@ -255,7 +255,16 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
               width={width}
               name={"Map Settings"}
               onClick={HandleSpawnMapSettings}
-              icon={FaCog}
+              icon={<FaCog/>}
+            />
+            <DropDownItem
+              gmOnly
+              width={width}
+              name={"Edit Grid"}
+              onClick={() => {
+                ClientMediator.sendCommand("BattleMap", "EditGrid", {contextId: battleMapId})
+              }}
+              icon={<FaWrench/>}
             />
           </>
         )}

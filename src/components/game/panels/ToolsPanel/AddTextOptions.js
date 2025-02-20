@@ -41,11 +41,12 @@ export const AddTextOptions = ({ battleMapId }) => {
           <MdOutlineFormatColorFill />
         </Text>
         <DColorPicker
+          minimal={true}
           onValueChange={(color) => {
             handleUpdate("fill", color);
             setFillColor(color);
           }}
-          color={fillColor}
+          initColor={fillColor}
         />
       </Stack>
       <Stack alignItems={"center"}>
@@ -53,11 +54,12 @@ export const AddTextOptions = ({ battleMapId }) => {
           <MdBorderColor />
         </Text>
         <DColorPicker
+          minimal={true}
           onValueChange={(color) => {
             handleUpdate("stroke", color);
             setStrokeColor(color);
           }}
-          color={strokeColor}
+          initColor={strokeColor}
           isAbsolute={true}
         />
       </Stack>

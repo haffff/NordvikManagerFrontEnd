@@ -95,6 +95,17 @@ class BMService {
     this._canvas.renderAll();
   }
 
+  EditGrid({ isCommand}) {
+    this._canvas.discardActiveObject();
+    //this._canvas.editGridMode = true;
+    //get .grid object
+    let grid = this._canvas.getObjects().find((x) => x.name === ".grid");
+    //set active object
+    this._canvas.setActiveObject(grid);
+
+    this._canvas.requestRenderAll();
+  }
+
   SetSelectedLayer({ layerId, withEditMode, isCommand }) {
     if (isCommand && !layerId) {
       return "layerId is required.";
@@ -120,6 +131,7 @@ class BMService {
     ClientMediator.fireEvent("BattleMap_LayerChanged", {
       layer: layerId,
       withEditMode: layerMode,
+      battleMapId: this.contextId,
     });
   }
 
@@ -168,6 +180,7 @@ class BMService {
     });
 
     ClientMediator.fireEvent("BattleMap_ModeChanged", {
+      battleMapId: this.contextId,
       mode: "TokenSelect",
     });
   }
@@ -208,6 +221,7 @@ class BMService {
     });
 
     ClientMediator.fireEvent("BattleMap_ModeChanged", {
+      battleMapId: this.contextId,
       mode: undefined,
       modeType: undefined,
     });
@@ -323,7 +337,7 @@ class BMService {
       return "align is required.";
     }
 
-    ClientMediator.fireEvent("BattleMap_AlignChanged", { align });
+    ClientMediator.fireEvent("BattleMap_AlignChanged", { align, battleMapId: this.contextId });
     this._canvas.alignMode = align;
   }
 
@@ -332,7 +346,12 @@ class BMService {
       return "enabled is required.";
     }
 
-    ClientMediator.fireEvent("BattleMap_DragModeChanged", { enabled });
+    if(this._canvas.dragModeLock)
+    {
+      return;
+    }
+
+    ClientMediator.fireEvent("BattleMap_DragModeChanged", { enabled, battleMapId: this.contextId });
     this._canvas.draggingMode = enabled ? true : undefined;
   }
 
@@ -360,6 +379,9 @@ class BMService {
       canvas.freeDrawMode = true;
       canvas.selection = false;
 
+      this.SetDragMode({ enabled: false });
+      canvas.dragModeLock = true;
+
       canvas.isDrawingMode = true;
       if (brush) {
         canvas.freeDrawingBrush = brush;
@@ -380,6 +402,7 @@ class BMService {
       });
 
       ClientMediator.fireEvent("BattleMap_ModeChanged", {
+        battleMapId: this.contextId,
         mode: "Draw",
       });
     } else {
@@ -390,6 +413,7 @@ class BMService {
 
         canvas.isDrawingMode = false;
         canvas.freeDrawingBrush = undefined;
+        canvas.dragModeLock = false;
 
         canvas.off("path:created", this._path_created);
         this._removePopupAndOverlay();
@@ -402,6 +426,7 @@ class BMService {
         });
 
         ClientMediator.fireEvent("BattleMap_ModeChanged", {
+          battleMapId: this.contextId,
           mode: undefined,
           type: undefined,
         });
@@ -432,6 +457,9 @@ class BMService {
       canvas.selection = false;
       canvas.modeType = type;
 
+      this.SetDragMode({ enabled: false });
+      canvas.dragModeLock = true;
+
       this._addPopupAndOverlay(overlayContent, popupContent);
 
       //ensure that object is in proper layer and has map id
@@ -445,6 +473,7 @@ class BMService {
       });
 
       ClientMediator.fireEvent("BattleMap_ModeChanged", {
+        battleMapId: this.contextId,
         mode: "SimpleCreate",
         type: canvas.modeType,
       });
@@ -456,6 +485,7 @@ class BMService {
         canvas.withSizing = undefined;
         canvas.selection = true;
         canvas.modeType = undefined;
+        canvas.dragModeLock = false;
 
         this._removePopupAndOverlay();
 
@@ -467,6 +497,7 @@ class BMService {
         });
 
         ClientMediator.fireEvent("BattleMap_ModeChanged", {
+          battleMapId: this.contextId,
           mode: undefined,
           type: undefined,
         });
@@ -505,6 +536,9 @@ class BMService {
       canvas.measure = {
         visibleToOthers: true,
       };
+
+      this.SetDragMode({ enabled: false });
+      canvas.dragModeLock = true;
 
       canvas.measure.measureArrow =
         arrowObject ??
@@ -567,6 +601,7 @@ class BMService {
       });
 
       ClientMediator.fireEvent("BattleMap_ModeChanged", {
+        battleMapId: this.contextId,
         mode: "Measure",
         type: type,
       });
@@ -578,11 +613,12 @@ class BMService {
         canvas.selection = true;
         canvas.modeType = undefined;
         canvas.measure = undefined;
+        canvas.dragModeLock = false;
 
         this._removePopupAndOverlay();
 
-
         ClientMediator.fireEvent("BattleMap_ModeChanged", {
+          battleMapId: this.contextId,
           mode: undefined,
           type: undefined,
         });

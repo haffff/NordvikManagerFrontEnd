@@ -30,6 +30,7 @@ import { OnPathCreatedFreeDrawClientBehavior } from "./Client/Draw/OnPathCreated
 import { OnMouseDownMeasureStartClientBehavior } from "./Client/Measure/OnMouseDownMeasureStart";
 import { OnMouseUpMeasureEndsClientBehavior } from "./Client/Measure/OnMouseUpMeasureEnds";
 import { OnMouseMoveMeasureUpdateClientBehavior } from "./Client/Measure/OnMouseMoveMeasureUpdate";
+import { OnObjectDeselectedDisableGridEdit } from "./Client/OnObjectDeselectedDisableGridEdit";
 
 export const BehaviorDictionaryServer = {
   element_add: new OnAddElementBehavior(),
@@ -54,9 +55,17 @@ export const BehaviorDictionaryServer = {
 export const BehaviorDictionaryClient = {
   "object:modified": [new OnNativeObjectModifiedClientBehavior()],
   "object:moving": [new OnObjectMoveHideTokenUIClientBehavior()],
-  "selection:created": [new OnTokenSelectedClientBehavior()],
-  "selection:updated": [new OnTokenSelectedClientBehavior()],
-  "selection:cleared": [new OnTokenSelectedClientBehavior()],
+  "selection:created": [
+    new OnTokenSelectedClientBehavior()
+  ],
+  "selection:updated": [
+    new OnTokenSelectedClientBehavior(),
+    new OnObjectDeselectedDisableGridEdit(),
+  ],
+  "selection:cleared": [
+    new OnTokenSelectedClientBehavior(),
+    new OnObjectDeselectedDisableGridEdit(),
+  ],
   "mouse:down": [
     new OnDragStartClientBehavior(),
     new OnClickContextMenuHandleClientBehavior(),
@@ -76,9 +85,7 @@ export const BehaviorDictionaryClient = {
     new OnMouseMoveMeasureUpdateClientBehavior(),
   ],
   "mouse:wheel": [new OnMouseWheelChangeZoomClientBehavior()],
-  "path:created": [
-    new OnPathCreatedFreeDrawClientBehavior(),
-  ],
+  "path:created": [new OnPathCreatedFreeDrawClientBehavior()],
 };
 
 export const UserActionDictionary = {};

@@ -15,7 +15,7 @@ export const useBMName = (bmId) => {
             }
         }});
         setBattleMapName(name);
-    }, []);
+    }, [bmId]);
 
     return battleMapName;
 }

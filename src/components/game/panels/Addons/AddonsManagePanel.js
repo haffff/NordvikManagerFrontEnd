@@ -51,7 +51,7 @@ export const AddonsManagePanel = ({ state }) => {
 
   return (
     <BasePanel>
-      <Tabs>
+      <Tabs.Root defaultValue={'installed'}>
         <Tabs.List>
           <Tabs.Trigger value="installed">Installed</Tabs.Trigger>
           <Tabs.Trigger value="install">Install</Tabs.Trigger>
@@ -71,7 +71,7 @@ export const AddonsManagePanel = ({ state }) => {
             addons={addons}
           />
         </Tabs.Content>
-      </Tabs>
+      </Tabs.Root>
     </BasePanel>
   );
 };

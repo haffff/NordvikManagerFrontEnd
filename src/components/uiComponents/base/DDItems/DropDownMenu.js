@@ -45,7 +45,7 @@ export const DropDownMenu = ({
 
   return (
     <MenuRoot lazyMount={false} closeOnSelect  >
-      {submenu ? <MenuTriggerItem> {name} </MenuTriggerItem> : <MenuTrigger asChild>
+      {submenu ? <MenuTriggerItem>{icon} {name} </MenuTriggerItem> : <MenuTrigger asChild>
         <Button height={'30px'} textAlign={'left'} justifyContent={'start'} size={'xs'} borderRadius={0} variant="outline">
           <FaAngleDown /> {name}
         </Button>
