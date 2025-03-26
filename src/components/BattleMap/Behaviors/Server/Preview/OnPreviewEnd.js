@@ -11,13 +11,6 @@ export class OnPreviewEndBehavior {
     if (response.data && response.battleMapId === battleMapId && this.currentPlayer.id !== response.playerId) {
       const removes = response.data;
 
-      // removes.forEach((element) => {
-      //   let object = canvas
-      //     .getObjects()
-      //     .find((x) => x.previewId === element.previewId);
-      //   canvas.remove(object);
-      // });
-
       canvas.remove(...canvas.getObjects().filter((x) => response.playerId === x.playerId && x.preview === true));
       canvas.requestRenderAll();
     }

@@ -1,10 +1,22 @@
 import ClientMediator from "../../../../ClientMediator";
 
 export class OnPermissionsChangedBehavior {
-    Handle(response, canvas, battleMapId) {
+    async Handle(response, canvas, battleMapId) {
         const { data } = response;
+
+        if(data.entityType === "MapModel")
+        {
+            await ClientMediator.sendCommandAsync("BattleMap", "ReloadBattleMapComponent", { contextId: battleMapId });
+        }
+
+        if(data.entityType !== "ElementModel")
+        {
+            return;
+        }
+
         let obj = canvas.getObjects().find(x => x.id === data.id);
         if (!obj) {
+            await ClientMediator.sendCommandAsync("BattleMap", "ReloadBattleMapComponent", { contextId: battleMapId });
             return;
         }
 

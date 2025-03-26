@@ -7,8 +7,13 @@ export const OnlyOwner = ({ children }) => {
     const uid = useUUID();
 
     React.useEffect(() => {
-        let game = ClientMediator.sendCommand("Game", "GetGame");
-        ClientMediator.sendCommandWaitForRegister("Game", "GetCurrentPlayer", {uniqueKey: uid}, true).then((response) => { setShow(response.id === game.master?.id); });
+        const fillOwner = async () => {
+            let masterId = await ClientMediator.sendCommandWaitForRegisterAsync("Game", "GetOwner", {}, true);
+            let currentPlayer = await ClientMediator.sendCommandWaitForRegisterAsync("Game", "GetCurrentPlayer", {uniqueKey: uid}, true);
+            setShow(masterId === currentPlayer?.id); 
+        }
+
+        fillOwner();
     }, []);
 
     return show ?

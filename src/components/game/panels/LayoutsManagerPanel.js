@@ -19,41 +19,21 @@ import WebHelper from "../../../helpers/WebHelper";
 import CollectionSyncer from "../../uiComponents/base/CollectionSyncer";
 import DListItemsButtonContainer from "../../uiComponents/base/List/DListItemsButtonContainer";
 import UtilityHelper from "../../../helpers/UtilityHelper";
+import { toaster } from "../../ui/toaster";
 
 export const LayoutsManagerPanel = ({ state }) => {
-  const [clientLayouts, setClientLayouts] = React.useState(undefined);
   const [serverLayouts, setServerLayouts] = React.useState(undefined);
-  const [gameContainerRef, setGameContainerRef] = React.useState(undefined);
 
-  const [selectedLayout, setSelectedLayout] = React.useState(
-    ClientMediator.sendCommand("Game", "GetLayout", {})
-  );
+  const [selectedLayout, setSelectedLayout] = React.useState();
 
   React.useEffect(() => {
     WebHelper.get("Battlemap/GetLayouts", setServerLayouts);
-    const cid = UtilityHelper.GenerateUUID();
-    ClientMediator.register({
-      clientId: cid,
-      panel: "LayoutsManagerPanel",
-      onEvent: (event, data) => {
-        if (event === "ClientLayoutsChanged") {
-          setClientLayouts(JSON.parse(localStorage.getItem("Layouts")));
-        }
-      },
-    });
+    let selectedLayout = ClientMediator.sendCommand("Game", "GetLayout");
 
-    let layouts = localStorage.getItem("Layouts");
-    if (!layouts) {
-      layouts = "[]";
+    if (selectedLayout) {
+      setSelectedLayout(selectedLayout);
     }
 
-    let layoutArr = JSON.parse(layouts);
-
-    setClientLayouts(layoutArr);
-
-    return () => {
-      ClientMediator.unregister(cid);
-    };
   }, []);
 
   const GenerateServerLayouts = () => {
@@ -83,7 +63,7 @@ export const LayoutsManagerPanel = ({ state }) => {
               onClick={() => {
                 Dockable.spawnFloating(
                   state,
-                  <LayoutSettingsPanel layout={x} />
+                  <LayoutSettingsPanel layoutId={x.id} />
                 );
               }}
               colorScheme="alpha"
@@ -92,7 +72,8 @@ export const LayoutsManagerPanel = ({ state }) => {
               label="Apply this layout"
               icon={FaCheck}
               onClick={() => {
-                ClientMediator.sendCommand("Game", "SetLayout", x);
+                ClientMediator.sendCommand("Game", "SetLayout", x.id);
+                toaster.create({title: "Layout applied", type: "success", duration: 5000});
               }}
             />
             <DListItemButton
@@ -101,64 +82,11 @@ export const LayoutsManagerPanel = ({ state }) => {
               onClick={() => {
                 let cmd = CommandFactory.CreateLayoutForceCommand(x.id);
                 WebSocketManagerInstance.Send(cmd);
+
+                toaster.create({title: "Layout forced", type: "success", duration: 5000});
               }}
             />
           </DListItemsButtonContainer>
-        </DListItem>
-      );
-    });
-    return layouts;
-  };
-
-  const GenerateClientLayouts = () => {
-    if (clientLayouts === undefined) {
-      return [];
-    }
-
-    let layouts = clientLayouts.map((x) => {
-      return (
-        <DListItem
-          isSelected={selectedLayout?.uuid && selectedLayout?.uuid === x?.uuid}
-        >
-          {x.name}
-          <Flex direction={"row-reverse"} flexGrow={1}>
-            <DListItemButton
-              label={"Remove"}
-              onClick={() => {
-                let layouts = localStorage.getItem("Layouts");
-                let layoutArr = JSON.parse(layouts);
-                let newArr = layoutArr.filter((y) => y.uuid !== x.uuid);
-                localStorage.setItem("Layouts", JSON.stringify(newArr));
-                setClientLayouts(newArr);
-                ClientMediator.fireEvent("ClientLayoutsChanged", {});
-              }}
-              colorScheme="alpha"
-              color={"red"}
-              icon={IoIosRemoveCircleOutline}
-            />
-            <DListItemButton
-              label={"Apply this layout"}
-              onClick={() => {
-                ClientMediator.sendCommand("Game", "SetLayout", x);
-              }}
-              colorScheme="alpha"
-              icon={FaCheck}
-            />
-            <DListItemButton
-              label={"Rename"}
-              onClick={() => {
-                let layouts = localStorage.getItem("Layouts");
-                let layoutArr = JSON.parse(layouts);
-                let layout = layoutArr.find((y) => y.uuid === x.uuid);
-                layout.name = prompt("Enter new name", layout.name);
-                localStorage.setItem("Layouts", JSON.stringify(layoutArr));
-                setClientLayouts(layoutArr);
-                ClientMediator.fireEvent("ClientLayoutsChanged", {});
-              }}
-              colorScheme="alpha"
-              icon={FaEdit}
-            />
-          </Flex>
         </DListItem>
       );
     });
@@ -170,14 +98,13 @@ export const LayoutsManagerPanel = ({ state }) => {
 
   return (
     <BasePanel>
-      <Heading margin={"15px"}>Game layouts</Heading>
+      <Heading margin={"15px"}>Layouts</Heading>
       <Stack>{GenerateServerLayouts()}</Stack>
-      <Heading margin={"15px"}>Browser Layouts</Heading>
-      <Stack>{GenerateClientLayouts()}</Stack>
       <CollectionSyncer
         collection={serverLayouts}
         setCollection={setServerLayouts}
         commandPrefix={"layout"}
+        incrementalUpdate={true}
       />
     </BasePanel>
   );

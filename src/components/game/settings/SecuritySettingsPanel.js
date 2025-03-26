@@ -10,7 +10,6 @@ import DList from "../../uiComponents/base/List/DList";
 import DListItem from "../../uiComponents/base/List/DListItem";
 import DButtonHorizontalContainer from "../../uiComponents/base/Containers/DButtonHorizontalContainer";
 import DropDownButton from "../../uiComponents/base/DDItems/DropDrownButton";
-import useGame from "../../uiComponents/hooks/useGameHook";
 import ClientMediator from "../../../ClientMediator";
 import {
   SelectRoot,
@@ -26,30 +25,37 @@ export const SecuritySettingsPanel = ({ dto, type }) => {
   const [currentPlayerId, setCurrentPlayerId] = React.useState(null);
   const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
 
-  const game = useGame();
-
   React.useEffect(() => {
-    ClientMediator.sendCommandWaitForRegister(
-      "Game",
-      "GetPlayers",
-      {},
-      true
-    ).then(setPlayers);
-    ClientMediator.sendCommandWaitForRegister(
-      "Game",
-      "GetCurrentPlayer",
-      {},
-      true
-    ).then(({ id }) => setCurrentPlayerId(id));
+    const GetData = async () => {
+      const players = await ClientMediator.sendCommandWaitForRegisterAsync(
+        "Game",
+        "GetPlayers",
+        {},
+        true
+      );
+
+      setPlayers(players);
+
+      const currentPlayer = await ClientMediator.sendCommandWaitForRegisterAsync(
+        "Game",
+        "GetCurrentPlayer",
+        {},
+        true
+      );
+
+      setCurrentPlayerId(currentPlayer.id);
+    };
+
+    GetData();
   }, []);
 
-  if (!game || !players) {
+  if (!players) {
     return <></>;
   }
 
   const Load = (finished) => {
     WebHelper.get(
-      `security/permissions?gameId=${game.id}&entityId=${dto.id}&entityType=${type}`,
+      `security/permissions?entityId=${dto.id}&entityType=${type}`,
       (permissions) => {
         let loaclPlayers = structuredClone(players);
 
@@ -121,9 +127,7 @@ export const SecuritySettingsPanel = ({ dto, type }) => {
               <SelectValueText placeholder="Select permission">
                 {(items) => {
                   const { name } = items[0];
-                  return (
-                      <>{name}</>
-                  );
+                  return <>{name}</>;
                 }}
               </SelectValueText>
             </SelectTrigger>

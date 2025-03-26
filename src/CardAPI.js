@@ -1,6 +1,7 @@
 import ClientMediator from "./ClientMediator";
 import WebSocketManagerInstance from "./components/game/WebSocketManager";
 import UtilityHelper from "./helpers/UtilityHelper";
+import CommandExecutionHelper from "./helpers/CommandExecutionHelper";
 
 class CardAPI {
   _propertySubscriptions = {};
@@ -82,7 +83,7 @@ class CardAPI {
       );
 
       if (propsFound.length === 0) {
-        ClientMediator.sendCommandAsync("Properties", "Add", {
+        await ClientMediator.sendCommandAsync("Properties", "Add", {
           property: {
             entityName: "CardModel",
             name: propertyName,
@@ -206,8 +207,8 @@ class CardAPI {
       });
     },
 
-    Remove: (propertyName) => {
-      const prop = this.Properties.Get(propertyName);
+    Remove: async (propertyName) => {
+      const prop = await this.Properties.Get(propertyName);
 
       ClientMediator.sendCommandAsync("Properties", "Remove", {
         propertyId: prop.id,
@@ -260,6 +261,8 @@ class CardAPI {
       },
     });
   }
+
+  RunClientCommand = (commandString) => CommandExecutionHelper.RunCommand(commandString);
 
   SendCustomCommandToServer(command, data, additionalArgs) {
     WebSocketManagerInstance.Send({

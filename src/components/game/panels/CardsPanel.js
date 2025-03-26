@@ -9,7 +9,6 @@ import WebSocketManagerInstance from "../WebSocketManager";
 import CardPanel from "./CardPanel";
 import DTreeList from "../../uiComponents/treeList/DTreeList";
 import InputModal from "../../uiComponents/base/Modals/InputModal";
-import useGame from "../../uiComponents/hooks/useGameHook";
 import ClientMediator from "../../../ClientMediator";
 import CollectionSyncer from "../../uiComponents/base/CollectionSyncer";
 import DListItemButton from "../../uiComponents/base/List/ListItemDetails/DListItemButton";
@@ -22,7 +21,6 @@ import DTreeListItem from "../../uiComponents/base/List/DTreeListItem";
 export const CardsPanel = ({ state }) => {
   const [panels, setPanels] = React.useState([]);
   const [currentPlayer, setCurrentPlayer] = React.useState(null);
-  const game = useGame();
   const openRef = React.useRef(null);
   const [templates, setTemplates] = React.useState([]);
   const createConfig = [
@@ -56,9 +54,6 @@ export const CardsPanel = ({ state }) => {
   panelRef.current = panels;
 
   React.useEffect(() => {
-    if (!game) {
-      return;
-    }
     WebHelper.get(
       "materials/getcards",
       (response) => {
@@ -72,7 +67,10 @@ export const CardsPanel = ({ state }) => {
       {},
       true
     );
-    if (currentPlayer.id === game.master?.id) {
+
+    var ownerId = ClientMediator.sendCommand("Game", "GetOwner");
+
+    if (currentPlayer.id === ownerId) {
       WebHelper.get(
         "materials/gettemplatesfull",
         (response) => {
@@ -82,14 +80,10 @@ export const CardsPanel = ({ state }) => {
       );
     }
     setCurrentPlayer(currentPlayer);
-  }, [game]);
+  }, );
 
   const ctx = Dockable.useContentContext();
   ctx.setTitle(`Cards`);
-
-  if (!game) {
-    return <></>;
-  }
 
   return (
     <BasePanel>

@@ -71,7 +71,24 @@ export class OnNativeObjectModifiedClientBehavior {
     }
 
     function SendObject(target, action) {
-      const dto = DTOConverter.ConvertToDTO(target);
+      //const dto = DTOConverter.ConvertToDTO(target);
+      let dto = {};
+      //If action is drag we need to call minified converttodto with only necessary fields
+      switch(action)
+      {
+        case "drag":
+          dto = DTOConverter.ConvertToDTOMinified(target, ["left", "top"]);
+          break;
+        case "scale":
+          dto = DTOConverter.ConvertToDTOMinified(target, ["scaleX", "scaleY"]);
+          break;
+        case "rotate":
+          dto = DTOConverter.ConvertToDTOMinified(target, ["angle"]);
+          break;
+        default:
+          dto = DTOConverter.ConvertToDTO(target);
+      }
+
       let cmd = CommandFactory.CreateBattleMapUpdateCommand(
         dto,
         battleMapId,

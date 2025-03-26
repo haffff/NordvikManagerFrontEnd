@@ -30,7 +30,7 @@ export const GameSettingsPanel = () => {
     ]
 
     const battleMapEditables = [
-        { key: "additionalLayers", label: "Additional Layers", toolTip: "Image of game shown in game list menu for other players.", type: "boolean", category: "Layers" },
+        { key: "additionalLayers", property:true, label: "Additional Layers", toolTip: "Image of game shown in game list menu for other players.", type: "boolean", category: "Layers" },
 
         { key: "useSquaredSystem", property: true, label: "Use realistic distance system", toolTip: "Image of game shown in game list menu for other players.", type: "boolean", category: "Units" },
         { key: "baseDistancePerSquare", property: true, min: 1, label: "Default distance per square", toolTip: "Image of game shown in game list menu for other players.", type: "number", category: "Units" },
@@ -58,6 +58,7 @@ export const GameSettingsPanel = () => {
 
     const ctx = Dockable.useContentContext();
     ctx.setTitle(`Game Settings`);
+    ctx.setPreferredSize(600,800);
 
     React.useEffect(() => {
         if (gameData?.id === undefined) {

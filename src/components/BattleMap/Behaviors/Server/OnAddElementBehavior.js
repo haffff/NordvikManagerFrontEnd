@@ -22,7 +22,7 @@ export class OnAddElementBehavior {
       fabric.util.enlivenObjects([value], (e) => {
         e.forEach(async (element) => {
           const props = await WebHelper.getAsync(
-            `properties/QueryProperties?parentIds=${response.result}`
+            `properties/QueryProperties?parentIds=${response.data.id}`
           );
 
           const parsedProps = {};

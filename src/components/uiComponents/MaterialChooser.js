@@ -25,6 +25,7 @@ import DListItem from "./base/List/DListItem";
 import DListItemsButtonContainer from "./base/List/DListItemsButtonContainer";
 import DListItemButton from "./base/List/ListItemDetails/DListItemButton";
 import Subscribable from "./base/Subscribable";
+import { toaster } from "../ui/toaster";
 
 export const MaterialChooser = ({
   onSelect,
@@ -38,22 +39,17 @@ export const MaterialChooser = ({
   const [isDragOver, setIsDragOver] = React.useState(false);
   const [uploadedId, setUploadedId] = React.useState(undefined);
 
-  const LoadData = (then) => {
-    WebHelper.get(
-      "materials/getresources",
-      (response) => {
-        setMaterials(response);
-        materialsSelected = materialsSelected || [];
-        setSelectedMaterials(
-          response.filter((x) => materialsSelected?.includes(x.id))
-        );
-
-        if (then && then instanceof Function) {
-          then();
-        }
-      },
-      (error) => console.log(error)
+  const LoadData = async (then) => {
+    let data = await WebHelper.getAsync("materials/getresources");
+    setMaterials(data);
+    materialsSelected = materialsSelected || [];
+    setSelectedMaterials(
+      data.filter((x) => materialsSelected?.includes(x.id))
     );
+
+    if (then && then instanceof Function) {
+      then();
+    }
   };
 
   const selectedMaterialsRef = React.useRef(selectedMaterials);
@@ -102,6 +98,17 @@ export const MaterialChooser = ({
         }
 
         if (item.kind === "file") {
+
+          if(additionalFilter && !additionalFilter({...item, mimeType: item.type})){
+            toaster.create({
+              title: "Invalid file type",
+              description: "The file type is not allowed.",
+              type: "error",
+              duration: 9000,
+            })
+            return;
+          }
+
           WebHelper.postMaterial(
             item.getAsFile(),
             (result) => {

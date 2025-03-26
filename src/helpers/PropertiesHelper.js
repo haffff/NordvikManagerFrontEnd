@@ -83,7 +83,7 @@ class PropertiesHelper {
     const cachedProperties = [];
     namesVar.forEach((name) => {
       let found = Object.values(this._propertyCache).find(
-        (x) => x.name === name && x.parentID === parentId
+        (x) => x.name === name && x.parentId === parentId
       );
       if (found) {
         cachedProperties.push(found);

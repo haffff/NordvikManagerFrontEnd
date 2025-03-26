@@ -353,11 +353,20 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
           playerId: this.playerId,
           //We use resourceID instead of src. We want to construct URL's on the fly
           resourceId: this.resourceId,
-          resourceKey: this.resourceKey,
-          src: undefined,
+          resourceKey: this.resourceKey
         });
       };
     })(fabric.Object.prototype.toObject);
+
+    editor.canvas.sortLayers = function() {
+      this
+      ._objects
+      .sort((a, b) =>
+        a.layer > b.layer || a.insideLayerIndex > b.insideLayerIndex
+          ? 1
+          : -1
+      );
+    }
 
     //Load elements and register them in ElementsStorage
     if (map.elements.length > 0) {
@@ -380,14 +389,7 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
       try {
         editor.canvas.loadFromJSON({ objects: canvasObjects }, async () => {
           DrawGrid();
-          editor.canvas
-            .getObjects()
-            .sort((a, b) =>
-              a.layer > b.layer || a.insideLayerIndex > b.insideLayerIndex
-                ? 1
-                : -1
-            );
-
+          editor.canvas.sortLayers();
           const objects = editor.canvas.getObjects();
 
           // Get all card ids from objects
@@ -414,11 +416,6 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
             objects.map(async (obj) => {
               if (!obj.id) return false;
 
-              obj.set(
-                "src",
-                WebHelper.getResourceString(obj.resourceId, obj.resourceKey)
-              );
-
               //originally there was Mediator request. i replaced with simpler check that should do a work.
               let isToken = obj.tokenData !== undefined ? true : false;
               if (isToken) {
@@ -426,7 +423,7 @@ export const Battlemap = ({ withID, keyboardEventsManagerRef }) => {
                   id: obj.id,
                 });
               }
-
+              editor.canvas.requestRenderAll();
               return true;
             })
           );

@@ -7,11 +7,10 @@ import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import Subscribable from "../../uiComponents/base/Subscribable";
 import SecuritySettingsPanel from "./SecuritySettingsPanel";
 import BasePanel from "../../uiComponents/base/BasePanel";
-import useGame from "../../uiComponents/hooks/useGameHook";
+import WebHelper from "../../../helpers/WebHelper";
 
-export const LayoutSettingsPanel = ({ layout }) => {
-  const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
-  const game = useGame();
+export const LayoutSettingsPanel = ({ layoutId }) => {
+  const [ layout, setLayout ] = React.useState({});
 
   const editables = [
     { key: "name", label: "Name", toolTip: "Name of layout.", type: "string" },
@@ -29,6 +28,17 @@ export const LayoutSettingsPanel = ({ layout }) => {
     },
   ];
 
+
+  React.useEffect(() => {
+    const getLayout = async () => {
+      let response = await WebHelper.getAsync(`battlemap/GetLayout?id=${layoutId}`);
+      setLayout({...response});
+    ctx.setTitle(`Layout Settings - ${layout.name}`);
+    };
+
+    getLayout();
+  } , [layoutId]);
+
   const ctx = Dockable.useContentContext();
 
   if (layout === undefined) {
@@ -38,6 +48,8 @@ export const LayoutSettingsPanel = ({ layout }) => {
     ctx.setTitle(`Layout Settings - ${layout.name}`);
   }
 
+  ctx.setPreferredSize(600,800);
+
   const sendSettingsUpdate = (dtoToSend) => {
     dtoToSend.id = layout.id;
     dtoToSend.gameModelId = layout.gameModelId;
@@ -46,11 +58,7 @@ export const LayoutSettingsPanel = ({ layout }) => {
   };
 
   const updateSettings = (event) => {
-    let layout = game.layouts.filter((x) => x.id == event.data.id)[0];
-    if (layout !== undefined) {
-      layout.name = event.data.name;
-      forceUpdate();
-    }
+    setLayout({...layout, ...event.data});
   };
 
   return (
@@ -62,14 +70,14 @@ export const LayoutSettingsPanel = ({ layout }) => {
             <Tabs.Trigger value="permissions">Permissions</Tabs.Trigger>
           </Tabs.List>
           <Tabs.Content value="settings">
-            <SettingsPanel
+            <SettingsPanel key={layout?.id + "_settings"}
               dto={layout}
               editableKeyLabelDict={editables}
               onSave={sendSettingsUpdate}
             />
           </Tabs.Content>
           <Tabs.Content value="permissions">
-            <SecuritySettingsPanel dto={layout} type="LayoutModel" />
+            <SecuritySettingsPanel dto={layout} type="LayoutModel" key={layout?.id + "_perms"} />
           </Tabs.Content>
         </Tabs.Root>
       </BasePanel>

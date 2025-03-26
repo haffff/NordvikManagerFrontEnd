@@ -13,12 +13,28 @@ import DListItemsButtonContainer from "../../uiComponents/base/List/DListItemsBu
 import DLabel from "../../uiComponents/base/Text/DLabel";
 import ClientMediator from "../../../ClientMediator";
 import useClientMediator from "../../uiComponents/hooks/useClientMediator";
-import { GiBootKick } from "react-icons/gi";
 
 export const AdminPlayersPanel = ({ state }) => {
   const [playerList, setPlayerList] = React.useState([]);
 
-  const HandleMessage = () => {
+  const HandleMessage = ({ev, data}) => {
+    if (ev === "PlayersChanged") {
+      const { all, connected } = data;
+      let connectedIds = connected.map((x) => x.id);
+      let playerList = all.map((x) => {
+        return {
+          isConnected: connectedIds.includes(x.id),
+          player: x,
+        };
+      });
+      playerList.sort((x) => x.isConnected).sort((x) => !x.isPlayer);
+      setPlayerList([...playerList]);
+    }
+  };
+
+  useClientMediator("PlayersPanel", { onEvent: HandleMessage });
+
+  React.useEffect(() => {
     ClientMediator.sendCommandWaitForRegister(
       "Game",
       "GetPlayers",
@@ -48,12 +64,6 @@ export const AdminPlayersPanel = ({ state }) => {
         setPlayerList([...playerList]);
       });
     });
-  };
-
-  useClientMediator("AdminPlayersPanel", { Reload: HandleMessage });
-
-  React.useEffect(() => {
-    HandleMessage();
   }, []);
 
   const ctx = Dockable?.useContentContext();
@@ -68,7 +78,10 @@ export const AdminPlayersPanel = ({ state }) => {
     <>
       <DList mainComponent={true}>
         {playerList.map((x) => (
-          <DListItem key={x.player.id || x.player.Id + toString(x.isConnected)} isSelected={x.isPlayer}>
+          <DListItem
+            key={x.player.id || x.player.Id + toString(x.isConnected)}
+            isSelected={x.isPlayer}
+          >
             <Circle
               width={3}
               height={3}

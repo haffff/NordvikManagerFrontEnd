@@ -1,6 +1,6 @@
 import { Box, Button, Center, Heading, Input, Stack } from "@chakra-ui/react";
 import React from "react";
-import { toaster } from '../ui/toaster';
+import { toaster } from "../ui/toaster";
 import WebHelper from "../../helpers/WebHelper";
 
 export const RegisterForm = ({ OnSuccess, code }) => {
@@ -34,34 +34,37 @@ export const RegisterForm = ({ OnSuccess, code }) => {
     setForm({ ...form, [field]: value });
   };
 
-  const onFormSubmit = () => {
+  const onFormSubmit = async () => {
     if (form.password !== form.confirmPassword) {
       setError(true);
       return;
     }
 
-    WebHelper.post(
-      "user/register",
-      form,
-      () => {
-        toaster.create({
-          title: "Account created.",
-          description: "We've created your account for you.",
-          status: "success",
-          duration: 9000,
-          isClosable: true,
-        });
-        
-        //remove "code" parameter from query string
-        window.history.replaceState({}, document.title, window.location.pathname);
-      },
-      (r) => {
-        r.json().then((data) => {
-          console.log(data.message?.split("\r\n"));
-          setErrorMessage(data.message?.split("\r\n"));
-        });
-      }
-    );
+    let response = await WebHelper.postAsync("user/register", form);
+
+    let data = await response.json();
+
+    if (response.status === 401 || response.status === 400) {
+      setErrorMessage(data.message?.split("\r\n"));
+      return;
+    }
+
+    if (response.status !== 200) {
+      setErrorMessage(["An error occurred. Please try again later."]);
+      return;
+    }
+
+    toaster.create({
+      title: "Account created.",
+      description: "We've created your account for you.",
+      type: "success",
+      duration: 9000,
+      isClosable: true,
+    });
+
+    //remove "code" parameter from query string
+    window.history.replaceState({}, document.title, window.location.pathname);
+    window.location.reload();
   };
 
   if (codeError) {
@@ -86,7 +89,9 @@ export const RegisterForm = ({ OnSuccess, code }) => {
     >
       {errorMessage && (
         <Box margin={15} as="h6" size="xs" color="red.500">
-          {errorMessage.map(x=> <div>{x}</div>)}
+          {errorMessage.map((x) => (
+            <div>{x}</div>
+          ))}
         </Box>
       )}
       <Stack spacing={4} borderColor={error ? "tomato" : "gray.200"}>

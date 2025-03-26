@@ -136,6 +136,7 @@ export const ToolsPanel = ({ battleMapId }) => {
   ];
 
   const ctx = Dockable.useContentContext();
+  ctx.setPreferredSize(300, 800);
   let name = useBMName(_battleMapId);
   ctx.setTitle(`Tools - ` + name);
 
@@ -257,8 +258,7 @@ export const ToolsPanel = ({ battleMapId }) => {
   };
 
   React.useEffect(() => {
-    if(!_battleMapId)
-    {
+    if (!_battleMapId) {
       var bmId = ClientMediator.sendCommand("Game", "GetActiveBattleMapId");
       set_battleMapId(bmId);
       return;
