@@ -1,8 +1,5 @@
 import * as React from 'react';
-import { HStack, Button, Box, Flex, Card, CardHeader, CardBody, Heading, Center, Badge, Checkbox, RadioGroup, Radio, useRadio, useRadioGroup, Stack, Switch, GridItem, Grid, Icon, IconButton } from '@chakra-ui/react'
 import * as Dockable from "@hlorenzi/react-dockable"
-import Loadable from '../../uiComponents/base/Loadable';
-import Subscribable from '../../uiComponents/base/Subscribable';
 import UtilityHelper from '../../../helpers/UtilityHelper';
 import ElementSettingsPanel from '../settings/ElementsSettingsPanel';
 import BasePanel from '../../uiComponents/base/BasePanel';

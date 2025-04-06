@@ -33,7 +33,6 @@ export const LayoutsManagerPanel = ({ state }) => {
     if (selectedLayout) {
       setSelectedLayout(selectedLayout);
     }
-
   }, []);
 
   const GenerateServerLayouts = () => {
@@ -44,6 +43,7 @@ export const LayoutsManagerPanel = ({ state }) => {
     let layouts = serverLayouts.map((x) => {
       return (
         <DListItem
+          key={x.id}
           isSelected={selectedLayout?.id && selectedLayout?.id === x?.id}
         >
           {x.name}

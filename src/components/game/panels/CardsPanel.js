@@ -46,41 +46,34 @@ export const CardsPanel = ({ state }) => {
       required: false,
       label: "Owner",
       toolTip: "Owner of card.",
-      type: "playerSelect"
-    }
+      type: "playerSelect",
+    },
   ];
 
   const panelRef = React.useRef(panels);
   panelRef.current = panels;
 
   React.useEffect(() => {
-    WebHelper.get(
-      "materials/getcards",
-      (response) => {
-        setPanels(response);
-      },
-      (error) => console.log(error)
-    );
-    let currentPlayer = ClientMediator.sendCommand(
-      "Game",
-      "GetCurrentPlayer",
-      {},
-      true
-    );
-
-    var ownerId = ClientMediator.sendCommand("Game", "GetOwner");
-
-    if (currentPlayer.id === ownerId) {
-      WebHelper.get(
-        "materials/gettemplatesfull",
-        (response) => {
-          setTemplates(response);
-        },
-        (error) => console.log(error)
+    const getData = async () => {
+      let cards = await WebHelper.getAsync("materials/getcards");
+      setPanels(cards);
+      let currentPlayer = ClientMediator.sendCommand(
+        "Game",
+        "GetCurrentPlayer",
+        {},
+        true
       );
-    }
-    setCurrentPlayer(currentPlayer);
-  }, );
+
+      var ownerId = ClientMediator.sendCommand("Game", "GetOwner");
+
+      if (currentPlayer.id === ownerId) {
+        let templates = await WebHelper.getAsync("materials/gettemplatesfull");
+        setTemplates(templates);
+      }
+      setCurrentPlayer(currentPlayer);
+    };
+    getData();
+  }, []);
 
   const ctx = Dockable.useContentContext();
   ctx.setTitle(`Cards`);
@@ -131,7 +124,7 @@ export const CardsPanel = ({ state }) => {
                     <CardSettingsPanel cardId={item.id} />
                   );
                 }}
-                />
+              />
               <DListItemButton
                 label={"Delete"}
                 icon={FaMinusCircle}

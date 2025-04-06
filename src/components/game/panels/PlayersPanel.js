@@ -18,7 +18,8 @@ export const PlayersPanel = () => {
   const panelRef = React.useRef(null);
   const { width, height } = useDimensions(panelRef);
 
-  Dockable.useContentContext();
+  const ctx = Dockable.useContentContext();
+  ctx.setTitle(`Players`);
 
   const HandleMessage = async ({all, connected}) => {
     setPlayersList([...connected] || []);

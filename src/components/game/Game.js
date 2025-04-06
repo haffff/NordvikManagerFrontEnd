@@ -326,8 +326,8 @@ export const Game = ({ gameID, onExit }) => {
           quickCommandDialogOpenRef.current();
         },
         GetCurrentPlayerColor: () => {
-          let player = players.find((x) => x.id === player.id);
-          return player ? player.color : "black";
+          let localplayer = playersRef.current.find((x) => x.id === player.id);
+          return localplayer ? localplayer.color : "rgb(0,0,0,0)";
         },
         Exit: () => {
           onExit();
@@ -344,7 +344,7 @@ export const Game = ({ gameID, onExit }) => {
 
       ClientMediator.register({ id: "Game", panel: "Game", ...gameMethods });
       //Remove stringify
-      let layout = game.defaultLayout?.value || JSON.stringify({ _contents: [] });
+      let layout = game.defaultLayout?.value;
       setLayout(game.defaultLayout);
       LayoutHelper.LoadLayoutState(
         state,

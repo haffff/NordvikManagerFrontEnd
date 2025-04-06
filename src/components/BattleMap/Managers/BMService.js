@@ -393,6 +393,8 @@ class BMService {
         canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
         canvas.freeDrawingBrush.width = 5;
         canvas.freeDrawingBrush.color = "rgba(0,0,0,1)";
+        canvas.freeDrawingBrush.fill = "rgba(0,0,0,1)";
+        canvas.freeDrawingBrush.initialize(canvas);
       }
 
       canvas.on("path:created", this._path_created);

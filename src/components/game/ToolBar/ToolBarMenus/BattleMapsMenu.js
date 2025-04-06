@@ -40,6 +40,7 @@ export const BattleMapsMenu = ({ state }) => {
 
         const loadData = async () => {
             let gameId = await ClientMediator.sendCommandWaitForRegisterAsync("Game", "GetGameId", {}, true);
+            let maps = await ClientMediator.sendCommandWaitForRegisterAsync("Game", "GetMaps", {}, true);
             setMaps(maps);
             setGameId(gameId);
         }

@@ -257,7 +257,7 @@ export const ToolsPanel = ({ battleMapId }) => {
     setAlign(mode);
   };
 
-  React.useEffect(() => {
+  const updateTools = () => {
     if (!_battleMapId) {
       var bmId = ClientMediator.sendCommand("Game", "GetActiveBattleMapId");
       set_battleMapId(bmId);
@@ -343,6 +343,13 @@ export const ToolsPanel = ({ battleMapId }) => {
         }
       },
     });
+  }
+
+  React.useEffect(() => {
+    updateTools();
+    return () => {
+      ClientMediator.unregister("ToolsPanel" + _battleMapId);
+    };
   }, [_battleMapId]);
 
   const wrapOptionDefinition = (icon, name, onClick, selected, enabled) => {
