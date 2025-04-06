@@ -16,7 +16,8 @@ import CollectionSyncer from '../../../uiComponents/base/CollectionSyncer';
 export const BattleMapsMenu = ({ state }) => {
     const [battleMaps, setBattleMaps] = React.useState(undefined);
     const [openedBattleMaps, setOpenedBattleMaps] = React.useState([]);
-    const [game, setGame] = React.useState(undefined);
+    const [maps, setMaps] = React.useState(undefined);
+    const [gameId, setGameId] = React.useState(undefined);
 
     const onCreateBmModalRef = React.useRef(null);
 
@@ -25,19 +26,26 @@ export const BattleMapsMenu = ({ state }) => {
             {
                 panel: "BattleMapsMenu",
                 id: "BattleMapsMenu",
-                onEvent: (event, data) => {
+                onEvent: async (event, data) => {
                     console.warn("BattleMapsMenu", event, data);
                     if (event === "BattleMapsChanged") {
                         let openedBattleMaps = Object.values(data);
-                        let game = ClientMediator.sendCommand("Game", "GetGame");
                         setOpenedBattleMaps(openedBattleMaps);
-                        setGame(game);
                     }
                 }
             }
         );
 
         WebHelper.get('battleMap/getBattleMaps', setBattleMaps);
+
+        const loadData = async () => {
+            let gameId = await ClientMediator.sendCommandWaitForRegisterAsync("Game", "GetGameId", {}, true);
+            let maps = await ClientMediator.sendCommandWaitForRegisterAsync("Game", "GetMaps", {}, true);
+            setMaps(maps);
+            setGameId(gameId);
+        }
+
+        loadData();
     }, []);
 
     if (!battleMaps)
@@ -53,7 +61,8 @@ export const BattleMapsMenu = ({ state }) => {
                 title={"Add new Battle Map"}
                 getConfigDict={() => [
                     { key: "name", label: "Name", toolTip: "Name of battlemap.", type: "string", required: true },
-                    { key: "map", label: "Map", toolTip: "Map to use for battlemap.", type: "select", options: game.maps.map(x => ({ value: x.id, label: x.name })), required: true }
+                    //TODO fix updating maps
+                    { key: "map", label: "Map", toolTip: "Map to use for battlemap.", type: "select", options: maps.map(x => ({ value: x.id, label: x.name })), required: true }
                 ]}
                 openRef={onCreateBmModalRef}
                 onCloseModal={({ name, map }, success) => { if (success) { AddBattleMap(name, map) } }} />
@@ -77,7 +86,7 @@ export const BattleMapsMenu = ({ state }) => {
                     element={<Battlemap withID={x.id} />} />
             )}
             <DropDownItem width={350} name={"Add new"} icon={FaPlus} onClick={() => {
-                onCreateBmModalRef.current({name: "New BattleMap", map: game.maps[0].id});
+                onCreateBmModalRef.current({name: "New BattleMap", map: maps[0].id});
             }} />
         </DropDownMenu>
     );

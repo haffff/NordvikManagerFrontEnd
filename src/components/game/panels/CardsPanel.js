@@ -9,7 +9,6 @@ import WebSocketManagerInstance from "../WebSocketManager";
 import CardPanel from "./CardPanel";
 import DTreeList from "../../uiComponents/treeList/DTreeList";
 import InputModal from "../../uiComponents/base/Modals/InputModal";
-import useGame from "../../uiComponents/hooks/useGameHook";
 import ClientMediator from "../../../ClientMediator";
 import CollectionSyncer from "../../uiComponents/base/CollectionSyncer";
 import DListItemButton from "../../uiComponents/base/List/ListItemDetails/DListItemButton";
@@ -22,7 +21,6 @@ import DTreeListItem from "../../uiComponents/base/List/DTreeListItem";
 export const CardsPanel = ({ state }) => {
   const [panels, setPanels] = React.useState([]);
   const [currentPlayer, setCurrentPlayer] = React.useState(null);
-  const game = useGame();
   const openRef = React.useRef(null);
   const [templates, setTemplates] = React.useState([]);
   const createConfig = [
@@ -48,48 +46,37 @@ export const CardsPanel = ({ state }) => {
       required: false,
       label: "Owner",
       toolTip: "Owner of card.",
-      type: "playerSelect"
-    }
+      type: "playerSelect",
+    },
   ];
 
   const panelRef = React.useRef(panels);
   panelRef.current = panels;
 
   React.useEffect(() => {
-    if (!game) {
-      return;
-    }
-    WebHelper.get(
-      "materials/getcards",
-      (response) => {
-        setPanels(response);
-      },
-      (error) => console.log(error)
-    );
-    let currentPlayer = ClientMediator.sendCommand(
-      "Game",
-      "GetCurrentPlayer",
-      {},
-      true
-    );
-    if (currentPlayer.id === game.master?.id) {
-      WebHelper.get(
-        "materials/gettemplatesfull",
-        (response) => {
-          setTemplates(response);
-        },
-        (error) => console.log(error)
+    const getData = async () => {
+      let cards = await WebHelper.getAsync("materials/getcards");
+      setPanels(cards);
+      let currentPlayer = ClientMediator.sendCommand(
+        "Game",
+        "GetCurrentPlayer",
+        {},
+        true
       );
-    }
-    setCurrentPlayer(currentPlayer);
-  }, [game]);
+
+      var ownerId = ClientMediator.sendCommand("Game", "GetOwner");
+
+      if (currentPlayer.id === ownerId) {
+        let templates = await WebHelper.getAsync("materials/gettemplatesfull");
+        setTemplates(templates);
+      }
+      setCurrentPlayer(currentPlayer);
+    };
+    getData();
+  }, []);
 
   const ctx = Dockable.useContentContext();
   ctx.setTitle(`Cards`);
-
-  if (!game) {
-    return <></>;
-  }
 
   return (
     <BasePanel>
@@ -137,7 +124,7 @@ export const CardsPanel = ({ state }) => {
                     <CardSettingsPanel cardId={item.id} />
                   );
                 }}
-                />
+              />
               <DListItemButton
                 label={"Delete"}
                 icon={FaMinusCircle}

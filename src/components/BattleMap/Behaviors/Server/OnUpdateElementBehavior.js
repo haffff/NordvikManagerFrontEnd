@@ -15,7 +15,8 @@ export class OnUpdateElementBehavior {
         obj &&
         !(
           response.battleMapId === battleMapId &&
-          response.playerId === currentPlayer.id
+          response.playerId === currentPlayer.id &&
+          obj.permission > 0
         )
       ) {
         let parsedJson = DTOConverter.ConvertFromDTO(response.data);

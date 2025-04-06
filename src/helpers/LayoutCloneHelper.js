@@ -66,11 +66,15 @@ export const LayoutHelper = {
     },
     LoadLayoutState: (state, jsonString, createElement) =>
     {
+        if(jsonString === undefined || jsonString === null)
+        {
+            return;
+        }
         let clonedObject = JSON.parse(jsonString);
         let loadedState = LayoutHelper.LoadElementsPanel(clonedObject,createElement,clonedObject._contents);
         console.warn(state.ref.current);
         state.ref.current.rootPanel = loadedState;
-        state.ref.current.idNext = clonedObject._contents.sort((x) => x.id).at(-1).contentId;
+        state.ref.current.idNext = clonedObject._contents.sort((x) => x.id).at(-1)?.contentId ?? 1;
         state.commit();
     }
 }

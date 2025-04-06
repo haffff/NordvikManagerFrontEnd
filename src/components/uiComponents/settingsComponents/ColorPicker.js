@@ -14,11 +14,11 @@ import {
 import React, { useState } from "react";
 
 export const DColorPicker = ({ initColor, onValueChange, minimal }) => {
-  const [color, setColor] = useState(initColor || "rgb(0,0,0)");
+  const [color, setColor] = useState(initColor || "rgba(0,0,0,0)");
 
   React.useEffect(() => {
     if (initColor) {
-      setColor(initColor);
+      setColor(initColor || "rgba(0,0,0,0)"); // Default to transparent if no color is provided
     }
   }, [initColor]);
 

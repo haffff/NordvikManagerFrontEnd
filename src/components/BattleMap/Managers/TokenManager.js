@@ -245,7 +245,7 @@ class TokenManager {
               )?.id;
               break;
             case "game":
-              parentId = ClientMediator.sendCommand("Game", "GetGame")?.id;
+              parentId = ClientMediator.sendCommand("Game", "GetGameId");
               break;
           }
 

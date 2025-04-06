@@ -9,10 +9,9 @@ import SecuritySettingsPanel from "./SecuritySettingsPanel";
 import BasePanel from "../../uiComponents/base/BasePanel";
 import PropertiesSettingsPanel from "./PropertiesSettingsPanel";
 import { SettingsPanelWithPropertySettings } from "./SettingsPanelWithPropertySettings";
-import useGame from "../../uiComponents/hooks/useGameHook";
 
 export const MapSettingsPanel = ({ map }) => {
-  const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
+  const [mapDto, setMapDto] = React.useState(map);
 
   const editables = [
     { key: "name", label: "Name", toolTip: "Name of map.", type: "string" },
@@ -77,17 +76,17 @@ export const MapSettingsPanel = ({ map }) => {
     //{key: "password", label:"Password:", toolTip:"Password that other players need to know to join the game.", type:"string"}
   ];
 
-  const gameData = useGame();
-
   const ctx = Dockable.useContentContext();
 
-  if (!map || !gameData) {
+  if (!map) {
     ctx.setTitle(`Map Settings - Empty`);
     return <></>;
   } else {
     ctx.setTitle(`Map Settings - ${map.name}`);
   }
 
+  ctx.setPreferredSize(600,800);
+  
   const sendSettingsUpdate = (dtoToSend) => {
     let dtoToSave = structuredClone(map);
     Object.keys(dtoToSend).forEach((key) => {
@@ -102,10 +101,12 @@ export const MapSettingsPanel = ({ map }) => {
   };
 
   const updateSettings = (event) => {
-    let gameMap = gameData.maps.filter((x) => x.id === event.data.id)[0];
-    map.name = event.data.name;
-    gameMap.name = event.data.name;
-    forceUpdate();
+    if (map.id !== event.data.id) {
+      return;
+    }
+
+    const newDto = {...mapDto, ...event.data};
+    setMapDto(newDto);
   };
 
   return (

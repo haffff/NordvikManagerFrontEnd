@@ -24,7 +24,7 @@ export const CollectionSyncer = ({
   const HandleMessage = (response) => {
     const collection = collectionRef.current;
 
-    if (response.result && !response.command.endsWith("add")) {
+    if (response.result && response.result != "Ok") {
       // error
       return;
     }

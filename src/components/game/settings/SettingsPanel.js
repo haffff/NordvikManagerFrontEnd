@@ -39,6 +39,7 @@ import { PlayerChooser } from "../../uiComponents/PlayerChooser";
 import { FaRegQuestionCircle } from "react-icons/fa";
 import { SearchInput } from "../../uiComponents/SearchInput";
 import { DColorPicker } from "../../uiComponents/settingsComponents/ColorPicker";
+import RefreshInfo from "../../uiComponents/treeList/RefreshInfoCard";
 
 export const SettingsPanel = ({
   dto,
@@ -49,6 +50,7 @@ export const SettingsPanel = ({
   saveOnLeave,
   withExport,
   showSearch,
+  normalize
 }) => {
   const [updatedDto, setUpdatedDto] = React.useState({});
   const [validationDict, setValidationDict] = React.useState({});
@@ -161,10 +163,15 @@ export const SettingsPanel = ({
       return [];
     }
 
+    if (normalize) {
+      dto = Object.fromEntries(
+        Object.entries(dto).map(([k, v]) => [k.toLowerCase(), v])
+      );
+    }
     dto = { ...dto, ...updatedDto };
 
     editableKeyLabelDict.forEach((editable) => {
-      const key = editable.key;
+      const key = editable.key.toLowerCase();
 
       //if editable name doesnt match search, skip
       if (

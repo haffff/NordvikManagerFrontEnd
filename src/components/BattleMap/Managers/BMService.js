@@ -3,6 +3,7 @@ import CommandFactory from "../Factories/CommandFactory";
 import { fabric } from "fabric";
 import DTOConverter from "../DTOConverter";
 import ClientMediator from "../../../ClientMediator";
+import { toaster } from "../../ui/toaster";
 
 class BMService {
   _clipboard = undefined;
@@ -89,10 +90,7 @@ class BMService {
   }
 
   SortLayers() {
-    this._canvas.getObjects().sort((a, b) =>
-      a.layer > b.layer || a.insideLayerIndex > b.insideLayerIndex ? 1 : -1
-    );
-    this._canvas.renderAll();
+    this._canvas.sortLayers();
   }
 
   EditGrid({ isCommand}) {
@@ -250,7 +248,7 @@ class BMService {
       canvas.editLock = true;
 
       canvas.getObjects().forEach((object) => {
-        if (object.editLayer === layer) {
+        if (object.layer === layer) {
           if (object.currentlyEdited !== undefined) {
             return;
           }
@@ -296,7 +294,10 @@ class BMService {
     var sel = new fabric.ActiveSelection(objects, {
       canvas: this._canvas,
     });
+
     this._canvas.setActiveObject(sel);
+
+    toaster.create({ title: "Copied", description: "Copied " + objects.length + " elements.", type: "success", duration: 5000 });
   }
 
   PasteElements({ coords, isCommand, x, y }) {
@@ -329,6 +330,8 @@ class BMService {
         );
         WebSocketManagerInstance.Send(cmd);
       });
+
+      toaster.create({ title: "Pasted", description: "Pasted " + this._clipboard.length + " elements.", type: "success", duration: 5000 });
     }
   }
 
@@ -390,6 +393,8 @@ class BMService {
         canvas.freeDrawingBrush = new fabric.PencilBrush(canvas);
         canvas.freeDrawingBrush.width = 5;
         canvas.freeDrawingBrush.color = "rgba(0,0,0,1)";
+        canvas.freeDrawingBrush.fill = "rgba(0,0,0,1)";
+        canvas.freeDrawingBrush.initialize(canvas);
       }
 
       canvas.on("path:created", this._path_created);

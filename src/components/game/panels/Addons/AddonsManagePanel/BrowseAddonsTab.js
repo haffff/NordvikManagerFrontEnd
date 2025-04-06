@@ -1,6 +1,4 @@
-import {
-  Box,
-} from "@chakra-ui/react";
+import { Box, Flex } from "@chakra-ui/react";
 import DListItem from "../../../../uiComponents/base/List/DListItem";
 import React from "react";
 import WebHelper from "../../../../../helpers/WebHelper";
@@ -10,8 +8,10 @@ import DLabel from "../../../../uiComponents/base/Text/DLabel";
 import { DUIBox } from "../../../../uiComponents/base/List/DUIBox";
 import DListItemButton from "../../../../uiComponents/base/List/ListItemDetails/DListItemButton";
 import DListItemsButtonContainer from "../../../../uiComponents/base/List/DListItemsButtonContainer";
-import { FaArrowUp, FaCheck, FaDownload } from "react-icons/fa";
-import {toaster} from "../../../../ui/toaster"
+import { FaArrowUp, FaCheck, FaDownload, FaLink } from "react-icons/fa";
+import { toaster } from "../../../../ui/toaster";
+import DockableHelper from "../../../../../helpers/DockableHelper";
+import ClientMediator from "../../../../../ClientMediator";
 
 export const BrowseAddonsTab = ({ toDownload, addons, handleReload }) => {
   const [installing, setInstalling] = React.useState(false);
@@ -24,16 +24,27 @@ export const BrowseAddonsTab = ({ toDownload, addons, handleReload }) => {
     if (result.ok) {
       toaster.create({
         title: "Addon installed",
-        status: "success",
+        type: "success",
         duration: 9000,
         isClosable: true,
       });
     } else {
       toaster.create({
         title: "Addon installation failed",
-        status: "error",
+        type: "error",
         duration: 9000,
         isClosable: true,
+      });
+
+      let json = await result.json();
+      console.log(result);
+      ClientMediator.sendCommand("Game", "CreateNewPanel", {
+        type: "LookupPanel",
+        props: {
+          name: "Addon install failed",
+          content: json,
+          contentType: "object",
+        },
       });
     }
     handleReload();
@@ -52,12 +63,23 @@ export const BrowseAddonsTab = ({ toDownload, addons, handleReload }) => {
                 isInstalled && installedAddon.version !== addon.version;
 
               return (
-                <DListItem key={addon.id}>
-                  <Box height={100}>
-                    {addon.name}
-                    {addon.description}
-                  </Box>
-                  <DListItemsButtonContainer>
+                <DListItem key={addon.id} padding={'10px'}>
+                  <Flex flex={"1"} gap={'10px'} direction={'column'} flexGrow={1}>
+                    <Box>
+                      {addon.name}
+                    </Box>
+                    <Box>
+                      Description: {addon.description}
+                    </Box>
+                    <Box>
+                      Author: {addon.author}
+                    </Box>
+                    <Box>
+                      <a target="_blank"  href={addon.repositoryUrl}><Flex alignItems={'center'} gap='5px' direction={'row'}><FaLink /> Link</Flex></a>
+                    </Box>
+
+                  </Flex>
+                  <Flex gap={'15px'} direction={'row-reverse'} alignItems={'center'}>
                     {!isInstalled && (
                       <DListItemButton
                         onClick={() => {
@@ -85,7 +107,7 @@ export const BrowseAddonsTab = ({ toDownload, addons, handleReload }) => {
                       {hasVersionSepcified && isUpdate && <FaArrowUp />}
                       {addon.version}
                     </Box>
-                  </DListItemsButtonContainer>
+                  </Flex>
                 </DListItem>
               );
             })

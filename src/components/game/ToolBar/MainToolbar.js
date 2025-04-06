@@ -22,18 +22,15 @@ export const MainToolbar = ({
   Dockable,
   state,
   battlemapsRef,
-  gameDataManagerRef,
-  keyboardEventsManagerRef,
   gameMethods,
   forceRefreshGame,
 }) => {
-  let gameDataManager = gameDataManagerRef.current;
-
   const GenerateInviteLink = () => {
+    let game = ClientMediator.sendCommand("Game", "GetGame", {});
     let url =
-      `${window.location.origin}?iid=${gameDataManager.Game.id}` +
-      (gameDataManager.Game.requirePassword
-        ? `&rp=${gameDataManager.Game.requirePassword}`
+      `${window.location.origin}?iid=${game.id}` +
+      (game.requirePassword
+        ? `&rp=${game.requirePassword}`
         : "");
     if (navigator && navigator.clipboard) {
       navigator.clipboard.writeText(url);
@@ -42,10 +39,6 @@ export const MainToolbar = ({
     }
     toaster.create(UtilityHelper.GenerateCopiedToast());
   };
-
-  if (!gameDataManagerRef) {
-    return <>LOADING...</>;
-  }
 
   return (
     <ToolBar>
@@ -73,22 +66,19 @@ export const MainToolbar = ({
       <ViewsMenu
         gameMethods={gameMethods}
         state={state}
-        gameDataManagerRef={gameDataManagerRef}
         battlemapsRef={battlemapsRef}
         onDropDown={forceRefreshGame}
       />
       <SettingsMenu
-        gameDataManagerRef={gameDataManagerRef}
         battlemapsRef={battlemapsRef}
         state={state}
       />
       <LayoutsMenu
         gameMethods={gameMethods}
-        gameDataManagerRef={gameDataManagerRef}
         state={state}
         battlemapsRef={battlemapsRef}
       />
-      <AddonsMenu gameDataManagerRef={gameDataManagerRef} state={state} />
+      <AddonsMenu state={state} />
       <DropDownMenu viewId={"experimental"} name={"Experimental"} width={100}>
         <DropDownItem
           width={150}

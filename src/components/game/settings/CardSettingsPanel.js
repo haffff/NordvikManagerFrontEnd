@@ -11,7 +11,6 @@ import BasePanel from "../../uiComponents/base/BasePanel";
 import EditTable from "./EditTable";
 import { SettingsPanelWithPropertySettings } from "./SettingsPanelWithPropertySettings";
 import WebHelper from "../../../helpers/WebHelper";
-import useGame from "../../uiComponents/hooks/useGameHook";
 
 export const CardSettingsPanel = ({ cardId }) => {
   const [dto, setDto] = React.useState(undefined);
@@ -70,10 +69,9 @@ export const CardSettingsPanel = ({ cardId }) => {
     },
   ];
 
-  const game = useGame();
   const ctx = Dockable.useContentContext();
   React.useEffect(() => {
-    if (cardId === undefined || !game) {
+    if (cardId === undefined) {
       return;
     }
     WebHelper.get(
@@ -84,7 +82,7 @@ export const CardSettingsPanel = ({ cardId }) => {
       },
       (error) => console.log(error)
     );
-  }, [cardId, game]);
+  }, [cardId]);
 
   if (dto === undefined) {
     return <></>;
@@ -101,26 +99,26 @@ export const CardSettingsPanel = ({ cardId }) => {
   };
 
   const updateSettings = (event) => {
-    game.name = event.data.name;
   };
 
   return (
     <BasePanel>
-      <Tabs marginTop={3} size="md" variant="enclosed">
+      <Tabs.Root defaultValue={"settings"} marginTop={3} size="md" variant="enclosed">
         <Tabs.List>
-          <Tabs.Trigger>General</Tabs.Trigger>
-          <Tabs.Trigger>Token Settings</Tabs.Trigger>
-          <Tabs.Trigger>Permissions</Tabs.Trigger>
-          <Tabs.Trigger>Properties</Tabs.Trigger>
+          <Tabs.Trigger value="settings">General</Tabs.Trigger>
+          <Tabs.Trigger value="token">Token Settings</Tabs.Trigger>
+          <Tabs.Trigger value="perms">Permissions</Tabs.Trigger>
+          <Tabs.Trigger value="props">Properties</Tabs.Trigger>
         </Tabs.List>
-        <Tabs.Content>
+        <Tabs.Content value="settings">
           <SettingsPanelWithPropertySettings
             dto={dto}
             entityName={"CardModel"}
             editableKeyLabelDict={generalSettings}
+            onSave={sendSettingsUpdate}
           />
         </Tabs.Content>
-        <Tabs.Content>
+        <Tabs.Content value="token">
           <SettingsPanelWithPropertySettings
             key={dto.id}
             dto={dto}
@@ -128,13 +126,13 @@ export const CardSettingsPanel = ({ cardId }) => {
             editableKeyLabelDict={tokenEditables}
           />
         </Tabs.Content>
-        <Tabs.Content>
+        <Tabs.Content value="perms">
           <SecuritySettingsPanel dto={dto} type="CardModel" />
         </Tabs.Content>
-        <Tabs.Content>
+        <Tabs.Content value="props">
           <PropertiesSettingsPanel dto={dto} type="CardModel" />
         </Tabs.Content>
-      </Tabs>
+      </Tabs.Root>
 
       <Subscribable
         commandPrefix={"settings_card"}

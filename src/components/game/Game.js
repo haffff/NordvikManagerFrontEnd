@@ -20,20 +20,35 @@ import ScriptAPI from "../../ScriptAPI";
 import ClientScript from "../uiComponents/ClientScript";
 import { NewWindow } from "./WindowsHandler";
 import { LoadingScreen } from "../uiComponents/LoadingScreen";
-import { toaster } from '../ui/toaster';
+import { toaster } from "../ui/toaster";
 
 export const Game = ({ gameID, onExit }) => {
   // States
   const [layout, setLayout] = React.useState(undefined);
+
   const [battleMapContexts, setBattleMapContexts] = React.useState({});
+
   const [portaledPanels, setPortaledPanels] = React.useState([]);
+
   const battleMapsContextsRef = React.useRef({});
   const quickCommandDialogOpenRef = React.useRef(null);
   const gameContainerRef = React.useRef(null);
 
-  const [selectedBattleMapId, setSelectedBattleMapId] = React.useState(undefined);
+  const [selectedBattleMapId, setSelectedBattleMapId] =
+    React.useState(undefined);
 
   const [clientScripts, setClientScripts] = React.useState([]);
+
+  const [players, setPlayers] = React.useState([]);
+  const [connectedPlayers, setConnectedPlayers] = React.useState([]);
+  const [gameId, setGameId] = React.useState(gameID);
+  const [currentPlayerId, setCurrentPlayerId] = React.useState(undefined);
+
+  // References to all states above
+  const playersRef = React.useRef(players);
+  playersRef.current = players;
+  const connectedPlayersRef = React.useRef(connectedPlayers);
+  connectedPlayersRef.current = connectedPlayers;
 
   battleMapsContextsRef.current = battleMapContexts;
   //This is refresh after some time
@@ -88,26 +103,24 @@ export const Game = ({ gameID, onExit }) => {
     return createdElement;
   };
 
-  const SetLayoutAndApply = (layout) => {
+  const SetLayoutAndApply = async (id) => {
+    let layout = await WebHelper.getAsync(`battlemap/GetLayout?id=${id}`);
+
     state.ref.current.rootPanel = undefined;
     LayoutHelper.LoadLayoutState(state, layout.value, CreateLayoutElement);
     setLayout(layout);
   };
 
   const HandleShowLayout = (resp) => {
-    WebHelper.get(`battlemap/GetLayout?id=${resp.data}`, SetLayoutAndApply);
+    SetLayoutAndApply(resp.data);
   };
 
   const HandleSettingsChange = (resp) => {
     if (resp.command === "settings_player") {
-      let player = gameDataManagerRef.current.Game.players.find(
-        (x) => x.id === resp.data.id
-      );
-      if (player) {
-        player.name = resp.data.name;
-        player.color = resp.data.color;
-        player.image = resp.data.image;
-        forceUpdate();
+      let playerIndex = players.findIndex((x) => x.id === resp.data.id);
+      if (playerIndex > -1) {
+        players[playerIndex] = { ...players[playerIndex], ...resp.data };
+        setPlayers([...players]);
       }
     }
   };
@@ -144,42 +157,29 @@ export const Game = ({ gameID, onExit }) => {
   };
 
   const HandlePlayers = (resp) => {
+    let connectedPlayers = connectedPlayersRef.current;
+    let players = playersRef.current;
     switch (resp.command) {
       case "player_list":
-        gameDataManagerRef.current.ConnectedPlayers = resp.data;
+        setConnectedPlayers(resp.data);
         break;
       case "player_join":
-        if (
-          !gameDataManagerRef.current.ConnectedPlayers.find(
-            (x) => x.id === resp.data.id
-          )
-        ) {
-          gameDataManagerRef.current.ConnectedPlayers.push(resp.data);
-        }
-        if (
-          !gameDataManagerRef.current.Game.players.find(
-            (x) => x.id === resp.data.id
-          )
-        ) {
-          gameDataManagerRef.current.Game.players.push(resp.data);
+        if (!connectedPlayers.find((x) => x.id === resp.data.id)) {
+          connectedPlayers = [...connectedPlayers, resp.data];
+          setConnectedPlayers(connectedPlayers);
         }
         break;
       case "player_leave":
-        gameDataManagerRef.current.ConnectedPlayers =
-          gameDataManagerRef.current.ConnectedPlayers.filter(
-            (x) => x.id !== resp.data.id
-          );
+        connectedPlayers = connectedPlayers.filter((x) => x.id !== resp.data.id);
+        setConnectedPlayers(connectedPlayers);
         break;
       case "player_kick":
-        gameDataManagerRef.current.ConnectedPlayers =
-          gameDataManagerRef.current.ConnectedPlayers.filter(
-            (x) => x.id !== resp.data
-          );
-        gameDataManagerRef.current.Game.players =
-          gameDataManagerRef.current.Game.players.filter(
-            (x) => x.id !== resp.data
-          );
-        if (gameDataManagerRef.current.CurrentPlayerId === resp.data) {
+        connectedPlayers = connectedPlayers.filter((x) => x.id !== resp.data);
+        players = playersRef.current.filter((x) => x.id !== resp.data);
+        setConnectedPlayers(connectedPlayers);
+        setPlayers(players);
+
+        if (currentPlayerId === resp.data) {
           onExit();
         }
         break;
@@ -187,7 +187,7 @@ export const Game = ({ gameID, onExit }) => {
         break;
     }
 
-    ClientMediator.fireEvent("PlayersChanged", {});
+    ClientMediator.fireEvent("PlayersChanged", { connected: connectedPlayers, all: players });
   };
 
   const HandleShowBattleMap = (resp) => {
@@ -239,21 +239,22 @@ export const Game = ({ gameID, onExit }) => {
     if (!WebSocketManagerInstance.WebSocketStarted) {
       return;
     }
-    
+
     const loadGame = async () => {
       //WebSocketManagerInstance.ClearSubscription();
 
       let player = await WebHelper.getAsync(`battlemap/getplayer`);
-      gameDataManagerRef.current.CurrentPlayerId = player.id;
+      setCurrentPlayerId(player.id);
 
       //Load everything when we have full game only
       let game = await WebHelper.getAsync(`battlemap/getfullgame`);
 
-      localStorage.setItem("gmMode", game.master.id === player.id ? "true" : "false");
+      localStorage.setItem(
+        "gmMode",
+        game.master.id === player.id ? "true" : "false"
+      );
 
-      //Assign data to GameDataManagerInstance. its used in all panels.
-      gameDataManagerRef.current.Load(game);
-      gameDataManagerRef.current.ContainerRef = gameContainerRef;
+      setPlayers(game.players);
 
       const gameMethods = {
         SetLayout: SetLayoutAndApply,
@@ -273,17 +274,18 @@ export const Game = ({ gameID, onExit }) => {
           ClientMediator.fireEvent("BattleMapsChanged", newBmContexts);
         },
         GetOpenedBattleMaps: () => Object.values(battleMapsContextsRef.current),
-        GetMaps: () => gameDataManagerRef.current.Game.maps,
-        GetPlayers: () => gameDataManagerRef.current.Game.players,
-        GetConnectedPlayers: () =>
-          gameDataManagerRef.current.GetConnectedPlayers(),
-        GetCurrentPlayer: () => gameDataManagerRef.current.CurrentPlayer(),
-        GetGame: () => gameDataManagerRef.current.Game,
-        GetContainerRef: () => gameDataManagerRef.current.ContainerRef,
+        GetMaps: async () => await WebHelper.getAsync("map/GetAllFlat"),
+        GetPlayers: () => playersRef.current,
+        GetConnectedPlayers: () => connectedPlayersRef.current,
+        GetCurrentPlayer: () => playersRef.current.find((x) => x.id === player.id),
+        GetOwner: () => game.master.id,
+        GetGame: () => game,
+        //Find where we need it
+        GetGameId: () => gameId,
+        GetContainerRef: () => gameContainerRef,
         GetLayout: () => layout,
         GetActiveBattleMapId: () => {
-          if(selectedBattleMapId === undefined)
-          {
+          if (selectedBattleMapId === undefined) {
             let first = Object.values(battleMapsContextsRef.current)[0]?.Id;
             setSelectedBattleMapId(first);
             return first;
@@ -324,32 +326,35 @@ export const Game = ({ gameID, onExit }) => {
           quickCommandDialogOpenRef.current();
         },
         GetCurrentPlayerColor: () => {
-          let player = gameDataManagerRef.current.CurrentPlayer();
-          return player ? player.color : "black";
+          let localplayer = playersRef.current.find((x) => x.id === player.id);
+          return localplayer ? localplayer.color : "rgb(0,0,0,0)";
         },
         Exit: () => {
           onExit();
         },
         onEvent: (eventName, data) => {
-          if(eventName === "ActivePanelChanged" && data.panel === "BattleMap")
-          {
+          if (
+            eventName === "ActivePanelChanged" &&
+            data.panel === "BattleMap"
+          ) {
             setSelectedBattleMapId(data.contextId);
           }
-        }
+        },
       };
 
       ClientMediator.register({ id: "Game", panel: "Game", ...gameMethods });
-
-      setLayout(gameDataManagerRef.current.Game.defaultLayout);
+      //Remove stringify
+      let layout = game.defaultLayout?.value;
+      setLayout(game.defaultLayout);
       LayoutHelper.LoadLayoutState(
         state,
-        gameDataManagerRef.current.Game.defaultLayout.value,
+        layout,
         CreateLayoutElement
       );
 
       ClientMediator.fireEvent(
         "BattleMapsChanged",
-        gameDataManagerRef.current.Game.battleMaps
+        game.battleMaps
       );
 
       ClientMediator.register(PropertiesHelperInstance);

@@ -22,9 +22,9 @@ import { FaSearch } from "react-icons/fa";
 import DLabel from "../../uiComponents/base/Text/DLabel";
 import DContainer from "../../uiComponents/base/Containers/DContainer";
 import DropDownButton from "../../uiComponents/base/DDItems/DropDrownButton";
-import useGame from "../../uiComponents/hooks/useGameHook";
 import CommandExecutionHelper from "../../../helpers/CommandExecutionHelper";
 import { LoadingScreen } from "../../uiComponents/LoadingScreen";
+import ClientMediator from "../../../ClientMediator";
 
 export const ChatPanel = () => {
   const [items, setItems] = React.useState([]);
@@ -35,20 +35,16 @@ export const ChatPanel = () => {
   const [reloadChat, setReloadChat] = React.useState(false);
   const [loadedPages, setLoadedPages] = React.useState(0);
 
+  const [players, setPlayers] = React.useState([]);
+  const [currentPlayerId, setCurrentPlayerId] = React.useState(undefined);
+
   const [filter, setFilter] = React.useState(undefined);
   const [from, setFrom] = React.useState(undefined);
   const [searchOptions, setSearchOptions] = React.useState(false);
-  //const [, forceUpdate] = React.useReducer(x => x + 1, 0);
   const reloadRef = React.useRef(undefined);
-
-  const game = useGame();
 
   const ctx = Dockable?.useContentContext();
   ctx?.setTitle(`Chat`);
-
-  if (game === undefined) {
-    return <></>;
-  }
 
   if (newItem !== undefined) {
     setItems([newItem, ...items]);
@@ -59,14 +55,7 @@ export const ChatPanel = () => {
     setNewItem(event);
   };
 
-  // const OnPlayer = (event) => {
-  //     if (event.command === "player_join")
-  //         setNewItem({ data: `${event.data.Name} has joined the game` });
-  //     if (event.command === "player_leave")
-  //         setNewItem({ data: `${event.data.Name} has left the game` });
-  // }
-
-  const Load = (finished) => {
+  const Load = async (finished) => {
     WebHelper.get(
       `battlemap/getchat`,
       (x) => {
@@ -75,6 +64,12 @@ export const ChatPanel = () => {
       },
       finished
     );
+
+    let players = ClientMediator.sendCommand("Game", "GetPlayers", {});
+    setPlayers(players);
+
+    let currentPlayer = ClientMediator.sendCommand("Game", "GetCurrentPlayer", {});
+    setCurrentPlayerId(currentPlayer.id);
   };
 
   const HandleSend = () => {
@@ -128,7 +123,7 @@ export const ChatPanel = () => {
   };
 
   if (reloadChat) {
-    let args = `gameID=${game.id}`;
+    let args = `temporary=true`;
 
     if (filter) {
       args += `&filter=${filter}`;
@@ -189,7 +184,7 @@ export const ChatPanel = () => {
     if (message !== undefined) {
       elementsList = ParseMessage(message);
     }
-    let player = game.players.find((y) => x.playerId == y.id); //.name;
+    let player = players.find((y) => x.playerId == y.id); //.name;
 
     let showLabel = x.playerId !== nextX?.playerId;
 
@@ -198,7 +193,7 @@ export const ChatPanel = () => {
       <>
         <DListItem
           isSelected={
-            player !== undefined && player.id === game.CurrentPlayerId
+            player !== undefined && player.id === currentPlayerId
           }
         >
           {elementsList}
@@ -222,11 +217,11 @@ export const ChatPanel = () => {
   };
 
   const OnPlayerSettings = (event) => {
-    let player = game.players.find((x) => x.id === event.data.id);
+    let player = players.find((x) => x.id === event.data.id);
     if (player) {
-      player.name = event.data.name;
-      player.color = event.data.color;
-      player.image = event.data.image;
+      player.name = event.data.name || player.name;
+      player.color = event.data.color || player.color;
+      player.image = event.data.image || player.image;
     }
   };
 

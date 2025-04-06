@@ -89,12 +89,12 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
   };
 
   const SwitchLayer = (layer) => {
-    var dto = DTOConverter.ConvertToDTO(selectedObjects[0]);
+    var dto = DTOConverter.ConvertToDTOMinified(selectedObjects[0], []);
     dto.layer = layer;
     dto.insideLayerIndex = 0;
     WebSocketManagerInstance.Send({
       command: "element_update",
-      data: DTOConverter.ConvertToDTO(dto),
+      data: dto,
       action: "layer",
     });
   };

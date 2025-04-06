@@ -211,9 +211,9 @@ export const ElementSettingsPanel = ({ dto, battlemapId }) => {
   ];
 
   const JsonProperties = () => {
-    let keys = Object.keys(dto);
-    let filtered = allEditables.filter((x) => keys.includes(x.key));
-    return filtered;
+    //let keys = Object.keys(dto);
+    //let filtered = allEditables.filter((x) => keys.includes(x.key));
+    return allEditables;
   };
 
   const sendSettingsUpdate = (dtoToSend) => {
@@ -260,8 +260,9 @@ export const ElementSettingsPanel = ({ dto, battlemapId }) => {
           <PropertiesSettingsPanel dto={dto} type="ElementModel" />
         </Tabs.Content>
         <Tabs.Content value="direct">
-          <Flex justifyContent={'stretch'} align={'stretch'} justifySelf={'stretch'} flexDir="column" flex={1} grow={1}>
             <Textarea
+              justifyContent={'stretch'}
+              alignItems={'stretch'}
               flexGrow={1}
               flex={1}
               value={directJson}
@@ -277,7 +278,6 @@ export const ElementSettingsPanel = ({ dto, battlemapId }) => {
                 }}
               />
             </DButtonHorizontalContainer>
-          </Flex>
         </Tabs.Content>
       </Tabs.Root>
     </Subscribable>

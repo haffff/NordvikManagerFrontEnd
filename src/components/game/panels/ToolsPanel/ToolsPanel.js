@@ -136,6 +136,7 @@ export const ToolsPanel = ({ battleMapId }) => {
   ];
 
   const ctx = Dockable.useContentContext();
+  ctx.setPreferredSize(300, 800);
   let name = useBMName(_battleMapId);
   ctx.setTitle(`Tools - ` + name);
 
@@ -256,9 +257,8 @@ export const ToolsPanel = ({ battleMapId }) => {
     setAlign(mode);
   };
 
-  React.useEffect(() => {
-    if(!_battleMapId)
-    {
+  const updateTools = () => {
+    if (!_battleMapId) {
       var bmId = ClientMediator.sendCommand("Game", "GetActiveBattleMapId");
       set_battleMapId(bmId);
       return;
@@ -343,6 +343,13 @@ export const ToolsPanel = ({ battleMapId }) => {
         }
       },
     });
+  }
+
+  React.useEffect(() => {
+    updateTools();
+    return () => {
+      ClientMediator.unregister("ToolsPanel" + _battleMapId);
+    };
   }, [_battleMapId]);
 
   const wrapOptionDefinition = (icon, name, onClick, selected, enabled) => {

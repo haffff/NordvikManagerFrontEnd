@@ -1,13 +1,10 @@
 import * as React from "react";
 import * as Dockable from "@hlorenzi/react-dockable";
-import { Box, Tab, TabList, TabPanel, TabPanels, Tabs } from "@chakra-ui/react";
-import useGame from "../../uiComponents/hooks/useGameHook";
 import useUUID from "../../uiComponents/hooks/useUUID";
 import BasePanel from "../../uiComponents/base/BasePanel";
 import WebHelper from "../../../helpers/WebHelper";
 
 export const CardPanel = ({ id, name }) => {
-  const game = useGame();
   const divId = useUUID();
   const [loaded, setLoaded] = React.useState(false);
 
@@ -21,68 +18,65 @@ export const CardPanel = ({ id, name }) => {
 
     const script = document.createElement("script");
     const additionalFiles = [];
+    const load = async () => {
+      let response = await WebHelper.getAsync("materials/getcard?id=" + id);
 
-    WebHelper.get(
-      "materials/getcard?id=" + id,
-      (response) => {
-        script.src = WebHelper.ImageAddress + response.mainResource;
-        script.id = "cardScript_" + divId;
-        script.async = true;
-        script.divId = divId;
-        script.cardId = id;
-        script.type = "text/javascript";
-        script.setAttribute("divId", divId);
-        script.setAttribute("cardId", id);
+      script.src = WebHelper.getResourceString(response.mainResource);
+      script.id = "cardScript_" + divId;
+      script.async = true;
+      script.divId = divId;
+      script.cardId = id;
+      script.type = "text/javascript";
+      script.setAttribute("divId", divId);
+      script.setAttribute("cardId", id);
 
-        // Get property with additional arguments and add them as attributes
-        WebHelper.get(
-          "properties/QueryProperties?parentIds=" +
-            id +
-            "&names=additionalArguments",
-          (properties) => {
-            const additionalDocumentsProperty = properties[0];
-            if (additionalDocumentsProperty) {
-              script.setAttribute(
-                "additionalArguments",
-                additionalDocumentsProperty.value
-              );
-            }
+      // Get property with additional arguments and add them as attributes
+      let properties = WebHelper.getAsync(
+        "properties/QueryProperties?parentIds=" +
+          id +
+          "&names=additionalArguments"
+      );
 
-            document.body.appendChild(script);
-
-            response.additionalResources.forEach((additionalResource) => {
-              WebHelper.get(
-                "materials/ResourceMetadata?id=" + additionalResource,
-                (meta) => {
-                  if (meta.mimeType === "application/javascript") {
-                    const additionalScript = document.createElement("script");
-                    additionalScript.src =
-                      WebHelper.ImageAddress + additionalResource;
-                    additionalScript.async = true;
-                    additionalScript.mainDivId = divId;
-                    additionalScript.cardId = id;
-                    document.body.appendChild(additionalScript);
-                    additionalFiles.push(additionalScript);
-                  }
-
-                  if (meta.mimeType === "text/css") {
-                    const link = document.createElement("link");
-                    link.rel = "stylesheet";
-                    link.href = WebHelper.ImageAddress + additionalResource;
-                    document.head.appendChild(link);
-                    additionalFiles.push(link);
-                  }
-
-                  //Is there anything more needed?
-                }
-              );
-              setLoaded(true);
-            });
-          }
+      const additionalDocumentsProperty = properties[0];
+      if (additionalDocumentsProperty) {
+        script.setAttribute(
+          "additionalArguments",
+          additionalDocumentsProperty.value
         );
-      },
-      (error) => console.log(error)
-    );
+      }
+
+      document.body.appendChild(script);
+
+      await Promise.all(
+        response.additionalResources.map(async (additionalResource) => {
+          let meta = await WebHelper.getAsync("materials/ResourceMetadata?id=" + additionalResource);
+          if (meta.mimeType === "application/javascript") {
+            const additionalScript = document.createElement("script");
+            additionalScript.src = WebHelper.getResourceString(additionalResource);
+            additionalScript.async = true;
+            additionalScript.mainDivId = divId;
+            additionalScript.cardId = id;
+            document.body.appendChild(additionalScript);
+            additionalFiles.push(additionalScript);
+          }
+
+          if (meta.mimeType === "text/css") {
+            const link = document.createElement("link");
+            link.rel = "stylesheet";
+            link.href = WebHelper.getResourceString(additionalResource);
+            document.head.appendChild(link);
+            additionalFiles.push(link);
+          }
+
+          //Is there anything more needed?
+          return true;
+        })
+      );
+
+      setLoaded(true);
+    };
+
+    load();
 
     return () => {
       document.body.removeChild(script);

@@ -18,29 +18,28 @@ export const PlayersPanel = () => {
   const panelRef = React.useRef(null);
   const { width, height } = useDimensions(panelRef);
 
-  Dockable.useContentContext();
+  const ctx = Dockable.useContentContext();
+  ctx.setTitle(`Players`);
 
-  const HandleMessage = () => {
-    ClientMediator.sendCommandWaitForRegister(
-      "Game",
-      "GetConnectedPlayers",
-      {},
-      true
-    ).then((players) => {
-      setPlayersList([...players] || []);
-    });
+  const HandleMessage = async ({all, connected}) => {
+    setPlayersList([...connected] || []);
   };
 
   const HandleEvent = (ev, data) => {
     if (ev === "PlayersChanged") {
-      HandleMessage();
+      HandleMessage(data);
     }
   };
 
   useClientMediator("PlayersPanel", { onEvent: HandleEvent });
 
   React.useEffect(() => {
-    HandleMessage();
+    const GetData = async () => {
+      const connectedPlayers = await ClientMediator.sendCommandWaitForRegisterAsync("Game","GetConnectedPlayers",{}, true);
+      setPlayersList([...connectedPlayers] || []);
+    };
+
+    GetData();
   }, []);
 
   const smallerThan200 = width < 200;
