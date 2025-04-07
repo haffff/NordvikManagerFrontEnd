@@ -30,9 +30,11 @@ As mentioned before Frontend is build around React Dockable. One tab in dockable
 ClientMediator has 3 types of methods. 
 - First type contains of Send, SendAsync, SendAndWaitForRegister, and SendAndWaitForRegisterAsync.
 - Second type are Register and Unregister methods. In additon there are hooks related to that is [useClientMediator](src/components/uiComponents/hooks/useClientMediator.js) hook.
-Register method registers provided object with commands to commands index. Requirement for that object is to contain 2 fields: Panel and Id. In addition optional method
+Register method registers provided object with commands to commands index. Requirement for that object is to contain 2 fields: Panel and Id. In addition optional method onEvent that triggers on any event broadcasted.
 
+### WebSocketManager and wrappers
 
+WebSocketManager (WebSocketManagerInstance) contains two major wrappers heavily used in panels. First one is [Subscribable] Component. Second is [CollectionSyncer]. Those components are responsible for watching over websocket commands coming from Backend.
 
 ### Code Splitting
 
