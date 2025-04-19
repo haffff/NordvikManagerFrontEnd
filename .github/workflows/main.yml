@@ -18,10 +18,8 @@ jobs:
       - name: create env file
         run: |
           touch .env
-          echo REACT_APP_API_URL=${{ vars.API_URL }} >> .env
-          echo REACT_APP_WS_URL=${{ vars.WS_URL }} >> .env
-          echo REACT_APP_CARD_URL=${{ vars.CARD_URL }} >> .env
-          echo REACT_APP_IMAGE_URL=${{ vars.IMAGE_URL }} >> .env
+          echo REACT_APP_BASE_URL=${{ secrets.API_URL }} >> .env
+          echo REACT_APP_PROTOCOL=${{ secrets.API_PROTOCOL }} >> .env
       - name: Install dependencies
         run: npm ci --legacy-peer-deps
       - run: npm run buildci --if-present
