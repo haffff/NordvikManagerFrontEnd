@@ -85,7 +85,7 @@ export const UserManagementDialog = ({ OnSuccess, openRef }) => {
 
   const CopyCode = (invite, url = true) => {
     const textToCopy = url
-      ? (process.env.REACT_APP_BASE_URL + "?code=" || "") + invite.key
+      ? (window.location + "?code=" || "") + invite.key
       : invite.key;
     if (navigator.clipboard) {
       navigator.clipboard.writeText(textToCopy);
