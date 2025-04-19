@@ -10,11 +10,9 @@ In the project directory, you can run standard react commands. Altough to run it
 
 ### Env variables
 
-- API_URL = Url to backend api you want to use (Mind the CORS!) usually its endpoint like "https://YourUrl/api"
-
-- IMAGE_URL = Endpoint for getting resources (it will be deleted in upcoming changes). Url should look like this: "https://YourUrl/api/Materials/Resource?id="
-- WS_URL = Endpoint for websocket communication (it will be deleted in upcoming changes). Url should look like this: "wss://YourUrl/api/battlemap/ws"
-
+- REACT_APP_BASE_URL = Url to backend you want to use (Mind the CORS!). Leave empty if running with backend build.
+- REACT_APP_PROTOCOL = "http://" or "https://" leave empty for backend build.
+  
 ### Start of development server
 
 Just start with `npm install --legacy-peer-deps` and then `npm start`
