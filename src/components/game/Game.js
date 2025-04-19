@@ -419,6 +419,7 @@ export const Game = ({ gameID, onExit }) => {
         <Dockable.Container state={state} />
       </Flex>
       <QuickCommandDialog state={state} openRef={quickCommandDialogOpenRef} />
+      
       {portaledPanels}
       {clientScripts.map((x) => x.value)}
     </div>

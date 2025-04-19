@@ -56,15 +56,9 @@ export const ChatPanel = () => {
   };
 
   const Load = async (finished) => {
-    WebHelper.get(
-      `battlemap/getchat`,
-      (x) => {
-        setItems(x);
-        finished();
-      },
-      finished
-    );
-
+    let items = await WebHelper.getAsync(`battlemap/getchat`);
+    setItems(items);
+    
     let players = ClientMediator.sendCommand("Game", "GetPlayers", {});
     setPlayers(players);
 
@@ -225,8 +219,12 @@ export const ChatPanel = () => {
     }
   };
 
+  React.useEffect(() => {
+    Load();
+  }, []);
+
   return (
-    <Loadable OnLoad={Load}>
+    <>
       <Subscribable
         commandPrefix="settings_player"
         onMessage={OnPlayerSettings}
@@ -313,7 +311,7 @@ export const ChatPanel = () => {
           <DropDownButton name={"Send"} onClick={HandleSend} height={75} />
         </Flex>
       </BasePanel>
-    </Loadable>
+    </>
   );
 };
 export default ChatPanel;
