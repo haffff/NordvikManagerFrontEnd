@@ -7,11 +7,7 @@ import {
   Text,
   Heading,
   List,
-  HStack,
 } from "@chakra-ui/react";
-import WebHelper from "../../helpers/WebHelper";
-import { FaLink } from "react-icons/fa";
-import DContainer from "../uiComponents/base/Containers/DContainer";
 import {
   DialogBackdrop,
   DialogBody,

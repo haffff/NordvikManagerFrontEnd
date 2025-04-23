@@ -12,12 +12,13 @@ export const SettingsPanelWithPropertySettings = ({ dto, editableKeyLabelDict, o
     React.useState(() => {
         WebHelper.get("properties/QueryProperties?parentIds=" + dto.id, (data) => {
             let propsEditable = editableKeyLabelDict.filter(x => x.property);
-            let propsEditableKeys = propsEditable.map(x => x.key);
-            setProperties(data.filter(x => propsEditableKeys.includes(x.name)));
+            let propsEditableKeys = propsEditable.map(x => x.key.toLowerCase());
+            setProperties(data.filter(x => propsEditableKeys.includes(x.name.toLowerCase())));
             propsEditable.forEach(prop => {
-                if (!savedDto[prop.key]) {
+                let propKey = prop.key.toLowerCase();
+                if (!savedDto[propKey]) {
 
-                    let value = data.find(x => x.name === prop.key)?.value
+                    let value = data.find(x => x.name === propKey)?.value
                     if(prop.type === "number")
                     {
                         value = parseFloat(value);
@@ -36,8 +37,10 @@ export const SettingsPanelWithPropertySettings = ({ dto, editableKeyLabelDict, o
 
     const propertySave = (dtoToUpdate) => {
         let propsToUpdate = [];
-        Object.keys(dtoToUpdate).forEach(key => {
-            let prop = properties.find(x => x.name === key);
+        Object.keys(dtoToUpdate).forEach(_key => {
+            const key = _key.toLowerCase();
+
+            let prop = properties.find(x => x.name.toLowerCase() === key);
             if (prop) {
                 prop.value = dtoToUpdate[key].toString();
                 propsToUpdate.push(prop);
@@ -46,7 +49,7 @@ export const SettingsPanelWithPropertySettings = ({ dto, editableKeyLabelDict, o
             }
 
             if (editableKeyLabelDict.find(x => x.key === key).property) {
-                WebSocketManagerInstance.Send({ command: "property_add", data: { name: key, value: dtoToUpdate[key], parentId: savedDto.id, EntityName: entityName } });
+                ClientMediator.sendCommandAsync("properties", "add", { name: key, value: dtoToUpdate[key], parentId: savedDto.id, EntityName: entityName })
                 delete dtoToUpdate[key];
             }
         });

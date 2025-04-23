@@ -25,6 +25,7 @@ import SettingsPanel from "./SettingsPanel";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import WebSocketManagerInstance from "../WebSocketManager";
 import Subscribable from "../../uiComponents/base/Subscribable";
+import ClientMediator from "../../../ClientMediator";
 
 export const PlayerSettingsPanel = ({ player }) => {
   const [playerData, setPlayerData] = React.useState(player);
@@ -62,6 +63,20 @@ export const PlayerSettingsPanel = ({ player }) => {
     }
     setPlayerData({ ...playerData, ...event.data });
   };
+
+  React.useEffect(() => {
+    const GetData = async () => {
+      const newPlayer = await ClientMediator.sendCommandWaitForRegisterAsync(
+        "Game",
+        "GetPlayer",
+        { id: player.id },
+        true
+      );
+      setPlayerData(newPlayer);
+    };
+
+    GetData();
+  }, [player]);
 
   return (
     <Subscribable commandPrefix={"settings_player"} onMessage={updateSettings}>
