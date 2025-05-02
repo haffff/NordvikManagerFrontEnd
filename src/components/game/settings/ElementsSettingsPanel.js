@@ -17,6 +17,8 @@ import DTOConverter from "../../BattleMap/DTOConverter";
 import PropertiesSettingsPanel from "./PropertiesSettingsPanel";
 import DButtonHorizontalContainer from "../../uiComponents/base/Containers/DButtonHorizontalContainer";
 import DropDownButton from "../../uiComponents/base/DDItems/DropDrownButton";
+import { toaster } from "../../ui/toaster";
+import ClientMediator from "../../../ClientMediator";
 
 export const ElementSettingsPanel = ({ dto, battlemapId }) => {
   const [directJson, setDirectJson] = React.useState(
@@ -232,7 +234,18 @@ export const ElementSettingsPanel = ({ dto, battlemapId }) => {
     WebSocketManagerInstance.Send(cmd);
   };
 
-  const updateSettings = (event) => {};
+  const updateSettings = (event) => {
+    let newDto = { ...dto, ...event.data };
+    setDirectJson(JSON.stringify(newDto, null, 2));
+
+    if (event.playerId === ClientMediator.sendCommand("Game", "GetCurrentPlayer").id) {
+      toaster.create({
+        description: "Element settings updated",
+        type: "success",
+        duration: 5000,
+      });
+    }
+  };
 
   return (
     <Subscribable commandPrefix={"element"} onMessage={updateSettings}>

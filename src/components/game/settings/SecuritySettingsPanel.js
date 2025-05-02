@@ -19,16 +19,18 @@ import {
   SelectItem,
 } from "../../ui/select";
 import { createListCollection } from "@chakra-ui/react";
+import { toaster } from "../../ui/toaster";
 
 // TODO: Refactor this component
 
 export const SecuritySettingsPanel = ({ dto, type }) => {
   const [players, setPlayers] = React.useState(undefined);
+  const playersRef = React.useRef(players);
+  playersRef.current = players;
   const [currentPlayerId, setCurrentPlayerId] = React.useState(null);
-  const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
 
   const Load = async (players, playerId) => {
-    let permissions = WebHelper.getAsync(
+    let permissions = await WebHelper.getAsync(
       `security/permissions?entityId=${dto.id}&entityType=${type}`
     );
     let localPlayers = structuredClone(players);
@@ -121,7 +123,13 @@ export const SecuritySettingsPanel = ({ dto, type }) => {
             collection={predefinedRoles}
             onValueChange={(x) => {
               player.permission = x.value[0];
-              forceUpdate();
+              let newPlayers = structuredClone(players);
+              newPlayers.forEach((p) => {
+                if (p.id === player.id) {
+                  p.permission = x.value[0];
+                }
+              });
+              setPlayers(newPlayers);
             }}
             size="sm"
           >
@@ -165,7 +173,7 @@ export const SecuritySettingsPanel = ({ dto, type }) => {
 
   const HandleIncomingUpdate = (cmd) => {
     if (cmd.data["id"] == dto.id) {
-      let newPlayers = structuredClone(players);
+      let newPlayers = structuredClone(playersRef.current);
       newPlayers.forEach((player) => {
         let permission = cmd.data["permissions"][player.id];
         if (permission === undefined) {
@@ -174,6 +182,24 @@ export const SecuritySettingsPanel = ({ dto, type }) => {
         player.permission = permission;
       });
       setPlayers(newPlayers);
+
+      if (cmd.playerId === currentPlayerId) {
+        if (cmd.result === "Ok") {
+          toaster.create({
+            description: "Permissions updated",
+            type: "success",
+            duration: 5000,
+          });
+        }
+        else
+        {
+          toaster.create({
+            description: "Error updating permissions",
+            type: "error",
+            duration: 5000,
+          });
+        }
+      }
     }
   };
 

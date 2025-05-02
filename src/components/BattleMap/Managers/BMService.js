@@ -4,6 +4,7 @@ import { fabric } from "fabric";
 import DTOConverter from "../DTOConverter";
 import ClientMediator from "../../../ClientMediator";
 import { toaster } from "../../ui/toaster";
+import UtilityHelper from "../../../helpers/UtilityHelper";
 
 class BMService {
   _clipboard = undefined;
@@ -575,28 +576,39 @@ class BMService {
         }
       );
 
+      let gameId = await ClientMediator.sendCommandAsync(
+        "Game",
+        "GetGameId",
+        {}
+      );
+
       canvas.measure.additionalObject = additionalObject ?? undefined;
-      let unitArray = await ClientMediator.sendCommandAsync(
+
+      let measureSettings = await ClientMediator.sendCommandAsync(
         "Properties",
         "GetByNames",
-        { parentId: map.id ?? map.Id, names: ["baseDistanceUnit"] }
+        { parentId: map.id ?? map.Id, names: ["baseDistanceUnit", "useSquaredSystem", "baseDistancePerSquare"] }
       );
-      canvas.measure.units = unitArray[0]?.value ?? "ft";
-      let realisticMeasureArray = await ClientMediator.sendCommandAsync(
+
+      let gameMeasureSettings = await ClientMediator.sendCommandAsync(
         "Properties",
         "GetByNames",
-        { parentId: map.id ?? map.Id, names: ["useSquaredSystem"] }
+        { parentId: gameId, names: ["baseDistanceUnit", "useSquaredSystem", "baseDistancePerSquare"] }
       );
-      canvas.measure.realisticMeasure =
-        realisticMeasureArray[0]?.value?.toLowerCase() === "true" ?? false;
-      let distancePerSquareArray = await ClientMediator.sendCommandAsync(
-        "Properties",
-        "GetByNames",
-        { parentId: map.id ?? map.Id, names: ["baseDistancePerSquare"] }
-      );
-      canvas.measure.distancePerSquare = distancePerSquareArray[0]?.value
-        ? parseInt(distancePerSquareArray[0].value)
-        : 5;
+
+      const measureUnitSetting = measureSettings.find(setting => setting.name === "baseDistanceUnit")?.value;
+      const useSquaredSystemSetting = UtilityHelper.ParseBool(measureSettings.find(setting => setting.name === "useSquaredSystem")?.value);
+      const baseDistancePerSquareSetting = measureSettings.find(setting => setting.name === "baseDistancePerSquare")?.value;
+
+      const gameMeasureUnitSetting = gameMeasureSettings.find(setting => setting.name === "baseDistanceUnit")?.value;
+      const gameUseSquaredSystemSetting = UtilityHelper.ParseBool(gameMeasureSettings.find(setting => setting.name === "useSquaredSystem")?.value);
+      const gameBaseDistancePerSquareSetting = gameMeasureSettings.find(setting => setting.name === "baseDistancePerSquare")?.value;
+
+      canvas.measure = { ...canvas.measure,
+        units: measureUnitSetting ?? gameMeasureUnitSetting ?? "ft",
+        realisticMeasure: useSquaredSystemSetting ?? gameUseSquaredSystemSetting ?? false,
+        distancePerSquare: baseDistancePerSquareSetting ? parseInt(baseDistancePerSquareSetting) : (gameBaseDistancePerSquareSetting ? parseInt(gameBaseDistancePerSquareSetting) : 5),
+      };
 
       this._addPopupAndOverlay(overlayContent, popupContent);
 
