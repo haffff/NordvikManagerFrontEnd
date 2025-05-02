@@ -22,6 +22,7 @@ import {
 import DropDownButton from "../../uiComponents/base/DDItems/DropDrownButton";
 import { SearchInput } from "../../uiComponents/SearchInput";
 import { DDataTable } from "../../uiComponents/DDataTable";
+import { toaster } from "../../ui/toaster";
 
 export const PropertiesSettingsPanel = ({
   gameId,
@@ -164,13 +165,32 @@ export const PropertiesSettingsPanel = ({
     if (event.command === "property_update") {
       let index = newProps.findIndex((x) => x.id === event.data.id);
       newProps[index] = event.data;
+
+      toaster.create({
+        description: `Property ${event.data?.name} updated`,
+        type: "success",
+        duration: 5000,
+      });
     }
     if (event.command === "property_add" && event.data.parentId === dto.id) {
       newProps.push(event.data);
+
+      toaster.create({
+        description: `Property ${event.data?.name} added`,
+        type: "success",
+        duration: 5000,
+      });
     }
     if (event.command === "property_remove") {
       let index = newProps.findIndex((x) => x.id === event.data);
+      let name = newProps[index].name;
       newProps.splice(index, 1);
+
+      toaster.create({
+        description: `Property ${name} removed`,
+        type: "success",
+        duration: 5000,
+      });
     }
     setProperties(newProps);
     setOriginalProperties(newProps);
@@ -199,7 +219,7 @@ export const PropertiesSettingsPanel = ({
             <>
               <Table.ColumnHeader>Name</Table.ColumnHeader>
               <Table.ColumnHeader>Value</Table.ColumnHeader>
-              <Table.ColumnHeader>Actions</Table.ColumnHeader>
+              <Table.ColumnHeader></Table.ColumnHeader>
             </>
           );
         }}

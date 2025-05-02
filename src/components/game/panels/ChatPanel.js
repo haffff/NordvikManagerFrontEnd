@@ -25,6 +25,7 @@ import DropDownButton from "../../uiComponents/base/DDItems/DropDrownButton";
 import CommandExecutionHelper from "../../../helpers/CommandExecutionHelper";
 import { LoadingScreen } from "../../uiComponents/LoadingScreen";
 import ClientMediator from "../../../ClientMediator";
+import UtilityHelper from "../../../helpers/UtilityHelper";
 
 export const ChatPanel = () => {
   const [items, setItems] = React.useState([]);
@@ -56,14 +57,8 @@ export const ChatPanel = () => {
   };
 
   const Load = async (finished) => {
-    WebHelper.get(
-      `battlemap/getchat`,
-      (x) => {
-        setItems(x);
-        finished();
-      },
-      finished
-    );
+    let items = await WebHelper.getAsync(`battlemap/getchat`);
+    setItems(items);
 
     let players = ClientMediator.sendCommand("Game", "GetPlayers", {});
     setPlayers(players);
@@ -225,8 +220,24 @@ export const ChatPanel = () => {
     }
   };
 
+  React.useEffect(() => {
+    Load();
+
+    let uuid = UtilityHelper.GenerateUUID();
+
+    ClientMediator.register({panel: "chat", id: uuid, onEvent: (eventName, {all}) => {
+      if (eventName === "PlayersChanged") {
+        setPlayers(all);
+      }
+    }})
+
+    return () => {
+      ClientMediator.unregister(uuid);
+    }
+  }, []);
+
   return (
-    <Loadable OnLoad={Load}>
+    <>
       <Subscribable
         commandPrefix="settings_player"
         onMessage={OnPlayerSettings}
@@ -313,7 +324,7 @@ export const ChatPanel = () => {
           <DropDownButton name={"Send"} onClick={HandleSend} height={75} />
         </Flex>
       </BasePanel>
-    </Loadable>
+    </>
   );
 };
 export default ChatPanel;

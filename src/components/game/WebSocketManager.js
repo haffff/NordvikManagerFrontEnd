@@ -42,7 +42,7 @@ class WebSocketManager {
             this.WebSocket.send(JSON.stringify(command));
     }
 
-    Start(GameID) {
+    Start(GameID, onError, tryToReconnect = true) {
         console.log("WebSocket: Started connecting with id: " + GameID);
         this.WebSocketStarted = true;
         if(this.WebSocket !== undefined)
@@ -58,6 +58,15 @@ class WebSocketManager {
             this.WebSocket.send(GameID);
             this.WebSocket.onclose = (event) => {
                 console.error("Websocket: Closed, reason - " + event);
+                this.Start(GameID, onError, tryToReconnect);
+            }
+
+            this.WebSocket.onerror = (event) => {
+                console.error("WebSocket: Error - " + event);
+                if(onError)
+                {
+                    onError(event);
+                }
             }
 
             this.WebSocket.onmessage = (event) => {

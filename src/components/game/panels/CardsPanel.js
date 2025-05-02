@@ -94,11 +94,9 @@ export const CardsPanel = ({ state }) => {
             WebSocketManagerInstance.Send({
               command: "card_add",
               data: {
-                ...selectedTemplate,
                 ...data,
                 id: null,
                 templateId: selectedTemplate?.id,
-                content: selectedTemplate.content,
               },
             });
           }

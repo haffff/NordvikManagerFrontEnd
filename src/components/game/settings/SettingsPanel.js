@@ -28,7 +28,6 @@ import {
 import { Switch } from "../../ui/switch";
 import {
   NumberInputField,
-  NumberInputLabel,
   NumberInputRoot,
 } from "../../ui/number-input";
 import WebHelper from "../../../helpers/WebHelper";
@@ -36,10 +35,8 @@ import BasePanel from "../../uiComponents/base/BasePanel";
 import DynamicIconChooser from "../../uiComponents/icons/DynamicIconChooser";
 import { MaterialChooser } from "../../uiComponents/MaterialChooser";
 import { PlayerChooser } from "../../uiComponents/PlayerChooser";
-import { FaRegQuestionCircle } from "react-icons/fa";
 import { SearchInput } from "../../uiComponents/SearchInput";
 import { DColorPicker } from "../../uiComponents/settingsComponents/ColorPicker";
-import RefreshInfo from "../../uiComponents/treeList/RefreshInfoCard";
 
 export const SettingsPanel = ({
   dto,
@@ -49,8 +46,7 @@ export const SettingsPanel = ({
   hideSaveButton,
   saveOnLeave,
   withExport,
-  showSearch,
-  normalize
+  showSearch
 }) => {
   const [updatedDto, setUpdatedDto] = React.useState({});
   const [validationDict, setValidationDict] = React.useState({});
@@ -123,14 +119,13 @@ export const SettingsPanel = ({
   };
 
   const GenerateCardBase = (key, dto, editable, content) => {
+    let disabled = editable.disableOn && editable.disableOn(dto);
     return (
       <GridItem
-        key={`${dto.id}_${key}_${
-          editable.disableOn && editable.disableOn(dto)
-        }`}
+        key={`${dto.id}_${key}_${disabled}`}
       >
         <Card.Root
-          style={{ backgroundColor: "rgba(40,40,40,0.5)", color: "white" }}
+          style={{ backgroundColor: "rgba(40,40,40,0.5)", color: "white", opacity: disabled ? 0.5 : 1 }}
           colorScheme="blackAlpha"
           variant="outline"
           padding={3}
@@ -163,15 +158,10 @@ export const SettingsPanel = ({
       return [];
     }
 
-    if (normalize) {
-      dto = Object.fromEntries(
-        Object.entries(dto).map(([k, v]) => [k.toLowerCase(), v])
-      );
-    }
     dto = { ...dto, ...updatedDto };
 
     editableKeyLabelDict.forEach((editable) => {
-      const key = editable.key.toLowerCase();
+      const key = editable.key;
 
       //if editable name doesnt match search, skip
       if (
@@ -203,6 +193,7 @@ export const SettingsPanel = ({
           const collection = createListCollection({ items: editable.options });
           input = (
             <SelectRoot
+              disabled={editable.disableOn && editable.disableOn(dto)}
               collection={collection}
               value={[dto[key]]}
               onValueChange={(element) => OnChange(key, element.value[0])}
@@ -247,7 +238,7 @@ export const SettingsPanel = ({
             <>
               <Field.HelperText>{infoAboutMinimumMaximum}</Field.HelperText>
               <NumberInputRoot
-                isDisabled={editable.disableOn && editable.disableOn(dto)}
+                disabled={editable.disableOn && editable.disableOn(dto)}
                 isInvalid={validationDict[key]}
                 defaultValue={dto[key]}
                 min={editable.min}
@@ -266,7 +257,8 @@ export const SettingsPanel = ({
           input = (
             <>
               <Switch
-                checked={dto[key]}
+              disabled={editable.disableOn && editable.disableOn(dto)}
+                defaultChecked={dto[key] == true || dto[key] == "true" || dto[key] == "True"}
                 onCheckedChange={(e) => {
                   OnChange(key, e.checked);
                 }}

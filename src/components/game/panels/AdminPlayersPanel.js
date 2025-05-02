@@ -17,8 +17,8 @@ import useClientMediator from "../../uiComponents/hooks/useClientMediator";
 export const AdminPlayersPanel = ({ state }) => {
   const [playerList, setPlayerList] = React.useState([]);
 
-  const HandleMessage = ({ev, data}) => {
-    if (ev === "PlayersChanged") {
+  const HandleMessage = (eventName, data) => {
+    if (eventName === "PlayersChanged") {
       const { all, connected } = data;
       let connectedIds = connected.map((x) => x.id);
       let playerList = all.map((x) => {

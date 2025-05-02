@@ -1,8 +1,8 @@
 import * as React from 'react';
 import WebHelper from '../../../helpers/WebHelper';
 import SettingsPanel from './SettingsPanel';
-import WebSocketManagerInstance from '../WebSocketManager';
 import ClientMediator from '../../../ClientMediator';
+import WebSocketManagerInstance from '../WebSocketManager';
 
 export const SettingsPanelWithPropertySettings = ({ dto, editableKeyLabelDict, onSave, withExport, onValidation, entityName, hideSaveButton, saveOnLeave, showSearch }) => {
     const [properties, setProperties] = React.useState([]);
@@ -15,9 +15,10 @@ export const SettingsPanelWithPropertySettings = ({ dto, editableKeyLabelDict, o
             let propsEditableKeys = propsEditable.map(x => x.key);
             setProperties(data.filter(x => propsEditableKeys.includes(x.name)));
             propsEditable.forEach(prop => {
-                if (!savedDto[prop.key]) {
+                let propKey = prop.key;
+                if (!savedDto[propKey]) {
 
-                    let value = data.find(x => x.name === prop.key)?.value
+                    let value = data.find(x => x.name === propKey)?.value
                     if(prop.type === "number")
                     {
                         value = parseFloat(value);
@@ -45,8 +46,8 @@ export const SettingsPanelWithPropertySettings = ({ dto, editableKeyLabelDict, o
                 return;
             }
 
-            if (editableKeyLabelDict.find(x => x.key === key).property) {
-                WebSocketManagerInstance.Send({ command: "property_add", data: { name: key, value: dtoToUpdate[key], parentId: savedDto.id, EntityName: entityName } });
+            if (editableKeyLabelDict.find(x => x.key === key)?.property) {
+                WebSocketManagerInstance.Send({command: "property_add", data: { name: key, value: dtoToUpdate[key], parentId: savedDto.id, EntityName: entityName }}); // TODO: check if this is correct
                 delete dtoToUpdate[key];
             }
         });

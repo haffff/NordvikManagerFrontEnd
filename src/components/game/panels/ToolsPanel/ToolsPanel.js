@@ -257,9 +257,9 @@ export const ToolsPanel = ({ battleMapId }) => {
     setAlign(mode);
   };
 
-  const updateTools = () => {
+  const updateTools = async () => {
     if (!_battleMapId) {
-      var bmId = ClientMediator.sendCommand("Game", "GetActiveBattleMapId");
+      var bmId = await ClientMediator.sendCommandWaitForRegisterAsync("Game", "GetActiveBattleMapId");
       set_battleMapId(bmId);
       return;
     }
@@ -341,6 +341,9 @@ export const ToolsPanel = ({ battleMapId }) => {
         if (event === "BattleMap_AlignChanged") {
           setAlign(data.align);
         }
+        if (event === "BattleMapsChanged") {
+          set_battleMapId(data.battleMapId);
+        }
       },
     });
   }
@@ -411,12 +414,19 @@ export const ToolsPanel = ({ battleMapId }) => {
           if (item.type === "label") {
             return <DLabel>{item.name}</DLabel>;
           } else {
+            let enabled = item.enabled !== undefined ? item.enabled : true;
+            if(!_battleMapId)
+            {
+              enabled = false;
+            }
+
+
             return optionDefinition(
               item.icon,
               item.name,
               item.onClick,
               item.selected,
-              item.enabled !== undefined ? item.enabled : true
+              enabled
             );
           }
         }}
@@ -446,12 +456,18 @@ export const ToolsPanel = ({ battleMapId }) => {
 
               return <Separator size={"lg"} {...additionalProps} />;
             } else {
+              let enabled = item.enabled !== undefined ? item.enabled : true;
+              if(!_battleMapId)
+              {
+                enabled = false;
+              }
+
               return wrapOptionDefinition(
                 item.icon,
                 item.name,
                 item.onClick,
                 item.selected,
-                item.enabled !== undefined ? item.enabled : true
+                enabled
               );
             }
           }}

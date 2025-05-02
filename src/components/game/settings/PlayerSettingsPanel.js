@@ -25,9 +25,14 @@ import SettingsPanel from "./SettingsPanel";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import WebSocketManagerInstance from "../WebSocketManager";
 import Subscribable from "../../uiComponents/base/Subscribable";
+import ClientMediator from "../../../ClientMediator";
+import { toaster } from "../../ui/toaster";
 
 export const PlayerSettingsPanel = ({ player }) => {
-  const [playerData, setPlayerData] = React.useState(player);
+  const [playerData, setPlayerData] = React.useState();
+
+  const playerDataRef = React.useRef(playerData);
+  playerDataRef.current = playerData;
 
   const editables = [
     { key: "name", label: "Name", toolTip: "Name of player.", type: "string" },
@@ -57,11 +62,33 @@ export const PlayerSettingsPanel = ({ player }) => {
   };
 
   const updateSettings = (event) => {
-    if (playerData.id !== event.data.id) {
+    if (playerDataRef.current.id !== event.data.id) {
       return;
     }
-    setPlayerData({ ...playerData, ...event.data });
+    setPlayerData({ ...playerDataRef.current, ...event.data });
+
+    toaster.create({
+      title: "Player settings updated",
+      description: "Player settings updated successfully.",
+      type: "success",
+      duration: 5000,
+      isClosable: true,
+    });
   };
+
+  React.useEffect(() => {
+    const GetData = async () => {
+      const newPlayer = await ClientMediator.sendCommandWaitForRegisterAsync(
+        "Game",
+        "GetPlayer",
+        { id: player.id },
+        true
+      );
+      setPlayerData(newPlayer);
+    };
+
+    GetData();
+  }, [player]);
 
   return (
     <Subscribable commandPrefix={"settings_player"} onMessage={updateSettings}>

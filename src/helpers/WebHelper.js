@@ -1,9 +1,9 @@
 import UtilityHelper from "./UtilityHelper";
 
 export const WebHelper = {
-  ApiAddress: process.env.REACT_APP_PROTOCOL + process.env.REACT_APP_BASE_URL + "/api",
-  WebSocketAddress: "wss://" + process.env.REACT_APP_BASE_URL + "/api/battlemap/ws",
-  ImageAddress: process.env.REACT_APP_PROTOCOL + process.env.REACT_APP_BASE_URL + "/api/Materials/Resource?id=",
+  ApiAddress: process.env.REACT_APP_PROTOCOL + process.env.REACT_APP_BASE_URL + (process.env.REACT_APP_BASE_URL ? "/" : "") + "api",
+  WebSocketAddress: (process.env.REACT_APP_BASE_URL ? "wss://" : "") + process.env.REACT_APP_BASE_URL + (process.env.REACT_APP_BASE_URL ? "/" : "") + "api/battlemap/ws",
+  ImageAddress: process.env.REACT_APP_PROTOCOL + process.env.REACT_APP_BASE_URL + (process.env.REACT_APP_BASE_URL ? "/" : "") + "api/Materials/Resource?id=",
   GameId: undefined,
 
   addGameId: (addr, customGameId = undefined) => {

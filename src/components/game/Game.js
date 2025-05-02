@@ -117,11 +117,26 @@ export const Game = ({ gameID, onExit }) => {
 
   const HandleSettingsChange = (resp) => {
     if (resp.command === "settings_player") {
-      let playerIndex = players.findIndex((x) => x.id === resp.data.id);
+      let newPlayers = playersRef.current;
+      let playerIndex = newPlayers.findIndex((x) => x.id === resp.data.id);
       if (playerIndex > -1) {
-        players[playerIndex] = { ...players[playerIndex], ...resp.data };
-        setPlayers([...players]);
+        newPlayers[playerIndex] = { ...newPlayers[playerIndex], ...resp.data };
+        setPlayers([...newPlayers]);
       }
+
+      let newConnectedPlayers = connectedPlayersRef.current;
+      let connectedPlayerIndex = newConnectedPlayers.findIndex(
+        (x) => x.id === resp.data.id
+      );
+      if (connectedPlayerIndex > -1) {
+        newConnectedPlayers[connectedPlayerIndex] = {
+          ...newConnectedPlayers[connectedPlayerIndex],
+          ...resp.data,
+        };
+        setConnectedPlayers([...newConnectedPlayers]);
+      }
+
+      ClientMediator.fireEvent("PlayersChanged", {connected: newConnectedPlayers, all: newPlayers});
     }
   };
 
@@ -276,6 +291,13 @@ export const Game = ({ gameID, onExit }) => {
         GetOpenedBattleMaps: () => Object.values(battleMapsContextsRef.current),
         GetMaps: async () => await WebHelper.getAsync("map/GetAllFlat"),
         GetPlayers: () => playersRef.current,
+        GetPlayer: ({id}) => {
+          let player = playersRef.current.find((x) => x.id === id);
+          if (player === undefined) {
+            player = playersRef.current.find((x) => x.Id === id);
+          }
+          return player;
+        },
         GetConnectedPlayers: () => connectedPlayersRef.current,
         GetCurrentPlayer: () => playersRef.current.find((x) => x.id === player.id),
         GetOwner: () => game.master.id,
@@ -284,8 +306,16 @@ export const Game = ({ gameID, onExit }) => {
         GetGameId: () => gameId,
         GetContainerRef: () => gameContainerRef,
         GetLayout: () => layout,
-        GetActiveBattleMapId: () => {
+        GetActiveBattleMapId: async () => {
           if (selectedBattleMapId === undefined) {
+            if(!Object.values(battleMapsContextsRef.current)[0])
+            {
+              //Wait until battlemap is loaded
+              while(!Object.values(battleMapsContextsRef.current)[0]) {
+                await new Promise((resolve) => setTimeout(resolve, 100));
+              }
+            }
+
             let first = Object.values(battleMapsContextsRef.current)[0]?.Id;
             setSelectedBattleMapId(first);
             return first;
@@ -419,6 +449,7 @@ export const Game = ({ gameID, onExit }) => {
         <Dockable.Container state={state} />
       </Flex>
       <QuickCommandDialog state={state} openRef={quickCommandDialogOpenRef} />
+      
       {portaledPanels}
       {clientScripts.map((x) => x.value)}
     </div>

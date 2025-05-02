@@ -17,10 +17,14 @@ import { FaCog, FaUser, FaUserFriends } from "react-icons/fa";
 import { IoMdLogOut } from "react-icons/io";
 import { UserManagementDialog } from "./UserManagementDialog";
 import { AppSettingsDialog } from "./AppSettingsDialog";
+import { NewVersionDialog } from "./NewVersionDialog";
 
 export const GameList = ({ OnSuccess, OnLogout }) => {
   const [gameList, setGameList] = React.useState(undefined);
   const [userData, setUserData] = React.useState(false);
+
+  const [updateAvailable, setUpdateAvailable] = React.useState(false);
+  const [versionInfo, setVersionInfo] = React.useState(undefined);
 
   const openAppSettingsRef = React.useRef();
   const openUserManagementRef = React.useRef();
@@ -32,13 +36,26 @@ export const GameList = ({ OnSuccess, OnLogout }) => {
     let userData = await WebHelper.getAsync("user/userinfo");
     setUserData(userData);
 
-    finished();
+    if (userData.admin) {
+      let versionInfo = await WebHelper.getAsync("gamelist/versioninfo");
+      if (versionInfo) {
+        if (versionInfo.isUpdateAvailable) {
+          setUpdateAvailable(true);
+          setVersionInfo(versionInfo);
+        }
+      }
+    }
   };
 
+  React.useEffect(() => {
+    Load();
+  }, []);
+
   return (
-    <Loadable OnLoad={Load}>
+    <>
       <UserManagementDialog openRef={openUserManagementRef} />
       <AppSettingsDialog openRef={openAppSettingsRef} />
+      <NewVersionDialog open={updateAvailable} versionInfo={versionInfo} onClose={() => setUpdateAvailable(false)} />
       <JoinDialog OnSuccess={(r) => OnSuccess(r)} />
       <Stack
         style={{
@@ -81,7 +98,7 @@ export const GameList = ({ OnSuccess, OnLogout }) => {
           OnSuccess={() => WebHelper.get("gamelist/getgames", setGameList)}
         />
       </Stack>
-    </Loadable>
+    </>
   );
 
   function getGameList() {
