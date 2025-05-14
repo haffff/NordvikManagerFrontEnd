@@ -27,6 +27,10 @@ import { LoadingScreen } from "../../uiComponents/LoadingScreen";
 import ClientMediator from "../../../ClientMediator";
 import UtilityHelper from "../../../helpers/UtilityHelper";
 
+import ChatMessageParser from "../../../helpers/ChatMessageParser";
+
+const ChatParser = new ChatMessageParser();
+
 export const ChatPanel = () => {
   const [items, setItems] = React.useState([]);
   const [newItem, setNewItem] = React.useState(undefined);
@@ -142,43 +146,9 @@ export const ChatPanel = () => {
 
   let lastPlayer = undefined;
 
-  // TO BE MOVED TO PARSER
-  function ParseMessage(message) {
-    let list = message.split("|");
-    let elementsList = list.map((element) => {
-      let obj = undefined;
-      if (element.startsWith("[b]")) {
-        let msg = element.replace("[b]", "");
-        let additionalColor = msg.startsWith("[g]")
-          ? "green"
-          : msg.startsWith("[r]")
-          ? "red"
-          : "purple";
-        obj = (
-          <Badge colorScheme={additionalColor}>
-            {msg.replace("[g]", "").replace("[r]", "")}
-          </Badge>
-        );
-      }
-
-      // else if (element.startsWith("[a]")) {
-      //     obj = (<a href='' >{element.replace("[a]", "")}</a>);
-      // }
-      else {
-        obj = <>{element}</>;
-      }
-      return obj;
-    });
-
-    return elementsList;
-  }
-
   const CreateChatMessage = (x, nextX) => {
-    let message = x.data;
-    let elementsList = <></>;
-    if (message !== undefined) {
-      elementsList = ParseMessage(message);
-    }
+    let message = ChatParser.ParseMessage(x.data);
+    
     let player = players.find((y) => x.playerId == y.id); //.name;
 
     let showLabel = x.playerId !== nextX?.playerId;
@@ -191,7 +161,7 @@ export const ChatPanel = () => {
             player !== undefined && player.id === currentPlayerId
           }
         >
-          {elementsList}
+          {message}
         </DListItem>
         {!showLabel ? (
           <></>
