@@ -1,27 +1,38 @@
-export default ChatMessageParser
-{
-    regexCurlyBrackets = /\{([^}]+)\}/g;
+import { Image } from "@chakra-ui/react";
+import { ChatTemplateDefintions } from "./chatTemplates/ChatTemplateDefinitions";
 
-    ParseMessage: (message) => {
-        let splitByMatch = message.split(this.regexCurlyBrackets);
-        let matches = message.matchAll(this.regexCurlyBrackets);
+export default class ChatMessageParser {
+  ParseMessage(message) {
+    //Try parse json
+    try {
+      const parsedMessage = JSON.parse(message);
 
-        let elementsList = list.map(element => {
-            let obj = undefined;
-            if (element.startsWith("[b]")) {
-                let msg = element.replace("[b]", "");
-                let additionalColor = msg.startsWith("[g]") ? "green" : (msg.startsWith("[r]") ? "red" : "purple");
-                obj = (<Badge colorScheme={additionalColor}>{msg.replace("[g]", "").replace("[r]", "")}</Badge>);
-            }
+      //Check if the parsed message is an object and has a type property
+      if (
+        typeof parsedMessage === "object" &&
+        parsedMessage !== null &&
+        parsedMessage.type
+      ) {
+        return this.GenerateMessageComponent(parsedMessage);
+      }
 
-            // else if (element.startsWith("[a]")) {
-            //     obj = (<a href='' >{element.replace("[a]", "")}</a>);
-            // }
-            else {
-                obj = <>{element}</>;
-            }
-            return obj;
-        });
-        return elementsList;
+      return message;
+    } catch (e) {
+      //If parsing fails, return the original message
+      return message;
     }
+  }
+
+  GenerateMessageComponent(messageObject) {
+    //Check if the messageObject is an object and has a type property
+    if (!messageObject || !messageObject.type) {
+      throw new Error("Invalid message object");
+    }
+
+    let templateContructor = ChatTemplateDefintions[messageObject.type];
+    if (templateContructor) {
+      return templateContructor({ object: messageObject });
+    }
+    throw new Error("Invalid message type");
+  }
 }
