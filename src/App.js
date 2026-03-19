@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { LoginPanel } from "./components/auth/LoginPanel";
 import { MainApp } from "./components/MainApp";
 import { Provider } from "./components/ui/provider"
@@ -9,48 +9,50 @@ import { Toaster, toaster } from "./components/ui/toaster";
 
 function App() {
   const [loggedIn, setLoggedIn] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
 
-  if (loggedIn !== true) {
+  const [inviteCode] = useState(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    return urlParams.get("code");
+  });
+
+  useEffect(() => {
     WebHelper.getNoResp(
       "user/checklogin",
       () => {
         setLoggedIn(true);
+        setIsCheckingAuth(false);
       },
       () => {
         setLoggedIn(false);
+        setIsCheckingAuth(false);
       },
       () => {
         setLoggedIn(false);
+        setIsCheckingAuth(false);
         toaster.create(UtilityHelper.GenerateConnectionErrorToast());
       }
     );
+  }, []);
+  if (isCheckingAuth) {
+    return (
+      <Provider cssVarsRoot={"#NordvikManagerMain"}>
+        <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+          Loading...
+        </div>
+        <Toaster />
+      </Provider>
+    );
   }
 
-  //check if website has inviteCode part
-  const urlParams = new URLSearchParams(window.location.search);
-  const inviteCode = urlParams.get("code");
-  
-  let content = <>    </>
-
-  if(inviteCode){
-    console.log("Invite code detected: " + inviteCode);
-
-    content = (<RegisterForm code={inviteCode} />);
+  let content;
+  if (inviteCode) {
+    content = <RegisterForm code={inviteCode} />;
+  } else if (loggedIn) {
+    content = <MainApp />;
+  } else {
+    content = <LoginPanel OnSuccess={() => setLoggedIn(true)} />;
   }
-  else
-  {
-    if(loggedIn)
-    {
-      content = (<MainApp />);
-    }
-    else
-    {
-      content = (<LoginPanel OnSuccess={() => setLoggedIn(true)} />);
-    }
-  }
-
-  
-
   return (
     <Provider cssVarsRoot={"#NordvikManagerMain"}>
       {content}

@@ -9,7 +9,7 @@ import DLabel from "../../uiComponents/base/Text/DLabel";
 import ClientMediator from "../../../ClientMediator";
 import useClientMediator from "../../uiComponents/hooks/useClientMediator";
 import "../../../stylesheets/player.css";
-import BasePanel from "../../uiComponents/base/BasePanel";
+import { BasePanel } from "../../uiComponents/base/BasePanel";
 import { useDimensions } from "../../uiComponents/hooks/useDimensions";
 
 export const PlayersPanel = () => {

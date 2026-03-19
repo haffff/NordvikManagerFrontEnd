@@ -12,7 +12,7 @@ import {
   For,
 } from "@chakra-ui/react";
 import WebHelper from "../../../helpers/WebHelper";
-import BasePanel from "../../uiComponents/base/BasePanel";
+import { BasePanel } from "../../uiComponents/base/BasePanel";
 import DButtonHorizontalContainer from "../../uiComponents/base/Containers/DButtonHorizontalContainer";
 import DropDownButton from "../../uiComponents/base/DDItems/DropDrownButton";
 import { NumberInputRoot, NumberInputField } from "../../ui/number-input";

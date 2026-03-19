@@ -39,8 +39,8 @@ export const NewVersionDialog = ({ open, versionInfo, onClose }) => {
             <Box margin={5}>
               <Heading>Release Notes:</Heading>
               <List.Root>
-                {versionInfo?.changes?.map((x) => (
-                  <List.Item>{x}</List.Item>
+                {versionInfo?.changes?.map((x, idx) => (
+                  <List.Item key={idx}>{x}</List.Item>
                 ))}
               </List.Root>
             </Box>

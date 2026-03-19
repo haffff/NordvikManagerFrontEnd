@@ -57,7 +57,7 @@ export const ViewsMenu = ({ state,
         }
         return Object.values(battleMaps).map(x =>
             {
-            return (<DropDownMenu submenu={true} name={x.name} width={150}>
+            return (<DropDownMenu key={x.Id} submenu={true} name={x.name} width={150}>
                 {GetBMViewMenu(x.Id)}
             </DropDownMenu>)})
     }
@@ -66,12 +66,12 @@ export const ViewsMenu = ({ state,
         <DropDownMenu viewId={"views"} onDropDown={onDropDown} name={"View"} width={150} expandableWithAction={true} expandableLocationName={"views"}>
             {/*Add 'disabled' option here*/}
             <BattleMapsMenu key={'1'} state={state} />
-            <CreateDropDownButton width={150} name={"Tools"} icon={<FaTools/>} state={state} element={<ToolsPanel />} />
-            <CreateDropDownButton width={150} name={"Chat"} icon={<IoMdChatboxes/>} state={state} element={<ChatPanel />} />
-            <CreateDropDownButton width={150} name={"Players"} icon={<FaUserFriends/>} state={state} element={<PlayersPanel />} />
-            <CreateDropDownButton width={150} name={"Cards"} icon={<FaUserAlt/>} state={state} element={<CardsPanel state={state} />} />
-            <CreateDropDownButton width={150} name={"Materials"} icon={<FaPaintBrush/>} state={state} element={<MaterialsPanel state={state} />} />
-            <CreateDropDownButton gmOnly width={150} name={"Manage Players"} icon={<FaUserCog/>} state={state} element={<AdminPlayersPanel state={state} />} />
+            <CreateDropDownButton width={150} name={"Tools"} icon={<FaTools />} state={state} element={<ToolsPanel />} />
+            <CreateDropDownButton width={150} name={"Chat"} icon={<IoMdChatboxes />} state={state} element={<ChatPanel />} />
+            <CreateDropDownButton width={150} name={"Players"} icon={<FaUserFriends />} state={state} element={<PlayersPanel />} />
+            <CreateDropDownButton width={150} name={"Cards"} icon={<FaUserAlt />} state={state} element={<CardsPanel state={state} />} />
+            <CreateDropDownButton width={150} name={"Materials"} icon={<FaPaintBrush />} state={state} element={<MaterialsPanel state={state} />} />
+            <CreateDropDownButton gmOnly width={150} name={"Manage Players"} icon={<FaUserCog />} state={state} element={<AdminPlayersPanel state={state} />} />
             {GetViewBMRelatedMenus()}
         </DropDownMenu>
     );

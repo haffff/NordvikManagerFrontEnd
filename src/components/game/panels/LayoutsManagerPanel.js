@@ -11,7 +11,7 @@ import { IoIosRemoveCircleOutline, IoMdRemove } from "react-icons/io";
 import LayoutSettingsPanel from "../settings/LayoutSettingsPanel";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import WebSocketManagerInstance from "../WebSocketManager";
-import BasePanel from "../../uiComponents/base/BasePanel";
+import { BasePanel } from "../../uiComponents/base/BasePanel";
 import DListItem from "../../uiComponents/base/List/DListItem";
 import DListItemButton from "../../uiComponents/base/List/ListItemDetails/DListItemButton";
 import ClientMediator from "../../../ClientMediator";

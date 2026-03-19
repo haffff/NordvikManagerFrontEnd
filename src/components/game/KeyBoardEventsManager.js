@@ -17,9 +17,9 @@ class KeyboardEventsManager {
     "DELETE": (contextId) => {
     },
   };
-
   constructor() {
     this.KeyboardMap = {};
+    this._battleMapContexts = new Map(); // Initialize battlemap contexts storage
     this.HandleKeyboardEventDown.bind(this);
     this.HandleKeyboardEventUp.bind(this);
   }

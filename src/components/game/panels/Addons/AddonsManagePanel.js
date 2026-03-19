@@ -16,7 +16,7 @@ import {
 } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import WebHelper from "../../../../helpers/WebHelper";
-import BasePanel from "../../../uiComponents/base/BasePanel";
+import { BasePanel } from "../../../uiComponents/base/BasePanel";
 import DContainer from "../../../uiComponents/base/Containers/DContainer";
 import DListItem from "../../../uiComponents/base/List/DListItem";
 import DListItemsButtonContainer from "../../../uiComponents/base/List/DListItemsButtonContainer";

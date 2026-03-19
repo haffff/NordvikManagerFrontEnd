@@ -1,18 +1,17 @@
 import * as React from "react";
-import { RadioGroup, Radio, Stack, Box } from "@chakra-ui/react";
+import { Box } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
-import { FaPlus, FaRemoveFormat, FaWrench, FaXbox } from "react-icons/fa";
+import { FaWrench } from "react-icons/fa";
 import WebHelper from "../../../helpers/WebHelper";
 import WebSocketManagerInstance from "../WebSocketManager";
-import Subscribable from "../../uiComponents/base/Subscribable";
 import MapSettingsPanel from "../settings/MapSettingsPanel";
-import { IoIosRemoveCircleOutline, IoMdRemove } from "react-icons/io";
+import { IoIosRemoveCircleOutline } from "react-icons/io";
 import DList from "../../uiComponents/base/List/DList";
 import DListItem from "../../uiComponents/base/List/DListItem";
 import DListItemButton from "../../uiComponents/base/List/ListItemDetails/DListItemButton";
 import DListItemsButtonContainer from "../../uiComponents/base/List/DListItemsButtonContainer";
-import BasePanel from "../../uiComponents/base/BasePanel";
+import { BasePanel } from "../../uiComponents/base/BasePanel";
 import ClientMediator from "../../../ClientMediator";
 import useBMName from "../../uiComponents/hooks/useBattleMapName";
 import CollectionSyncer from "../../uiComponents/base/CollectionSyncer";
@@ -28,42 +27,38 @@ export const MapSelector = ({ battleMapId, state }) => {
   };
 
   const HandleMapDelete = (id) => {
-    WebSocketManagerInstance.Send({
-        command: "map_remove",
-        data: id,
-    })
+    WebSocketManagerInstance.Send({ command: "map_remove", data: id });
   };
 
-  const Reload = async () => {
-    let response = await WebHelper.getAsync(`map/getAllFlat`);
-    setMaps(response);
-  };
+  const Reload = React.useCallback(async () => {
+    const response = await WebHelper.getAsync(`map/getAllFlat`);
+    setMaps(response ?? []);
+  }, []);
 
   React.useEffect(() => {
     Reload();
+    // waitForRegister so this resolves even if the BattleMap canvas is still loading
     ClientMediator.sendCommandWaitForRegister(
       "BattleMap",
       "GetSelectedMapID",
       { contextId: battleMapId },
       true
     ).then((r) => {
-      setValue(r);
+      if (r) setValue(r);
     });
-  }, []);
+  }, [battleMapId, Reload]);
 
   const bmName = useBMName(battleMapId);
-
   const ctx = Dockable.useContentContext();
-  ctx.setTitle(`Map Selector - ` + bmName);
+  ctx.setTitle(`Map Selector - ${bmName ?? '…'}`);
 
-  const HandleSelectedMapChange = (e) => {
-    let command = CommandFactory.CreateChangeMapCommand(e, battleMapId);
+  const HandleSelectedMapChange = (id) => {
+    const command = CommandFactory.CreateChangeMapCommand(id, battleMapId);
     WebSocketManagerInstance.Send(command);
   };
 
   const HandleAdd = () => {
-    let cmd = CommandFactory.CreateMapAddCommand();
-    WebSocketManagerInstance.Send(cmd);
+    WebSocketManagerInstance.Send(CommandFactory.CreateMapAddCommand());
   };
 
   return (
@@ -71,21 +66,19 @@ export const MapSelector = ({ battleMapId, state }) => {
       <CollectionSyncer
         collection={maps}
         setCollection={setMaps}
-        onAnyChange={() => Reload()}
+        onAnyChange={Reload}
         commandPrefix={"map"}
         selectItemCommand={"map_change"}
         onSelectedChanged={(item) => {
-          if(item.battleMapId === battleMapId)
+          // item = { mapId: <the new map id>, id: <battleMapId> }
+          if (item?.id === battleMapId) {
             setValue(item.mapId);
+          }
         }}
       />
-      <DList
-        mainComponent={true}
-        withAddButton={true}
-        handleAdd={HandleAdd}
-      >
+      <DList mainComponent={true} withAddButton={true} handleAdd={HandleAdd}>
         {maps.map((x) => (
-          <DListItem 
+          <DListItem
             key={x.id}
             selected={x.id === value}
             bgColor={x.id === value ? "rgba(120,120,120,0.5)" : ""}
@@ -95,11 +88,7 @@ export const MapSelector = ({ battleMapId, state }) => {
               sessionStorage.setItem("draggable", JSON.stringify({ entityType: "MapModel", id: x.id }));
             }}
           >
-            <Box
-              onClick={() => {
-                HandleSelectedMapChange(x.id);
-              }}
-            >
+            <Box onClick={() => HandleSelectedMapChange(x.id)}>
               {x.name}
             </Box>
             <DListItemsButtonContainer>

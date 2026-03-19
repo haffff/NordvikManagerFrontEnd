@@ -7,6 +7,52 @@ body {
   -moz-osx-font-smoothing: grayscale;
   color: "#fff";
   background-color: "rgb(30,30,30)";
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* Spinning animation for WebSocket status */
+.fa-spin {
+  animation: fa-spin 1s infinite linear;
+}
+
+@keyframes fa-spin {
+  0% {
+    transform: rotate(0deg);
+  }
+  100% {
+    transform: rotate(360deg);
+  }
+}
+
+/* Ensure content doesn't get hidden behind WebSocket status bar */
+#root {
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* WebSocket Status Bar Styling */
+.websocket-status-bar {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: linear-gradient(135deg, rgba(26, 32, 44, 0.95), rgba(45, 55, 72, 0.9));
+  backdrop-filter: blur(12px);
+  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 8px 16px;
+  z-index: 9999;
+  font-size: 14px;
+  box-shadow: 0 -4px 25px rgba(0, 0, 0, 0.4);
+}
+
+/* Enhanced hover effects */
+.websocket-status-bar .chakra-badge {
+  transition: all 0.2s ease;
+}
+
+.websocket-status-bar .chakra-badge:hover {
+  transform: translateY(-1px);
 }
 
 body,

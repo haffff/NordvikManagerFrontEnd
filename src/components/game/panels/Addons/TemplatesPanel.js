@@ -20,7 +20,7 @@ import DContainer from "../../../uiComponents/base/Containers/DContainer";
 import DListItem from "../../../uiComponents/base/List/DListItem";
 import DLabel from "../../../uiComponents/base/Text/DLabel";
 import SettingsPanel from "../../settings/SettingsPanel";
-import BasePanel from "../../../uiComponents/base/BasePanel";
+import { BasePanel } from "../../../uiComponents/base/BasePanel";
 import DListItemButton from "../../../uiComponents/base/List/ListItemDetails/DListItemButton";
 import { FaMinus } from "react-icons/fa";
 import DListItemsButtonContainer from "../../../uiComponents/base/List/DListItemsButtonContainer";

@@ -1,4 +1,4 @@
-import { FaCode, FaMailBulk, FaMailchimp, FaTerminal } from "react-icons/fa";
+import { FaMailBulk, FaTerminal, FaEye, FaBook, FaQuestion } from "react-icons/fa";
 import { DropDownItem } from "../../uiComponents/base/DDItems/DropDownItem";
 import { DropDownMenu } from "../../uiComponents/base/DDItems/DropDownMenu";
 import ToolBar from "./ToolBar";
@@ -9,12 +9,6 @@ import { IoIosExit } from "react-icons/io";
 import UtilityHelper from "../../../helpers/UtilityHelper";
 import AddonsMenu from "./ToolBarMenus/AddonsMenu";
 import ClientMediator from "../../../ClientMediator";
-import {
-  MenuContent,
-  MenuContextTrigger,
-  MenuItem,
-  MenuRoot,
-} from "../../ui/menu";
 
 import { toaster } from "../../ui/toaster";
 
@@ -80,6 +74,27 @@ export const MainToolbar = ({
       />
       <AddonsMenu state={state} />
       <DropDownMenu viewId={"experimental"} name={"Experimental"} width={100}>
+        <DropDownItem
+          key={'main_1'}
+          width={180}
+          name={'View'}
+          onClick={() => { forceRefreshGame && forceRefreshGame('views') }}
+          icon={<FaEye />}
+        />
+        <DropDownItem
+          key={'main_2'}
+          width={180}
+          name={'Layouts'}
+          onClick={() => { forceRefreshGame && forceRefreshGame('layouts') }}
+          icon={<FaBook />}
+        />
+        <DropDownItem
+          key={'main_3'}
+          width={180}
+          name={'Help'}
+          onClick={() => { forceRefreshGame && forceRefreshGame('help') }}
+          icon={<FaQuestion />}
+        />
         <DropDownItem
           width={150}
           name={"Chat (Window)"}

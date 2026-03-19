@@ -14,7 +14,7 @@ import WebHelper from "../../../helpers/WebHelper";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import WebSocketManagerInstance from "../WebSocketManager";
 import Subscribable from "../../uiComponents/base/Subscribable";
-import BasePanel from "../../uiComponents/base/BasePanel";
+import { BasePanel } from "../../uiComponents/base/BasePanel";
 import DListItem from "../../uiComponents/base/List/DListItem";
 import PlayerAvatar from "../../uiComponents/PlayerAvatar";
 import DListItemButton from "../../uiComponents/base/List/ListItemDetails/DListItemButton";

@@ -1,7 +1,7 @@
 import * as React from "react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import useUUID from "../../uiComponents/hooks/useUUID";
-import BasePanel from "../../uiComponents/base/BasePanel";
+import { BasePanel } from "../../uiComponents/base/BasePanel";
 import WebHelper from "../../../helpers/WebHelper";
 
 export const CardPanel = ({ id, name }) => {

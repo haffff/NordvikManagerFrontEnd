@@ -10,21 +10,16 @@ import {
   Image,
   Flex,
   Textarea,
-  Dialog,
-  DialogCloseTrigger,
 } from "@chakra-ui/react";
 import WebHelper from "../../helpers/WebHelper";
 import { FaLink } from "react-icons/fa";
-import DContainer from "../uiComponents/base/Containers/DContainer";
-import { DialogContainer } from "../uiComponents/base/Containers/DialogContainer";
 import { Checkbox } from "../ui/checkbox";
-import { DialogBackdrop, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogRoot } from "../ui/dialog";
+import { DialogBackdrop, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogRoot, DialogCloseTrigger } from "../ui/dialog";
 
 export const CreateNewDialog = ({ OnSuccess }) => {
   const [open, setOpen] = React.useState(false);
 
   const [recommendedAddons, setRecommendedAddons] = React.useState([]);
-  const [showPassword, setShowPassword] = React.useState(false);
   const [error, setError] = React.useState(false);
   const [createForm, setCreateForm] = React.useState({
     passwordRequired: false,
@@ -186,10 +181,9 @@ export const CreateNewDialog = ({ OnSuccess }) => {
                             {addon.description && " - " + addon.description}
                           </Checkbox>
                           {addon.website && (
-                            <FaLink
-                              href={addon.website}
-                              title={addon.website}
-                            />
+                            <a href={addon.website} target="_blank" rel="noopener noreferrer">
+                              <FaLink title={addon.website} />
+                            </a>
                           )}
                         </HStack>
                       ))}

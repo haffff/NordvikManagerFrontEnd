@@ -2,13 +2,10 @@ import * as React from "react";
 import {
   Box,
   Textarea,
-  Grid,
-  GridItem,
   Flex,
   Card,
   Input,
   Field,
-  Accordion,
   Image,
   HStack,
   Button,
@@ -17,6 +14,8 @@ import {
   FieldErrorText,
   createListCollection,
   Stack,
+  Text,
+  Separator,
 } from "@chakra-ui/react";
 import {
   SelectRoot,
@@ -26,17 +25,210 @@ import {
   SelectTrigger,
 } from "../../ui/select";
 import { Switch } from "../../ui/switch";
-import {
-  NumberInputField,
-  NumberInputRoot,
-} from "../../ui/number-input";
+import { NumberInputField, NumberInputRoot } from "../../ui/number-input";
 import WebHelper from "../../../helpers/WebHelper";
-import BasePanel from "../../uiComponents/base/BasePanel";
+import { BasePanel } from "../../uiComponents/base/BasePanel";
 import DynamicIconChooser from "../../uiComponents/icons/DynamicIconChooser";
 import { MaterialChooser } from "../../uiComponents/MaterialChooser";
 import { PlayerChooser } from "../../uiComponents/PlayerChooser";
 import { SearchInput } from "../../uiComponents/SearchInput";
 import { DColorPicker } from "../../uiComponents/settingsComponents/ColorPicker";
+
+// ─── Field card wrapper ────────────────────────────────────────────────────────
+
+const SettingFieldCard = ({ fieldKey, editable, disabled, validationError, children }) => (
+  <Card.Root
+    key={fieldKey}
+    style={{
+      backgroundColor: "rgba(40,40,40,0.5)",
+      color: "white",
+      opacity: disabled ? 0.5 : 1,
+      transition: "opacity 0.15s ease",
+    }}
+    variant="outline"
+    padding={3}
+    margin={1}
+    size="sm"
+  >
+    <Field.Root invalid={!!validationError} required={editable.required}>
+      <Field.Label fontWeight="medium" fontSize="sm" color="gray.200">
+        {editable.label}
+        <Field.RequiredIndicator />
+      </Field.Label>
+      {editable.toolTip && (
+        <Text fontSize="xs" color="gray.400" mb={1}>
+          {editable.toolTip}
+        </Text>
+      )}
+      {validationError && (
+        <FieldErrorText fontSize="xs">
+          <Field.ErrorIcon boxSize="14px" />
+          {validationError}
+        </FieldErrorText>
+      )}
+      {children}
+    </Field.Root>
+  </Card.Root>
+);
+
+// ─── Input factory ─────────────────────────────────────────────────────────────
+
+const buildInput = (editable, key, value, validationError, disabled, OnChange) => {
+  switch (editable.type) {
+    case "string":
+      return (
+        <Input
+          disabled={disabled}
+          defaultValue={value}
+          onChange={(e) => OnChange(key, e.target.value)}
+        />
+      );
+
+    case "select": {
+      const collection = createListCollection({ items: editable.options });
+      return (
+        <SelectRoot
+          disabled={disabled}
+          collection={collection}
+          value={[value]}
+          onValueChange={(e) => OnChange(key, e.value[0])}
+        >
+          <SelectTrigger>
+            <SelectValueText placeholder="Select...">
+              {(items) => {
+                const found = items.find((x) => x.value === value);
+                return <>{found ? found.label : "Select..."}</>;
+              }}
+            </SelectValueText>
+          </SelectTrigger>
+          <SelectContent zIndex={9999}>
+            <For each={collection.items}>
+              {(option, index) => (
+                <SelectItem key={index} selected={value === option.value} item={option}>
+                  {option.label}
+                </SelectItem>
+              )}
+            </For>
+          </SelectContent>
+        </SelectRoot>
+      );
+    }
+
+    case "number": {
+      const parts = [
+        editable.min !== undefined ? `Min: ${editable.min}` : null,
+        editable.max !== undefined ? `Max: ${editable.max}` : null,
+      ].filter(Boolean);
+      return (
+        <>
+          {parts.length > 0 && (
+            <Field.HelperText fontSize="xs" color="gray.400">
+              {parts.join("  ·  ")}
+            </Field.HelperText>
+          )}
+          <NumberInputRoot
+            disabled={disabled}
+            isInvalid={!!validationError}
+            defaultValue={value}
+            min={editable.min}
+            max={editable.max}
+          >
+            <NumberInputField onChange={(e) => OnChange(key, parseFloat(e.target.value))} />
+          </NumberInputRoot>
+        </>
+      );
+    }
+
+    case "boolean":
+      return (
+        <Switch
+          disabled={disabled}
+          defaultChecked={value === true || value === "true" || value === "True"}
+          onCheckedChange={(e) => OnChange(key, e.checked)}
+        />
+      );
+
+    case "color":
+      return (
+        <DColorPicker
+          isDisabled={disabled}
+          isInvalid={!!validationError}
+          initColor={value}
+          onValueChange={(v) => OnChange(key, v)}
+        />
+      );
+
+    case "image":
+      return (
+        <>
+          {value && (
+            <Image
+              src={WebHelper.getResourceString(value)}
+              boxSize="300px"
+              objectFit="contain"
+              borderRadius="md"
+              mb={2}
+            />
+          )}
+          <MaterialChooser
+            isDisabled={disabled}
+            additionalFilter={(item) =>
+              item.mimeType === "image/jpeg" || item.mimeType === "image/png"
+            }
+            materialsSelected={value}
+            onSelect={(name) => OnChange(key, name && name !== "" ? name : undefined)}
+          />
+        </>
+      );
+
+    case "textarea":
+      return (
+        <Textarea
+          isDisabled={disabled}
+          isInvalid={!!validationError}
+          defaultValue={value}
+          onChange={(e) => OnChange(key, e.target.value)}
+        />
+      );
+
+    case "iconSelect":
+      return (
+        <DynamicIconChooser
+          isDisabled={disabled}
+          iconSelected={value}
+          onSelect={(name) => OnChange(key, name)}
+        />
+      );
+
+    case "materialSelect":
+      return (
+        <MaterialChooser
+          isDisabled={disabled}
+          additionalFilter={editable.additionalFilter}
+          multipleSelection={editable.multiple}
+          materialsSelected={value}
+          onSelect={(name) => OnChange(key, name)}
+        />
+      );
+
+    case "playerSelect":
+      return (
+        <PlayerChooser
+          isDisabled={disabled}
+          selectedPlayers={[value]}
+          onSelect={([name]) => OnChange(key, name)}
+        />
+      );
+
+    case "custom":
+      return editable.customComponent ? editable.customComponent(key, { [key]: value }, OnChange) : null;
+
+    default:
+      return null;
+  }
+};
+
+// ─── Main panel ────────────────────────────────────────────────────────────────
 
 export const SettingsPanel = ({
   dto,
@@ -46,391 +238,153 @@ export const SettingsPanel = ({
   hideSaveButton,
   saveOnLeave,
   withExport,
-  showSearch
+  showSearch,
 }) => {
   const [updatedDto, setUpdatedDto] = React.useState({});
   const [validationDict, setValidationDict] = React.useState({});
   const [search, setSearch] = React.useState("");
 
-  const updateDtoRef = React.useRef();
-  updateDtoRef.current = updatedDto;
+  // Ref so event-handlers always see the latest updatedDto without stale closures
+  const updatedDtoRef = React.useRef(updatedDto);
+  updatedDtoRef.current = updatedDto;
 
-  if (editableKeyLabelDict === undefined) {
-    return <>{"MISSING editableKeyLabelDict"}</>;
+  if (!editableKeyLabelDict) {
+    return <Text color="red.400">MISSING editableKeyLabelDict</Text>;
   }
 
+  // ── handlers ──────────────────────────────────────────────────────────────
+
   const OnChange = (key, value) => {
-    let newDto = { ...updateDtoRef.current };
-    newDto[key] = value;
-    setUpdatedDto(newDto);
-    if (saveOnLeave) {
-      validateAndSave(newDto);
-    }
+    const next = { ...updatedDtoRef.current, [key]: value };
+    setUpdatedDto(next);
+    if (saveOnLeave) validateAndSave(next);
   };
 
-  const validate = () => {
-    const validationResult = {};
+  const validate = (current = updatedDtoRef.current) => {
+    const errors = {};
+    const combined = { ...dto, ...current };
+
     editableKeyLabelDict.forEach((editable) => {
-      let combinedDto = { ...dto, ...updatedDto };
-      if (
-        editable.required &&
-        (!combinedDto[editable.key] || combinedDto[editable.key] === "")
-      ) {
-        validationResult[editable.key] = "This field is required.";
+      const { key } = editable;
+      if (editable.required && (!combined[key] || combined[key] === "")) {
+        errors[key] = "This field is required.";
         return;
       }
       if (editable.validate) {
-        const { success, message } = editable.validate(
-          updatedDto[editable.key],
-          combinedDto
-        );
-        if (!success) {
-          validationResult[editable.key] = message;
-          return;
-        }
+        const { success, message } = editable.validate(current[key], combined);
+        if (!success) errors[key] = message;
       }
     });
 
-    setValidationDict(validationResult);
-
-    if (Object.keys(validationResult).length > 0) {
-      if (onValidation) onValidation(false, updatedDto, validationResult);
-      return false;
-    }
-
-    if (onValidation) onValidation(true, updatedDto, validationResult);
-    return true;
+    setValidationDict(errors);
+    const isValid = Object.keys(errors).length === 0;
+    onValidation?.(isValid, current, errors);
+    return isValid;
   };
 
-  const validateAndSave = (updatedDto) => {
-    if (validate() === false) return;
-    onSave(updatedDto);
+  const validateAndSave = (dtoToSave = updatedDtoRef.current) => {
+    if (!validate(dtoToSave)) return;
+    onSave?.(dtoToSave);
   };
 
-  const HandleDrop = (ev, key) => {
-    if (ev.dataTransfer.items && ev.dataTransfer.items.length === 1) {
-      let item = [...ev.dataTransfer.items][0];
-      if (item.kind === "file") {
-        WebHelper.postImage(item.getAsFile(), dto.name, (result) => {
-          OnChange(key, WebHelper.getResourceString(result));
-        });
-      }
-    }
-  };
+  // ── render helpers ────────────────────────────────────────────────────────
 
-  const GenerateCardBase = (key, dto, editable, content) => {
-    let disabled = editable.disableOn && editable.disableOn(dto);
+  if (!dto) return null;
+
+  const combinedDto = { ...dto, ...updatedDto };
+
+  const filteredEditables = editableKeyLabelDict.filter(
+    (editable) =>
+      search === "" || editable.label.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const grouped = Object.groupBy(filteredEditables, (e) => e.category ?? "default");
+  const defaultItems = grouped["default"] ?? [];
+  const namedGroups = Object.entries(grouped).filter(([k]) => k !== "default");
+
+  const renderField = (editable) => {
+    const { key } = editable;
+    const value = combinedDto[key];
+    const validationError = validationDict[key];
+    const disabled = !!(editable.disableOn && editable.disableOn(combinedDto));
+
     return (
-      <GridItem
-        key={`${dto.id}_${key}_${disabled}`}
+      <SettingFieldCard
+        key={`${combinedDto.id}_${key}_${disabled}`}
+        fieldKey={key}
+        editable={editable}
+        disabled={disabled}
+        validationError={validationError}
       >
-        <Card.Root
-          style={{ backgroundColor: "rgba(40,40,40,0.5)", color: "white", opacity: disabled ? 0.5 : 1 }}
-          colorScheme="blackAlpha"
-          variant="outline"
-          padding={3}
-          pointerEvents={"all"}
-          margin={1}
-          size="sm"
-        >
-          <Field.Root
-            invalid={validationDict[key]}
-            required={editable.required}
-          >
-            <Field.Label>
-              {editable.label}
-              <Field.RequiredIndicator />
-            </Field.Label>
-            <FieldErrorText>
-              <Field.ErrorIcon boxSize={"15px"} />
-              {validationDict[key]}
-            </FieldErrorText>
-            {content}
-          </Field.Root>
-        </Card.Root>
-      </GridItem>
+        {buildInput(editable, key, value, validationError, disabled, OnChange)}
+      </SettingFieldCard>
     );
   };
 
-  const PrepareItems = () => {
-    let mappedElements = [];
-    if (dto === undefined) {
-      return [];
-    }
-
-    dto = { ...dto, ...updatedDto };
-
-    editableKeyLabelDict.forEach((editable) => {
-      const key = editable.key;
-
-      //if editable name doesnt match search, skip
-      if (
-        search !== "" &&
-        !editable.label.toLowerCase().includes(search.toLowerCase())
-      ) {
-        return;
-      }
-
-      let element = {
-        category:
-          editable.category !== undefined ? editable.category : "default",
-      };
-
-      let input = <></>;
-
-      switch (editable.type) {
-        case "string":
-          input = (
-            <Input
-              label={editable.label}
-              disabled={editable.disableOn && editable.disableOn(dto)}
-              defaultValue={dto[key]}
-              onChange={(element) => OnChange(key, element.target.value)}
-            />
-          );
-          break;
-        case "select":
-          const collection = createListCollection({ items: editable.options });
-          input = (
-            <SelectRoot
-              disabled={editable.disableOn && editable.disableOn(dto)}
-              collection={collection}
-              value={[dto[key]]}
-              onValueChange={(element) => OnChange(key, element.value[0])}
-            >
-              <SelectTrigger>
-                <SelectValueText placeholder="Select...">
-                  {(items) => {
-                    const { label } = items.find(
-                      (x) => x.value === dto[key]
-                    ) || { label: "Select..." };
-                    return <>{label}</>;
-                  }}
-                </SelectValueText>
-              </SelectTrigger>
-              <SelectContent zIndex={9999}>
-                <For each={collection.items}>
-                  {(option, index) => (
-                    <SelectItem
-                      key={index}
-                      selected={dto[key] === option.value}
-                      item={option}
-                    >
-                      {option.label}
-                    </SelectItem>
-                  )}
-                </For>
-              </SelectContent>
-            </SelectRoot>
-          );
-          break;
-        case "number":
-          let infoAboutMinimumMaximum = "";
-          if (editable.min !== undefined || editable.max !== undefined) {
-            infoAboutMinimumMaximum += "(";
-            if (editable.min !== undefined)
-              infoAboutMinimumMaximum += ` Minimum: ${editable.min} `;
-            if (editable.max !== undefined)
-              infoAboutMinimumMaximum += ` Maximum: ${editable.max} `;
-            infoAboutMinimumMaximum += ")";
-          }
-          input = (
-            <>
-              <Field.HelperText>{infoAboutMinimumMaximum}</Field.HelperText>
-              <NumberInputRoot
-                disabled={editable.disableOn && editable.disableOn(dto)}
-                isInvalid={validationDict[key]}
-                defaultValue={dto[key]}
-                min={editable.min}
-                max={editable.max}
-              >
-                <NumberInputField
-                  onChange={(element) =>
-                    OnChange(key, parseFloat(element.target.value))
-                  }
-                />
-              </NumberInputRoot>
-            </>
-          );
-          break;
-        case "boolean":
-          input = (
-            <>
-              <Switch
-              disabled={editable.disableOn && editable.disableOn(dto)}
-                defaultChecked={dto[key] == true || dto[key] == "true" || dto[key] == "True"}
-                onCheckedChange={(e) => {
-                  OnChange(key, e.checked);
-                }}
-              />
-            </>
-          );
-          break;
-        case "color":
-          input = (
-            <DColorPicker
-              isDisabled={editable.disableOn && editable.disableOn(dto)}
-              isInvalid={validationDict[key]}
-              initColor={dto[key]}
-              onValueChange={(element) => OnChange(key, element)}
-            />
-          );
-          break;
-        case "image":
-          input = (
-            <>
-              {dto[key] ? (
-                <Image
-                  src={WebHelper.getResourceString(dto[key])}
-                  boxSize="300px"
-                  objectFit={"contain"}
-                />
-              ) : (
-                <></>
-              )}
-              <MaterialChooser
-                isDisabled={editable.disableOn && editable.disableOn(dto)}
-                additionalFilter={(item) =>
-                  item.mimeType == "image/jpeg" || item.mimeType == "image/png"
-                }
-                materialsSelected={dto[key]}
-                onSelect={(name) =>
-                  OnChange(key, name && name != "" ? name : undefined)
-                }
-              />
-            </>
-          );
-          break;
-        case "textarea":
-          input = (
-            <Textarea
-              isDisabled={editable.disableOn && editable.disableOn(dto)}
-              isInvalid={validationDict[key]}
-              defaultValue={dto[key]}
-              onChange={(element) => OnChange(key, element.target.value)}
-            ></Textarea>
-          );
-          break;
-        case "iconSelect":
-          input = (
-            <DynamicIconChooser
-              isDisabled={editable.disableOn && editable.disableOn(dto)}
-              iconSelected={dto[key]}
-              onSelect={(name) => OnChange(key, name)}
-            />
-          );
-          break;
-        case "materialSelect":
-          input = (
-            <MaterialChooser
-              isDisabled={editable.disableOn && editable.disableOn(dto)}
-              additionalFilter={editable.additionalFilter}
-              multipleSelection={editable.multiple}
-              materialsSelected={dto[key]}
-              onSelect={(name) => OnChange(key, name)}
-            />
-          );
-          break;
-        case "playerSelect":
-          input = (
-            <PlayerChooser
-              isDisabled={editable.disableOn && editable.disableOn(dto)}
-              selectedPlayers={[dto[key]]}
-              onSelect={([name]) => OnChange(key, name)}
-            />
-          );
-          break;
-        case "custom":
-          input = editable.customComponent(key, dto, OnChange);
-        default:
-          break;
-      }
-
-      if (element.value === undefined) {
-        element.value = GenerateCardBase(key, dto, editable, input);
-      }
-
-      if (element !== undefined) {
-        mappedElements.push(element);
-      }
-    });
-    return mappedElements;
-  };
-
-  const getGroupless = () => {
-    let grouped = Object.groupBy(mappedItems, (x) => x.category);
-    return grouped["default"] ? grouped["default"].map((x) => x.value) : [];
-  };
-
-  let mappedItems = PrepareItems();
-  let groupless = getGroupless();
-  let grouped = Object.groupBy(mappedItems, (x) => x.category);
+  // ── jsx ───────────────────────────────────────────────────────────────────
 
   return (
     <BasePanel>
-      <Flex
-        overflowY="auto"
-        overflowX="hidden"
-        direction="column"
-        grow="1"
-        width="100%"
-        heigth="100%"
-      >
+      <Flex overflowY="auto" overflowX="hidden" direction="column" flex="1" width="100%" pb={2} gap={1}>
+
         {showSearch && (
-          <SearchInput value={search} onChange={(v) => setSearch(v)} />
+          <Box px={2} pt={2}>
+            <SearchInput value={search} onChange={setSearch} />
+          </Box>
         )}
-        {groupless}
-        {Object.keys(grouped)
-          .filter((x) => x !== "default")
-          .map((x) => (
-            <Stack>
-              <Heading size={"md"} margin={"10px"}>
-                {x}
+
+        {/* Ungrouped fields */}
+        {defaultItems.map(renderField)}
+
+        {/* Named category groups */}
+        {namedGroups.map(([groupName, items]) => (
+          <Stack key={groupName} gap={0} mt={2}>
+            <HStack px={3} py={1} gap={2}>
+              <Heading size="sm" color="gray.300" whiteSpace="nowrap">
+                {groupName}
               </Heading>
-              {grouped[x].map((y) => y.value)}
-            </Stack>
-          ))}
+              <Separator flex="1" borderColor="whiteAlpha.200" />
+            </HStack>
+            {items.map(renderField)}
+          </Stack>
+        ))}
       </Flex>
-      {hideSaveButton ? (
-        <></>
-      ) : (
-        <>
-          {Object.keys(validationDict).length > 0 ? (
-            <p style={{ color: "red" }}>
-              Settings have errors, please correct them before saving
-            </p>
-          ) : (
-            <></>
+
+      {/* Footer bar */}
+      {!hideSaveButton && (
+        <Box borderTop="1px solid" borderColor="whiteAlpha.100" pt={2} px={2}>
+          {Object.keys(validationDict).length > 0 && (
+            <Text fontSize="xs" color="red.400" mb={2}>
+              Please fix the errors above before saving.
+            </Text>
           )}
-          <HStack margin={"10px"} gap={"10px"}>
-            <Button
-              variant={"outline"}
-              onClick={() => validateAndSave(updatedDto)}
-            >
+          <HStack gap={2} mb={2}>
+            <Button size="sm" variant="outline" onClick={() => validateAndSave()}>
               Save
             </Button>
-            {withExport ? (
+            {withExport && (
               <Button
+                size="sm"
+                variant="ghost"
                 onClick={() => {
-                  if (validate() === false) return;
-                  const element = document.createElement("a");
-                  const file = new Blob(
+                  if (!validate()) return;
+                  const blob = new Blob(
                     [JSON.stringify({ ...dto, ...updatedDto })],
                     { type: "text/plain" }
                   );
-                  element.href = URL.createObjectURL(file);
-                  element.download = dto.name.replaceAll(" ", "_") + ".json";
-                  document.body.appendChild(element); // Required for this to work in FireFox
-                  element.click();
+                  const a = document.createElement("a");
+                  a.href = URL.createObjectURL(blob);
+                  a.download = (dto.name ?? "export").replaceAll(" ", "_") + ".json";
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
                 }}
               >
                 Export
               </Button>
-            ) : (
-              <></>
             )}
           </HStack>
-        </>
+        </Box>
       )}
     </BasePanel>
   );

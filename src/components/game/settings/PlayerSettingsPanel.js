@@ -1,25 +1,4 @@
 import * as React from "react";
-import {
-  HStack,
-  Button,
-  Box,
-  Stack,
-  Textarea,
-  Grid,
-  GridItem,
-  Flex,
-  Card,
-  CardHeader,
-  CardBody,
-  Heading,
-  Center,
-  Badge,
-  FormLabel,
-  Input,
-  Checkbox,
-  NumberInput,
-  NumberInputField,
-} from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import SettingsPanel from "./SettingsPanel";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
@@ -54,11 +33,12 @@ export const PlayerSettingsPanel = ({ player }) => {
   ctx.setTitle(`Player settings`);
 
   ctx.setPreferredSize(600, 800);
-
   const sendSettingsUpdate = (dtoToSend) => {
-    dtoToSend.id = playerData.id;
-    let command = CommandFactory.CreatePlayerSettingsCommand(dtoToSend);
-    WebSocketManagerInstance.Send(command);
+    const cmd = CommandFactory.CreatePlayerSettingsCommand({
+      ...dtoToSend,
+      id: playerData.id,
+    });
+    WebSocketManagerInstance.Send(cmd);
   };
 
   const updateSettings = (event) => {

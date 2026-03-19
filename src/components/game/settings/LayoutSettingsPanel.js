@@ -1,12 +1,12 @@
 import * as React from "react";
-import { Tabs, TabList, Tab, TabPanels, TabPanel } from "@chakra-ui/react";
+import { Tabs } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import WebSocketManagerInstance from "../WebSocketManager";
 import SettingsPanel from "./SettingsPanel";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import Subscribable from "../../uiComponents/base/Subscribable";
 import SecuritySettingsPanel from "./SecuritySettingsPanel";
-import BasePanel from "../../uiComponents/base/BasePanel";
+import { BasePanel } from "../../uiComponents/base/BasePanel";
 import WebHelper from "../../../helpers/WebHelper";
 
 export const LayoutSettingsPanel = ({ layoutId }) => {
@@ -28,37 +28,41 @@ export const LayoutSettingsPanel = ({ layoutId }) => {
     },
   ];
 
+  // ctx must be declared before useEffect so the callback can reference it
+  const ctx = Dockable.useContentContext();
 
   React.useEffect(() => {
     const getLayout = async () => {
-      let response = await WebHelper.getAsync(`battlemap/GetLayout?id=${layoutId}`);
-      setLayout({...response});
-    ctx.setTitle(`Layout Settings - ${layout.name}`);
+      const response = await WebHelper.getAsync(`battlemap/GetLayout?id=${layoutId}`);
+      setLayout({ ...response });
+      ctx.setTitle(`Layout Settings - ${response.name}`);
     };
 
     getLayout();
-  } , [layoutId]);
+  // ctx is a stable panel-context reference — safe to omit from deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [layoutId]);
 
-  const ctx = Dockable.useContentContext();
-
-  if (layout === undefined) {
-    ctx.setTitle(`Layout Settings - Empty`);
+  if (!layout?.id) {
+    ctx.setTitle(`Layout Settings - Loading…`);
     return <></>;
   } else {
     ctx.setTitle(`Layout Settings - ${layout.name}`);
   }
 
-  ctx.setPreferredSize(600,800);
+  ctx.setPreferredSize(600, 800);
 
   const sendSettingsUpdate = (dtoToSend) => {
-    dtoToSend.id = layout.id;
-    dtoToSend.gameModelId = layout.gameModelId;
-    let command = CommandFactory.CreateLayoutUpdateCommand(dtoToSend);
+    const command = CommandFactory.CreateLayoutUpdateCommand({
+      ...dtoToSend,
+      id: layout.id,
+      gameModelId: layout.gameModelId,
+    });
     WebSocketManagerInstance.Send(command);
   };
 
   const updateSettings = (event) => {
-    setLayout({...layout, ...event.data});
+    setLayout({ ...layout, ...event.data });
   };
 
   return (

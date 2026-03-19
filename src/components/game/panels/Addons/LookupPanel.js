@@ -10,7 +10,7 @@ import DListItemButton from '../../../uiComponents/base/List/ListItemDetails/DLi
 import { FaEye } from 'react-icons/fa';
 import DLabel from '../../../uiComponents/base/Text/DLabel';
 import { JSONTree } from 'react-json-tree';
-import BasePanel from '../../../uiComponents/base/BasePanel';
+import { BasePanel } from '../../../uiComponents/base/BasePanel';
 import WebHelper from '../../../../helpers/WebHelper';
 
 export const LookupPanel = ({ name, content, contentType }) => {

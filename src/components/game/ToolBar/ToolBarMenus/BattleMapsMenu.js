@@ -1,23 +1,21 @@
 import * as React from 'react';
 import { FaMap, FaPlus } from 'react-icons/fa';
-import Battlemap from '../../Game';
 import WebHelper from '../../../../helpers/WebHelper';
 import DockableHelper from '../../../../helpers/DockableHelper';
 import CommandFactory from '../../../BattleMap/Factories/CommandFactory';
 import WebSocketManagerInstance from '../../WebSocketManager';
-import Subscribable from '../../../uiComponents/base/Subscribable';
 import DropDownMenu from '../../../uiComponents/base/DDItems/DropDownMenu';
 import DropDownItem from '../../../uiComponents/base/DDItems/DropDownItem';
 import CreateAndDeleteDropDownItem from '../../../uiComponents/base/DDItems/SpecialButtons/CreateAndDeleteDropDownButton';
 import ClientMediator from '../../../../ClientMediator';
 import InputModal from '../../../uiComponents/base/Modals/InputModal';
 import CollectionSyncer from '../../../uiComponents/base/CollectionSyncer';
+import { Battlemap } from '../../../BattleMap/Battlemap';
 
 export const BattleMapsMenu = ({ state }) => {
     const [battleMaps, setBattleMaps] = React.useState(undefined);
     const [openedBattleMaps, setOpenedBattleMaps] = React.useState([]);
     const [maps, setMaps] = React.useState(undefined);
-    const [gameId, setGameId] = React.useState(undefined);
 
     const onCreateBmModalRef = React.useRef(null);
 
@@ -39,10 +37,8 @@ export const BattleMapsMenu = ({ state }) => {
         WebHelper.get('battleMap/getBattleMaps', setBattleMaps);
 
         const loadData = async () => {
-            let gameId = await ClientMediator.sendCommandWaitForRegisterAsync("Game", "GetGameId", {}, true);
             let maps = await ClientMediator.sendCommandWaitForRegisterAsync("Game", "GetMaps", {}, true);
-            setMaps(maps);
-            setGameId(gameId);
+            setMaps(maps || []);
         }
 
         loadData();
@@ -74,6 +70,7 @@ export const BattleMapsMenu = ({ state }) => {
             }} />
             {battleMaps.filter(x => !openedBattleMaps.find(y => y.Id === x.id)).map(x =>
                 <CreateAndDeleteDropDownItem
+                    key={x.id}
                     width={350}
                     name={x.name}
 
@@ -85,7 +82,7 @@ export const BattleMapsMenu = ({ state }) => {
                     state={state}
                     element={<Battlemap withID={x.id} />} />
             )}
-            <DropDownItem width={350} name={"Add new"} icon={FaPlus} onClick={() => {
+            <DropDownItem key={'add_new_battlemap'} width={350} name={"Add new"} icon={<FaPlus/>} onClick={() => {
                 onCreateBmModalRef.current({name: "New BattleMap", map: maps[0].id});
             }} />
         </DropDownMenu>

@@ -1,5 +1,4 @@
 import * as React from "react";
-import DropDownButton from "./DropDrownButton";
 
 import { MenuItem } from "../../../ui/menu";
 
@@ -8,11 +7,23 @@ export const DropDownItem = ({ accessKey, name, onClick, icon, width, gmOnly }) 
     return null;
   }
 
-  //TODO get access key from settings
+  // Normalize icon: accept component (function) or React element
+  let renderedIcon = null;
+  try {
+    if (icon) {
+      if (typeof icon === 'function') {
+        renderedIcon = React.createElement(icon);
+      } else {
+        renderedIcon = icon;
+      }
+    }
+  } catch (e) {
+    renderedIcon = null;
+  }
 
   return (
     <MenuItem value={name} width={width} onClick={onClick}>
-        {icon} {name}
+        {renderedIcon} {name}
     </MenuItem>
   );
 };

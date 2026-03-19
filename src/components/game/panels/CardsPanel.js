@@ -1,6 +1,6 @@
 import * as React from "react";
 import * as Dockable from "@hlorenzi/react-dockable";
-import BasePanel from "../../uiComponents/base/BasePanel";
+import { BasePanel } from "../../uiComponents/base/BasePanel";
 import DListItem from "../../uiComponents/base/List/DListItem";
 import DLabel from "../../uiComponents/base/Text/DLabel";
 import WebHelper from "../../../helpers/WebHelper";

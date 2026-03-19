@@ -30,6 +30,58 @@ class TokenManager {
     this._getCanvas = getCanvas;
   }
 
+  // ── $meta ──────────────────────────────────────────────────────────────────
+  // Picked up by CommandExecutionHelper.LoadSuggestions via prototype reflection.
+  get $meta() {
+    return {
+      CanvasObjectLoadToken: {
+        description: 'Enlives and attaches token UI elements for an already-loaded canvas object.',
+        args: [{ name: 'id', type: 'string', required: true }],
+      },
+      UpdateTokensPropertySpecific: {
+        description: 'Updates a named property on every token on the canvas that has a matching prop-dep.',
+        args: [
+          { name: 'propertyName', type: 'string', required: true },
+          { name: 'source', type: 'string', required: true },
+          { name: 'propertyValue', type: 'string', required: true },
+        ],
+      },
+      UpdateTokenPropertySpecific: {
+        description: 'Updates a named property on a single token identified by its canvas object ID.',
+        args: [
+          { name: 'tokenId', type: 'string', required: true },
+          { name: 'propertyName', type: 'string', required: true },
+          { name: 'source', type: 'string', required: true },
+          { name: 'propertyValue', type: 'string', required: true },
+        ],
+      },
+      UpdateTokenBasedOnProperties: {
+        description: 'Re-fetches all property dependencies for a token and re-applies them to the canvas object.',
+        args: [{ name: 'tokenId', type: 'string', required: true }],
+      },
+      IsToken: {
+        description: 'Returns true when the canvas object with the given ID has the "isToken" property set.',
+        args: [{ name: 'id', type: 'string', required: true }],
+      },
+      GetTokenCardID: {
+        description: 'Returns the card ID linked to the given canvas object (token).',
+        args: [{ name: 'id', type: 'string', required: true }],
+      },
+      CreateToken: {
+        description: 'Spawns a new token on the map from a card ID at the given position.',
+        args: [
+          { name: 'cardId', type: 'string', required: true },
+          { name: 'x', type: 'number', required: false },
+          { name: 'y', type: 'number', required: false },
+        ],
+      },
+      UpdateTokenUIPositions: {
+        description: 'Recalculates and repositions all additional UI objects anchored to a token.',
+        args: [{ name: 'objectId', type: 'string', required: true }],
+      },
+    };
+  }
+
   //to fix, there should not be canvas ref
   CanvasObjectLoadToken({ id }) {
     const canvas = this._getCanvas();

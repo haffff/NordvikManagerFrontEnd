@@ -2,7 +2,7 @@ import * as React from 'react';
 import * as Dockable from "@hlorenzi/react-dockable"
 import UtilityHelper from '../../../helpers/UtilityHelper';
 import ElementSettingsPanel from '../settings/ElementsSettingsPanel';
-import BasePanel from '../../uiComponents/base/BasePanel';
+import { BasePanel } from '../../uiComponents/base/BasePanel';
 import ClientMediator from '../../../ClientMediator';
 import useBMName from '../../uiComponents/hooks/useBattleMapName';
 

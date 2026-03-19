@@ -1,20 +1,17 @@
 import * as React from "react";
-import { Tabs, TabList, Tab, TabPanels, TabPanel } from "@chakra-ui/react";
+import { Tabs } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import WebSocketManagerInstance from "../WebSocketManager";
-import SettingsPanel from "./SettingsPanel";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import Subscribable from "../../uiComponents/base/Subscribable";
 import SecuritySettingsPanel from "./SecuritySettingsPanel";
 import PropertiesSettingsPanel from "./PropertiesSettingsPanel";
-import BasePanel from "../../uiComponents/base/BasePanel";
-import EditTable from "./EditTable";
+import { BasePanel } from "../../uiComponents/base/BasePanel";
 import { SettingsPanelWithPropertySettings } from "./SettingsPanelWithPropertySettings";
 import WebHelper from "../../../helpers/WebHelper";
+import { toaster } from "../../ui/toaster";
 
-export const CardSettingsPanel = ({ cardId }) => {
-  const [dto, setDto] = React.useState(undefined);
-  const [templates, setTemplates] = React.useState([]);
+export const CardSettingsPanel = ({ cardId }) => {  const [dto, setDto] = React.useState(undefined);
 
   const generalSettings = [
     {
@@ -68,7 +65,6 @@ export const CardSettingsPanel = ({ cardId }) => {
       property: true,
     },
   ];
-
   const ctx = Dockable.useContentContext();
   React.useEffect(() => {
     if (cardId === undefined) {
@@ -82,6 +78,8 @@ export const CardSettingsPanel = ({ cardId }) => {
       },
       (error) => console.log(error)
     );
+  // ctx is a stable panel-context reference — safe to omit from deps
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [cardId]);
 
   if (dto === undefined) {
@@ -97,8 +95,14 @@ export const CardSettingsPanel = ({ cardId }) => {
     let command = CommandFactory.CreateGameSettingsCommand(dtoToSave);
     WebSocketManagerInstance.Send(command);
   };
-
   const updateSettings = (event) => {
+    if (event.data?.id !== dto?.id) return;
+
+    toaster.create({
+      description: "Card settings saved.",
+      type: "success",
+      duration: 4000,
+    });
   };
 
   return (

@@ -1,16 +1,14 @@
 import * as React from "react";
-import { Flex, For, FormLabel, Heading } from "@chakra-ui/react";
+import { Badge, Box, Button, Flex, HStack, Heading, Text } from "@chakra-ui/react";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import WebSocketManagerInstance from "../WebSocketManager";
 import Subscribable from "../../uiComponents/base/Subscribable";
-import Loadable from "../../uiComponents/base/Loadable";
 import WebHelper from "../../../helpers/WebHelper";
 import UtilityHelper from "../../../helpers/UtilityHelper";
 import DList from "../../uiComponents/base/List/DList";
 import DListItem from "../../uiComponents/base/List/DListItem";
-import DButtonHorizontalContainer from "../../uiComponents/base/Containers/DButtonHorizontalContainer";
-import DropDownButton from "../../uiComponents/base/DDItems/DropDrownButton";
 import ClientMediator from "../../../ClientMediator";
+import { BasePanel } from "../../uiComponents/base/BasePanel";
 import {
   SelectRoot,
   SelectTrigger,
@@ -21,203 +19,199 @@ import {
 import { createListCollection } from "@chakra-ui/react";
 import { toaster } from "../../ui/toaster";
 
-// TODO: Refactor this component
+// ─── Constants ────────────────────────────────────────────────────────────────
+
+const PERMISSION_LEVELS = [
+  { name: "Not set",  value: "-1", description: "Permission has not been explicitly set — falls back to game defaults." },
+  { name: "None",     value: "0",  description: "Player cannot see or interact with this element." },
+  { name: "See",      value: "1",  description: "Player can see this element but cannot interact with it." },
+  { name: "Control",  value: "4",  description: "Player can control / execute actions on this element, but cannot edit or remove it." },
+  { name: "Edit",     value: "7",  description: "Player can edit this element but cannot remove it." },
+  { name: "All",      value: "31", description: "Player has full control — see, control, edit, and remove." },
+];
+
+const ROLES_COLLECTION = createListCollection({ items: PERMISSION_LEVELS });
+
+// ─── Player permission row ────────────────────────────────────────────────────
+
+const PlayerPermissionRow = React.memo(({ player, isCurrentPlayer, onChange }) => {
+  const valueAsString = String(player.permission ?? -1);
+
+  return (
+    <DListItem padding="10px" isSelected={isCurrentPlayer}>
+      <Heading size="xs" width="40%" flexShrink={0}>
+        {player.name}
+        {isCurrentPlayer && (
+          <Text as="span" fontSize="xs" color="gray.400" ml={2}>(you)</Text>
+        )}
+      </Heading>
+      <Box flex="1">
+        <SelectRoot
+          collection={ROLES_COLLECTION}
+          value={[valueAsString]}
+          onValueChange={(e) => onChange(player.id, parseInt(e.value[0], 10))}
+          size="sm"
+        >
+          <SelectTrigger>
+            <SelectValueText placeholder="Select permission">
+              {(items) => {
+                const match = PERMISSION_LEVELS.find((r) => r.value === valueAsString);
+                return <>{match ? match.name : "Not set"}</>;
+              }}
+            </SelectValueText>
+          </SelectTrigger>
+          <SelectContent zIndex={9999}>
+            {PERMISSION_LEVELS.map((level) => (
+              <SelectItem item={level} key={level.value}>
+                <Box>
+                  <Text fontWeight="medium">{level.name}</Text>
+                  <Text fontSize="xs" color="gray.400">{level.description}</Text>
+                </Box>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </SelectRoot>
+      </Box>
+    </DListItem>
+  );
+});
+
+// ─── Main panel ───────────────────────────────────────────────────────────────
 
 export const SecuritySettingsPanel = ({ dto, type }) => {
-  const [players, setPlayers] = React.useState(undefined);
-  const playersRef = React.useRef(players);
-  playersRef.current = players;
+  const [players, setPlayers] = React.useState(null);        // null = loading
+  const [savedPermissions, setSavedPermissions] = React.useState({});
   const [currentPlayerId, setCurrentPlayerId] = React.useState(null);
 
-  const Load = async (players, playerId) => {
-    let permissions = await WebHelper.getAsync(
-      `security/permissions?entityId=${dto.id}&entityType=${type}`
-    );
-    let localPlayers = structuredClone(players);
-
-    localPlayers.forEach((player) => {
-      let permission = permissions[player.id];
-      if (permission === undefined) {
-        permission = -1;
-      }
-      player.permission = permission;
-    });
-    localPlayers.push({
-      id: UtilityHelper.EmptyGuid,
-      name: "All",
-      permission: permissions[UtilityHelper.EmptyGuid],
-    });
-
-    setPlayers(localPlayers);
-  };
+  const playersRef = React.useRef(players);
+  playersRef.current = players;
+  // ── initial load ────────────────────────────────────────────────────────
 
   React.useEffect(() => {
-    const GetData = async () => {
-      const players = await ClientMediator.sendCommandWaitForRegisterAsync(
-        "Game",
-        "GetPlayers",
-        {},
-        true
-      );
+    const load = async () => {
+      try {
+        const [allPlayers, currentPlayer, permissions] = await Promise.all([
+          ClientMediator.sendCommandWaitForRegisterAsync("Game", "GetPlayers", { uniqueKey: "security_GetPlayers" }, true),
+          ClientMediator.sendCommandWaitForRegisterAsync("Game", "GetCurrentPlayer", { uniqueKey: "security_GetCurrentPlayer" }, true),
+          WebHelper.getAsync(`security/permissions?entityId=${dto.id}&entityType=${type}`),
+        ]);
 
-      setPlayers(players);
+        setCurrentPlayerId(currentPlayer?.id ?? null);
+        setSavedPermissions(permissions ?? {});
 
-      const currentPlayer =
-        await ClientMediator.sendCommandWaitForRegisterAsync(
-          "Game",
-          "GetCurrentPlayer",
-          {},
-          true
-        );
+        const withPerms = [
+          ...allPlayers.map((p) => ({
+            ...p,
+            permission: permissions?.[p.id] ?? -1,
+          })),
+          {
+            id: UtilityHelper.EmptyGuid,
+            name: "Everyone (default)",
+            permission: permissions?.[UtilityHelper.EmptyGuid] ?? -1,
+          },
+        ];
 
-      setCurrentPlayerId(currentPlayer.id);
-
-      await Load(players, currentPlayer.id);
+        setPlayers(withPerms);
+      } catch (err) {
+        console.error("SecuritySettingsPanel: failed to load permissions", err);
+        setPlayers([]);   // exit loading state even on error
+      }
     };
 
-    GetData();
+    load();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [dto.id]);
+
+  // ── handlers ────────────────────────────────────────────────────────────
+
+  const handlePermissionChange = React.useCallback((playerId, value) => {
+    setPlayers((prev) =>
+      prev.map((p) => (p.id === playerId ? { ...p, permission: value } : p))
+    );
   }, []);
 
-  if (!players) {
-    return <></>;
-  }
+  const handleSave = () => {
+    const newPermissions = {};
+    players.forEach((p) => { newPermissions[p.id] = parseInt(p.permission, 10); });
 
-  const predefinedRoles = createListCollection({
-    items: [
-      {
-        name: "Not set",
-        value: -1,
-        description: "Permission has not been set",
-      },
-      { name: "None", value: 0, description: "Permission has not been set" },
-      { name: "See", value: 1, description: "User can see this element" },
-      {
-        name: "Control",
-        value: 4,
-        description:
-          "User can control/execute things in element(This doesn't include edit nor remove!)",
-      },
-      {
-        name: "Edit",
-        value: 7,
-        description:
-          "User can Edit things in element(This doesn't include removing!)",
-      },
-      {
-        name: "All",
-        value: 31,
-        description: "User has full control over element",
-      },
-    ],
-  });
-
-  const preparePanel = (player) => {
-    return (
-      <DListItem padding={"10px"} isSelected={player.id === currentPlayerId}>
-        <Heading size={"xs"} width="40%">
-          {player.name}
-        </Heading>
-        <Flex width={"60%"} grow={1} direction={"row-reverse"}>
-          <SelectRoot
-            value={[player.permission]}
-            collection={predefinedRoles}
-            onValueChange={(x) => {
-              player.permission = x.value[0];
-              let newPlayers = structuredClone(players);
-              newPlayers.forEach((p) => {
-                if (p.id === player.id) {
-                  p.permission = x.value[0];
-                }
-              });
-              setPlayers(newPlayers);
-            }}
-            size="sm"
-          >
-            <SelectTrigger>
-              <SelectValueText placeholder="Select permission">
-                {(items) => {
-                  const { name } = items[0];
-                  return <>{name}</>;
-                }}
-              </SelectValueText>
-            </SelectTrigger>
-            <SelectContent>
-              <For each={predefinedRoles.items}>
-                {(x) => (
-                  <SelectItem item={x} key={x.value}>
-                    {x.name}
-                  </SelectItem>
-                )}
-              </For>
-            </SelectContent>
-          </SelectRoot>
-        </Flex>
-      </DListItem>
-    );
-  };
-
-  const HandleEdit = () => {
-    let newPermissions = {};
-    players.forEach((element) => {
-      let permission = parseInt(element.permission);
-      newPermissions[element.id] = permission;
-    });
-
-    let cmd = CommandFactory.CreateUpdatePermissionsCommand(
-      dto.id,
-      type,
-      newPermissions
-    );
+    const cmd = CommandFactory.CreateUpdatePermissionsCommand(dto.id, type, newPermissions);
     WebSocketManagerInstance.Send(cmd);
   };
 
-  const HandleIncomingUpdate = (cmd) => {
-    if (cmd.data["id"] == dto.id) {
-      let newPlayers = structuredClone(playersRef.current);
-      newPlayers.forEach((player) => {
-        let permission = cmd.data["permissions"][player.id];
-        if (permission === undefined) {
-          permission = -1;
-        }
-        player.permission = permission;
-      });
-      setPlayers(newPlayers);
+  const handleReset = () => {
+    setPlayers((prev) =>
+      prev.map((p) => ({ ...p, permission: savedPermissions[p.id] ?? -1 }))
+    );
+  };
 
-      if (cmd.playerId === currentPlayerId) {
-        if (cmd.result === "Ok") {
-          toaster.create({
-            description: "Permissions updated",
-            type: "success",
-            duration: 5000,
-          });
-        }
-        else
-        {
-          toaster.create({
-            description: "Error updating permissions",
-            type: "error",
-            duration: 5000,
-          });
-        }
-      }
+  // ── websocket ───────────────────────────────────────────────────────────
+
+  const handleIncomingUpdate = (cmd) => {
+    if (cmd.data?.id !== dto.id) return;
+
+    const incoming = cmd.data.permissions ?? {};
+    setSavedPermissions(incoming);
+    setPlayers((prev) =>
+      prev.map((p) => ({ ...p, permission: incoming[p.id] ?? -1 }))
+    );
+
+    if (cmd.playerId === currentPlayerId) {
+      toaster.create({
+        description: cmd.result === "Ok" ? "Permissions saved." : "Error saving permissions.",
+        type: cmd.result === "Ok" ? "success" : "error",
+        duration: 4000,
+      });
     }
   };
 
+  // ── derived ─────────────────────────────────────────────────────────────
+
+  const isDirty = React.useMemo(() => {
+    if (!players) return false;
+    return players.some((p) => (savedPermissions[p.id] ?? -1) !== p.permission);
+  }, [players, savedPermissions]);
+
+  // ── render ───────────────────────────────────────────────────────────────
+
   return (
-    <>
-      <Subscribable
-        commandPrefix={"permissions_update"}
-        onMessage={HandleIncomingUpdate}
-      />
-      <DList>{players.map((x) => preparePanel(x))}</DList>
-      <DButtonHorizontalContainer>
-        <DropDownButton
-          width={200}
-          name={"Save"}
-          onClick={() => HandleEdit()}
-        />
-      </DButtonHorizontalContainer>
-    </>
+    <BasePanel>
+      <Subscribable commandPrefix="permissions_update" onMessage={handleIncomingUpdate} />      
+      {players === null ? (
+        <Flex flex="1" align="center" justify="center">
+          <Text fontSize="sm" color="gray.400">Loading permissions…</Text>
+        </Flex>
+      ) : (
+        <>
+          <DList>
+            {players.map((player) => (
+              <PlayerPermissionRow
+                key={player.id}
+                player={player}
+                isCurrentPlayer={player.id === currentPlayerId}
+                onChange={handlePermissionChange}
+              />
+            ))}
+          </DList>
+
+          <Box borderTop="1px solid" borderColor="whiteAlpha.100" pt={2} px={2} pb={2}>
+            {isDirty && (
+              <Badge colorPalette="orange" variant="subtle" fontSize="xs" mb={2}>
+                Unsaved changes
+              </Badge>
+            )}
+            <HStack gap={2}>
+              <Button size="sm" variant="outline" disabled={!isDirty} onClick={handleSave}>
+                Save
+              </Button>
+              <Button size="sm" variant="ghost" disabled={!isDirty} onClick={handleReset}>
+                Reset
+              </Button>
+            </HStack>
+          </Box>
+        </>
+      )}
+    </BasePanel>
   );
 };
+
 export default SecuritySettingsPanel;

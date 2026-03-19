@@ -5,7 +5,7 @@ import DList from '../../uiComponents/base/List/DList';
 import DListItem from '../../uiComponents/base/List/DListItem';
 import DLabel from '../../uiComponents/base/Text/DLabel';
 import WebHelper from '../../../helpers/WebHelper';
-import BasePanel from '../../uiComponents/base/BasePanel';
+import { BasePanel } from '../../uiComponents/base/BasePanel';
 import DContainer from '../../uiComponents/base/Containers/DContainer';
 import DListItemButton from '../../uiComponents/base/List/ListItemDetails/DListItemButton';
 import { FaCode, FaLink, FaMinusCircle, FaMusic, FaPen } from 'react-icons/fa';
