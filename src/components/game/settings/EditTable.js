@@ -1,16 +1,15 @@
 import * as React from "react";
 import {
   Flex,
+  Icon,
   Input,
-  Checkbox,
   Image,
   Table,
-  Tr,
-  Td,
-  Select,
   createListCollection,
   For,
 } from "@chakra-ui/react";
+import { FaInfoCircle } from "react-icons/fa";
+import { Tooltip } from "../../ui/tooltip";
 import WebHelper from "../../../helpers/WebHelper";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
 import DButtonHorizontalContainer from "../../uiComponents/base/Containers/DButtonHorizontalContainer";
@@ -25,6 +24,23 @@ import {
   SelectTrigger,
 } from "../../ui/select";
 import { Switch } from "../../ui/switch";
+
+// ── LabelCell — field name + optional description tooltip ────────────────────
+const LabelCell = ({ label, description }) => (
+  <Table.Cell>
+    <Flex align="center" gap="5px">
+      {label}
+      {description && description !== label && (
+        <Tooltip content={description} positioning={{ placement: "top" }} openDelay={200}>
+          <Flex as="span" align="center" cursor="help" color="gray.500"
+            _hover={{ color: "blue.300" }} display="inline-flex">
+            <Icon as={FaInfoCircle} boxSize="11px" />
+          </Flex>
+        </Tooltip>
+      )}
+    </Flex>
+  </Table.Cell>
+);
 
 export const EditTable = ({
   keyBase,
@@ -101,11 +117,10 @@ export const EditTable = ({
     editableKeyLabelDict.forEach((editable) => {
       let element = { category: editable.category || "default" };
       const key = editable.key;
-      switch (editable.type) {
-        case "string":
+      switch (editable.type) {        case "string":
           element.value = (
             <Table.Row key={keyBase + editable.key}>
-              <Table.Cell>{editable.label}</Table.Cell>
+              <LabelCell label={editable.label} description={editable.toolTip} />
               <Table.Cell>
                 <Input
                   isInvalid={validationDict[key]}
@@ -116,12 +131,11 @@ export const EditTable = ({
               </Table.Cell>
             </Table.Row>
           );
-          break;
-        case "select":
+          break;        case "select":
           const collection = createListCollection({ items: editable.options });
           element.value = (
             <Table.Row key={keyBase + editable.key}>
-              <Table.Cell>{editable.label}</Table.Cell>
+              <LabelCell label={editable.label} description={editable.toolTip} />
               <Table.Cell>
                 <SelectRoot
                   collection={collection}
@@ -154,8 +168,7 @@ export const EditTable = ({
               </Table.Cell>
             </Table.Row>
           );
-          break;
-        case "number":
+          break;        case "number":
           let infoAboutMinimumMaximum = "";
           if (editable.min || editable.max) {
             infoAboutMinimumMaximum += "(";
@@ -168,9 +181,10 @@ export const EditTable = ({
 
           element.value = (
             <Table.Row key={keyBase + editable.key}>
-              <Table.Cell>
-                {editable.label} {infoAboutMinimumMaximum}
-              </Table.Cell>
+              <LabelCell
+                label={`${editable.label}${infoAboutMinimumMaximum}`}
+                description={editable.toolTip}
+              />
               <Table.Cell>
                 <NumberInputRoot
                   isInvalid={validationDict[key]}
@@ -187,11 +201,10 @@ export const EditTable = ({
               </Table.Cell>
             </Table.Row>
           );
-          break;
-        case "boolean":
+          break;        case "boolean":
           element.value = (
             <Table.Row key={keyBase + editable.key}>
-              <Table.Cell>{editable.label}</Table.Cell>
+              <LabelCell label={editable.label} description={editable.toolTip} />
               <Table.Cell>
                 <Switch
                   checked={dto[key]}
@@ -202,11 +215,10 @@ export const EditTable = ({
               </Table.Cell>
             </Table.Row>
           );
-          break;
-        case "color":
+          break;        case "color":
           element.value = (
             <Table.Row key={keyBase + editable.key}>
-              <Table.Cell>{editable.label}</Table.Cell>
+              <LabelCell label={editable.label} description={editable.toolTip} />
               <Table.Cell>
                 <DColorPicker
                   isDisabled={editable.disableOn && editable.disableOn(dto)}
@@ -217,11 +229,10 @@ export const EditTable = ({
               </Table.Cell>
             </Table.Row>
           );
-          break;
-        case "image":
+          break;        case "image":
           element.value = (
             <Table.Row key={keyBase + editable.key}>
-              <Table.Cell>{editable.label} (You can drag & drop)</Table.Cell>
+              <LabelCell label={`${editable.label} (You can drag & drop)`} description={editable.toolTip} />
               <Table.Cell onDrop={(e) => HandleDrop(e, key)}>
                 <Image src={dto[key]} boxSize="300px" objectFit={"contain"} />
                 {updatedDto[key] ? (
@@ -273,10 +284,8 @@ export const EditTable = ({
     let grouped = Object.groupBy(mappedItems, (x) => x.category);
     return grouped["default"] ? grouped["default"].map((x) => x.value) : [];
   };
-
   let mappedItems = PrepareItems();
   let groupless = getGroupless();
-  let grouped = Object.groupBy(mappedItems, (x) => x.category);
 
   return (
     <BasePanel>

@@ -52,7 +52,7 @@ export const CommandFactory = {
         return { command: "layout_forcechange", data: id };
     },
     CreateUpdatePermissionsCommand: (id, dtoType, permissions) => {
-        return { command: "permissions_update", data: { id, entityType: dtoType, permissions } }
+        return { command: "permission_update", data: { id, entityType: dtoType, permissions } }
     },
     CreateDeleteBattleMap: (id) => {
         return { command: "battlemap_remove", data: id }

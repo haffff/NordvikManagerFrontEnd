@@ -8,16 +8,18 @@ import DynamicIcon from '../icons/DynamicIcon';
 import { FaFolder, FaSearch } from 'react-icons/fa';
 import { render } from 'react-dom';
 
-export const DTreeViewOnly = ({ items, generateItem, entityType, onSelect, additionalFilter }) => {
+export const DTreeViewOnly = ({ items, generateItem, entityType, onSelect, additionalFilter, labelKey }) => {
     generateItem = generateItem || ((x) => x.name);
     const [treeItems, setTreeItems] = React.useState([]);
     const [treeData, setTreeData] = React.useState([]);
     const [selectedItem, setSelectedItem] = React.useState(null);
 
-    const [filter, setFilter] = React.useState("");
-
-    const itemsRef = React.useRef(items);
+    const [filter, setFilter] = React.useState("");    const itemsRef = React.useRef(items);
     itemsRef.current = items;
+
+    // Keep generateItem in a ref so renderTree always uses the latest version
+    const generateItemRef = React.useRef(generateItem);
+    React.useLayoutEffect(() => { generateItemRef.current = generateItem; });
 
     const treeItemsRef = React.useRef(treeItems);
     const treeDataRef = React.useRef([]);
@@ -27,11 +29,16 @@ export const DTreeViewOnly = ({ items, generateItem, entityType, onSelect, addit
     treeItemsRef.current = treeItems;
 
     const filterRef = React.useRef(filter);
-    filterRef.current = filter;
-
-    React.useEffect(() => {
+    filterRef.current = filter;    React.useEffect(() => {
         renderTree(treeItemsRef.current, itemsRef.current);
     }, [filter]);
+
+    // Re-render labels when labelKey changes (e.g. selection state changed in parent)
+    React.useEffect(() => {
+        if (labelKey === undefined) return;
+        renderTree(treeItemsRef.current, itemsRef.current);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [labelKey]);
 
     const handleChange = (item) => {
         setTreeData(item);
@@ -125,33 +132,26 @@ export const DTreeViewOnly = ({ items, generateItem, entityType, onSelect, addit
                     addArray(firstChild, children, path + "/" + item.parent?.name);
                     const foundItem = items.find(x => x.id === item.targetId);
 
-                    if (!item.isFolder && !foundItem.name.includes(filterRef.current)) {
-                        item = item.nextInstance;
-                        continue;
+                    if (!item.isFolder) {
+                        // Skip orphaned tree items whose target resource no longer exists
+                        if (!foundItem) { item = item.nextInstance; continue; }
+                        if (!foundItem.name.includes(filterRef.current)) { item = item.nextInstance; continue; }
+                        if (additionalFilter && !additionalFilter(foundItem)) { item = item.nextInstance; continue; }
                     }
 
-                    if (!item.isFolder && additionalFilter && !additionalFilter(foundItem) ) {
-                        item = item.nextInstance;
-                        continue;
-                    }
-
-                    array.push({ ...item, icon: undefined, itemIcon: item.icon, children, label: item.isFolder ? generateFolder(item) : generateItem(foundItem, item), itemRef: foundItem, open: openStates[item.id], path: path });
+                    array.push({ ...item, icon: undefined, itemIcon: item.icon, children, label: item.isFolder ? generateFolder(item) : generateItemRef.current(foundItem, item), itemRef: foundItem, open: openStates[item.id], path: path });
                 }
                 else {
                     const foundItem = items.find(x => x.id === item.targetId);
 
-                    if (!item.isFolder && !foundItem.name.includes(filterRef.current)) {
-                        item = item.nextInstance;
-                        continue;
+                    if (!item.isFolder) {
+                        // Skip orphaned tree items whose target resource no longer exists
+                        if (!foundItem) { item = item.nextInstance; continue; }
+                        if (!foundItem.name.includes(filterRef.current)) { item = item.nextInstance; continue; }
+                        if (additionalFilter && !additionalFilter(foundItem)) { item = item.nextInstance; continue; }
                     }
 
-                    if (!item.isFolder && additionalFilter && !additionalFilter(foundItem) )
-                    {
-                        item = item.nextInstance;
-                        continue;
-                    }
-
-                    array.push({ ...item, icon: undefined, itemIcon: item.icon, label: item.isFolder ? generateFolder(item) : generateItem(foundItem, item), itemRef: foundItem, open: openStates[item.id], path: path });
+                    array.push({ ...item, icon: undefined, itemIcon: item.icon, label: item.isFolder ? generateFolder(item) : generateItemRef.current(foundItem, item), itemRef: foundItem, open: openStates[item.id], path: path });
                 }
                 item = item.nextInstance;
             }

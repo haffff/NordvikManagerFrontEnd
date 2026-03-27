@@ -16,12 +16,14 @@ export const CollectionSyncer = ({
   selectItemCommand,
   onAnyChange,
   incrementalUpdate,
+  paused,
 }) => {
   const collectionRef = React.useRef(collection);
 
   collectionRef.current = collection;
 
   const HandleMessage = (response) => {
+    if (paused) return;
     const collection = collectionRef.current;
 
     if (response.result && response.result != "Ok") {

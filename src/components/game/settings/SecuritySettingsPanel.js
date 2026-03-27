@@ -129,13 +129,20 @@ export const SecuritySettingsPanel = ({ dto, type }) => {
       prev.map((p) => (p.id === playerId ? { ...p, permission: value } : p))
     );
   }, []);
-
   const handleSave = () => {
+    if (!players) return;
+
     const newPermissions = {};
     players.forEach((p) => { newPermissions[p.id] = parseInt(p.permission, 10); });
 
     const cmd = CommandFactory.CreateUpdatePermissionsCommand(dto.id, type, newPermissions);
-    WebSocketManagerInstance.Send(cmd);
+    const sent = WebSocketManagerInstance.Send(cmd);
+
+    // Optimistically mark as saved so isDirty clears immediately.
+    // The WS echo in handleIncomingUpdate will confirm (or revert on error).
+    if (sent) {
+      setSavedPermissions(newPermissions);
+    }
   };
 
   const handleReset = () => {
@@ -145,23 +152,23 @@ export const SecuritySettingsPanel = ({ dto, type }) => {
   };
 
   // ── websocket ───────────────────────────────────────────────────────────
-
   const handleIncomingUpdate = (cmd) => {
     if (cmd.data?.id !== dto.id) return;
 
+    const isOk = cmd.result === "Ok";
     const incoming = cmd.data.permissions ?? {};
+
+    // Always sync local state to whatever the server confirmed.
     setSavedPermissions(incoming);
     setPlayers((prev) =>
-      prev.map((p) => ({ ...p, permission: incoming[p.id] ?? -1 }))
+      prev ? prev.map((p) => ({ ...p, permission: incoming[p.id] ?? -1 })) : prev
     );
 
-    if (cmd.playerId === currentPlayerId) {
-      toaster.create({
-        description: cmd.result === "Ok" ? "Permissions saved." : "Error saving permissions.",
-        type: cmd.result === "Ok" ? "success" : "error",
-        duration: 4000,
-      });
-    }
+    toaster.create({
+      description: isOk ? "Permissions saved." : "Error saving permissions.",
+      type: isOk ? "success" : "error",
+      duration: 4000,
+    });
   };
 
   // ── derived ─────────────────────────────────────────────────────────────
@@ -175,7 +182,7 @@ export const SecuritySettingsPanel = ({ dto, type }) => {
 
   return (
     <BasePanel>
-      <Subscribable commandPrefix="permissions_update" onMessage={handleIncomingUpdate} />      
+      <Subscribable commandPrefix="permission_update" onMessage={handleIncomingUpdate} />      
       {players === null ? (
         <Flex flex="1" align="center" justify="center">
           <Text fontSize="sm" color="gray.400">Loading permissions…</Text>

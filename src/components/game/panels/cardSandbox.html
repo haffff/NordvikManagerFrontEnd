@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Card Sandbox</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { width: 100%; height: 100%; overflow: hidden; background: transparent; }
+    #shadow-host { width: 100%; height: 100%; }
+  </style>
+</head>
+<body>
+  <div id="shadow-host"></div>
+  <script>
+    "use strict";
+
+    // ── Shadow DOM root ───────────────────────────────────────────────────
+    // All addon DOM and CSS are scoped inside this shadow root,
+    // completely isolated from the parent document's styles.
+    const shadowHost = document.getElementById("shadow-host");
+    const shadowRoot = shadowHost.attachShadow({ mode: "closed" });
+
+    // The addon's render target — exposed as window.cardRoot
+    const cardRoot = document.createElement("div");
+    cardRoot.id = "card-root";
+    cardRoot.style.cssText = "width:100%;height:100%;";
+    shadowRoot.appendChild(cardRoot);
+
+    // ── Pending RPC table ─────────────────────────────────────────────────
+    // reqId → { resolve, reject }
+    const _pending = {};
+    let _reqCounter = 0;
+
+    // ── Parent → iframe message handler ──────────────────────────────────
+    window.addEventListener("message", (event) => {
+      // Only accept messages from the parent frame
+      if (event.source !== window.parent) return;
+
+      const { type, reqId, result, error, command, data } = event.data ?? {};
+
+      if (type === "INIT") {
+        // Initialise the CardAPI surface exposed to the addon
+        _initApi(event.data);
+        return;
+      }
+
+      if (type === "CMD_RESULT") {
+        const pending = _pending[reqId];
+        if (!pending) return;
+        delete _pending[reqId];
+        if (error) {
+          pending.reject(new Error(error));
+        } else {
+          pending.resolve(result);
+        }
+        return;
+      }
+
+      if (type === "WS_EVENT") {
+        // Forward WS events to any addon subscribers
+        _wsSubscribers.forEach((cb) => {
+          try { cb({ command, data }); } catch (e) { console.error("WS subscriber error", e); }
+        });
+        return;
+      }      if (type === "PROPERTY_EVENT") {
+        if (window.CardAPI?._handlePropertyEvent) {
+          window.CardAPI._handlePropertyEvent(event.data);
+        }
+        return;
+      }
+
+      if (type === "LOAD_RESOURCES") {
+        // Inject scripts into the iframe's own document (runs in this sandboxed context)
+        (data?.scripts ?? event.data?.scripts ?? []).forEach((src) => {
+          const s = document.createElement("script");
+          s.src = src;
+          s.async = true;
+          document.body.appendChild(s);
+        });
+        // Inject CSS into the shadow root so styles are scoped there
+        (data?.styles ?? event.data?.styles ?? []).forEach((href) => {
+          const link = document.createElement("link");
+          link.rel = "stylesheet";
+          link.href = href;
+          shadowRoot.appendChild(link);
+        });
+      }
+    });
+
+    // ── RPC: send a command to the parent and await the result ────────────
+    function _rpc(panel, command, data) {
+      return new Promise((resolve, reject) => {
+        const reqId = ++_reqCounter;
+        _pending[reqId] = { resolve, reject };
+        window.parent.postMessage({ type: "CMD", reqId, panel, command, data }, "*");
+      });
+    }
+
+    // ── WS subscribers inside the iframe ─────────────────────────────────
+    const _wsSubscribers = new Set();
+
+    // ── CardAPI surface exposed to the addon ──────────────────────────────
+    function _initApi({ cardId, additionalArguments }) {
+
+      // Property subscription map { name → Set<callback> }
+      const _propSubs = {};
+      // Simple property cache
+      const _propCache = {};
+
+      const Properties = {
+        Init: (name, value) => _rpc("Properties", "Init", { name, value }),
+        InitMany: (props) => _rpc("Properties", "InitMany", { props }),
+        Get: async (name) => {
+          if (_propCache[name]) return _propCache[name];
+          const result = await _rpc("Properties", "Get", { name });
+          if (result) _propCache[name] = result;
+          return result;
+        },
+        GetMany: async (names) => {
+          const uncached = names.filter((n) => !_propCache[n]);
+          if (uncached.length) {
+            const fetched = await _rpc("Properties", "GetMany", { names: uncached });
+            (fetched ?? []).forEach((p) => { _propCache[p.name] = p; });
+          }
+          return names.map((n) => _propCache[n]).filter(Boolean);
+        },
+        Set: async (name, value) => {
+          delete _propCache[name];
+          return _rpc("Properties", "Set", { name, value });
+        },
+        SetMany: async (props) => {
+          props.forEach((p) => delete _propCache[p.name]);
+          return _rpc("Properties", "SetMany", { props });
+        },
+        Remove: async (name) => {
+          delete _propCache[name];
+          return _rpc("Properties", "Remove", { name });
+        },
+        Subscribe: (name, callback) => {
+          if (!_propSubs[name]) _propSubs[name] = new Set();
+          _propSubs[name].add(callback);
+        },
+        Unsubscribe: (name, callback) => {
+          _propSubs[name]?.delete(callback);
+        },
+      };
+
+      const ClientMediatorSurface = {
+        sendCommand: (panel, command, data) =>
+          _rpc(panel, command, data),
+        sendCommandAsync: (panel, command, data) =>
+          _rpc(panel, command, data),
+        register: (name, manager) =>
+          _rpc("__register__", name, manager),
+      };
+
+      const api = {
+        cardId,
+        additionalArguments,
+        cardRoot,          // The shadow-DOM div the addon should render into
+        Properties,
+        ClientMediator: ClientMediatorSurface,
+        SendChatMessage: (msg) =>
+          window.parent.postMessage({ type: "WS_SEND", command: "chat_message", data: msg }, "*"),
+        FireAction: (action, args) =>
+          window.parent.postMessage({ type: "WS_SEND", command: "action_execute", data: { action, args } }, "*"),
+        SendCustomCommandToServer: (command, data) =>
+          window.parent.postMessage({ type: "WS_SEND", command, data }, "*"),
+        SubscribeWebSocket: (callback) => {
+          _wsSubscribers.add(callback);
+          return callback; // token for unsubscribe
+        },
+        UnsubscribeWebSocket: (token) => {
+          _wsSubscribers.delete(token);
+        },
+
+        // Internal — used by PROPERTY_EVENT handler above
+        _handlePropertyEvent: ({ eventType, name, propData }) => {
+          if (eventType === "remove") {
+            delete _propCache[name];
+          } else {
+            _propCache[name] = propData;
+          }
+          _propSubs[name]?.forEach((cb) => {
+            try { cb(propData ?? null); } catch (e) { console.error("prop subscriber error", e); }
+          });
+        },
+      };
+
+      // Expose globally so addon scripts can access via window.CardAPI
+      window.CardAPI = api;
+      window.dispatchEvent(new CustomEvent("cardapi:ready", { detail: api }));
+    }
+
+    // Signal to the parent that the sandbox is ready to receive INIT
+    window.parent.postMessage({ type: "SANDBOX_READY" }, "*");
+  </script>
+</body>
+</html>

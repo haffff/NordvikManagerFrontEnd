@@ -40,7 +40,7 @@ export const BehaviorDictionaryServer = {
   element_ungroup: new OnUngroupBehavior(),
   settings_map: new OnMapSettingsUpdateBehavior(),
   map_change: new OnMapChangeBehavior(),
-  permissions_update: new OnPermissionsChangedBehavior(),
+  permission_update: new OnPermissionsChangedBehavior(),
   property_add: new OnPropertyAddBehavior(),
   property_update: new OnPropertyUpdateBehavior(),
   property_remove: new OnPropertyDeleteBehavior(),

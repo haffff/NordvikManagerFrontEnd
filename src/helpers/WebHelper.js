@@ -88,9 +88,9 @@ export const WebHelper = {
       })
       .catch((e) => {
         if (onException !== undefined) onException(e);
-        else console.error(e);
-      });
+        else console.error(e);      });
   },
+
   getAsync: async (adress) => {
     let address = WebHelper.addGameId(`${WebHelper.ApiAddress}/${adress}`);
     try {
@@ -188,26 +188,27 @@ export const WebHelper = {
     }
   },
       
-
   getMaterialAsync: async (id, mimeType) => {
-    let address = this.getResourceString(id);
-
-    const result = await fetch(address, {
-      method: "GET",
-      credentials: "include",
-      headers: {
-        "Content-Type": mimeType,
-        withCredentials: true,
-      },
-    });
-
-    if (result.ok) {
-      if (mimeType.startsWith("text") || mimeType.startsWith("application")) {
-        return await result.text();
-      } else {
-        return await result.blob();
+    let address = WebHelper.getResourceString(id);
+    try {
+      const result = await fetch(address, {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          withCredentials: true,
+        },
+      });
+      if (result.ok) {
+        if (mimeType.startsWith("text") || mimeType.startsWith("application")) {
+          return await result.text();
+        } else {
+          return await result.blob();
+        }
       }
-    } else {
+      console.warn(`WebHelper.getMaterialAsync: HTTP ${result.status} for ${address}`);
+      return undefined;
+    } catch (e) {
+      console.error(`WebHelper.getMaterialAsync: network error for ${address}`, e);
       return undefined;
     }
   },

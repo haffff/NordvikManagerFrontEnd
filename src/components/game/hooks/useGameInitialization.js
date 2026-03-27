@@ -2,7 +2,7 @@ import { useCallback } from 'react';
 import WebHelper from '../../../helpers/WebHelper';
 import LayoutHelper from '../../../helpers/LayoutCloneHelper';
 import ClientMediator from '../../../ClientMediator';
-import PropertiesHelperInstance from '../../../helpers/PropertiesHelper';
+import { PropertiesManagerInstance } from '../../../CardAPI';
 import WebSocketManagerInstance from '../WebSocketManager';
 import DockableHelper from '../../../helpers/DockableHelper';
 import CardAPI from '../../../CardAPI';
@@ -69,7 +69,7 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
 
       // ── Bootstrap ─────────────────────────────────────────────────────────
       ClientMediator.fireEvent('BattleMapsChanged', game.battleMaps);
-      ClientMediator.register(PropertiesHelperInstance);
+      ClientMediator.register(PropertiesManagerInstance);
       WebSocketManagerInstance.Send({ command: 'player_list' });
 
       window.CreateCardAPI = CardAPI;

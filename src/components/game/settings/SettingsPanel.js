@@ -209,13 +209,11 @@ const buildInput = (editable, key, value, validationError, disabled, OnChange) =
           materialsSelected={value}
           onSelect={(name) => OnChange(key, name)}
         />
-      );
-
-    case "playerSelect":
+      );    case "playerSelect":
       return (
         <PlayerChooser
           isDisabled={disabled}
-          selectedPlayers={[value]}
+          selectedPlayers={value ? [value] : []}
           onSelect={([name]) => OnChange(key, name)}
         />
       );

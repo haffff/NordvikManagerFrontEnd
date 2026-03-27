@@ -1,14 +1,13 @@
 import * as React from 'react';
-import { Box, Image } from '@chakra-ui/react'
-import * as Dockable from "@hlorenzi/react-dockable"
+import { Box, Flex, Icon, Image, Spinner, Text } from '@chakra-ui/react';
+import * as Dockable from "@hlorenzi/react-dockable";
 import DList from '../../uiComponents/base/List/DList';
-import DListItem from '../../uiComponents/base/List/DListItem';
 import DLabel from '../../uiComponents/base/Text/DLabel';
 import WebHelper from '../../../helpers/WebHelper';
 import { BasePanel } from '../../uiComponents/base/BasePanel';
 import DContainer from '../../uiComponents/base/Containers/DContainer';
 import DListItemButton from '../../uiComponents/base/List/ListItemDetails/DListItemButton';
-import { FaCode, FaLink, FaMinusCircle, FaMusic, FaPen } from 'react-icons/fa';
+import { FaCode, FaFile, FaLink, FaMinusCircle, FaMusic, FaPen, FaUpload } from 'react-icons/fa';
 import UtilityHelper from '../../../helpers/UtilityHelper';
 import DTreeList from '../../uiComponents/treeList/DTreeList';
 import CollectionSyncer from '../../uiComponents/base/CollectionSyncer';
@@ -20,159 +19,249 @@ import LookupPanel from './Addons/LookupPanel';
 import DTreeListItem from '../../uiComponents/base/List/DTreeListItem';
 import { toaster } from '../../ui/toaster';
 
-export const MaterialsPanel = ({ state }) => {
-    const [resources, setResources] = React.useState([]);
-    const [ignoreRefresh, setIgnoreRefresh] = React.useState(false);
-    const inputFile = React.useRef(null);
+// ─── Constants ────────────────────────────────────────────────────────────────
 
-    const LoadData = () => {
-        WebHelper.get("materials/getresources", (response) => {
-            setResources(response);
-        }, (error) => console.log(error));
-    }
+const BORDER_CLR  = "whiteAlpha.200";
+const BG_DROP     = "rgba(66,153,225,0.06)";
+const BG_DROP_HOV = "rgba(66,153,225,0.16)";
 
-    React.useEffect(() => {
-        LoadData();
-    }, []);
+// ─── UploadZone ───────────────────────────────────────────────────────────────
 
-    const onFolderRenameOpenRef = React.useRef(null);
-    const HandleDrop = (ev) => {
-        ev.preventDefault();
-        setIgnoreRefresh(true);
+const UploadZone = React.memo(({ uploading, onFiles }) => {
+    const [isDragOver, setIsDragOver] = React.useState(false);
+    const fileInputRef = React.useRef(null);
 
-        const doneArr = {};
-
-        [...ev.dataTransfer.items].forEach((item, i) => {
-            if (item.kind === "file") {
-                doneArr[i] = false;
-                WebHelper.postMaterial(item.getAsFile(), (result) => {
-                    doneArr[i] = true;
-                    if (Object.values(doneArr).every(x => x)) {
-                        setIgnoreRefresh(false);
-                        LoadData();
-                    }
-                }, (error) => { console.error(error) });
-            }
-        });
-    }
-
-    const GetLink = (id) => {
-        return WebHelper.getResourceString(id);
-    }
-
-    const GenerateLink = (id) => {
-        let url = GetLink(id);
-        if (navigator.clipboard) {
-            navigator.clipboard.writeText(url);
-            toaster.create(UtilityHelper.GenerateCopiedToast());
-        }
-        else {
-            window.prompt("Copy to clipboard: Ctrl+C, Enter", url);
-        }
-    }
-
-    const HandleAdd = (ev) => {
-    }
-
-    const ctx = Dockable.useContentContext();
-    ctx.setTitle(`Materials`);
-
-    const GetItemBody = (item) => {
-        const getTextDockable = (item) => {
-            WebHelper.getMaterial(item.id, item.mimeType, (result) => {
-                return DockableHelper.NewFloating(state, <LookupPanel
-                    name={item.name}
-                    content={result}
-                    contentType={item?.mimeType}
-                />);
-            }, (error) => { console.error(error) });
-        };
-
-        const getDockable = (item) => {
-            return DockableHelper.NewFloating(state, <LookupPanel
-                name={item.name}
-                content={GetLink(item.id)}
-                contentType={item?.mimeType}
-                isUrl={true}
-            />);
-        }
-
-        //Image
-        if (item?.mimeType.startsWith("image")){
-            return (
-                <>
-                    {/* <Popover closeOnBlur={true} placement='left-end'> */}
-                    {/* <PopoverTrigger> */}
-                    <Image objectFit={'contain'} boxSize={'50px'} onClick={() => getDockable(item)} src={GetLink(item.id)} />
-                    {/* </PopoverTrigger>
-                        <PopoverContent>
-                            <PopoverCloseButton />
-                            <PopoverBody>
-                                <Image objectFit={'contain'} boxSize={'250px'} v src={GetLink(item.id)} />
-                            </PopoverBody>
-                        </PopoverContent> */}
-                    {/* </Popover> */}
-                    <DLabel>{item.name}</DLabel>
-                </>
-            );
-        }
-
-        //Music
-        if (item?.mimeType.startsWith("audio")) {
-            return (
-                <>
-                    <FaMusic size={30} onClick={() => getDockable(item)} /><DLabel>{item.name}
-                    </DLabel>
-                </>
-            );
-        }
-
-        //CODE
-        if (item?.mimeType.startsWith("text") || item?.mimeType.startsWith("application")) {
-            return (
-                <>
-                    <FaCode onClick={() => getTextDockable(item)} size={30} />
-                    <DLabel>{item.name}</DLabel>
-                </>
-            );
-        }
-
+    const handleDrop = (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        setIsDragOver(false);
+        const files = [...e.dataTransfer.items]
+            .filter((i) => i.kind === "file")
+            .map((i) => i.getAsFile())
+            .filter(Boolean);
+        onFiles(files);
     };
 
     return (
-        <BasePanel>
+        <Box
+            border="1px dashed"
+            borderColor={isDragOver ? "blue.400" : BORDER_CLR}
+            borderRadius="md"
+            bg={isDragOver ? BG_DROP_HOV : BG_DROP}
+            transition="all 0.15s"
+            px={3} py={3}
+            cursor="pointer"
+            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragOver(true); }}
+            onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragOver(true); }}
+            onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragOver(false); }}
+            onDrop={handleDrop}
+            onClick={() => fileInputRef.current?.click()}
+        >
+            <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                style={{ display: "none" }}
+                onChange={(e) => { onFiles([...e.target.files]); e.target.value = ""; }}
+            />
+            <Flex align="center" justify="center" gap={2} pointerEvents="none">
+                {uploading
+                    ? <><Spinner size="xs" color="blue.300" /><Text fontSize="xs" color="gray.400">Uploading…</Text></>
+                    : <><Icon as={FaUpload} color={isDragOver ? "blue.300" : "gray.500"} />
+                        <Text fontSize="xs" color={isDragOver ? "blue.300" : "gray.500"}>
+                            Drop files or click to upload
+                        </Text></>
+                }
+            </Flex>
+        </Box>
+    );
+});
+
+// ─── Panel ────────────────────────────────────────────────────────────────────
+
+export const MaterialsPanel = ({ state }) => {
+    const [resources, setResources]     = React.useState([]);
+    const [ignoreRefresh, setIgnoreRefresh] = React.useState(false);
+    const [uploading, setUploading]     = React.useState(false);
+    const onFolderRenameOpenRef         = React.useRef(null);
+    const treeRefreshRef                = React.useRef(null);
+
+    const loadData = React.useCallback(() => {
+        WebHelper.get("materials/getresources",
+            (response) => setResources(response),
+            (error)    => console.error(error)
+        );
+    }, []);
+
+    React.useEffect(() => { loadData(); }, [loadData]);
+
+    const ctx = Dockable.useContentContext();
+    ctx.setTitle("Materials");
+
+    // ── upload ──────────────────────────────────────────────────────────────
+
+    const handleFiles = React.useCallback((files) => {
+        if (!files.length) return;
+        setIgnoreRefresh(true);
+        setUploading(true);
+
+        let remaining = files.length;
+        const done = () => {
+            remaining -= 1;
+            if (remaining === 0) {
+                setUploading(false);
+                setIgnoreRefresh(false);
+                loadData();
+                treeRefreshRef.current?.();
+            }
+        };
+
+        files.forEach((file) => {
+            WebHelper.postMaterial(file, done, (err) => {
+                console.error("MaterialsPanel: upload error", err);
+                toaster.create({ title: "Upload failed", description: file.name, type: "error", duration: 5000 });
+                done();
+            });
+        });
+    }, [loadData]);
+
+    // ── external drag-onto-panel ────────────────────────────────────────────
+
+    const handlePanelDrop = (e) => {
+        e.preventDefault();
+        const files = [...e.dataTransfer.items]
+            .filter((i) => i.kind === "file")
+            .map((i) => i.getAsFile())
+            .filter(Boolean);
+        if (files.length) handleFiles(files);
+    };
+
+    // ── link copy ───────────────────────────────────────────────────────────
+
+    const generateLink = React.useCallback((id) => {
+        const url = WebHelper.getResourceString(id);
+        if (navigator.clipboard) {
+            navigator.clipboard.writeText(url);
+            toaster.create(UtilityHelper.GenerateCopiedToast());
+        } else {
+            window.prompt("Copy to clipboard: Ctrl+C, Enter", url);
+        }
+    }, []);
+
+    // ── item body ───────────────────────────────────────────────────────────
+
+    const getItemBody = React.useCallback((item) => {
+        const link = WebHelper.getResourceString(item.id);
+
+        const openPreview = () => DockableHelper.NewFloating(state, <LookupPanel
+            name={item.name}
+            content={link}
+            contentType={item.mimeType}
+            isUrl={true}
+        />);
+
+        const openText = () => WebHelper.getMaterial(item.id, item.mimeType, (result) =>
+            DockableHelper.NewFloating(state, <LookupPanel
+                name={item.name}
+                content={result}
+                contentType={item.mimeType}
+            />),
+            (err) => console.error(err)
+        );
+
+        if (item.mimeType?.startsWith("image")) {
+            return (
+                <>
+                    <Image
+                        objectFit="contain"
+                        boxSize="36px"
+                        borderRadius="sm"
+                        src={link}
+                        cursor="pointer"
+                        onClick={openPreview}
+                        fallback={<Icon as={FaFile} boxSize="36px" color="gray.500" />}
+                    />
+                    <DLabel>{item.name}</DLabel>
+                </>
+            );
+        }
+        if (item.mimeType?.startsWith("audio")) {
+            return (
+                <>
+                    <Icon as={FaMusic} boxSize={5} color="purple.300" cursor="pointer" onClick={openPreview} />
+                    <DLabel>{item.name}</DLabel>
+                </>
+            );
+        }
+        if (item.mimeType?.startsWith("text") || item.mimeType?.startsWith("application")) {
+            return (
+                <>
+                    <Icon as={FaCode} boxSize={5} color="green.300" cursor="pointer" onClick={openText} />
+                    <DLabel>{item.name}</DLabel>
+                </>
+            );
+        }
+        return (
+            <>
+                <Icon as={FaFile} boxSize={5} color="gray.400" />
+                <DLabel>{item.name}</DLabel>
+            </>
+        );
+    }, [state]);
+
+    // ── render ──────────────────────────────────────────────────────────────
+
+    return (
+        <BasePanel onDragOver={(e) => e.preventDefault()} onDrop={handlePanelDrop}>
             <InputModal
-                title={"Rename Resource"}
+                title="Rename Resource"
                 getConfigDict={() => [{ key: "name", label: "Resource Name", toolTip: "Name of Resource.", type: "string", required: true }]}
                 openRef={onFolderRenameOpenRef}
-                onCloseModal={({ name, id }, success) => { if (success) { WebSocketManagerInstance.Send({ command: `resource_update`, data: { id, name } }) } }} />
-            <DContainer height={'100%'}>
-                <CollectionSyncer incrementalUpdate={true} collection={resources} setCollection={setResources} commandPrefix={"resource"} />
-                <DLabel>Resources</DLabel>
-                <DList >
-                    <RefreshInfo commandPrefix={"resource_notify"} ignore={ignoreRefresh} onRefresh={() => { LoadData(); }} />
-                    <DTreeList items={resources}
-                        onGenerateEditButtons={(item) => {
-                            return <>
-                                <DListItemButton icon={FaLink} label={"Get Link"} onClick={() => GenerateLink(item.id)} />
-                                <DListItemButton icon={FaPen} label={"Rename resource"} onClick={() => { onFolderRenameOpenRef.current({ name: item.name, id: item.id }) }} />
-                                <DListItemButton icon={FaMinusCircle} color={'red'} label={'Delete'} onClick={() => { WebSocketManagerInstance.Send({ command: `resource_delete`, data: item.id }) }} />
-                            </>
-                        }}
-                        generateItem={(item) => {
-                            const itemBody = GetItemBody(item) || <DLabel>{item.name}</DLabel>;
-                            return <DTreeListItem entityId={item.id} entityType={"ResourceModel"} drag width='300px'>
-                                {itemBody}
-                            </DTreeListItem>;
-                        }}
-                        entityType={"ResourceModel"} />
-                </DList>
+                onCloseModal={({ name, id }, success) => {
+                    if (success) WebSocketManagerInstance.Send({ command: "resource_update", data: { id, name } });
+                }}
+            />
+
+            <DContainer height="100%" display="flex" flexDirection="column">
+                <CollectionSyncer
+                    incrementalUpdate
+                    collection={resources}
+                    setCollection={setResources}
+                    commandPrefix="resource"
+                    paused={ignoreRefresh}
+                    onAdd={() => treeRefreshRef.current?.()}
+                />
+
+                <Box flex="1" overflowY="auto">
+                    <DList>
+                        <DTreeList
+                            items={resources}
+                            onGenerateEditButtons={(item) => (
+                                <>
+                                    <DListItemButton icon={FaLink}        label="Copy link"        onClick={() => generateLink(item.id)} />
+                                    <DListItemButton icon={FaPen}         label="Rename"            onClick={() => onFolderRenameOpenRef.current({ name: item.name, id: item.id })} />
+                                    <DListItemButton icon={FaMinusCircle} label="Delete" color="red" onClick={() => WebSocketManagerInstance.Send({ command: "resource_delete", data: item.id })} />
+                                </>
+                            )}
+                            generateItem={(item) => (
+                                <DTreeListItem entityId={item.id} entityType="ResourceModel" drag>
+                                    {getItemBody(item) ?? <DLabel>{item.name}</DLabel>}
+                                </DTreeListItem>
+                            )}
+                            entityType="ResourceModel"
+                            refreshRef={treeRefreshRef}
+                            onRefresh={loadData}
+                        />
+                    </DList>
+                </Box>
+
+                {/* Upload zone — always visible at the bottom */}
+                <Box px={2} py={2} borderTop="1px solid" borderColor={BORDER_CLR} flexShrink={0}>
+                    <UploadZone uploading={uploading} onFiles={handleFiles} />
+                </Box>
             </DContainer>
-            <Box>
-                <Box onDragOver={(ev) => ev.preventDefault()} onDrop={(ev) => { ev.preventDefault(); HandleDrop(ev); }} onClick={() => { inputFile.current.click() }} width={'200px'} height={'100px'} borderWidth={'2px'} borderRadius={'10px'} borderStyle={'dashed'} alignContent={'center'} textAlign={'center'}>Drop here</Box>
-                <input type='file' id='file' ref={inputFile} onChange={(e) => HandleAdd(e.target.files[0])} style={{ display: 'none' }} />
-            </Box>
         </BasePanel>
-    )
-}
+    );
+};
+
 export default MaterialsPanel;
