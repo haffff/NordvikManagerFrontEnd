@@ -27,3 +27,5 @@ my-credentials
 #.playwright-test-results
 .playwright-cli
 .playwright
+
+.copilot
