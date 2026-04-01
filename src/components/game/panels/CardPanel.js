@@ -2,7 +2,7 @@ import * as React from "react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import useUUID from "../../uiComponents/hooks/useUUID";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
-import WebHelper from "../../../helpers/WebHelper";
+import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import WebSocketManagerInstance from "../WebSocketManager";
 import { SANDBOX_BRIDGE_SCRIPT } from "./cardSandbox";
 import CardAPIFactory from "../../../CardAPI";

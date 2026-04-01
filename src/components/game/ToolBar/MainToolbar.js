@@ -22,7 +22,7 @@ export const MainToolbar = ({
   const GenerateInviteLink = () => {
     let game = ClientMediator.sendCommand("Game", "GetGame", {});
     let url =
-      `${window.location.origin}?iid=${game.id}` +
+      `${window.location.origin}?game=${game.id}` +
       (game.requirePassword
         ? `&rp=${game.requirePassword}`
         : "");

@@ -12,7 +12,7 @@ import CreateDropDownButton from "../../../uiComponents/base/DDItems/SpecialButt
 import DeletableDropDownButton from "../../../uiComponents/base/DDItems/SpecialButtons/DeletableDropDownButton";
 import ClientMediator from "../../../../ClientMediator";
 import CollectionSyncer from "../../../uiComponents/base/CollectionSyncer";
-import WebHelper from "../../../../helpers/WebHelper";
+import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import InputModal from "../../../uiComponents/base/Modals/InputModal";
 
 export const LayoutsMenu = ({ state, battlemapsRef }) => {

@@ -1,21 +1,15 @@
 import * as React from "react";
 import {
-  TabPanels,
-  Tabs,
-  TabList,
-  Tab,
-  TabPanel,
   Box,
   Input,
   Button,
   Checkbox,
   Flex,
   HStack,
-  FormLabel,
   Stack,
 } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
-import WebHelper from "../../../../helpers/WebHelper";
+import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import { BasePanel } from "../../../uiComponents/base/BasePanel";
 import DContainer from "../../../uiComponents/base/Containers/DContainer";
 import DListItem from "../../../uiComponents/base/List/DListItem";

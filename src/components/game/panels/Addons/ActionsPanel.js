@@ -16,7 +16,7 @@ import {
 } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import WebSocketManagerInstance from "../../WebSocketManager";
-import WebHelper from "../../../../helpers/WebHelper";
+import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import CollectionSyncer from "../../../uiComponents/base/CollectionSyncer";
 import { ActionStep } from "./ActionStep";
 import UtilityHelper from "../../../../helpers/UtilityHelper";

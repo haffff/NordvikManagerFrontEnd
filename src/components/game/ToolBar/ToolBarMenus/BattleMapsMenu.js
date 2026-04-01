@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { FaMap, FaPlus } from 'react-icons/fa';
-import WebHelper from '../../../../helpers/WebHelper';
+import { ActiveWebHelper as WebHelper } from '../../../../helpers/transport';
 import DockableHelper from '../../../../helpers/DockableHelper';
 import CommandFactory from '../../../BattleMap/Factories/CommandFactory';
 import WebSocketManagerInstance from '../../WebSocketManager';

@@ -3,7 +3,7 @@ import { Badge, Box, Button, Flex, HStack, Heading, Text } from "@chakra-ui/reac
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import WebSocketManagerInstance from "../WebSocketManager";
 import Subscribable from "../../uiComponents/base/Subscribable";
-import WebHelper from "../../../helpers/WebHelper";
+import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import UtilityHelper from "../../../helpers/UtilityHelper";
 import DList from "../../uiComponents/base/List/DList";
 import DListItem from "../../uiComponents/base/List/DListItem";

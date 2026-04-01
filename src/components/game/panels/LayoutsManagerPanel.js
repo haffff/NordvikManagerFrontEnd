@@ -15,7 +15,7 @@ import { BasePanel } from "../../uiComponents/base/BasePanel";
 import DListItem from "../../uiComponents/base/List/DListItem";
 import DListItemButton from "../../uiComponents/base/List/ListItemDetails/DListItemButton";
 import ClientMediator from "../../../ClientMediator";
-import WebHelper from "../../../helpers/WebHelper";
+import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import CollectionSyncer from "../../uiComponents/base/CollectionSyncer";
 import DListItemsButtonContainer from "../../uiComponents/base/List/DListItemsButtonContainer";
 import UtilityHelper from "../../../helpers/UtilityHelper";

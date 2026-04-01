@@ -2,7 +2,7 @@ import { Box, Image} from '@chakra-ui/react';
 import * as React from 'react';
 
 import '../../stylesheets/player.css';
-import WebHelper from '../../helpers/WebHelper';
+import { ActiveWebHelper as WebHelper } from '../../helpers/transport';
 
 export const PlayerAvatar = ({ player, size }) => {
     let imageSize = size === undefined ? 50 : size

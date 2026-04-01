@@ -21,7 +21,7 @@ import DListItemButton from "../../../uiComponents/base/List/ListItemDetails/DLi
 import DListItemsButtonContainer from "../../../uiComponents/base/List/DListItemsButtonContainer";
 import { SettingsPanelWithPropertySettings } from "../../settings/SettingsPanelWithPropertySettings";
 import WebSocketManagerInstance from "../../WebSocketManager";
-import WebHelper from "../../../../helpers/WebHelper";
+import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import ClientMediator from "../../../../ClientMediator";
 import { ResizeDivider, useDragResize } from "../../../uiComponents/ResizeDivider";
 

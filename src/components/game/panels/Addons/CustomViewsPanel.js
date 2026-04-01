@@ -1,10 +1,10 @@
 import * as React from 'react';
-import { Flex, Circle, FormLabel, HStack, Input, Select, Checkbox, Stack, Card, CardBody, Textarea } from '@chakra-ui/react'
+import { Flex, HStack, Input, Select, Checkbox, Stack, Textarea } from '@chakra-ui/react'
 import * as Dockable from "@hlorenzi/react-dockable"
 import Subscribable from '../../../uiComponents/base/Subscribable';
 import DList from '../../../uiComponents/base/List/DList';
 import WebSocketManagerInstance from '../../WebSocketManager';
-import WebHelper from '../../../../helpers/WebHelper';
+import { ActiveWebHelper as WebHelper } from '../../../../helpers/transport';
 import DContainer from '../../../uiComponents/base/Containers/DContainer';
 import DListItem from '../../../uiComponents/base/List/DListItem';
 import DLabel from '../../../uiComponents/base/Text/DLabel';

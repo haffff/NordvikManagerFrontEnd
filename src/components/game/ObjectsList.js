@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Checkbox, Tr, Td, Table, Tbody } from '@chakra-ui/react'
+import { Checkbox, Table } from '@chakra-ui/react'
 import { Icon } from '@chakra-ui/react'
 import { FaSquare, FaCircle, FaWindowMinimize, FaMousePointer, FaHandPaper, FaShapes, FaTextHeight, FaImage } from 'react-icons/fa'
 
@@ -38,8 +38,8 @@ export const ObjectsList = ({ game, map, canvasEditor }) => {
 
     return (
         <div title="Objects" name="ObjectsList" >
-            <Table size={'sm'}>
-                <Tbody>
+            <Table.Root size={'sm'}>
+                <Table.Body>
                     {items !== undefined ? items.map(element => {
                         if(element.name !== undefined && element.name.startsWith("."))
                             return;
@@ -48,14 +48,14 @@ export const ObjectsList = ({ game, map, canvasEditor }) => {
                         if (selectedItem !== undefined && selectedItem !== null) {
                             color = selectedItem.get('id') === element.id ? 'white' : 'gray'
                         }
-                        return (<Tr key={element.id} bg={color} onClick={() => { setSelectedItem(element); setUserSelectedItem(element); }}>
-                            <Td><Checkbox defaultChecked={element.visible} onChange={(e) => handleChecking(e, element)}></Checkbox></Td>
-                            <Td>{element.name}</Td>
-                            <Td><Icon as={GetProperIcon(element.type)} /></Td>
-                        </Tr>);
+                        return (<Table.Row key={element.id} bg={color} onClick={() => { setSelectedItem(element); setUserSelectedItem(element); }}>
+                            <Table.Cell><Checkbox defaultChecked={element.visible} onChange={(e) => handleChecking(e, element)}></Checkbox></Table.Cell>
+                            <Table.Cell>{element.name}</Table.Cell>
+                            <Table.Cell><Icon as={GetProperIcon(element.type)} /></Table.Cell>
+                        </Table.Row>);
                     }) : <></>}
-                </Tbody>
-            </Table>
+                </Table.Body>
+            </Table.Root>
         </div>
     )
 

@@ -3,7 +3,7 @@ import { Box } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import { FaWrench } from "react-icons/fa";
-import WebHelper from "../../../helpers/WebHelper";
+import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import WebSocketManagerInstance from "../WebSocketManager";
 import MapSettingsPanel from "../settings/MapSettingsPanel";
 import { IoIosRemoveCircleOutline } from "react-icons/io";

@@ -1,7 +1,7 @@
 import { Box, Flex } from "@chakra-ui/react";
 import DListItem from "../../../../uiComponents/base/List/DListItem";
 import React from "react";
-import WebHelper from "../../../../../helpers/WebHelper";
+import { ActiveWebHelper as WebHelper } from "../../../../../helpers/transport";
 import DContainer from "../../../../uiComponents/base/Containers/DContainer";
 import DList from "../../../../uiComponents/base/List/DList";
 import DLabel from "../../../../uiComponents/base/Text/DLabel";

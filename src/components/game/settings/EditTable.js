@@ -10,7 +10,7 @@ import {
 } from "@chakra-ui/react";
 import { FaInfoCircle } from "react-icons/fa";
 import { Tooltip } from "../../ui/tooltip";
-import WebHelper from "../../../helpers/WebHelper";
+import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
 import DButtonHorizontalContainer from "../../uiComponents/base/Containers/DButtonHorizontalContainer";
 import DropDownButton from "../../uiComponents/base/DDItems/DropDrownButton";

@@ -1,10 +1,10 @@
 import * as React from "react";
-import WebHelper from "../../helpers/WebHelper";
-import WebSocketManagerInstance from "./WebSocketManager";
+import { ActiveWebHelper as WebHelper, ActiveTransportManager as WebSocketManagerInstance } from "../../helpers/transport";
 import * as Dockable from "@hlorenzi/react-dockable";
 import MainToolbar from "./ToolBar/MainToolbar";
 import Subscribable from "../uiComponents/base/Subscribable";
 import { Flex, Box, Text } from "@chakra-ui/react";
+import { CloseButton } from "../ui/close-button";
 import PanelList from "../../helpers/PanelsList";
 import QuickCommandDialog from "../QuickCommandDialog";
 import { LoadingScreen } from "../uiComponents/LoadingScreen";
@@ -80,9 +80,11 @@ export const Game = ({ gameID, onExit }) => {
   // Register the Game ClientMediator API — re-runs when state/closures change
   useGameApi({ state, gameState, CreateLayoutElement });
 
+  const [connectionError, setConnectionError] = React.useState(null);
+
   // Initialize custom hooks
   const eventHandlers = useGameEventHandlers({ state, gameState, CreateLayoutElement });
-  const { loadGame, isInitialized } = useGameInitialization({ state, gameState, CreateLayoutElement });// Game initialization effect - only run once when WebSocket is ready
+  const { loadGame, initError, clearInitError, isInitialized } = useGameInitialization({ state, gameState, CreateLayoutElement });// Game initialization effect - only run once when WebSocket is ready
   React.useEffect(() => {
     if (!WebSocketManagerInstance.WebSocketStarted || isInitialized()) {
       return;
@@ -101,7 +103,7 @@ export const Game = ({ gameID, onExit }) => {
   }, [WebSocketManagerInstance.WebSocketStarted]); // Only depend on WebSocket status
 
   if (!WebSocketManagerInstance.WebSocketStarted) {
-    WebSocketManagerInstance.Start(gameID);
+    WebSocketManagerInstance.Start(gameID, (err) => setConnectionError(err?.message || 'Connection error'));
     return <LoadingScreen />;
   }  //To refactor toolbar. it will be in Toolbar directory probably. but i need to make map system and write tools panel properly.
   return (
@@ -150,6 +152,33 @@ export const Game = ({ gameID, onExit }) => {
       {portaledPanels}
       {clientScripts.map((x) => x.value)}
       
+      {/* Error banner — shown above status bar when there is an error */}
+      {(connectionError || initError) && (
+        <Box
+          position="fixed"
+          bottom="60px"
+          left={0}
+          right={0}
+          bg="red.900"
+          borderTop="1px solid"
+          borderColor="red.600"
+          px={4}
+          py={2}
+          zIndex={9998}
+        >
+          <Flex align="center" gap={2}>
+            <Text fontSize="xs" color="red.200" flex={1}>
+              {connectionError || initError}
+            </Text>
+            <CloseButton
+              size="sm"
+              color="red.300"
+              onClick={() => { setConnectionError(null); clearInitError(); }}
+            />
+          </Flex>
+        </Box>
+      )}
+
       {/* WebSocket Status Bar */}
       <Box
         position="fixed"

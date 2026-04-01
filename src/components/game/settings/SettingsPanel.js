@@ -26,7 +26,7 @@ import {
 } from "../../ui/select";
 import { Switch } from "../../ui/switch";
 import { NumberInputField, NumberInputRoot } from "../../ui/number-input";
-import WebHelper from "../../../helpers/WebHelper";
+import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
 import DynamicIconChooser from "../../uiComponents/icons/DynamicIconChooser";
 import { MaterialChooser } from "../../uiComponents/MaterialChooser";

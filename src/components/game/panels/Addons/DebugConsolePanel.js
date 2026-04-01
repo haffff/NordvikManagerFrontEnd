@@ -28,7 +28,7 @@ import DockableHelper from "../../../../helpers/DockableHelper";
 import LookupPanel from "./LookupPanel";
 import WebSocketManagerInstance from "../../WebSocketManager";
 import { ResizeDivider, useDragResize } from "../../../uiComponents/ResizeDivider";
-import WebHelper from "../../../../helpers/WebHelper";
+import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const BG_SURFACE  = "rgb(28,28,28)";

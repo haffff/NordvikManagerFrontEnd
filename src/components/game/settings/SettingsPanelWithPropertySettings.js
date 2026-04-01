@@ -1,5 +1,5 @@
 import * as React from 'react';
-import WebHelper from '../../../helpers/WebHelper';
+import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
 import SettingsPanel from './SettingsPanel';
 import ClientMediator from '../../../ClientMediator';
 import WebSocketManagerInstance from '../WebSocketManager';

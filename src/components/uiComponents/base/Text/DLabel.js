@@ -1,4 +1,4 @@
-import { FormLabel, Heading } from '@chakra-ui/react';
+import { Heading } from '@chakra-ui/react';
 import * as React from 'react';
 
 export const DLabel = ({children}) => {

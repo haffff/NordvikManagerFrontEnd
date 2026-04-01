@@ -7,7 +7,7 @@ import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import Subscribable from "../../uiComponents/base/Subscribable";
 import SecuritySettingsPanel from "./SecuritySettingsPanel";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
-import WebHelper from "../../../helpers/WebHelper";
+import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 
 export const LayoutSettingsPanel = ({ layoutId }) => {
   const [ layout, setLayout ] = React.useState({});

@@ -20,7 +20,7 @@ import {
   FaSync,
   FaUpload,
 } from "react-icons/fa";
-import WebHelper from "../../helpers/WebHelper";
+import { ActiveWebHelper as WebHelper } from "../../helpers/transport";
 import DListItem from "./base/List/DListItem";
 import DListItemsButtonContainer from "./base/List/DListItemsButtonContainer";
 import DListItemButton from "./base/List/ListItemDetails/DListItemButton";

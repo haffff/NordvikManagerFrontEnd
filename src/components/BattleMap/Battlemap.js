@@ -5,7 +5,7 @@ import CommandFactory from "./Factories/CommandFactory";
 import { useFabricJSEditor } from "fabricjs-react";
 import { FabricJSCanvas } from "fabricjs-react";
 import * as Dockable from "@hlorenzi/react-dockable";
-import WebHelper from "../../helpers/WebHelper";
+import { ActiveWebHelper as WebHelper } from "../../helpers/transport";
 import WebSocketManagerInstance from "../game/WebSocketManager";
 import ClientMediator from "../../ClientMediator";
 import { Flex } from "@chakra-ui/react";

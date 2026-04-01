@@ -1,5 +1,5 @@
 import { fabric } from 'fabric';
-import WebHelper from '../../../helpers/WebHelper';
+import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
 import CommandFactory from '../Factories/CommandFactory';
 import WebSocketManagerInstance from '../../game/WebSocketManager';
 import ClientMediator from '../../../ClientMediator';

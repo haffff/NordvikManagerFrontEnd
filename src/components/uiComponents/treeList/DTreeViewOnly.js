@@ -2,7 +2,7 @@ import { Box, Button, Card, CardBody, Flex, HStack, Input, Text } from '@chakra-
 import * as React from 'react';
 import Subscribable from '../base/Subscribable';
 import { ReactTreeList } from '@bartaxyz/react-tree-list';
-import WebHelper from '../../../helpers/WebHelper';
+import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
 import DListItem from '../base/List/DListItem';
 import DynamicIcon from '../icons/DynamicIcon';
 import { FaFolder, FaSearch } from 'react-icons/fa';

@@ -2,7 +2,7 @@ import * as React from "react";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import WebSocketManagerInstance from "../WebSocketManager";
 import Subscribable from "../../uiComponents/base/Subscribable";
-import WebHelper from "../../../helpers/WebHelper";
+import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import { IoMdAdd } from "react-icons/io";
 import { FaLock, FaLockOpen } from "react-icons/fa";
 import { BasePanel } from "../../uiComponents/base/BasePanel";

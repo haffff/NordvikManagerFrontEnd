@@ -2,7 +2,7 @@ import React, { useCallback } from 'react';
 import UtilityHelper from '../../../helpers/UtilityHelper';
 import DockableHelper from '../../../helpers/DockableHelper';
 import ClientMediator from '../../../ClientMediator';
-import WebHelper from '../../../helpers/WebHelper';
+import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
 import { toaster } from '../../ui/toaster';
 import ClientScript from '../../uiComponents/ClientScript';
 

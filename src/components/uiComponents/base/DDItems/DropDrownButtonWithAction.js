@@ -1,4 +1,4 @@
-import { Box, Button, Center, Grid, GridItem, HStack, Icon, Menu, Stack, Td } from '@chakra-ui/react';
+import { Box, Button, Center, Grid, GridItem, HStack, Icon, Menu, Stack } from '@chakra-ui/react';
 import * as React from 'react';
 import { FaArrowLeft } from 'react-icons/fa';
 import { IoIosArrowDropdown, IoIosArrowDropright, IoMdArrowDown, IoMdArrowDropdown } from 'react-icons/io';

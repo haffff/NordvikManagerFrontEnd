@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import WebSocketManagerInstance from '../../game/WebSocketManager';
+import { ActiveTransportManager as WebSocketManagerInstance } from '../../../helpers/transport';
 
 /**
  * Custom hook for monitoring WebSocket connection status

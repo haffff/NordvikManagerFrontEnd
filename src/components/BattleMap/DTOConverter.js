@@ -1,4 +1,4 @@
-import WebHelper from "../../helpers/WebHelper";
+import { ActiveWebHelper as WebHelper } from "../../helpers/transport";
 
 export const DTOConverter = {
 

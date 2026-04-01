@@ -8,7 +8,7 @@ import SecuritySettingsPanel from "./SecuritySettingsPanel";
 import PropertiesSettingsPanel from "./PropertiesSettingsPanel";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
 import { SettingsPanelWithPropertySettings } from "./SettingsPanelWithPropertySettings";
-import WebHelper from "../../../helpers/WebHelper";
+import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import { toaster } from "../../ui/toaster";
 
 export const CardSettingsPanel = ({ cardId }) => {  const [dto, setDto] = React.useState(undefined);

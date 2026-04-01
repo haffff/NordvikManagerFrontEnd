@@ -1,7 +1,7 @@
 import * as React from "react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
-import WebHelper from "../../../helpers/WebHelper";
+import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import DockableHelper from "../../../helpers/DockableHelper";
 import WebSocketManagerInstance from "../WebSocketManager";
 import CardPanel from "./CardPanel";
@@ -179,7 +179,7 @@ export const CardsPanel = ({ state }) => {
               }
 
               {/* Name + template subtitle */}
-              <Box flex="1" minW={0}>
+              <Box flex="1" minW={300}>
                 <Text fontWeight="semibold" fontSize="sm" noOfLines={1}>
                   {x.name}
                 </Text>

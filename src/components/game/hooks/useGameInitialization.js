@@ -1,9 +1,8 @@
-import { useCallback } from 'react';
-import WebHelper from '../../../helpers/WebHelper';
+import { useCallback, useState } from 'react';
 import LayoutHelper from '../../../helpers/LayoutCloneHelper';
 import ClientMediator from '../../../ClientMediator';
 import { PropertiesManagerInstance } from '../../../CardAPI';
-import WebSocketManagerInstance from '../WebSocketManager';
+import { ActiveWebHelper as WebHelper, ActiveTransportManager as WebSocketManagerInstance } from '../../../helpers/transport';
 import DockableHelper from '../../../helpers/DockableHelper';
 import CardAPI from '../../../CardAPI';
 import ScriptAPI from '../../../ScriptAPI';
@@ -21,6 +20,7 @@ let gameInitialized = false;
  * here once the fetch completes — no timing issue, no patchClient needed.
  */
 export const useGameInitialization = ({ state, gameState, CreateLayoutElement }) => {
+  const [initError, setInitError] = useState(null);
   const {
     setCurrentPlayerId,
     setPlayers,
@@ -84,6 +84,7 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
       console.error('Game initialization failed:', error);
       gameInitializationInProgress = false;
       gameInitialized = false;
+      setInitError(error?.message || 'Game initialization failed');
     } finally {
       gameInitializationInProgress = false;
     }
@@ -91,9 +92,12 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
 
   return {
     loadGame,
+    initError,
+    clearInitError: () => setInitError(null),
     resetInitialization: () => {
       gameInitializationInProgress = false;
       gameInitialized = false;
+      setInitError(null);
       console.log('Game initialization state reset');
     },
     isInitialized: () => gameInitialized,

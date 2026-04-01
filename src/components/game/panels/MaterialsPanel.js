@@ -3,7 +3,7 @@ import { Box, Flex, Icon, Image, Spinner, Text } from '@chakra-ui/react';
 import * as Dockable from "@hlorenzi/react-dockable";
 import DList from '../../uiComponents/base/List/DList';
 import DLabel from '../../uiComponents/base/Text/DLabel';
-import WebHelper from '../../../helpers/WebHelper';
+import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
 import { BasePanel } from '../../uiComponents/base/BasePanel';
 import DContainer from '../../uiComponents/base/Containers/DContainer';
 import DListItemButton from '../../uiComponents/base/List/ListItemDetails/DListItemButton';

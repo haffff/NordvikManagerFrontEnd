@@ -4,7 +4,7 @@ import Subscribable from '../base/Subscribable';
 import { ReactTreeList } from '@bartaxyz/react-tree-list';
 import WebSocketManagerInstance from '../../game/WebSocketManager';
 import InputModal from '../base/Modals/InputModal';
-import WebHelper from '../../../helpers/WebHelper';
+import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
 import { FaEdit, FaFolder, FaMinusCircle, FaPlus, FaSync } from 'react-icons/fa';
 import DListItemButton from '../base/List/ListItemDetails/DListItemButton';
 import DListItem from '../base/List/DListItem';

@@ -16,13 +16,16 @@ import {
 } from "@chakra-ui/react";
 import { IoMdMore } from "react-icons/io";
 import {
+  FaCopy,
   FaEdit,
+  FaLink,
   FaLock,
   FaSave,
   FaTrash,
   FaUnlock,
   FaUsers,
 } from "react-icons/fa";
+
 import WebHelper from "../../helpers/WebHelper";
 import React from "react";
 import {
@@ -35,6 +38,11 @@ import {
   DialogRoot,
 } from "../ui/dialog";
 import { toaster } from "../ui/toaster";
+
+const PLAYER_FRONTEND_URL = (
+  process.env.REACT_APP_PLAYER_FRONTEND_URL ||
+  (process.env.REACT_APP_CENTRAL_URL + '/client')
+).replace(/\/$/, '');
 
 // ─── Settings Dialog ──────────────────────────────────────────────────────────
 
@@ -140,6 +148,37 @@ const GameSettingsDialog = ({ game, open, onClose, onDeleted, onSaved }) => {
                 placeholder="Short description…"
                 rows={3}
               />
+            </Box>
+
+            {/* Invite link */}
+            <Box>
+              <Text fontSize="sm" mb={1} color="gray.400">
+                <Icon as={FaLink} mr={1} />
+                Player Invite Link
+              </Text>
+              <HStack gap={2}>
+                <Input
+                  readOnly
+                  size="sm"
+                  value={`${PLAYER_FRONTEND_URL}/?game=${game?.id ?? ''}${game?.passwordRequired ? '&rp=1' : ''}`}
+                  color="gray.300"
+                  fontFamily="mono"
+                  fontSize="xs"
+                />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  flexShrink={0}
+                  onClick={() => {
+                    const url = `${PLAYER_FRONTEND_URL}/?game=${game?.id ?? ''}${game?.passwordRequired ? '&rp=1' : ''}`;
+                    navigator.clipboard.writeText(url).then(() =>
+                      toaster.create({ description: "Invite link copied!", type: "success", duration: 2500 })
+                    );
+                  }}
+                >
+                  <Icon as={FaCopy} />
+                </Button>
+              </HStack>
             </Box>
 
             <Separator />

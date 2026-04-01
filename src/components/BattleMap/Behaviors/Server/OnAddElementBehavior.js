@@ -1,7 +1,7 @@
 import { fabric } from "fabric";
 import DTOConverter from "../../DTOConverter";
 import ClientMediator from "../../../../ClientMediator";
-import WebHelper from "../../../../helpers/WebHelper";
+import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import UtilityHelper from "../../../../helpers/UtilityHelper";
 
 export class OnAddElementBehavior {

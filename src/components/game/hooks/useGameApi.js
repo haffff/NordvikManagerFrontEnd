@@ -1,7 +1,7 @@
 import React from 'react';
 import ClientMediator from '../../../ClientMediator';
 import DockableHelper from '../../../helpers/DockableHelper';
-import WebHelper from '../../../helpers/WebHelper';
+import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
 import LayoutHelper from '../../../helpers/LayoutCloneHelper';
 import UtilityHelper from '../../../helpers/UtilityHelper';
 

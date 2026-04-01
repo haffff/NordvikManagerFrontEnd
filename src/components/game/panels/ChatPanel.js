@@ -21,7 +21,7 @@ import * as Dockable from "@hlorenzi/react-dockable";
 import { FaSearch, FaPaperPlane, FaTimes } from "react-icons/fa";
 import { Tooltip } from "../../ui/tooltip";
 
-import WebHelper from "../../../helpers/WebHelper";
+import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import WebSocketManagerInstance from "../WebSocketManager";
 import Subscribable from "../../uiComponents/base/Subscribable";

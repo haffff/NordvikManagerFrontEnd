@@ -7,7 +7,6 @@ import {
   IconButton,
   Menu,
   Stack,
-  Td,
 } from "@chakra-ui/react";
 import * as React from "react";
 import { FaArrowLeft } from "react-icons/fa";
