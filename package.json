@@ -36,7 +36,8 @@
     "start_player": "cross-env REACT_APP_MODE=player vite --port 3001",
     "start_gm": "cross-env REACT_APP_MODE=gm vite --port 3002",
     "build": "vite build",
-    "buildci": "vite build",
+    "buildci_gm": "cross-env REACT_APP_MODE=gm vite build",
+    "buildci_player": "cross-env REACT_APP_MODE=player vite build",
     "test": "vitest",
     "preview": "vite preview"
   },
