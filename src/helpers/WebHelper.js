@@ -46,9 +46,6 @@ export const WebHelper = {
   ApiAddress: process.env.REACT_APP_BASE_URL
     ? (process.env.REACT_APP_PROTOCOL || "") + process.env.REACT_APP_BASE_URL + "/api"
     : "/api",
-  WebSocketAddress: process.env.REACT_APP_BASE_URL
-    ? "wss://" + process.env.REACT_APP_BASE_URL + "/api/battlemap/ws"
-    : "/api/battlemap/ws",
   ImageAddress: process.env.REACT_APP_BASE_URL
     ? (process.env.REACT_APP_PROTOCOL || "") + process.env.REACT_APP_BASE_URL + "/api/Materials/Resource?id="
     : "/api/Materials/Resource?id=",

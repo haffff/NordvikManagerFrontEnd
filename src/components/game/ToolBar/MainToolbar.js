@@ -21,8 +21,9 @@ export const MainToolbar = ({
 }) => {
   const GenerateInviteLink = () => {
     let game = ClientMediator.sendCommand("Game", "GetGame", {});
+    const centralServerUrl = process.env.REACT_APP_CENTRAL_URL;
     let url =
-      `${window.location.origin}?game=${game.id}` +
+      `${centralServerUrl}?game=${game.centralSessionId}` +
       (game.requirePassword
         ? `&rp=${game.requirePassword}`
         : "");

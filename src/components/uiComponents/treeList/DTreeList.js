@@ -2,7 +2,7 @@ import { Box, Flex, HStack, Icon, IconButton, Spinner, Text } from '@chakra-ui/r
 import * as React from 'react';
 import Subscribable from '../base/Subscribable';
 import { ReactTreeList } from '@bartaxyz/react-tree-list';
-import WebSocketManagerInstance from '../../game/WebSocketManager';
+import { ActiveTransportManager as WebSocketManagerInstance } from '../../../helpers/transport';
 import InputModal from '../base/Modals/InputModal';
 import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
 import { FaEdit, FaFolder, FaMinusCircle, FaPlus, FaSync } from 'react-icons/fa';
@@ -100,7 +100,7 @@ const EmptyState = () => (
 
 /** Toolbar — memoised so it never re-renders during tree redraws. */
 const Toolbar = React.memo(({
-    withAddItem, selectedItem, items,
+    withAddItem, selectedItem, items, canEditFolders,
     onAddItem, onCreateFolder, onEditFolder, onDeleteFolder,
     onGenerateEditButtons, onRefresh, refreshing,
 }) => {
@@ -116,8 +116,10 @@ const Toolbar = React.memo(({
                 <DListItemButton label="Add Item" icon={FaPlus}
                     onClick={() => onAddItem?.(selectedItem)} />
             )}
-            <DListItemButton label="Add Folder" icon={FaFolder} onClick={onCreateFolder} />
-            {isFolder && <>
+            {canEditFolders && (
+                <DListItemButton label="Add Folder" icon={FaFolder} onClick={onCreateFolder} />
+            )}
+            {canEditFolders && isFolder && <>
                 <DListItemButton label="Edit Folder"   icon={FaEdit}       onClick={onEditFolder}   />
                 <DListItemButton label="Delete Folder" icon={FaMinusCircle} color="red" onClick={onDeleteFolder} />
             </>}
@@ -153,6 +155,7 @@ export const DTreeList = ({
     onSelect,
     refreshRef,
     onRefresh,
+    canEditFolders,
 }) => {
     const _generateItem = React.useMemo(
         () => generateItem ?? ((x) => x?.name ?? ""),
@@ -484,6 +487,7 @@ export const DTreeList = ({
                 withAddItem={withAddItem}
                 selectedItem={selected}
                 items={items}
+                canEditFolders={canEditFolders}
                 onAddItem={onAddItem}
                 onCreateFolder={() => openCreateRef.current?.({ name: "", parent: selected?.id })}
                 onEditFolder={() => openEditRef.current?.({ ...selected, icon: selected?.itemIcon })}

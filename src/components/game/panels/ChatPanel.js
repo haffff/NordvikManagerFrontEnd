@@ -23,7 +23,7 @@ import { Tooltip } from "../../ui/tooltip";
 
 import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
-import WebSocketManagerInstance from "../WebSocketManager";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import Subscribable from "../../uiComponents/base/Subscribable";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
 import PlayerAvatar from "../../uiComponents/PlayerAvatar";

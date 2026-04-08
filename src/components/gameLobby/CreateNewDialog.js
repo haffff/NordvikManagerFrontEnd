@@ -26,11 +26,14 @@ import {
 } from "../ui/dialog";
 import WebHelper from "../../helpers/WebHelper";
 
-const EMPTY_FORM = { passwordRequired: false, isPublic: true };
+const EMPTY_FORM = (publicGamesAllowed) => ({
+  passwordRequired: false,
+  isPublic: publicGamesAllowed !== false,
+});
 
-export const CreateNewDialog = ({ OnSuccess }) => {
+export const CreateNewDialog = ({ OnSuccess, publicGamesAllowed = true }) => {
   const [open, setOpen]       = React.useState(false);
-  const [form, setForm]       = React.useState(EMPTY_FORM);
+  const [form, setForm]       = React.useState(EMPTY_FORM(publicGamesAllowed));
   const [addons, setAddons]   = React.useState([]);
   const [busy, setBusy]       = React.useState(false);
   const [error, setError]     = React.useState(null);
@@ -44,7 +47,7 @@ export const CreateNewDialog = ({ OnSuccess }) => {
   const set = (field, value) => setForm((f) => ({ ...f, [field]: value }));
 
   const handleOpen = () => {
-    setForm(EMPTY_FORM);
+    setForm(EMPTY_FORM(publicGamesAllowed));
     setError(null);
     setOpen(true);
   };
@@ -138,6 +141,7 @@ export const CreateNewDialog = ({ OnSuccess }) => {
 
                   {/* Visibility */}
                   <Stack gap={3}>
+                    {publicGamesAllowed && (
                     <HStack
                       gap={3} p={3} borderRadius="md" cursor="pointer"
                       bg={form.isPublic ? "green.950" : "whiteAlpha.50"}
@@ -152,6 +156,7 @@ export const CreateNewDialog = ({ OnSuccess }) => {
                         <Text fontSize="xs" color="gray.400">Visible to all registered players</Text>
                       </Box>
                     </HStack>
+                    )}
 
                     <HStack
                       gap={3} p={3} borderRadius="md" cursor="pointer"

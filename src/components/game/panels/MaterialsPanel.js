@@ -12,12 +12,16 @@ import UtilityHelper from '../../../helpers/UtilityHelper';
 import DTreeList from '../../uiComponents/treeList/DTreeList';
 import CollectionSyncer from '../../uiComponents/base/CollectionSyncer';
 import InputModal from '../../uiComponents/base/Modals/InputModal';
-import WebSocketManagerInstance from '../WebSocketManager';
+import { ActiveTransportManager as WebSocketManagerInstance } from '../../../helpers/transport';
 import RefreshInfo from '../../uiComponents/treeList/RefreshInfoCard';
 import DockableHelper from '../../../helpers/DockableHelper';
+import ClientMediator from '../../../ClientMediator';
+import { usePermissions } from '../../../contexts/PermissionsContext';
+import { ENTITY_TYPES, PERM } from '../../BattleMap/helpers/permissionBits';
 import LookupPanel from './Addons/LookupPanel';
 import DTreeListItem from '../../uiComponents/base/List/DTreeListItem';
 import { toaster } from '../../ui/toaster';
+import ResourceImage from '../../uiComponents/ResourceImage';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -85,6 +89,10 @@ export const MaterialsPanel = ({ state }) => {
     const [uploading, setUploading]     = React.useState(false);
     const onFolderRenameOpenRef         = React.useRef(null);
     const treeRefreshRef                = React.useRef(null);
+
+    const { hasEntityPermission } = usePermissions();
+    const gameId = React.useMemo(() => ClientMediator.sendCommand("Game", "GetGameId"), []);
+    const canEditFolders = hasEntityPermission(ENTITY_TYPES.GAME, gameId, PERM.EDIT);
 
     const loadData = React.useCallback(() => {
         WebHelper.get("materials/getresources",
@@ -172,14 +180,14 @@ export const MaterialsPanel = ({ state }) => {
         if (item.mimeType?.startsWith("image")) {
             return (
                 <>
-                    <Image
+                    <ResourceImage
+                        id={item.id}
                         objectFit="contain"
                         boxSize="36px"
                         borderRadius="sm"
-                        src={link}
                         cursor="pointer"
                         onClick={openPreview}
-                        fallback={<Icon as={FaFile} boxSize="36px" color="gray.500" />}
+                        fallbackSrc={undefined}
                     />
                     <DLabel>{item.name}</DLabel>
                 </>
@@ -236,6 +244,7 @@ export const MaterialsPanel = ({ state }) => {
                     <DList>
                         <DTreeList
                             items={resources}
+                            canEditFolders={canEditFolders}
                             onGenerateEditButtons={(item) => (
                                 <>
                                     <DListItemButton icon={FaLink}        label="Copy link"        onClick={() => generateLink(item.id)} />

@@ -1,7 +1,7 @@
 import { fabric } from 'fabric';
 import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
 import CommandFactory from '../Factories/CommandFactory';
-import WebSocketManagerInstance from '../../game/WebSocketManager';
+import { ActiveTransportManager as WebSocketManagerInstance } from '../../../helpers/transport';
 import ClientMediator from '../../../ClientMediator';
 
 // Factory that returns a drop handler bound to provided refs/instances
@@ -44,12 +44,12 @@ export default function createHandleDrop({ editor, mapRef, battleMapObjectRef, b
 
           if (dragObj.entityType === 'CardModel') {
             console.debug('Battlemap HandleDrop: card', dragObj);
-            ClientMediator.sendCommand('BattleMap_token', 'CreateToken', { contextId: battleMapObjectRef?.current?.Id, cardId: dragObj.id, position: coords });
+            ClientMediator.sendCommand('BattleMap_token', 'CreateToken', { contextId: battleMapObjectRef?.current?.id, cardId: dragObj.id, position: coords });
           }
 
           if (dragObj.entityType === 'MapModel') {
             console.debug('Battlemap HandleDrop: map change', dragObj);
-            const command = CommandFactory.CreateChangeMapCommand(dragObj.id, battleMapObjectRef?.current?.Id);
+            const command = CommandFactory.CreateChangeMapCommand(dragObj.id, battleMapObjectRef?.current?.id);
             WebSocketManagerInstance.Send(command);
           }
         }

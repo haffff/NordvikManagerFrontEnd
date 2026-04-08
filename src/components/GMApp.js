@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { LoginPanel } from "./auth/LoginPanel";
 import { MainApp } from "./MainApp";
 import WebHelper from "../helpers/WebHelper";
+import TokenStore from "../helpers/TokenStore";
 import UtilityHelper from "../helpers/UtilityHelper";
 import { RegisterForm } from "./gameLobby/RegisterForm";
 import { toaster } from "./ui/toaster";
@@ -37,7 +38,7 @@ export const GMApp = () => {
   }
 
   if (inviteCode) return <RegisterForm code={inviteCode} />;
-  if (loggedIn) return <MainApp />;
+  if (loggedIn) return <MainApp onAuthRequired={() => { TokenStore.clear(); setLoggedIn(false); }} />;
   return <LoginPanel OnSuccess={() => setLoggedIn(true)} />;
 };
 

@@ -1,6 +1,7 @@
 import { fabric } from 'fabric';
 import DTOConverter from '../../DTOConverter';
 import ClientMediator from '../../../../ClientMediator';
+import { canControl } from '../../helpers/permissionBits';
 
 export class OnGroupBehavior {
     Handle(response, canvas, battleMapId) {
@@ -15,7 +16,7 @@ export class OnGroupBehavior {
         fabric.util.enlivenObjects([finalObject], (e) => {
             e.forEach(element => {
                 element.id = response.data.id;
-                element.selectable = (response.data.permission & 4) == 4 && response.data.layer == selectedLayer;
+                element.selectable = canControl(response.data.permission) && response.data.layer == selectedLayer;
 
                 let found = canvas._objects.findIndex(x => x.layer >= element.layer);
                 if (found == -1) {
@@ -28,8 +29,8 @@ export class OnGroupBehavior {
                     canvas.insertAt(element, found);
                 }
 
-                ClientMediator.sendCommandWaitForRegister("Game","GetCurrentPlayer", {},true).then((response) => {
-                    if (response.playerId === response.id)
+                ClientMediator.sendCommandWaitForRegister("Game","GetCurrentPlayer", {},true).then((currentPlayer) => {
+                    if (response.playerId === currentPlayer.id)
                         canvas.setActiveObject(element);
                         canvas.requestRenderAll();
                 });

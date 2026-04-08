@@ -20,7 +20,7 @@ import DLabel from "../../../uiComponents/base/Text/DLabel";
 import DListItemButton from "../../../uiComponents/base/List/ListItemDetails/DListItemButton";
 import DListItemsButtonContainer from "../../../uiComponents/base/List/DListItemsButtonContainer";
 import { SettingsPanelWithPropertySettings } from "../../settings/SettingsPanelWithPropertySettings";
-import WebSocketManagerInstance from "../../WebSocketManager";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../../../../helpers/transport";
 import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import ClientMediator from "../../../../ClientMediator";
 import { ResizeDivider, useDragResize } from "../../../uiComponents/ResizeDivider";

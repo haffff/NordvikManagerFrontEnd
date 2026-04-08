@@ -4,9 +4,10 @@ import DockableHelper from '../../../helpers/DockableHelper';
 import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
 import LayoutHelper from '../../../helpers/LayoutCloneHelper';
 import UtilityHelper from '../../../helpers/UtilityHelper';
+import { ROLES } from '../../../contexts/PermissionsContext';
+import { _entityPermissionSetter } from '../../../contexts/PermissionsContext';
 
-// Dedup guard for rapid Add/Delete BattleMapContext calls
-const recentContextOps = new Map();
+// (recentContextOps removed — replaced with pendingBMContextIds ref inside useGameApi)
 
 /**
  * Registers the "Game" interface with ClientMediator.
@@ -39,9 +40,17 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
     gameContainerRef,
     quickCommandDialogOpenRef,
     layout,
-    UpdateAfterTime,    currentPlayerRef,
+    UpdateAfterTime,
+    currentPlayerRef,
     gameRef,
+    isGM,
   } = gameState;
+
+  // Synchronous dedup for AddBattleMapContext.
+  // battleMapsContextsRef is only updated on the next render (React async state),
+  // so we need an immediately-consistent ref to prevent rapid double-registration
+  // while also allowing legitimate re-registration after unmount/remount.
+  const pendingBMContextIds = React.useRef(new Set());
 
   React.useEffect(() => {    // SetLayout is also exported so useGameEventHandlers can call it directly.
     // Accepts both a plain id string and a { id } object so all callers work.
@@ -51,7 +60,9 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
       state.ref.current.rootPanel = undefined;
       LayoutHelper.LoadLayoutState(state, fetched.value, CreateLayoutElement);
       setLayout(fetched);
-    };    const gameApi = {
+    };    
+    
+    const gameApi = {
       id: 'Game',
       panel: 'Game',
 
@@ -68,6 +79,14 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
         },
         GetOwner: {
           description: 'Returns the user-ID of the game master / owner.',
+          args: [],
+        },
+        GetRole: {
+          description: 'Returns the current user\'s role: "admin", "gm", or "player".',
+          args: [],
+        },
+        GetIsGM: {
+          description: 'Returns true if the current user is the game master or admin.',
           args: [],
         },
         GetGameId: {
@@ -161,15 +180,17 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
       AddBattleMapContext: (objOrWrapped) => {
         // Accept both raw battleMapContext object and { battleMapContext } wrapper
         const battleMapContext = objOrWrapped?.battleMapContext ?? objOrWrapped;
-        const id = battleMapContext?.Id;
+        const id = battleMapContext?.id;
         if (!id) return;
-        const now = Date.now();
-        const last = recentContextOps.get(id);
-        if (last && now - last < 500) return;
-        recentContextOps.set(id, now);
-
+        // Check both the state-synced ref AND the synchronous pending set.
+        // battleMapsContextsRef is only updated on the next render, so pending
+        // tracks IDs submitted this render cycle before the ref catches up.
         const current = battleMapsContextsRef.current || {};
-        if (current[id] === battleMapContext) return; // no change
+        if (current[id] || pendingBMContextIds.current.has(id)) {
+          console.warn(`AddBattleMapContext: "${id}" already registered — ignoring duplicate`);
+          return;
+        }
+        pendingBMContextIds.current.add(id);
         const next = { ...current, [id]: battleMapContext };
         setBattleMapContexts(next);
         ClientMediator.fireEvent('BattleMapsChanged', next);
@@ -178,16 +199,15 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
       GetBattleMapContext: (idOrObj) => {
         const id = idOrObj?.id ?? idOrObj;
         return battleMapsContextsRef.current[id];
-      },      DeleteBattleMapContext: (idOrObj) => {
+      },
+
+      DeleteBattleMapContext: (idOrObj) => {
         const id = idOrObj?.id ?? idOrObj;
         if (!id) return;
-        const now = Date.now();
-        const last = recentContextOps.get(id);
-        if (last && now - last < 500) return;
-        recentContextOps.set(id, now);
-
         const current = battleMapsContextsRef.current || {};
         if (!current[id]) return;
+        // Clear from pending so a remount can re-register immediately.
+        pendingBMContextIds.current.delete(id);
         const next = { ...current };
         delete next[id];
         setBattleMapContexts(next);
@@ -202,7 +222,7 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
         while (!Object.values(battleMapsContextsRef.current)[0]) {
           await new Promise((resolve) => setTimeout(resolve, 100));
         }
-        const first = Object.values(battleMapsContextsRef.current)[0]?.Id;
+        const first = Object.values(battleMapsContextsRef.current)[0]?.id;
         setSelectedBattleMapId(first);
         return first;
       },
@@ -211,7 +231,7 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
       GetPlayers: () => playersRef.current,
       GetConnectedPlayers: () => connectedPlayersRef.current,      GetPlayer: (idOrObj) => {
         const id = idOrObj?.id ?? idOrObj;
-        return playersRef.current.find((x) => x.id === id || x.Id === id);
+        return playersRef.current.find((x) => x.id === id);
       },
 
       GetCurrentPlayer: () => {
@@ -231,6 +251,16 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
       // Methods return undefined/null until then — no timing error.
       GetGame: () => gameRef.current,
       GetOwner: () => gameRef.current?.master?.id,
+      GetIsGM: () => {
+        const isAdmin = process.env.REACT_APP_MODE !== 'player';
+        if (isAdmin) return true;
+        return isGM;
+      },
+      GetRole: () => {
+        const isAdmin = process.env.REACT_APP_MODE !== 'player';
+        if (isAdmin) return ROLES.ADMIN;
+        return isGM ? ROLES.GM : ROLES.PLAYER;
+      },
 
       // ── Maps ─────────────────────────────────────────────────────────────────
       GetMaps: async () => await WebHelper.getAsync('map/GetAllFlat'),
@@ -267,6 +297,11 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
       // ── Lifecycle ────────────────────────────────────────────────────────────
       Exit: () => onExit(),
 
+      // ── Entity permissions ───────────────────────────────────────────────────
+      UpdateEntityPermission: ({ entityType, entityId, bits }) => {
+        _entityPermissionSetter.current?.(entityType, entityId, bits ?? 0);
+      },
+
       onEvent: (eventName, data) => {
         if (eventName === 'ActivePanelChanged' && data.panel === 'BattleMap') {
           setSelectedBattleMapId(data.contextId);
@@ -298,5 +333,6 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
     gameContainerRef,
     quickCommandDialogOpenRef,
     currentPlayerRef,
+    isGM,
   ]);
 };

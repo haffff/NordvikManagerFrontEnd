@@ -1,4 +1,4 @@
-import WebSocketManagerInstance from "../../game/WebSocketManager";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import {
   BehaviorDictionaryClient,
   BehaviorDictionaryServer,
@@ -21,7 +21,7 @@ const LoadBMSubscriptions = (canvas, references) => {
     if (candidate && typeof candidate === 'object') {
       if (candidate.current) {
         bmRef = candidate;
-      } else if (candidate.Id || candidate.Panel || candidate.PanelContentID) {
+      } else if (candidate.id || candidate.Panel || candidate.PanelContentID) {
         // candidate looks like the actual object (not a ref) -> wrap it
         bmRef = { current: candidate };
       }
@@ -32,12 +32,12 @@ const LoadBMSubscriptions = (canvas, references) => {
       return cleanups;
     }
 
-    if (!bmRef.current || !bmRef.current.Id) {
-      console.warn('LoadBMSubscriptions: battleMapObjectRef.current or Id is not available yet; skipping subscriptions', { bmRefCurrent: bmRef.current });
+    if (!bmRef.current || !bmRef.current.id) {
+      console.warn('LoadBMSubscriptions: battleMapObjectRef.current or id is not available yet; skipping subscriptions', { bmRefCurrent: bmRef.current });
       return cleanups;
     }
 
-    const battleMapId = bmRef.current.Id;
+    const battleMapId = bmRef.current.id;
     const subscriptionName = "BattleMap" + battleMapId;
 
     // WebSocket subscription

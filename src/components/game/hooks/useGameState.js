@@ -11,11 +11,11 @@ export const useGameState = (gameID, onExit) => {
   const [battleMapContexts, setBattleMapContexts] = React.useState({});
   const [portaledPanels, setPortaledPanels] = React.useState([]);
   const [selectedBattleMapId, setSelectedBattleMapId] = React.useState(undefined);
-  const [clientScripts, setClientScripts] = React.useState([]);
   const [players, setPlayers] = React.useState([]);
   const [connectedPlayers, setConnectedPlayers] = React.useState([]);
   const [currentPlayerId, setCurrentPlayerId] = React.useState(undefined);
   const [layout, setLayout] = React.useState(undefined);
+  const [isGM, setIsGM] = React.useState(false);
   const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
 
   // --- Refs ---
@@ -48,7 +48,6 @@ export const useGameState = (gameID, onExit) => {
     battleMapContexts,
     portaledPanels,
     selectedBattleMapId,
-    clientScripts,
     players,
     connectedPlayers,
     currentPlayerId,
@@ -57,11 +56,12 @@ export const useGameState = (gameID, onExit) => {
     setBattleMapContexts,
     setPortaledPanels,
     setSelectedBattleMapId,
-    setClientScripts,
     setPlayers,
     setConnectedPlayers,
     setCurrentPlayerId,
     setLayout,
+    isGM,
+    setIsGM,
     forceUpdate,
     // Refs
     playersRef,

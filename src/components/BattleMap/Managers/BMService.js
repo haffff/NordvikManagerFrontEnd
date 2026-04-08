@@ -1,4 +1,4 @@
-import WebSocketManagerInstance from "../../game/WebSocketManager";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import CommandFactory from "../Factories/CommandFactory";
 import { fabric } from "fabric";
 import DTOConverter from "../DTOConverter";

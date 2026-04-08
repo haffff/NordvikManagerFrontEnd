@@ -3,7 +3,7 @@ import { Flex, HStack, Input, Select, Checkbox, Stack, Textarea } from '@chakra-
 import * as Dockable from "@hlorenzi/react-dockable"
 import Subscribable from '../../../uiComponents/base/Subscribable';
 import DList from '../../../uiComponents/base/List/DList';
-import WebSocketManagerInstance from '../../WebSocketManager';
+import { ActiveTransportManager as WebSocketManagerInstance } from '../../../../helpers/transport';
 import { ActiveWebHelper as WebHelper } from '../../../../helpers/transport';
 import DContainer from '../../../uiComponents/base/Containers/DContainer';
 import DListItem from '../../../uiComponents/base/List/DListItem';

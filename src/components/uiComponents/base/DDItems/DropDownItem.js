@@ -1,11 +1,12 @@
 import * as React from "react";
 
 import { MenuItem } from "../../../ui/menu";
+import { usePermissions } from "../../../../contexts/PermissionsContext";
 
-export const DropDownItem = ({ accessKey, name, onClick, icon, width, gmOnly }) => {
-  if (gmOnly && localStorage.getItem("gmMode") !== "true") {
-    return null;
-  }
+export const DropDownItem = ({ accessKey, name, onClick, icon, width, gmOnly, adminOnly }) => {
+  const { isGM, isAdmin } = usePermissions();
+  if (gmOnly && !isGM) return null;
+  if (adminOnly && !isAdmin) return null;
 
   // Normalize icon: accept component (function) or React element
   let renderedIcon = null;

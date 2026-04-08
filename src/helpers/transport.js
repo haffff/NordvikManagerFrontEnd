@@ -1,14 +1,11 @@
 // Transport abstraction.
+// Both GM and player mode now use WebRTC as the sole real-time transport.
 // Import ActiveWebHelper and ActiveTransportManager instead of
-// WebHelper / WebSocketManagerInstance in components that must work in
-// both GM and player modes.
+// WebHelper / WebSocketManagerInstance in components that need to send
+// game commands or tunneled API requests.
 
-import WebHelper from './WebHelper';
 import WebRTCWebHelperInstance from './WebRTCWebHelper';
-import WebSocketManagerInstance from '../components/game/WebSocketManager';
 import WebRTCManagerInstance from '../components/game/WebRTCManager';
 
-const IS_PLAYER_MODE = process.env.REACT_APP_MODE === 'player';
-
-export const ActiveWebHelper = IS_PLAYER_MODE ? WebRTCWebHelperInstance : WebHelper;
-export const ActiveTransportManager = IS_PLAYER_MODE ? WebRTCManagerInstance : WebSocketManagerInstance;
+export const ActiveWebHelper = WebRTCWebHelperInstance;
+export const ActiveTransportManager = WebRTCManagerInstance;

@@ -3,11 +3,13 @@ import * as Dockable from "@hlorenzi/react-dockable";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
 import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import DockableHelper from "../../../helpers/DockableHelper";
-import WebSocketManagerInstance from "../WebSocketManager";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import CardPanel from "./CardPanel";
 import DTreeList from "../../uiComponents/treeList/DTreeList";
 import InputModal from "../../uiComponents/base/Modals/InputModal";
 import ClientMediator from "../../../ClientMediator";
+import { usePermissions } from "../../../contexts/PermissionsContext";
+import { ENTITY_TYPES, PERM } from "../../BattleMap/helpers/permissionBits";
 import CollectionSyncer from "../../uiComponents/base/CollectionSyncer";
 import DListItemButton from "../../uiComponents/base/List/ListItemDetails/DListItemButton";
 import { FaMinusCircle } from "react-icons/fa";
@@ -22,6 +24,10 @@ export const CardsPanel = ({ state }) => {
   const openRef = React.useRef(null);
   const treeRefreshRef = React.useRef(null);
   const [templates, setTemplates] = React.useState([]);
+
+  const { hasEntityPermission } = usePermissions();
+  const gameId = React.useMemo(() => ClientMediator.sendCommand("Game", "GetGameId"), []);
+  const canEditFolders = hasEntityPermission(ENTITY_TYPES.GAME, gameId, PERM.EDIT);
   const createConfig = [
     {
       key: "name",
@@ -100,6 +106,7 @@ export const CardsPanel = ({ state }) => {
         items={panels}
         refreshRef={treeRefreshRef}
         onRefresh={loadData}
+        canEditFolders={canEditFolders}
         onAddItem={() => {
           openRef.current({ template: templates[0]?.id });
         }}

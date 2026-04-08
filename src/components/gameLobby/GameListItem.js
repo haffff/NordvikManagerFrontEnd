@@ -160,7 +160,7 @@ const GameSettingsDialog = ({ game, open, onClose, onDeleted, onSaved }) => {
                 <Input
                   readOnly
                   size="sm"
-                  value={`${PLAYER_FRONTEND_URL}/?game=${game?.id ?? ''}${game?.passwordRequired ? '&rp=1' : ''}`}
+                  value={`${PLAYER_FRONTEND_URL}/?game=${game?.centralSessionId ?? ''}${game?.passwordRequired ? '&rp=1' : ''}`}
                   color="gray.300"
                   fontFamily="mono"
                   fontSize="xs"

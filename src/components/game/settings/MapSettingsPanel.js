@@ -2,7 +2,7 @@ import * as React from "react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import { Tabs } from "@chakra-ui/react";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
-import WebSocketManagerInstance from "../WebSocketManager";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import Subscribable from "../../uiComponents/base/Subscribable";
 import SecuritySettingsPanel from "./SecuritySettingsPanel";
 import { BasePanel } from "../../uiComponents/base/BasePanel";

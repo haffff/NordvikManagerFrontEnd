@@ -2,7 +2,7 @@ import * as React from "react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import SettingsPanel from "./SettingsPanel";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
-import WebSocketManagerInstance from "../WebSocketManager";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import Subscribable from "../../uiComponents/base/Subscribable";
 import ClientMediator from "../../../ClientMediator";
 import { toaster } from "../../ui/toaster";

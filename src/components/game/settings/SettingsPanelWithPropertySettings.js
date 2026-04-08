@@ -2,7 +2,7 @@ import * as React from 'react';
 import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
 import SettingsPanel from './SettingsPanel';
 import ClientMediator from '../../../ClientMediator';
-import WebSocketManagerInstance from '../WebSocketManager';
+import { ActiveTransportManager as WebSocketManagerInstance } from '../../../helpers/transport';
 
 export const SettingsPanelWithPropertySettings = ({
     dto,

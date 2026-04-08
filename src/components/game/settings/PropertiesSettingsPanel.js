@@ -1,6 +1,6 @@
 import * as React from "react";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
-import WebSocketManagerInstance from "../WebSocketManager";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import Subscribable from "../../uiComponents/base/Subscribable";
 import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import { IoMdAdd } from "react-icons/io";

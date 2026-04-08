@@ -26,7 +26,7 @@ import { Tooltip } from "../../../ui/tooltip";
 import Subscribable from "../../../uiComponents/base/Subscribable";
 import DockableHelper from "../../../../helpers/DockableHelper";
 import LookupPanel from "./LookupPanel";
-import WebSocketManagerInstance from "../../WebSocketManager";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../../../../helpers/transport";
 import { ResizeDivider, useDragResize } from "../../../uiComponents/ResizeDivider";
 import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 

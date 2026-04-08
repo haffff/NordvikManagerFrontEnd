@@ -1,4 +1,5 @@
 import ClientMediator from "../../../../ClientMediator";
+import { canSee, canControl, PERM, ENTITY_TYPES } from "../../helpers/permissionBits";
 
 export class OnPermissionsChangedBehavior {
     async Handle(response, canvas, battleMapId) {
@@ -9,8 +10,18 @@ export class OnPermissionsChangedBehavior {
             await ClientMediator.sendCommandAsync("BattleMap", "ReloadBattleMapComponent", { contextId: battleMapId });
         }
 
+        // For non-element entities (Map, Game, etc.) push updated bits into PermissionsContext
         if(data.entityType !== "ElementModel")
         {
+            ClientMediator.sendCommandWaitForRegister("Game", "GetCurrentPlayer", {}, true).then((currentPlayer) => {
+                const isGM = ClientMediator.sendCommand("Game", "GetIsGM");
+                const bits = isGM ? PERM.ALL : (data.permissions?.[currentPlayer?.id] ?? PERM.NONE);
+                ClientMediator.sendCommand("Game", "UpdateEntityPermission", {
+                    entityType: data.entityType,
+                    entityId: data.id,
+                    bits,
+                });
+            });
             return;
         }
 
@@ -21,13 +32,26 @@ export class OnPermissionsChangedBehavior {
         }
 
         ClientMediator.sendCommandWaitForRegister("Game", "GetCurrentPlayer", {}, true).then((currentPlayer) => {
-            let permission = data.permissions[currentPlayer.id];
-            let canControl = (permission & 4) == 4;
+            const isGM = ClientMediator.sendCommand("Game", "GetIsGM");
+            let permission = isGM ? PERM.ALL : (data.permissions[currentPlayer.id] ?? PERM.NONE);
 
-            obj.set('selectablePermission', canControl);
+            obj.set('selectablePermission', canControl(permission));
             obj.set('permission', permission);
-            obj.set('selectable', obj.selectablePermission && obj.layer == ClientMediator.sendCommand("BattleMap", "GetSelectedLayer", { contextId: battleMapId }));
-            obj.set('visible', (permission & 1) == 1);
+            obj.set('selectable', canControl(permission) && obj.layer == ClientMediator.sendCommand("BattleMap", "GetSelectedLayer", { contextId: battleMapId }));
+            obj.set('visible', canSee(permission));
+
+            // Visual indicator: colored border if any non-GM player has control
+            const allPlayers = ClientMediator.sendCommand("Game", "GetPlayers") || [];
+            const controllingPlayer = allPlayers.find(
+                (p) => p.id !== currentPlayer.id && canControl(data.permissions?.[p.id] ?? PERM.NONE)
+            );
+            if (controllingPlayer) {
+                obj.set('stroke', controllingPlayer.color || '#ffffff');
+                obj.set('strokeWidth', 3);
+            } else {
+                obj.set('stroke', null);
+                obj.set('strokeWidth', 0);
+            }
 
             canvas.requestRenderAll();
         });

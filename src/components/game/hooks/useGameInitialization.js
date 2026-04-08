@@ -6,6 +6,8 @@ import { ActiveWebHelper as WebHelper, ActiveTransportManager as WebSocketManage
 import DockableHelper from '../../../helpers/DockableHelper';
 import CardAPI from '../../../CardAPI';
 import ScriptAPI from '../../../ScriptAPI';
+import { _entityPermissionSetter } from '../../../contexts/PermissionsContext';
+import { ENTITY_TYPES, PERM } from '../../BattleMap/helpers/permissionBits';
 
 // Global flags to prevent duplicate game initialization
 let gameInitializationInProgress = false;
@@ -25,6 +27,7 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
     setCurrentPlayerId,
     setPlayers,
     setLayout,
+    setIsGM,
     currentPlayerRef,
     gameRef,
   } = gameState;
@@ -49,8 +52,23 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
       // Populate refs so useGameApi's GetGame/GetOwner/GetCurrentPlayer resolve
       gameRef.current = game;
 
-      localStorage.setItem('gmMode', game.master.id === player.id ? 'true' : 'false');
+      const gmStatus = game.master.id === player.id;
+      localStorage.setItem('gmMode', gmStatus ? 'true' : 'false');
+      setIsGM(gmStatus);
       setPlayers(game.players);
+
+      // Load game-level entity permissions for non-GM players
+      if (!gmStatus && process.env.REACT_APP_MODE === 'player') {
+        try {
+          const gamePerms = await WebHelper.getAsync(
+            `security/permissions?entityId=${game.id}&entityType=${ENTITY_TYPES.GAME}`
+          );
+          const bits = gamePerms?.[player.id] ?? PERM.NONE;
+          _entityPermissionSetter.current?.(ENTITY_TYPES.GAME, game.id, bits);
+        } catch (e) {
+          console.warn('useGameInitialization: failed to load game entity permissions', e);
+        }
+      }
 
       // ── Load default layout ────────────────────────────────────────────────
       const gameLayout = game.defaultLayout?.value;
@@ -88,7 +106,7 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
     } finally {
       gameInitializationInProgress = false;
     }
-  }, [state, CreateLayoutElement, setCurrentPlayerId, setPlayers, setLayout, currentPlayerRef, gameRef]);
+  }, [state, CreateLayoutElement, setCurrentPlayerId, setPlayers, setLayout, setIsGM, currentPlayerRef, gameRef]);
 
   return {
     loadGame,

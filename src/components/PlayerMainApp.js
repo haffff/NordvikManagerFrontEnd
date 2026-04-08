@@ -57,6 +57,7 @@ const AutoJoinScreen = ({
 
 export const PlayerMainApp = ({ autoGameId = null, requiresPassword = false }) => {
   const [sessionId, setSessionId] = useState(undefined);
+  const [centralSessionId, setCentralSessionId] = useState(undefined);
   const [autoJoinState, setAutoJoinState] = useState(
     autoGameId ? 'pending' : null   // 'pending' | 'password' | 'error' | null
   );
@@ -70,6 +71,13 @@ export const PlayerMainApp = ({ autoGameId = null, requiresPassword = false }) =
         WebRTCManagerInstance.Close();
       }
     };
+  }, []);
+
+  // Unified handler for when a session is ready to enter (from list click or join response)
+  const handleSessionReady = useCallback((id, csId) => {
+    setSessionId(id);
+    setCentralSessionId(csId);
+    setAutoJoinState(null);
   }, []);
 
   // Auto-join from URL param
@@ -92,9 +100,9 @@ export const PlayerMainApp = ({ autoGameId = null, requiresPassword = false }) =
         ...(password ? { password } : {}),
       });
       if (resp?.ok || resp?.status === 409) {
-        // 409 = already a member of this session — that's fine, proceed
-        setSessionId(id);
-        setAutoJoinState(null);
+        // 409 = already a member — still proceed; read centralSessionId from body if present
+        const body = await resp?.json?.().catch(() => ({}));
+        handleSessionReady(id, body?.centralSessionId);
       } else {
         const body = await resp?.json?.().catch(() => ({}));
         setAutoJoinError(body?.error ?? 'Failed to join game.');
@@ -104,7 +112,7 @@ export const PlayerMainApp = ({ autoGameId = null, requiresPassword = false }) =
       setAutoJoinError('Connection error. Please try again.');
       setAutoJoinState('error');
     }
-  }, []);
+  }, [handleSessionReady]);
 
   const handleLogout = useCallback(() => {
     CentralWebHelper.getNoResp(
@@ -117,6 +125,7 @@ export const PlayerMainApp = ({ autoGameId = null, requiresPassword = false }) =
   const handleExit = useCallback(() => {
     WebRTCManagerInstance.Close();
     setSessionId(undefined);
+    setCentralSessionId(undefined);
   }, []);
 
   // Auto-join: password prompt or loading/error screen
@@ -135,7 +144,7 @@ export const PlayerMainApp = ({ autoGameId = null, requiresPassword = false }) =
   }
 
   if (!sessionId) {
-    return <SessionList OnSuccess={setSessionId} OnJoin={doJoin} OnLogout={handleLogout} />;
+    return <SessionList OnSuccess={handleSessionReady} OnJoin={doJoin} OnLogout={handleLogout} />;
   }
 
   return (
@@ -143,6 +152,7 @@ export const PlayerMainApp = ({ autoGameId = null, requiresPassword = false }) =
       key={sessionId}
       gameID={sessionId}
       onExit={handleExit}
+      centralSessionId={centralSessionId}
     />
   );
 };

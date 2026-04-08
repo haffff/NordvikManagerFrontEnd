@@ -81,7 +81,7 @@ export default function createLoadCanvas(deps) {
     let bmObj = {
       Panel: ctx.layoutContent.panel,
       PanelContentID: ctx.layoutContent.content.contentId,
-      Id: uuid,
+      id: uuid,
     };
 
     battleMapObjectRef.current = bmObj;
@@ -183,6 +183,15 @@ export default function createLoadCanvas(deps) {
         });
       } catch (error) {
         console.error(error);
+      }
+    }
+    else
+    {
+      //just draw grid if no elements, to avoid multiple grid redraws during element loading
+      try {
+        GridHelper(editor.canvas, map);
+      } catch (e) {
+        console.warn('LoadCanvas: failed to draw grid', e);
       }
     }
 

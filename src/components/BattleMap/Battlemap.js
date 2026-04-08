@@ -6,7 +6,7 @@ import { useFabricJSEditor } from "fabricjs-react";
 import { FabricJSCanvas } from "fabricjs-react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import { ActiveWebHelper as WebHelper } from "../../helpers/transport";
-import WebSocketManagerInstance from "../game/WebSocketManager";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../../helpers/transport";
 import ClientMediator from "../../ClientMediator";
 import { Flex } from "@chakra-ui/react";
 import BattleMapContextMenu from "../game/ToolBar/ContextMenus/BattleMapContextMenu";
@@ -17,6 +17,8 @@ import { LoadingScreen } from "../uiComponents/LoadingScreen";
 import { PerformanceMonitor } from "../../helpers/PerformanceMonitor";
 import createLoadCanvas from './Handlers/LoadCanvas';
 import BasePanel from "../uiComponents/base/BasePanel";
+import { _entityPermissionSetter } from "../../contexts/PermissionsContext";
+import { ENTITY_TYPES, PERM } from "./helpers/permissionBits";
 
 const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
   // Performance monitor: track renders for this component
@@ -119,6 +121,25 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
       return `Map not found: ${mapId}`;
     }
     mapRef.current = respMap;
+
+    // Load map entity permissions for the current player
+    try {
+      const isGM = ClientMediator.sendCommand("Game", "GetIsGM");
+      if (isGM) {
+        _entityPermissionSetter.current?.(ENTITY_TYPES.MAP, mapId, PERM.ALL);
+      } else {
+        const currentPlayer = await ClientMediator.sendCommandWaitForRegisterAsync("Game", "GetCurrentPlayer", {}, true);
+        if (currentPlayer) {
+          const mapPerms = await WebHelper.getAsync(
+            `security/permissions?entityId=${mapId}&entityType=${ENTITY_TYPES.MAP}`
+          );
+          const bits = mapPerms?.[currentPlayer.id] ?? PERM.NONE;
+          _entityPermissionSetter.current?.(ENTITY_TYPES.MAP, mapId, bits);
+        }
+      }
+    } catch (e) {
+      console.warn('ChangeMap: failed to load map entity permissions', e);
+    }
     const allProps = [];
     allProps.push(...mapRef.current.properties);
     await Promise.all(
@@ -217,7 +238,7 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
 
           if (dragObj.entityType === "CardModel") {
             ClientMediator.sendCommand("BattleMap_token", "CreateToken", {
-              contextId: battleMapObjectRef.current.Id,
+              contextId: battleMapObjectRef.current.id,
               cardId: dragObj.id,
               position: coords,
             });
@@ -226,7 +247,7 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
           if (dragObj.entityType === "MapModel") {
             let command = CommandFactory.CreateChangeMapCommand(
               dragObj.id,
-              battleMapObjectRef.current.Id
+              battleMapObjectRef.current.id
             );
             WebSocketManagerInstance.Send(command);
           }

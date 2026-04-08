@@ -15,6 +15,27 @@ import CentralWebHelper from '../../helpers/CentralWebHelper';
 const CENTRAL_URL = process.env.REACT_APP_CENTRAL_URL || '';
 const STUN_SERVER = process.env.REACT_APP_STUN_SERVER || 'stun:stun.l.google.com:19302';
 
+// Recursively lower-cases the first character of every object key.
+// Mirrors the same helper in WebRTCWebHelper — applied here so push messages
+// (dispatched via _dispatchToSubscribers) arrive with camelCase keys, matching
+// what Subscribable/CollectionSyncer expect.
+function _camelizeKeys(obj) {
+  if (Array.isArray(obj)) return obj.map(_camelizeKeys);
+  if (obj !== null && typeof obj === 'object') {
+    return Object.fromEntries(
+      Object.entries(obj).map(([k, v]) => [
+        k.charAt(0).toLowerCase() + k.slice(1),
+        _camelizeKeys(v),
+      ])
+    );
+  }
+  return obj;
+}
+
+// WebRTC data channels have a browser-imposed max message size (~256 KB in Chrome).
+// Anything larger (e.g. base64 file uploads) must be split into chunks.
+const SEND_CHUNK_SIZE = 15_000; // bytes — safely under all major browser limits
+
 class WebRTCManager {
   // Mirrors WebSocketManager properties used by Game.js / hooks
   WebSocketStarted = false;
@@ -22,7 +43,9 @@ class WebRTCManager {
   IsGM = false;
 
   _sessionId = null;
+  _role = 'player';
   _onErrorCallback = null;
+  _authRetried = false;
   _signaling = null;
   _pc = null;            // RTCPeerConnection
   _dataChannel = null;   // RTCDataChannel
@@ -30,15 +53,19 @@ class WebRTCManager {
 
   _onMessageEvents = [];
   _messageQueue = [];    // queued Send() calls
+  _chunkBuffer = new Map(); // chunkId → { parts, received, total } for incoming chunks
+  _pendingAuth = false;  // prevents concurrent re-authentication loops
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
-  async Start(sessionId, onError) {
+  async Start(sessionId, onError, role = 'player') {
     if (this.WebSocketStarted) return;
 
-    console.log('[WebRTCManager] Starting for session', sessionId);
+    console.log('[WebRTCManager] Starting for session', sessionId, 'role:', role);
     this._sessionId = sessionId;
+    this._role = role;
     this._onErrorCallback = onError;
+    this._authRetried = false;
     this.WebSocketStarted = true;  // Set immediately so Game.js proceeds
 
     // Ensure we have a fresh access token for signaling
@@ -60,7 +87,7 @@ class WebRTCManager {
       this._signaling.authenticate({
         token: TokenStore.getAccessToken(),
         sessionId,
-        role: 'player',
+        role: this._role ?? 'player',
       });
     });
 
@@ -69,20 +96,45 @@ class WebRTCManager {
       this._handleError(err);
     });
 
-    this._signaling.on(SIGNAL_EVENTS.AUTH_ERROR, ({ error }) => {
+    this._signaling.on(SIGNAL_EVENTS.AUTH_ERROR, async ({ error }) => {
       console.error('[WebRTCManager] Signaling auth error:', error);
-      this._handleError(new Error(error));
+
+      // Token expired — try a silent refresh and re-authenticate once
+      if (!this._authRetried) {
+        this._authRetried = true;
+        console.log('[WebRTCManager] Attempting token refresh after auth error...');
+        try {
+          TokenStore.setAccessToken(null); // force _ensureAccessToken to refresh
+          await this._ensureAccessToken();
+          console.log('[WebRTCManager] Token refreshed, re-authenticating');
+          this._signaling.authenticate({
+            token: TokenStore.getAccessToken(),
+            sessionId: this._sessionId,
+            role: this._role ?? 'player',
+          });
+          return;
+        } catch (e) {
+          console.error('[WebRTCManager] Token refresh failed', e);
+        }
+      }
+
+      const authErr = new Error(error);
+      authErr.isAuthError = true;
+      this._handleError(authErr);
     });
 
     this._signaling.on(SIGNAL_EVENTS.SESSION_INFO, ({ gmPeerId }) => {
+      this._pendingAuth = false;
       if (!gmPeerId) {
         console.warn('[WebRTCManager] GM backend not yet connected to session, retrying in 3s');
         setTimeout(() => {
           if (!this.WebSocketStarted || !this._signaling) return;
+          if (this._gmPeerId) return;
+          this._pendingAuth = true;
           this._signaling.authenticate({
             token: TokenStore.getAccessToken(),
             sessionId,
-            role: 'player',
+            role: this._role,
           });
         }, 3000);
         return;
@@ -94,13 +146,15 @@ class WebRTCManager {
     });
 
     this._signaling.on(SIGNAL_EVENTS.PEER_JOINED, () => {
-      // GM backend came online while we were waiting — request fresh session-info immediately
-      if (!this._gmPeerId) {
+      // GM backend came online while we were waiting — request fresh session-info
+      // Guard: skip if we already have the GM peer id, or a re-auth is already in-flight
+      if (!this._gmPeerId && !this._pendingAuth) {
         console.log('[WebRTCManager] Peer joined, re-authenticating to get GM peer id');
+        this._pendingAuth = true;
         this._signaling.authenticate({
           token: TokenStore.getAccessToken(),
           sessionId,
-          role: 'player',
+          role: this._role,
         });
       }
     });
@@ -151,7 +205,11 @@ class WebRTCManager {
     this.WebSocketStarted = false;
     this.WebSocketReady = false;
     this._messageQueue = [];
+    this._chunkBuffer.clear();
     this._sessionId = null;
+    this._role = 'player';
+    this._authRetried = false;
+    this._pendingAuth = false;
   }
 
   // ── Send / Subscribe (same interface as WebSocketManager) ────────────────
@@ -173,17 +231,37 @@ class WebRTCManager {
     return false;
   }
 
-  // Send a raw object (used by WebRTCWebHelper for api-requests)
+  // Send a raw object (used by WebRTCWebHelper for api-requests).
+  // Large messages are automatically split into chunks to stay under the
+  // browser's RTCDataChannel send limit (~256 KB in Chrome).
   sendRaw(message) {
-    if (this.isChannelReady()) {
-      const json = JSON.stringify(message);
-      console.log(`[WebRTCManager] sendRaw: ${message.method} ${message.path} (${json.length}b)`);
+    if (!this.isChannelReady()) {
+      console.warn('[WebRTCManager] sendRaw called before channel ready, readyState=', this._dataChannel?.readyState);
+      return false;
+    }
+    const json = JSON.stringify(message);
+    console.log(`[WebRTCManager] sendRaw: ${message.method} ${message.path} (${json.length}b)`);
+
+    if (json.length <= SEND_CHUNK_SIZE) {
       this._dataChannel.send(json);
       return true;
     }
-    // WebRTCWebHelper manages its own request queue; this path shouldn't hit
-    console.warn('[WebRTCManager] sendRaw called before channel ready, readyState=', this._dataChannel?.readyState);
-    return false;
+
+    // Split into fixed-size string chunks
+    const chunkId = crypto.randomUUID();
+    const total = Math.ceil(json.length / SEND_CHUNK_SIZE);
+    console.log(`[WebRTCManager] sendRaw: splitting into ${total} chunks (chunkId=${chunkId})`);
+    for (let i = 0; i < total; i++) {
+      const envelope = JSON.stringify({
+        type: 'chunk',
+        chunkId,
+        index: i,
+        total,
+        data: json.slice(i * SEND_CHUNK_SIZE, (i + 1) * SEND_CHUNK_SIZE),
+      });
+      this._dataChannel.send(envelope);
+    }
+    return true;
   }
 
   Subscribe(name, method) {
@@ -267,11 +345,32 @@ class WebRTCManager {
     dc.onmessage = (event) => {
       try {
         const data = JSON.parse(event.data);
+
+        // Reassemble chunked messages
+        if (data?.type === 'chunk') {
+          const { chunkId, index, total, data: slice } = data;
+          if (!this._chunkBuffer.has(chunkId)) {
+            this._chunkBuffer.set(chunkId, { parts: new Array(total), received: 0, total });
+          }
+          const entry = this._chunkBuffer.get(chunkId);
+          entry.parts[index] = slice;
+          entry.received++;
+          if (entry.received < entry.total) return; // wait for remaining chunks
+          this._chunkBuffer.delete(chunkId);
+          const assembled = JSON.parse(entry.parts.join(''));
+          if (assembled?.type === 'api-response') {
+            WebRTCWebHelperInstance.handleApiResponse(assembled);
+          } else {
+            this._dispatchToSubscribers(_camelizeKeys(assembled));
+          }
+          return;
+        }
+
         // Route api-responses to WebRTCWebHelper; everything else to subscribers
         if (data?.type === 'api-response') {
           WebRTCWebHelperInstance.handleApiResponse(data);
         } else {
-          this._dispatchToSubscribers(data);
+          this._dispatchToSubscribers(_camelizeKeys(data));
         }
       } catch (e) {
         console.error('[WebRTCManager] Failed to parse data channel message', e);

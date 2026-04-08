@@ -11,14 +11,19 @@ export class OnUpdateElementBehavior {
       true
     ).then(async (currentPlayer) => {
       let obj = canvas.getObjects().find((x) => x.id === response.data.id);
-      if (
-        obj &&
-        !(
+      if (obj) {
+        // Skip update only if this is an in-progress drag by the current player
+        // (the client already has optimistic position; applying the server echo would stutter)
+        const isOwnDrag =
           response.battleMapId === battleMapId &&
           response.playerId === currentPlayer.id &&
-          obj.permission > 0
-        )
-      ) {
+          response.action === "drag" &&
+          obj.isBeingDragged;
+
+        if (isOwnDrag) {
+          canvas.requestRenderAll();
+          return;
+        }
         let parsedJson = DTOConverter.ConvertFromDTO(response.data);
         const isToken = (parsedJson.additionalObjects ? true : false);
         //parsedJson.selectable = (response.data.permission & 4 === 4) && parsedJson.data.layer === battleMapObject.SelectedLayer;

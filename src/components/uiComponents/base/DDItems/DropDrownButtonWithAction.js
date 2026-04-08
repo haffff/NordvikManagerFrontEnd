@@ -3,7 +3,7 @@ import * as React from 'react';
 import { FaArrowLeft } from 'react-icons/fa';
 import { IoIosArrowDropdown, IoIosArrowDropright, IoMdArrowDown, IoMdArrowDropdown } from 'react-icons/io';
 import DropDownButton from './DropDrownButton';
-import WebSocketManagerInstance from '../../../game/WebSocketManager';
+import { ActiveTransportManager as WebSocketManagerInstance } from '../../../../helpers/transport';
 
 export const DropDownButtonWithAction = ({ name, icon, dropdown, width, height, actionName }) => {
 

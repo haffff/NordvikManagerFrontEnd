@@ -10,7 +10,7 @@ import DListItemButton from "../../uiComponents/base/List/ListItemDetails/DListI
 import PlayerAvatar from "../../uiComponents/PlayerAvatar";
 import ClientMediator from "../../../ClientMediator";
 import useClientMediator from "../../uiComponents/hooks/useClientMediator";
-import WebSocketManagerInstance from "../WebSocketManager";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import PlayerSettingsPanel from "../settings/PlayerSettingsPanel";
 import { BasePanel } from "../../uiComponents/base/BasePanel";

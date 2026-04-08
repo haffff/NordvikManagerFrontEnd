@@ -72,8 +72,10 @@ export const CommandFactory = {
     CreateKickPlayerCommand: (id) => {
         return { command: "player_kick", data: id }
     },
-    CreateShowBattleMapCommand: (battleMapContext) => {
-        return { command: "battlemap_show", data: battleMapContext.Id }
+    CreateShowBattleMapCommand: (battleMapId, playerId) => {
+        const cmd = { command: "show_panel", data: { type: "Battlemap", syncId: battleMapId } };
+        if (playerId) cmd.playerId = playerId;
+        return cmd;
     },
     CreatePropertyRemoveCommand: (id) => {
         return { command: "property_remove", data: id }

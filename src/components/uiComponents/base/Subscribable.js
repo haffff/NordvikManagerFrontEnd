@@ -2,7 +2,7 @@
 import { toaster } from '../../ui/toaster';
 import * as React from 'react';
 import UtilityHelper from '../../../helpers/UtilityHelper';
-import WebSocketManagerInstance from '../../game/WebSocketManager';
+import { ActiveTransportManager as WebSocketManagerInstance } from '../../../helpers/transport';
 
 export const Subscribable = ({ commandPrefix, onMessage, children }) => {
     const [uuid] = React.useState(UtilityHelper.GenerateUUID);

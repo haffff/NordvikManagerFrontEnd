@@ -3,6 +3,7 @@ import DTOConverter from "../../DTOConverter";
 import ClientMediator from "../../../../ClientMediator";
 import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import UtilityHelper from "../../../../helpers/UtilityHelper";
+import { canControl } from "../../helpers/permissionBits";
 
 export class OnAddElementBehavior {
   Handle(response, canvas, battleMapId) {
@@ -17,7 +18,7 @@ export class OnAddElementBehavior {
     if (mapId === response.data.mapId) {
       let value = DTOConverter.ConvertFromDTO(response.data);
       value.selectable =
-        (response.data.permission & 4) == 4 &&
+        canControl(response.data.permission) &&
         response.data.layer == selectedLayer;
       fabric.util.enlivenObjects([value], (e) => {
         e.forEach(async (element) => {

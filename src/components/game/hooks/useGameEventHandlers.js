@@ -4,7 +4,6 @@ import DockableHelper from '../../../helpers/DockableHelper';
 import ClientMediator from '../../../ClientMediator';
 import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
 import { toaster } from '../../ui/toaster';
-import ClientScript from '../../uiComponents/ClientScript';
 
 /**
  * Custom hook for managing game-specific WebSocket event handlers
@@ -17,8 +16,6 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
     onExit,
     setPlayers,
     setConnectedPlayers,
-    setClientScripts,
-    clientScripts,
     battleMapContexts,
   } = gameState;
 
@@ -118,52 +115,47 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
     });
   }, [connectedPlayersRef, playersRef, setConnectedPlayers, setPlayers, currentPlayerId, onExit]);
 
-  const HandleShowBattleMap = useCallback((resp) => {
-    const context = battleMapContexts.current[resp.data];
-    if (context === undefined) {
-      const panel = DockableHelper.NewFloating(
-        state,
-        CreateLayoutElement({ type: "Battlemap", syncId: resp.data })
-      );
-      panel.rect = panel.rect.withX(50).withY(50);
-      state.commit();
+  const HandleShowPanel = useCallback((resp) => {
+    // Battlemap panels deduplicate — don't re-open if already registered.
+    if (resp.data?.type === 'Battlemap') {
+      const syncId = resp.data.syncId;
+      if (syncId && battleMapContexts.current[syncId]) return;
     }
+    const panel = DockableHelper.NewFloating(state, CreateLayoutElement(resp.data));
+    panel.rect = panel.rect.withX(50).withY(50);
+    state.commit();
   }, [battleMapContexts, state, CreateLayoutElement]);
 
-  const HandleShowPanel = useCallback((resp) => {
+  /** GM → player: show a specific card as a floating panel. */
+  const HandleShowCard = useCallback((resp) => {
     const panel = DockableHelper.NewFloating(
       state,
-      CreateLayoutElement(resp.data)
+      CreateLayoutElement({ type: "CardPanel", props: resp.data })
     );
     panel.rect = panel.rect.withX(50).withY(50);
     state.commit();
   }, [state, CreateLayoutElement]);
 
-  const HandleExecuteClientScript = useCallback(async (resp) => {
-    await WebHelper.getAsync(
-      `addon/confirmscriptrequest?id=${resp.data.requestId}`
+  /**
+   * GM → player: show a view (also backed by CardPanel / same API as a card,
+   * but intentionally excluded from the CardsPanel listing).
+   */
+  const HandleShowView = useCallback((resp) => {
+    const panel = DockableHelper.NewFloating(
+      state,
+      CreateLayoutElement({ type: "CardPanel", props: resp.data })
     );
+    panel.rect = panel.rect.withX(50).withY(50);
+    state.commit();
+  }, [state, CreateLayoutElement]);
 
-    if (clientScripts?.find((x) => x.key === resp.data.script)) {
-      return;
-    }    setClientScripts([
-      ...clientScripts,
-      {
-        key: resp.data.script,
-        value: React.createElement(ClientScript, { 
-          key: resp.data.script, 
-          script: resp.data.script 
-        }),
-      },
-    ]);
-  }, [clientScripts, setClientScripts]);
   return {
     HandleShowLayout,
     HandleSettingsChange,
     HandleError,
     HandlePlayers,
-    HandleShowBattleMap,
     HandleShowPanel,
-    HandleExecuteClientScript
+    HandleShowCard,
+    HandleShowView,
   };
 };

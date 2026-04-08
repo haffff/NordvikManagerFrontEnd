@@ -11,10 +11,13 @@ import {
   Badge,
   Flex,
   Separator,
+  Spinner,
 } from '@chakra-ui/react';
-import { FaLock, FaUsers } from 'react-icons/fa';
+import { FaLock, FaUsers, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
 import { IoMdLogOut } from 'react-icons/io';
 import CentralWebHelper from '../../helpers/CentralWebHelper';
+
+const PUBLIC_SESSIONS_PAGE_SIZE = 10;
 
 // ─── Session card ─────────────────────────────────────────────────────────────
 
@@ -128,20 +131,52 @@ const SessionCard = ({ session, onJoin }) => {
 
 export const SessionList = ({ OnSuccess, OnJoin, OnLogout }) => {
   const [sessions, setSessions] = React.useState(undefined);
+  const [publicSessions, setPublicSessions] = React.useState([]);
+  const [publicGamesAllowed, setPublicGamesAllowed] = React.useState(false);
+  const [publicPage, setPublicPage] = React.useState(1);
+  const [publicTotal, setPublicTotal] = React.useState(0);
+  const [publicLoading, setPublicLoading] = React.useState(false);
   const [userData, setUserData] = React.useState(null);
   const [joinId, setJoinId] = React.useState('');
 
+  const loadPublicSessions = React.useCallback(async (page) => {
+    setPublicLoading(true);
+    try {
+      const result = await CentralWebHelper.getAsync(
+        `gamelist/publicgames?page=${page}&count=${PUBLIC_SESSIONS_PAGE_SIZE}`
+      );
+      setPublicSessions(result?.data ?? []);
+      setPublicTotal(result?.total ?? 0);
+      setPublicPage(result?.page ?? page);
+    } finally {
+      setPublicLoading(false);
+    }
+  }, []);
+
   React.useEffect(() => {
     const load = async () => {
-      const [sessionData, user] = await Promise.all([
+      const [sessionData, user, meta] = await Promise.all([
         CentralWebHelper.getAsync('gamelist/getgames'),
         CentralWebHelper.getAsync('user/userinfo'),
+        CentralWebHelper.getAsync('meta'),
       ]);
       setSessions(sessionData ?? []);
       setUserData(user);
+
+      if (meta?.publicGamesAllowed) {
+        setPublicGamesAllowed(true);
+        loadPublicSessions(1);
+      }
     };
     load();
-  }, []);
+  }, [loadPublicSessions]);
+
+  const totalPages = Math.ceil(publicTotal / PUBLIC_SESSIONS_PAGE_SIZE);
+
+  const handlePublicPageChange = (newPage) => {
+    if (newPage < 1 || newPage > totalPages) return;
+    loadPublicSessions(newPage);
+  };
 
   const handleJoinById = () => {
     const id = joinId.trim();
@@ -174,14 +209,68 @@ export const SessionList = ({ OnSuccess, OnJoin, OnLogout }) => {
         {sessions === undefined && (
           <Text color="whiteAlpha.600">Loading sessions…</Text>
         )}
-        {sessions?.length === 0 && (
+        {sessions?.length === 0 && !publicGamesAllowed && (
           <Text color="whiteAlpha.600">No sessions available. Ask your GM for an invite.</Text>
         )}
         <HStack wrap="wrap">
           {sessions?.map((s) => (
-            <SessionCard key={s.id} session={s} onJoin={(session) => OnSuccess(session.id)} />
+            <SessionCard key={s.id} session={s} onJoin={(session) => OnSuccess(session.id, session.id)} />
           ))}
         </HStack>
+
+        {publicGamesAllowed && (
+          <>
+            <Separator mt={6} mb={4} />
+            <HStack justify="space-between" align="center" mb={4}>
+              <Heading size="sm" color="whiteAlpha.800">
+                Public Games
+              </Heading>
+              {publicTotal > 0 && (
+                <Text fontSize="xs" color="whiteAlpha.600">
+                  {publicTotal} game{publicTotal !== 1 ? 's' : ''} available
+                </Text>
+              )}
+            </HStack>
+
+            {publicLoading ? (
+              <HStack justify="center" padding={6}>
+                <Spinner size="md" />
+              </HStack>
+            ) : publicSessions.length === 0 ? (
+              <Text color="whiteAlpha.600">No public games available right now.</Text>
+            ) : (
+              <HStack wrap="wrap">
+                {publicSessions.map((s) => (
+                  <SessionCard key={s.id} session={s} onJoin={(session) => OnJoin(session.id)} />
+                ))}
+              </HStack>
+            )}
+
+            {totalPages > 1 && (
+              <HStack justify="center" marginTop={4} gap={2}>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={publicPage <= 1 || publicLoading}
+                  onClick={() => handlePublicPageChange(publicPage - 1)}
+                >
+                  <Icon as={FaChevronLeft} />
+                </Button>
+                <Text fontSize="sm" color="gray.300" minWidth="80px" textAlign="center">
+                  Page {publicPage} of {totalPages}
+                </Text>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={publicPage >= totalPages || publicLoading}
+                  onClick={() => handlePublicPageChange(publicPage + 1)}
+                >
+                  <Icon as={FaChevronRight} />
+                </Button>
+              </HStack>
+            )}
+          </>
+        )}
       </Box>
     </Stack>
   );

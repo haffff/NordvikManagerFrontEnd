@@ -1,5 +1,5 @@
 import ClientMediator from "./ClientMediator";
-import WebSocketManagerInstance from "./components/game/WebSocketManager";
+import { ActiveTransportManager as WebSocketManagerInstance } from "./helpers/transport";
 import CommandExecutionHelper from "./helpers/CommandExecutionHelper";
 import UtilityHelper from "./helpers/UtilityHelper";
 

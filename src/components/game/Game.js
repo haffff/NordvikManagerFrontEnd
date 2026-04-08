@@ -3,7 +3,7 @@ import { ActiveWebHelper as WebHelper, ActiveTransportManager as WebSocketManage
 import * as Dockable from "@hlorenzi/react-dockable";
 import MainToolbar from "./ToolBar/MainToolbar";
 import Subscribable from "../uiComponents/base/Subscribable";
-import { Flex, Box, Text } from "@chakra-ui/react";
+import { Flex, Box, Text, Button } from "@chakra-ui/react";
 import { CloseButton } from "../ui/close-button";
 import PanelList from "../../helpers/PanelsList";
 import QuickCommandDialog from "../QuickCommandDialog";
@@ -15,18 +15,19 @@ import { useGameApi } from "./hooks/useGameApi";
 import { useGameState } from "./hooks/useGameState";
 import DockableHelper from "../../helpers/DockableHelper";
 import { DragOptimizationProvider } from "../uiComponents/base/DragOptimizationContext";
+import { PermissionsProvider } from "../../contexts/PermissionsContext";
 
-export const Game = ({ gameID, onExit }) => {
-  const gameState = useGameState(gameID, onExit);  
+export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
+  const gameState = useGameState(gameID, onExit);
   const {
     battleMapContexts,
     portaledPanels,
-    clientScripts,
     gameContainerRef,
     quickCommandDialogOpenRef,
     gameDataManagerRef,
     keyboardEventsManagerRef,
     forceUpdate,
+    isGM,
   } = gameState;
 
   WebHelper.GameId = gameID;
@@ -84,7 +85,7 @@ export const Game = ({ gameID, onExit }) => {
 
   // Initialize custom hooks
   const eventHandlers = useGameEventHandlers({ state, gameState, CreateLayoutElement });
-  const { loadGame, initError, clearInitError, isInitialized } = useGameInitialization({ state, gameState, CreateLayoutElement });// Game initialization effect - only run once when WebSocket is ready
+  const { loadGame, initError, clearInitError, resetInitialization, isInitialized } = useGameInitialization({ state, gameState, CreateLayoutElement });// Game initialization effect - only run once when WebSocket is ready
   React.useEffect(() => {
     if (!WebSocketManagerInstance.WebSocketStarted || isInitialized()) {
       return;
@@ -103,10 +104,20 @@ export const Game = ({ gameID, onExit }) => {
   }, [WebSocketManagerInstance.WebSocketStarted]); // Only depend on WebSocket status
 
   if (!WebSocketManagerInstance.WebSocketStarted) {
-    WebSocketManagerInstance.Start(gameID, (err) => setConnectionError(err?.message || 'Connection error'));
+    WebSocketManagerInstance.Start(
+      centralSessionId,
+      (err) => {
+        if (err?.isAuthError) {
+          onAuthFailure?.();
+        } else {
+          setConnectionError(err?.message || 'Connection error');
+        }
+      },
+    );
     return <LoadingScreen />;
   }  //To refactor toolbar. it will be in Toolbar directory probably. but i need to make map system and write tools panel properly.
   return (
+    <PermissionsProvider isGM={isGM}>
     <DragOptimizationProvider>
       <div
         ref={gameContainerRef}
@@ -129,16 +140,10 @@ export const Game = ({ gameID, onExit }) => {
         commandPrefix={"settings"}
       />
       <Subscribable onMessage={eventHandlers.HandlePlayers} commandPrefix={"player"} />
-      <Subscribable
-        onMessage={eventHandlers.HandleExecuteClientScript}
-        commandPrefix={"clientscript_execute"}
-      />
-      <Subscribable
-        onMessage={eventHandlers.HandleShowBattleMap}
-        commandPrefix={"battlemap_show"}
-      />
       <Subscribable onMessage={eventHandlers.HandleError} commandPrefix={"error"} />
       <Subscribable onMessage={eventHandlers.HandleShowPanel} commandPrefix={"show_panel"} />
+      <Subscribable onMessage={eventHandlers.HandleShowCard} commandPrefix={"show_card"} />
+      <Subscribable onMessage={eventHandlers.HandleShowView} commandPrefix={"show_view"} />
       <MainToolbar
         key={gameID}
         state={state}
@@ -150,57 +155,56 @@ export const Game = ({ gameID, onExit }) => {
       </Flex><QuickCommandDialog state={state} openRef={quickCommandDialogOpenRef} />
       
       {portaledPanels}
-      {clientScripts.map((x) => x.value)}
       
-      {/* Error banner — shown above status bar when there is an error */}
-      {(connectionError || initError) && (
-        <Box
-          position="fixed"
-          bottom="60px"
-          left={0}
-          right={0}
-          bg="red.900"
-          borderTop="1px solid"
-          borderColor="red.600"
-          px={4}
-          py={2}
-          zIndex={9998}
-        >
-          <Flex align="center" gap={2}>
-            <Text fontSize="xs" color="red.200" flex={1}>
-              {connectionError || initError}
-            </Text>
-            <CloseButton
-              size="sm"
-              color="red.300"
-              onClick={() => { setConnectionError(null); clearInitError(); }}
-            />
-          </Flex>
-        </Box>
-      )}
-
       {/* WebSocket Status Bar */}
       <Box
         position="fixed"
         bottom={0}
         left={0}
         right={0}
-        bg="rgba(26, 32, 44, 0.95)"
+        bg={connectionError || initError ? "red.950" : "rgba(26, 32, 44, 0.95)"}
         backdropFilter="blur(12px)"
-        borderTop="1px solid rgba(255, 255, 255, 0.08)"
+        borderTop="1px solid"
+        borderColor={connectionError || initError ? "red.700" : "rgba(255, 255, 255, 0.08)"}
         px={4}
         py={2}
         zIndex={9999}
         boxShadow="0 -2px 20px rgba(0, 0, 0, 0.3)"
       >
-        <Flex justify="space-between" align="center">
+        <Flex justify="space-between" align="center" gap={2}>
           <WebSocketStatus showDetails={true} compact={true} />
+          {(connectionError || initError) && (
+            <Flex align="center" gap={2} flex={1} justify="center">
+              <Text fontSize="xs" color="red.200">
+                {connectionError || initError}
+              </Text>
+              <Button
+                size="xs"
+                colorPalette="blue"
+                variant="outline"
+                onClick={() => {
+                  resetInitialization();
+                  setConnectionError(null);
+                  WebSocketManagerInstance.forceReconnect();
+                }}
+              >
+                Retry
+              </Button>
+              <CloseButton
+                size="sm"
+                color="red.300"
+                onClick={() => { setConnectionError(null); clearInitError(); }}
+              />
+            </Flex>
+          )}
           <Text fontSize="xs" color="gray.500">
-            Game ID: {gameID}
-          </Text>        </Flex>
+            Session ID: {centralSessionId}
+          </Text>
+        </Flex>
       </Box>
     </div>
     </DragOptimizationProvider>
+    </PermissionsProvider>
   );
 };
 

@@ -1,69 +1,131 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import GameList from './gameLobby/GameList';
 import { Game } from './game/Game';
 import WebHelper from '../helpers/WebHelper';
+import TokenStore from '../helpers/TokenStore';
+import { ActiveTransportManager as TransportManager } from '../helpers/transport';
 import FabricTypesInitialize from './FabricTypesInitializer';
-import WebSocketManagerInstance from './game/WebSocketManager';
 
-export const MainApp = () => {
+export const MainApp = ({ onAuthRequired }) => {
     const [gameID, setGameID] = useState();
+    const [centralSessionId, setCentralSessionId] = useState();
+    const [startingSession, setStartingSession] = useState(false);
+    const [sessionError, setSessionError] = useState(null);
 
-    // Initialize fabric types once on mount
+    // Stable ref so handleExit can read current gameID without being in its dep array
+    const currentGameIdRef = useRef();
+    currentGameIdRef.current = gameID;
+
     useEffect(() => {
         FabricTypesInitialize();
-        
-        // Cleanup function for when component unmounts
+
         return () => {
             console.log('MainApp: Component unmounting, cleaning up');
-            if (WebSocketManagerInstance.isConnected()) {
-                WebSocketManagerInstance.Close();
-            }
+            TransportManager.Close();
+            WebHelper.GameId = undefined;
         };
     }, []);
 
-    // Memoize logout handler to prevent unnecessary re-renders
     const handleLogout = useCallback(() => {
-        WebHelper.getNoResp("user/logout", () => {
-            // Force page reload to clear all state and cookies
-            window.location.reload();
-        }, (error) => {
-            console.error('Logout failed:', error);
-            // Still reload on error to clear potential stale state
-            window.location.reload();
-        });
+        // Use fetch directly — WebHelper.getNoResp appends ?gameid=undefined
+        // at lobby stage which causes the backend to reject the request before
+        // clearing the session cookie.
+        fetch(`${WebHelper.ApiAddress}/user/logout`, { method: 'GET', credentials: 'include' })
+            .finally(() => { onAuthRequired?.(); });
+    }, [onAuthRequired]);
+
+    const handleGameSelected = useCallback(async (id) => {
+        setStartingSession(true);
+        setSessionError(null);
+        try {
+            const resp = await fetch(`${WebHelper.ApiAddress}/session/${id}/start`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+            });
+            if (!resp.ok) throw new Error(`Session start failed (${resp.status})`);
+            const { centralSessionId: csId, centralAccessToken } = await resp.json();
+
+            // Store the Central Server access token so WebRTCManager can use it
+            // for signaling — obtained via the GM backend (same-origin, no CORS)
+            if (centralAccessToken) {
+                TokenStore.setTokens(centralAccessToken, TokenStore.getRefreshToken());
+            }
+
+            setCentralSessionId(csId);
+            setGameID(id);
+        } catch (e) {
+            console.error('MainApp: Session start failed:', e);
+            setSessionError(e.message);
+        } finally {
+            setStartingSession(false);
+        }
     }, []);
 
-    // Memoize exit handler with better cleanup
+    const handleAuthFailure = useCallback(() => {
+        console.log('MainApp: Auth failure from central server, redirecting to login');
+        onAuthRequired?.();
+    }, [onAuthRequired]);
+
     const handleExit = useCallback(() => {
-        console.log('MainApp: Exiting game, cleaning up WebSocket connection');
-        
+        console.log('MainApp: Exiting game, stopping session');
+
         try {
-            if (WebSocketManagerInstance.isConnected()) {
-                console.log(`MainApp: Closing WebSocket (${WebSocketManagerInstance.getSubscriberCount()} subscribers)`);
-                WebSocketManagerInstance.Close();
+            if (TransportManager.isConnected()) {
+                TransportManager.Close();
             }
         } catch (error) {
-            console.error('MainApp: Error closing WebSocket:', error);
+            console.error('MainApp: Error closing transport:', error);
         }
-        
+
+        const id = currentGameIdRef.current;
+        if (id) {
+            // Fire-and-forget — don't block the UI on the stop call
+            fetch(`${WebHelper.ApiAddress}/session/${id}/stop`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+            }).catch((e) => console.warn('MainApp: session/stop failed:', e));
+        }
+
+        TokenStore.clear();
         setGameID(undefined);
+        setCentralSessionId(undefined);
     }, []);
+
+    if (startingSession) {
+        return (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+                Starting session…
+            </div>
+        );
+    }
+
+    if (sessionError) {
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', gap: '1rem' }}>
+                <div style={{ color: 'salmon' }}>Failed to start session: {sessionError}</div>
+                <button onClick={() => setSessionError(null)}>Back</button>
+            </div>
+        );
+    }
 
     if (gameID === undefined) {
         return (
-            <GameList 
-                OnSuccess={setGameID} 
-                OnLogout={handleLogout} 
+            <GameList
+                OnSuccess={handleGameSelected}
+                OnLogout={handleLogout}
             />
         );
     }
 
-    // TODO: Add illustrator for costs
     return (
-        <Game 
-            key={gameID} 
-            onExit={handleExit} 
-            gameID={gameID} 
+        <Game
+            key={gameID}
+            onExit={handleExit}
+            onAuthFailure={handleAuthFailure}
+            gameID={gameID}
+            centralSessionId={centralSessionId}
         />
     );
 }

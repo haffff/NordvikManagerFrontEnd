@@ -1,4 +1,5 @@
 import { ActiveWebHelper as WebHelper } from "../../helpers/transport";
+import { canControl } from "./helpers/permissionBits";
 
 export const DTOConverter = {
 
@@ -29,7 +30,6 @@ export const DTOConverter = {
         dto.layer = object.layer;
         dto.mapId = object.mapId;
         dto.properties = object?.properties;
-        //dto.selectable = object.selectablePermission && dto.layer == selectedLayer; //not sure it should be here
 
         return dto;
     },
@@ -41,9 +41,11 @@ export const DTOConverter = {
 
         object.id = dto.id;
         object.permission = dto.permission;
-        object.selectablePermission = (dto.permission & 4) === 4;
+        object.selectablePermission = canControl(dto.permission);
         object.layer = dto.layer;
-        object.src = WebHelper.getResourceString(object.resourceId, object.resourceKey);
+        if (object.resourceId || object.resourceKey) {
+            object.src = WebHelper.getResourceString(object.resourceId, object.resourceKey);
+        }
         
         return object
     }

@@ -1,8 +1,6 @@
 import ClientMediator from "./ClientMediator";
-import WebSocketManagerInstance from "./components/game/WebSocketManager";
+import { ActiveTransportManager as WebSocketManagerInstance, ActiveWebHelper as WebHelper } from "./helpers/transport";
 import UtilityHelper from "./helpers/UtilityHelper";
-import CommandExecutionHelper from "./helpers/CommandExecutionHelper";
-import WebHelper from "./helpers/WebHelper";
 
 // ─── Security: allowlists ─────────────────────────────────────────────────────
 
@@ -82,7 +80,9 @@ class CardAPI {
   // ── WebSocket message router ────────────────────────────────────────────
 
   _handleWebSocketMessage(message) {
-    const { command, data } = message;    if (command === "property_notify") {
+    const { command, data } = message;    
+    
+    if (command === "property_notify") {
       if (data.id !== this._cardId) return;
 
       // Only fetch properties that have active subscribers
@@ -510,11 +510,6 @@ class CardAPI {
   FireAction(action, args) {
     this._sendWsCommand("action_execute", { action, args });
   }
-
-  // ── Client commands ─────────────────────────────────────────────────────
-
-  RunClientCommand = (commandString) =>
-    CommandExecutionHelper.RunCommand(commandString);
 
   // ── Sandboxed WebSocket send ────────────────────────────────────────────
 

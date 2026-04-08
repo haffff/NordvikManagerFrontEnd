@@ -4,7 +4,7 @@ import * as Dockable from "@hlorenzi/react-dockable";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import { FaWrench } from "react-icons/fa";
 import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
-import WebSocketManagerInstance from "../WebSocketManager";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import MapSettingsPanel from "../settings/MapSettingsPanel";
 import { IoIosRemoveCircleOutline } from "react-icons/io";
 import DList from "../../uiComponents/base/List/DList";
