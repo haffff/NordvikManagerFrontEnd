@@ -123,7 +123,7 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
         ref={gameContainerRef}
         style={{
           display: "grid",
-          gridTemplateRows: "35px calc(100vh - 35px - 60px)", // Subtract status bar height (60px)
+          gridTemplateRows: "35px 1fr auto",
           height: "100vh",
           overflow: "hidden"
         }}
@@ -158,10 +158,6 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
       
       {/* WebSocket Status Bar */}
       <Box
-        position="fixed"
-        bottom={0}
-        left={0}
-        right={0}
         bg={connectionError || initError ? "red.950" : "rgba(26, 32, 44, 0.95)"}
         backdropFilter="blur(12px)"
         borderTop="1px solid"
@@ -190,11 +186,6 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
               >
                 Retry
               </Button>
-              <CloseButton
-                size="sm"
-                color="red.300"
-                onClick={() => { setConnectionError(null); clearInitError(); }}
-              />
             </Flex>
           )}
           <Text fontSize="xs" color="gray.500">
