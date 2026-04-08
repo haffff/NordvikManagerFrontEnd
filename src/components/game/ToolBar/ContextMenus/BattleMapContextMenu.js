@@ -199,9 +199,6 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
       : undefined;
   };
 
-  if (selectedObjects === 1) {
-  }
-
   width = width || 150;
 
   return (
