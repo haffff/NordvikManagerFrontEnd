@@ -26,8 +26,7 @@ function _extractResourceParams(url) {
 //   1. Try fetching the binary via WebRTC (cached per session in WebRTCWebHelper).
 //   2. On success: wrap in a blob URL, hand to original loadImage, revoke AFTER
 //      the callback has finished (fabric must see the img before we revoke).
-//   3. On failure: fall back to the original HTTP URL so GMs still see images
-//      even if the WebRTC materials endpoint isn't implemented on the backend yet.
+//   3. On failure: log a warning and call the callback with null (fabric will use a placeholder).
 //
 if (fabric.util?.loadImage) {
   const _originalLoadImage = fabric.util.loadImage.bind(fabric.util);

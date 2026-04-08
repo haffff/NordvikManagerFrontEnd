@@ -16,7 +16,7 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
     onExit,
     setPlayers,
     setConnectedPlayers,
-    battleMapContexts,
+    battleMapsContextsRef,
   } = gameState;
 
   const HandleShowLayout = useCallback((resp) => {
@@ -119,12 +119,12 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
     // Battlemap panels deduplicate — don't re-open if already registered.
     if (resp.data?.type === 'Battlemap') {
       const syncId = resp.data.syncId;
-      if (syncId && battleMapContexts.current[syncId]) return;
+      if (syncId && battleMapsContextsRef.current[syncId]) return;
     }
     const panel = DockableHelper.NewFloating(state, CreateLayoutElement(resp.data));
     panel.rect = panel.rect.withX(50).withY(50);
     state.commit();
-  }, [battleMapContexts, state, CreateLayoutElement]);
+  }, [battleMapsContextsRef, state, CreateLayoutElement]);
 
   /** GM → player: show a specific card as a floating panel. */
   const HandleShowCard = useCallback((resp) => {

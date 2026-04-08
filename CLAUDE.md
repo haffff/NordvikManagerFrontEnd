@@ -5,15 +5,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 ## Commands
 
 ```bash
-npm install --legacy-peer-deps   # Required due to peer dep conflicts
-npm start                        # Dev server
-npm run build                    # Production build
-npm run buildci                  # Build with CI=false (suppresses warning failures)
-npm test                         # Jest + React Testing Library
-npm test -- --testPathPattern=App  # Run a single test file
+pnpm install
+pnpm start                        # Dev server (Vite)
+pnpm start_player                 # Dev server with player role (REACT_APP_MODE=player, port 3001)
+pnpm start_gm                     # Dev server with GM role (REACT_APP_MODE=gm, port 3002)
+pnpm build                        # Production build (Vite)
+pnpm run buildci_gm               # Production build with GM env
+pnpm run buildci_player           # Production build with player env
+pnpm preview                      # Preview production build (vite preview)
+pnpm test                         # Run tests (Vitest)
+pnpm test -- <test-path-or-pattern>  # Run a specific test file or pattern
 ```
-
-ESLint runs via `react-scripts` (no separate lint command). Config extends `react-app` and `react-app/jest`.
 
 ## Architecture
 
