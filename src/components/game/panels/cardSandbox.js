@@ -10,9 +10,10 @@
  * • It runs inside a cross-origin iframe (blob: URL + sandbox="allow-scripts").
  * • The iframe has NO allow-same-origin → it has a null origin and cannot
  *   access the parent page's cookies, localStorage, or DOM at all.
- * • The iframe boundary IS the isolation boundary — no Shadow DOM is needed
- *   inside the iframe, and adding one would break card frameworks (React, Vue,
- *   etc.) that rely on document.getElementById to find their mount point.
+ * • The iframe boundary IS the isolation boundary. The sandbox host may still
+ *   use an internal Shadow DOM for its own layout, so cards must mount into the
+ *   host-provided `cardRoot` container rather than assuming a framework can find
+ *   its mount point via document.getElementById(...).
  * • CSS from additional resources is injected as normal <link> tags in <head>.
  *   Because the iframe is cross-origin, those styles never affect the parent.
  * • The only communication channel is postMessage (structured-clone; no

@@ -19,7 +19,7 @@
     // All addon DOM and CSS are scoped inside this shadow root,
     // completely isolated from the parent document's styles.
     const shadowHost = document.getElementById("shadow-host");
-    const shadowRoot = shadowHost.attachShadow({ mode: "closed" });
+    const shadowRoot = shadowHost.attachShadow({ mode: "open" });
 
     // The addon's render target — exposed as window.cardRoot
     const cardRoot = document.createElement("div");

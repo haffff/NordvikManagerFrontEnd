@@ -70,7 +70,8 @@ export const JoinDialog = ({ OnSuccess }) => {
             <Stack spacing={4} borderColor={error ? "tomato" : "gray.200"}>
               <Heading as="h6" size="xs">
                 Password
-              </Heading>              <InputGroup size="md">
+              </Heading>
+              <InputGroup size="md">
                 <Input
                   pr="4.5rem"
                   type={showPassword ? "text" : "password"}
