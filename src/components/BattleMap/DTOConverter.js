@@ -1,5 +1,5 @@
 import { ActiveWebHelper as WebHelper } from "../../helpers/transport";
-import { canControl } from "./helpers/permissionBits";
+import { canControl } from "./Helpers/permissionBits";
 
 export const DTOConverter = {
 

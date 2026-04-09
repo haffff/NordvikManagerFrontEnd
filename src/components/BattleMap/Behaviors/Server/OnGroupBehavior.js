@@ -1,7 +1,7 @@
 import { fabric } from 'fabric';
 import DTOConverter from '../../DTOConverter';
 import ClientMediator from '../../../../ClientMediator';
-import { canControl } from '../../helpers/permissionBits';
+import { canControl } from '../../Helpers/permissionBits';
 
 export class OnGroupBehavior {
     Handle(response, canvas, battleMapId) {

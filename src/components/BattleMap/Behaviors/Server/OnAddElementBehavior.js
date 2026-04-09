@@ -3,7 +3,7 @@ import DTOConverter from "../../DTOConverter";
 import ClientMediator from "../../../../ClientMediator";
 import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import UtilityHelper from "../../../../helpers/UtilityHelper";
-import { canControl } from "../../helpers/permissionBits";
+import { canControl } from "../../Helpers/permissionBits";
 
 export class OnAddElementBehavior {
   Handle(response, canvas, battleMapId) {

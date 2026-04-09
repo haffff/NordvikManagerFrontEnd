@@ -1,5 +1,5 @@
 import ClientMediator from "../../../../ClientMediator";
-import { canSee, canControl, PERM, ENTITY_TYPES } from "../../helpers/permissionBits";
+import { canSee, canControl, PERM, ENTITY_TYPES } from "../../Helpers/permissionBits";
 
 export class OnPermissionsChangedBehavior {
     async Handle(response, canvas, battleMapId) {

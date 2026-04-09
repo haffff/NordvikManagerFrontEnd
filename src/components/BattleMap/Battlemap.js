@@ -18,7 +18,7 @@ import { PerformanceMonitor } from "../../helpers/PerformanceMonitor";
 import createLoadCanvas from './Handlers/LoadCanvas';
 import BasePanel from "../uiComponents/base/BasePanel";
 import { _entityPermissionSetter } from "../../contexts/PermissionsContext";
-import { ENTITY_TYPES, PERM } from "./helpers/permissionBits";
+import { ENTITY_TYPES, PERM } from "./Helpers/permissionBits";
 
 const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
   // Performance monitor: track renders for this component
