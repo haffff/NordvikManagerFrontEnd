@@ -3,6 +3,7 @@ import * as React from "react";
 import { IoIosArrowDropdown } from "react-icons/io";
 import DropDownButton from "./DropDrownButton";
 import ClientMediator from "../../../../ClientMediator";
+import { usePermissions } from "../../../../contexts/PermissionsContext";
 import {
   MenuContent,
   MenuTrigger,
@@ -21,8 +22,10 @@ export const DropDownMenu = ({
   icon,
   onDropDown,
   gmOnly,
+  adminOnly,
   viewId,
 }) => {
+  const { isGM, isAdmin } = usePermissions();
   const [additionalItems, setAdditionalItems] = React.useState([]);
   let ref = React.useRef();
 
@@ -39,9 +42,8 @@ export const DropDownMenu = ({
     }
   }, []);
 
-  if (gmOnly && localStorage.getItem("gmMode") !== "true") {
-    return null;
-  }
+  if (gmOnly && !isGM) return null;
+  if (adminOnly && !isAdmin) return null;
 
   return (
     <MenuRoot lazyMount={false} closeOnSelect  >

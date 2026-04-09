@@ -22,7 +22,7 @@ export const AddCircleOptions = ({ battleMapId }) => {
     if (element) {
       setFillColor(element.fill);
       setStrokeColor(element.stroke);
-      setRadius(100);
+      setRadius(element.radius ?? 100);
     }
     return () => {};
   }, []);

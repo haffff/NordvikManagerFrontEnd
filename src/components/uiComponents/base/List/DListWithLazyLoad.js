@@ -1,7 +1,7 @@
 import { Button, Center, Flex, Icon, Stack } from '@chakra-ui/react';
 import * as React from 'react';
 import { FaPlus } from 'react-icons/fa';
-import WebHelper from '../../../../helpers/WebHelper';
+import { ActiveWebHelper as WebHelper } from '../../../../helpers/transport';
 
 export const DListWithLazyLoad = ({url, generateComponentView, hasOtherArgs, mainComponent, withAddButton, handleAdd, children}) => {
     

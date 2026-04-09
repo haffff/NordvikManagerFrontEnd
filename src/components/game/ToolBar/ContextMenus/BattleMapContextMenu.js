@@ -5,26 +5,59 @@ import {
   FaArrowAltCircleDown,
   FaArrowAltCircleUp,
   FaChess,
+  FaCheckCircle,
   FaCog,
   FaCopy,
   FaEye,
   FaLayerGroup,
+  FaLock,
   FaMap,
   FaObjectUngroup,
   FaPaste,
+  FaExchangeAlt,
   FaPlus,
+  FaShieldAlt,
   FaTrash,
   FaWrench,
+  FaRegCheckCircle,
 } from "react-icons/fa";
 import Loadable from "../../../uiComponents/base/Loadable";
+import Subscribable from "../../../uiComponents/base/Subscribable";
+import CollectionSyncer from "../../../uiComponents/base/CollectionSyncer";
 import DTOConverter from "../../../BattleMap/DTOConverter";
-import WebSocketManagerInstance from "../../WebSocketManager";
+import { ActiveTransportManager as WebSocketManagerInstance, ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import ClientMediator from "../../../../ClientMediator";
 import { Heading } from "@chakra-ui/react";
 import { MenuContent, MenuContextTrigger, MenuRoot } from "../../../ui/menu";
+import { PERM, PERM_LEVEL, ENTITY_TYPES } from "../../../BattleMap/helpers/permissionBits";
+import CommandFactory from "../../../BattleMap/Factories/CommandFactory";
+import UtilityHelper from "../../../../helpers/UtilityHelper";
+import { usePermissions } from "../../../../contexts/PermissionsContext";
+import { Tooltip } from "../../../ui/tooltip";
 
 export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) => {
   const selectedObjects = canvas?.getActiveObjects() || [];
+  const { hasEntityPermission, isGM } = usePermissions();
+
+  // Resolve the current map id for entity-level permission checks
+  const currentMap = ClientMediator.sendCommand("BattleMap", "GetSelectedMap", { contextId: battleMapId });
+  const canEditMap = hasEntityPermission(ENTITY_TYPES.MAP, currentMap?.id, PERM.EDIT);
+
+  // { [playerId]: bits } for the currently selected element
+  const [elementPermissions, setElementPermissions] = React.useState({});
+  const selectedId = selectedObjects.length === 1 ? selectedObjects[0]?.id : null;
+
+  React.useEffect(() => {
+    if (!selectedId) { setElementPermissions({}); return; }
+    WebHelper.getAsync(`security/permissions?entityId=${selectedId}&entityType=ElementModel`)
+      .then(perms => setElementPermissions(perms ?? {}))
+      .catch(() => setElementPermissions({}));
+  }, [selectedId]);
+
+  const [maps, setMaps] = React.useState([]);
+  React.useEffect(() => {
+    WebHelper.getAsync('map/GetAllFlat').then(m => setMaps(m || [])).catch(() => {});
+  }, []);
 
   const HandleDelete = () => {
     ClientMediator.sendCommand("BattleMap", "RemoveSelected", {
@@ -44,11 +77,10 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
     });
   };
 
-  const HandleSpawnBattleMap = () => {
-    WebSocketManagerInstance.Send({
-      command: "show_battlemap",
-      data: battleMapId,
-    });
+  const ShowBattleMap = (playerId) => {
+    WebSocketManagerInstance.Send(
+      CommandFactory.CreateShowBattleMapCommand(battleMapId, playerId)
+    );
   };
 
   const HandleSpawnMapSettings = () => {
@@ -127,8 +159,45 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
     });
   };
 
-  if (selectedObjects === 1) {
-  }
+  const SetPermission = (playerId, bits) => {
+    const entityId = selectedObjects[0]?.id;
+    if (!entityId) return;
+    const permissions = { [playerId]: bits };
+    const cmd = CommandFactory.CreateUpdatePermissionsCommand(entityId, 'ElementModel', permissions);
+    WebSocketManagerInstance.Send(cmd);
+    // Optimistic update so checkmark reflects the change immediately.
+    setElementPermissions(prev => ({ ...prev, [playerId]: bits }));
+  };
+
+  const GetPlayersForPermissions = () => {
+    return ClientMediator.sendCommand('Game', 'GetPlayers') || [];
+  };
+
+        const check = (playerId, level) =>
+        {
+
+            let userPermission = elementPermissions[playerId] === level
+                ? <FaCheckCircle style={{ color: 'var(--chakra-colors-green-400)' }} />
+                : null;
+            let defaultPermission = elementPermissions[playerId] === undefined && elementPermissions[UtilityHelper.EmptyGuid] === level
+                ? (<Tooltip content={"Everyone has this permission level"}><FaRegCheckCircle style={{ color: 'var(--chakra-colors-green-400)' }} /></Tooltip>)
+                : null;
+
+            return (
+                <>
+                    {userPermission}
+                    {defaultPermission}
+                </>
+            );
+        }
+
+  // Returns a shield icon when the player has above-Edit (admin-level) permissions.
+  const adminIcon = (playerId) => {
+    const bits = elementPermissions[playerId];
+    return bits > PERM_LEVEL.EDIT
+      ? <FaShieldAlt style={{ color: 'orange' }} title="Admin-level permission" />
+      : undefined;
+  };
 
   width = width || 150;
 
@@ -140,6 +209,11 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
     }}>
       <MenuContextTrigger >{children}</MenuContextTrigger>
       <MenuContent>
+        <Subscribable commandPrefix="permission_update" onMessage={(msg) => {
+          if (msg.data?.entityType !== 'ElementModel' || msg.data?.id !== selectedId) return;
+          setElementPermissions(msg.data.permissions ?? {});
+        }} />
+        <CollectionSyncer collection={maps} setCollection={setMaps} commandPrefix="map" />
         {selectedObjects && selectedObjects.length === 1 ? (
           <>
             <Heading
@@ -215,6 +289,39 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
               onClick={HandleSpawnProperties}
               icon={FaWrench}
             />
+            <DropDownMenu
+              submenu={true}
+              width={width}
+              name={"Permissions"}
+              icon={<FaLock />}
+              gmOnly
+            >
+              {GetPlayersForPermissions().map((player) => (
+                <DropDownMenu
+                  key={player.id}
+                  submenu={true}
+                  width={width}
+                  name={player.name || player.id}
+                  icon={adminIcon(player.id)}
+                >
+                  <DropDownItem width={width} name={"See"}     icon={check(player.id, PERM_LEVEL.SEE)}     onClick={() => SetPermission(player.id, PERM_LEVEL.SEE)} />
+                  <DropDownItem width={width} name={"Control"} icon={check(player.id, PERM_LEVEL.CONTROL)} onClick={() => SetPermission(player.id, PERM_LEVEL.CONTROL)} />
+                  <DropDownItem width={width} name={"Edit"}    icon={check(player.id, PERM_LEVEL.EDIT)}    onClick={() => SetPermission(player.id, PERM_LEVEL.EDIT)} />
+                  <DropDownItem width={width} name={"None"}    icon={check(player.id, PERM_LEVEL.NONE)}    onClick={() => SetPermission(player.id, PERM_LEVEL.NONE)} />
+                </DropDownMenu>
+              ))}
+              <DropDownMenu
+                submenu={true}
+                width={width}
+                name={"Everyone"}
+                icon={adminIcon(UtilityHelper.EmptyGuid)}
+              >
+                <DropDownItem width={width} name={"See"}     icon={check(UtilityHelper.EmptyGuid, PERM_LEVEL.SEE)}     onClick={() => SetPermission(UtilityHelper.EmptyGuid, PERM_LEVEL.SEE)} />
+                <DropDownItem width={width} name={"Control"} icon={check(UtilityHelper.EmptyGuid, PERM_LEVEL.CONTROL)} onClick={() => SetPermission(UtilityHelper.EmptyGuid, PERM_LEVEL.CONTROL)} />
+                <DropDownItem width={width} name={"Edit"}    icon={check(UtilityHelper.EmptyGuid, PERM_LEVEL.EDIT)}    onClick={() => SetPermission(UtilityHelper.EmptyGuid, PERM_LEVEL.EDIT)} />
+                <DropDownItem width={width} name={"None"}    icon={check(UtilityHelper.EmptyGuid, PERM_LEVEL.NONE)}    onClick={() => SetPermission(UtilityHelper.EmptyGuid, PERM_LEVEL.NONE)} />
+              </DropDownMenu>
+            </DropDownMenu>
           </>
         ) : (
           <>
@@ -236,13 +343,13 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
               name={"Battle Map"}
               icon={<FaMap/>}
             >
-              <DropDownItem
-                gmOnly
-                width={width}
-                name={"Show"}
-                onClick={HandleSpawnBattleMap}
-                icon={<FaEye/>}
-              />
+              <DropDownMenu gmOnly submenu={true} width={width} name={"Show"} icon={<FaEye />}>
+                <DropDownItem width={width} name={"All players"} onClick={() => ShowBattleMap()} />
+                {GetPlayersForPermissions().map(player => (
+                  <DropDownItem key={player.id} width={width} name={player.name || player.id}
+                    onClick={() => ShowBattleMap(player.id)} />
+                ))}
+              </DropDownMenu>
               <DropDownItem
                 width={width}
                 name={"Tools"}
@@ -250,22 +357,33 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
                 icon={<FaWrench/>}
               />
             </DropDownMenu>
-            <DropDownItem
-              gmOnly
-              width={width}
-              name={"Map Settings"}
-              onClick={HandleSpawnMapSettings}
-              icon={<FaCog/>}
-            />
-            <DropDownItem
-              gmOnly
-              width={width}
-              name={"Edit Grid"}
-              onClick={() => {
-                ClientMediator.sendCommand("BattleMap", "EditGrid", {contextId: battleMapId})
-              }}
-              icon={<FaWrench/>}
-            />
+            {maps.length > 0 && (
+              <DropDownMenu submenu={true} width={width} name={"Switch Map"} icon={<FaExchangeAlt />}>
+                {maps.map(m => (
+                  <DropDownItem key={m.id} width={width} name={m.name} onClick={() =>
+                    ClientMediator.sendCommand("BattleMap", "ChangeMap", { contextId: battleMapId, id: m.id })
+                  } />
+                ))}
+              </DropDownMenu>
+            )}
+            {canEditMap && (
+              <DropDownItem
+                width={width}
+                name={"Map Settings"}
+                onClick={HandleSpawnMapSettings}
+                icon={<FaCog/>}
+              />
+            )}
+            {canEditMap && (
+              <DropDownItem
+                width={width}
+                name={"Edit Grid"}
+                onClick={() => {
+                  ClientMediator.sendCommand("BattleMap", "EditGrid", {contextId: battleMapId})
+                }}
+                icon={<FaWrench/>}
+              />
+            )}
           </>
         )}
       </MenuContent>

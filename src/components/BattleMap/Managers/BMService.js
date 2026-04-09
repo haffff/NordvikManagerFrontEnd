@@ -1,4 +1,4 @@
-import WebSocketManagerInstance from "../../game/WebSocketManager";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import CommandFactory from "../Factories/CommandFactory";
 import { fabric } from "fabric";
 import DTOConverter from "../DTOConverter";
@@ -14,40 +14,148 @@ class BMService {
   _BMQueryService = undefined;
   _battleMapModel = undefined;
   _contextMenuRef = undefined;
-
   Load() {
     this.panel = "battlemap";
     this.contextId = this._battleMapModel.id;
     this.id = "BMService" + this._battleMapModel.id;
   }
 
-  GroupSelected() {
-    let selectedObjects = this._BMQueryService.GetSelectedObjects();
+  // ── $meta ────────────────────────────────────────────────────────────────────
+  // Picked up by CommandExecutionHelper.LoadSuggestions via prototype reflection.
+  get $meta() {
+    return {
+      GroupSelected: {
+        description: 'Groups the currently selected objects into a single fabric Group.',
+        args: [],
+      },
+      UngroupSelected: {
+        description: 'Ungroups the selected group back into individual objects. (WIP)',
+        args: [],
+      },
+      RemoveSelected: {
+        description: 'Deletes all currently selected objects from the map.',
+        args: [],
+      },
+      ReloadBattleMapComponent: {
+        description: 'Fully reloads the BattleMap component (e.g. after a map change).',
+        args: [],
+      },
+      ChangeMap: {
+        description: 'Switches the BattleMap to the map with the given ID.',
+        args: [{ name: 'id', type: 'mapid', required: true }],
+      },
+      UpdateMapReference: {
+        description: 'Merges new settings into the live map reference held by BMQueryService.',
+        args: [{ name: 'mapData', type: 'object', required: true }],
+      },
+      SortLayers: {
+        description: 'Re-sorts all canvas objects by their layer value.',
+        args: [],
+      },
+      EditGrid: {
+        description: 'Selects the grid object so it can be edited.',
+        args: [],
+      },
+      SetSelectedLayer: {
+        description: 'Sets the active layer. Optionally enables edit-mode for that layer.',
+        args: [
+          { name: 'layerId', type: 'number', required: true },
+          { name: 'withEditMode', type: 'boolean', required: false },
+        ],
+      },
+      SetLayerEditMode: {
+        description: 'Enables or disables edit-mode for a layer, fading objects on other layers.',
+        args: [
+          { name: 'editMode', type: 'boolean', required: true },
+          { name: 'layer', type: 'number', required: true },
+        ],
+      },
+      SetTokenSelectMode: {
+        description: 'Locks the canvas into token-selection mode with optional min/max token count.',
+        args: [
+          { name: 'minTokens', type: 'number', required: false },
+          { name: 'maxTokens', type: 'number', required: false },
+        ],
+      },
+      UnsetTokenSelectMode: {
+        description: 'Exits token-selection mode and restores object selectability.',
+        args: [],
+      },
+      CopyElements: {
+        description: 'Copies selected canvas objects to the internal clipboard.',
+        args: [],
+      },
+      PasteElements: {
+        description: 'Pastes clipboard objects at the given coordinates (or offset by 10px).',
+        args: [
+          { name: 'x', type: 'number', required: false },
+          { name: 'y', type: 'number', required: false },
+        ],
+      },
+      SetAlign: {
+        description: 'Sets the snap-align mode (e.g. "grid", "object", or undefined to disable).',
+        args: [{ name: 'align', type: 'string', required: true }],
+      },
+      SetDragMode: {
+        description: 'Enables or disables canvas pan/drag mode.',
+        args: [{ name: 'enabled', type: 'boolean', required: true }],
+      },
+      SetFreeDrawMode: {
+        description: 'Enables or disables freehand pencil-draw mode.',
+        args: [{ name: 'enabled', type: 'boolean', required: true }],
+      },
+      SetSimpleCreateMode: {
+        description: 'Enables or disables simple-click-to-place creation mode for a canvas element.',
+        args: [
+          { name: 'enabled', type: 'boolean', required: true },
+          { name: 'type', type: 'string', required: false },
+          { name: 'withSizing', type: 'boolean', required: false },
+        ],
+      },
+      SetMeasureMode: {
+        description: 'Enables or disables distance-measurement mode, loading grid/unit settings from the server.',
+        args: [
+          { name: 'enabled', type: 'boolean', required: true },
+          { name: 'type', type: 'string', required: false },
+        ],
+      },
+      DisableAllModes: {
+        description: 'Exits all active canvas modes (draw, measure, token-select, edit-layer, etc.).',
+        args: [],
+      },
+      CleanPreviews: {
+        description: 'Removes all preview objects belonging to the current player from the canvas.',
+        args: [],
+      },
+    };
+  }
 
-    //filter ungrouped objects
-    let objectsToAdd = selectedObjects.filter((x) => x._objects === undefined);
-    if (selectedObjects !== undefined) {
-      let mapId = this._BMQueryService.GetSelectedMapID();
-      let coords = this._BMQueryService.GetSelectedGroupCoords();
-      let group = new fabric.Group(objectsToAdd, {
-        originX: "left",
-        originY: "top",
-        left: coords[0].x,
-        top: coords[0].y,
-        layer: objectsToAdd[0].layer,
-      })
-        .setObjectsCoords()
-        .setCoords();
-      let cmd = CommandFactory.CreateGroupCommand(
-        {
-          object: JSON.stringify(group),
-          mapId: mapId,
-          layer: selectedObjects[0].layer,
-        },
-        selectedObjects.map((x) => x.id)
-      );
-      WebSocketManagerInstance.Send(cmd);
-    }
+  GroupSelected() {
+    const selectedObjects = this._BMQueryService.GetSelectedObjects();
+    if (!selectedObjects?.length) return;
+
+    // filter ungrouped objects
+    const objectsToAdd = selectedObjects.filter((x) => x._objects === undefined);
+    const mapId = this._BMQueryService.GetSelectedMapID();
+    const coords = this._BMQueryService.GetSelectedGroupCoords();
+    const group = new fabric.Group(objectsToAdd, {
+      originX: "left",
+      originY: "top",
+      left: coords[0].x,
+      top: coords[0].y,
+      layer: objectsToAdd[0].layer,
+    })
+      .setObjectsCoords()
+      .setCoords();
+    const cmd = CommandFactory.CreateGroupCommand(
+      {
+        object: JSON.stringify(group),
+        mapId: mapId,
+        layer: selectedObjects[0].layer,
+      },
+      selectedObjects.map((x) => x.id)
+    );
+    WebSocketManagerInstance.Send(cmd);
   }
 
   ///Reload whole battlemap(for example. map change)
@@ -55,24 +163,32 @@ class BMService {
     this._reloadCommand();
   }
 
-  ChangeMap({ id }) {
-    this._changeMapCommand(id);
+  ChangeMap(idOrObj) {
+    const id = idOrObj?.id ?? idOrObj?.mapId ?? idOrObj;
+    if (!id) return `ChangeMap: no map id provided`;
+    if (typeof this._changeMapCommand !== 'function') return `ChangeMap: not ready (canvas not loaded yet)`;
+    return this._changeMapCommand(id);
   }
-
+  UpdateMapReference({ mapData }) {
+    // Update the map reference in BMQueryService with new settings
+    if (this._BMQueryService && this._BMQueryService._map) {
+      Object.assign(this._BMQueryService._map, mapData);
+    }
+  }
   //Not working properly, need a fix
   UngroupSelected() {
-    let selectedObjects = this._BMQueryService.GetSelectedObjects();
-    let mapId = this._BMQueryService.GetSelectedMapID();
+    const selectedObjects = this._BMQueryService.GetSelectedObjects();
     if (selectedObjects !== undefined && selectedObjects.length == 1) {
-      let children = selectedObjects[0]._objects.map((element) => {
-        let coords = this._BMQueryService.GetSelectedGroupCoords()[0];
-        element.left = element.aCoords.tl.x + coords.x;
-        element.top = element.aCoords.tl.y + coords.y;
+      // Resolve coords once outside the map loop
+      const groupCoords = this._BMQueryService.GetSelectedGroupCoords()[0];
+      const children = selectedObjects[0]._objects.map((element) => {
+        element.left = element.aCoords.tl.x + groupCoords.x;
+        element.top = element.aCoords.tl.y + groupCoords.y;
         element.layer = selectedObjects[0].layer;
         return DTOConverter.ConvertToDTO(element);
       });
 
-      let cmd = CommandFactory.CreateUngroupCommand(
+      const cmd = CommandFactory.CreateUngroupCommand(
         selectedObjects[0].id,
         children
       );
@@ -157,25 +273,18 @@ class BMService {
     canvas.tokens = [];
 
     this.SetSelectedLayer({ layerId: 100, withEditMode: false });
-
     this._addPopupAndOverlay(overlayContent, popupContent);
 
-    const objects = canvas.getObjects();
-
-    objects.forEach((object) => {
-      object.set("beforeTokenSelectSelectable", object.selectable);
-      object.set("selectable", false);
-
-      object.set("beforeTokenSelectEditable", object.editable);
-      object.set("editable", false);
-
-      if (object.tokenData) {
-        object.set("beforeTokenSelectOpacity", object.opacity);
-        object.set("opacity", 1);
-      } else {
-        object.set("beforeTokenSelectOpacity", object.opacity);
-        object.set("opacity", 0.4);
-      }
+    canvas.getObjects().forEach((object) => {
+      const isToken = !!object.tokenData;
+      object.set({
+        beforeTokenSelectSelectable: object.selectable,
+        selectable: false,
+        beforeTokenSelectEditable: object.editable,
+        editable: false,
+        beforeTokenSelectOpacity: object.opacity,
+        opacity: isToken ? 1 : 0.4,
+      });
     });
 
     ClientMediator.fireEvent("BattleMap_ModeChanged", {
@@ -201,22 +310,15 @@ class BMService {
 
     this._removePopupAndOverlay();
 
-    const objects = canvas.getObjects();
-
-    objects.forEach((object) => {
-      object.set("selectable", object.beforeTokenSelectSelectable);
-      object.set("beforeTokenSelectSelectable", undefined);
-
-      object.set("editable", object.beforeTokenSelectEditable);
-      object.set("beforeTokenSelectEditable", undefined);
-
-      if (object.tokenData) {
-        object.set("opacity", object.beforeTokenSelectOpacity);
-        object.set("beforeTokenSelectOpacity", undefined);
-      } else {
-        object.set("opacity", object.beforeTokenSelectOpacity);
-        object.set("beforeTokenSelectOpacity", undefined);
-      }
+    canvas.getObjects().forEach((object) => {
+      object.set({
+        selectable: object.beforeTokenSelectSelectable,
+        beforeTokenSelectSelectable: undefined,
+        editable: object.beforeTokenSelectEditable,
+        beforeTokenSelectEditable: undefined,
+        opacity: object.beforeTokenSelectOpacity,
+        beforeTokenSelectOpacity: undefined,
+      });
     });
 
     ClientMediator.fireEvent("BattleMap_ModeChanged", {
@@ -250,30 +352,25 @@ class BMService {
 
       canvas.getObjects().forEach((object) => {
         if (object.layer === layer) {
-          if (object.currentlyEdited !== undefined) {
-            return;
-          }
-
+          if (object.currentlyEdited !== undefined) return;
           if (object.origOpacity) {
-            object.set("opacity", object.origOpacity);
-            object.set("origOpacity", undefined);
+            object.set({ opacity: object.origOpacity, origOpacity: undefined });
           }
         } else {
           if (object.origOpacity === undefined) {
-            object.set("origOpacity", object.opacity);
-            object.set("opacity", object.opacity - 0.5);
+            object.set({ origOpacity: object.opacity, opacity: object.opacity - 0.5 });
           }
           object.set("currentlyEdited", undefined);
         }
       });
     } else {
+      canvas.editMode = undefined;   // clear editMode so the early-exit check works next time
       canvas.editLock = false;
       canvas.editLayer = undefined;
       canvas.modeLock = undefined;
       canvas.getObjects().forEach((object) => {
         if (object.origOpacity) {
-          object.set("opacity", object.origOpacity);
-          object.set("origOpacity", undefined);
+          object.set({ opacity: object.origOpacity, origOpacity: undefined });
         }
         object.set("currentlyEdited", undefined);
       });
@@ -310,7 +407,10 @@ class BMService {
     }
 
     if (this._clipboard !== undefined) {
-      // active selection needs a reference to the canvas.
+      // Resolve layer and mapId once — not per element
+      const layer = this._BMQueryService.GetSelectedLayer();
+      const mapId = this._BMQueryService.GetSelectedMapID();
+
       this._clipboard.forEach((element) => {
         if (coords) {
           element.left = coords.x;
@@ -320,13 +420,9 @@ class BMService {
           element.top += 10;
         }
 
-        let dto = DTOConverter.ConvertToDTO(element);
-        let cmd = CommandFactory.CreateAddCommand(
-          {
-            ...dto,
-            layer: this._BMQueryService.GetSelectedLayer(),
-            mapId: this._BMQueryService.GetSelectedMapID(),
-          },
+        const dto = DTOConverter.ConvertToDTO(element);
+        const cmd = CommandFactory.CreateAddCommand(
+          { ...dto, layer, mapId },
           true
         );
         WebSocketManagerInstance.Send(cmd);
@@ -539,82 +635,68 @@ class BMService {
       canvas.measureMode = true;
       canvas.selection = false;
       canvas.modeType = type;
-      canvas.measure = {
-        visibleToOthers: true,
-      };
+      canvas.measure = { visibleToOthers: true };
 
       this.SetDragMode({ enabled: false });
       canvas.dragModeLock = true;
 
-      canvas.measure.measureArrow =
-        arrowObject ??
-        new fabric.LineArrow([0, 0, 0, 0], {
-          stroke: "rgba(0,0,0,1)",
-          strokeWidth: 2,
-          stroke: playerColor,
-          selectable: false,
-        });
+      canvas.measure.measureArrow = arrowObject ?? new fabric.LineArrow([0, 0, 0, 0], {
+        strokeWidth: 2,
+        stroke: playerColor,   // was duplicated — removed dead first occurrence
+        selectable: false,
+      });
 
-      canvas.measure.measureObject =
-        measureObject ??
-        new fabric.Textbox("0", {
-          left: 0,
-          top: 0,
-          width: 200,
-          height: 90,
-          fontSize: 56,
-          fill: playerColor,
-          selectable: false,
-          editable: false,
-        });
-
-      let map = await ClientMediator.sendCommandAsync(
-        "BattleMap",
-        "GetSelectedMap",
-        {
-          contextId: this.contextId,
-        }
-      );
-
-      let gameId = await ClientMediator.sendCommandAsync(
-        "Game",
-        "GetGameId",
-        {}
-      );
+      canvas.measure.measureObject = measureObject ?? new fabric.Textbox("0", {
+        left: 0,
+        top: 0,
+        width: 200,
+        height: 90,
+        fontSize: 56,
+        fill: playerColor,
+        selectable: false,
+        editable: false,
+      });
 
       canvas.measure.additionalObject = additionalObject ?? undefined;
 
-      let measureSettings = await ClientMediator.sendCommandAsync(
-        "Properties",
-        "GetByNames",
-        { parentId: map.id ?? map.Id, names: ["baseDistanceUnit", "useSquaredSystem", "baseDistancePerSquare"] }
-      );
+      // Fetch map and gameId in parallel — they don't depend on each other
+      const [map, gameId] = await Promise.all([
+        ClientMediator.sendCommandAsync("BattleMap", "GetSelectedMap", { contextId: this.contextId }),
+        ClientMediator.sendCommandAsync("Game", "GetGameId", {}),
+      ]);
 
-      let gameMeasureSettings = await ClientMediator.sendCommandAsync(
-        "Properties",
-        "GetByNames",
-        { parentId: gameId, names: ["baseDistanceUnit", "useSquaredSystem", "baseDistancePerSquare"] }
-      );
+      // Fetch both settings collections in parallel too
+      const [measureSettings, gameMeasureSettings] = await Promise.all([
+        ClientMediator.sendCommandAsync("Properties", "GetByNames", {
+          parentId: map.id ?? map.Id,
+          names: ["baseDistanceUnit", "useSquaredSystem", "baseDistancePerSquare"],
+        }),
+        ClientMediator.sendCommandAsync("Properties", "GetByNames", {
+          parentId: gameId,
+          names: ["baseDistanceUnit", "useSquaredSystem", "baseDistancePerSquare"],
+        }),
+      ]);
 
-      const measureUnitSetting = measureSettings.find(setting => setting.name === "baseDistanceUnit")?.value;
-      const useSquaredSystemSetting = UtilityHelper.ParseBool(measureSettings.find(setting => setting.name === "useSquaredSystem")?.value);
-      const baseDistancePerSquareSetting = measureSettings.find(setting => setting.name === "baseDistancePerSquare")?.value;
+      // Single-pass: build a lookup map instead of 6 separate .find() calls
+      const toMap = (arr) => Object.fromEntries((arr ?? []).map((s) => [s.name, s.value]));
+      const ms = toMap(measureSettings);
+      const gms = toMap(gameMeasureSettings);
 
-      const gameMeasureUnitSetting = gameMeasureSettings.find(setting => setting.name === "baseDistanceUnit")?.value;
-      const gameUseSquaredSystemSetting = UtilityHelper.ParseBool(gameMeasureSettings.find(setting => setting.name === "useSquaredSystem")?.value);
-      const gameBaseDistancePerSquareSetting = gameMeasureSettings.find(setting => setting.name === "baseDistancePerSquare")?.value;
-
-      canvas.measure = { ...canvas.measure,
-        units: measureUnitSetting ?? gameMeasureUnitSetting ?? "ft",
-        realisticMeasure: useSquaredSystemSetting ?? gameUseSquaredSystemSetting ?? false,
-        distancePerSquare: baseDistancePerSquareSetting ? parseInt(baseDistancePerSquareSetting) : (gameBaseDistancePerSquareSetting ? parseInt(gameBaseDistancePerSquareSetting) : 5),
+      canvas.measure = {
+        ...canvas.measure,
+        units: ms.baseDistanceUnit ?? gms.baseDistanceUnit ?? "ft",
+        realisticMeasure: UtilityHelper.ParseBool(ms.useSquaredSystem) ?? UtilityHelper.ParseBool(gms.useSquaredSystem) ?? false,
+        distancePerSquare: ms.baseDistancePerSquare
+          ? parseInt(ms.baseDistancePerSquare)
+          : gms.baseDistancePerSquare
+            ? parseInt(gms.baseDistancePerSquare)
+            : 5,
       };
 
       this._addPopupAndOverlay(overlayContent, popupContent);
 
       canvas.getObjects().forEach((object) => {
-        object.set("beforeMeasureSelectable", object.selectable);
-        object.set("selectable", false);
+        object.set({ beforeMeasureSelectable: object.selectable, selectable: false });
       });
 
       ClientMediator.fireEvent("BattleMap_ModeChanged", {
@@ -655,33 +737,33 @@ class BMService {
   }
 
   DisableAllModes() {
+    const canvas = this._canvas;
     this.SetSimpleCreateMode({ enabled: false });
     this.SetFreeDrawMode({ enabled: false });
     this.UnsetTokenSelectMode({});
-    this.SetLayerEditMode({ editMode: false });
+    // Pass the current editLayer so SetLayerEditMode's layer===undefined guard doesn't short-circuit
+    this.SetLayerEditMode({ editMode: false, layer: canvas.editLayer ?? canvas.selectedLayer });
     this.SetMeasureMode({ enabled: false });
   }
 
   CleanPreviews() {
     const currentPlayer = ClientMediator.sendCommand("Game", "GetCurrentPlayer");
     const canvas = this._canvas;
-    const filteredObjects = canvas.getObjects().filter((object) => object.previewId && object.playerId === currentPlayer.id);
+    const filteredObjects = canvas.getObjects().filter(
+      (object) => object.previewId && object.playerId === currentPlayer.id
+    );
 
     filteredObjects.forEach((object) => {
       canvas.remove(object);
     });
-    if(canvas.measure.visibleToOthers === true)
-    {
+    
+    if (canvas.measure?.visibleToOthers === true) {
       WebSocketManagerInstance.Send({
         command: "preview_end",
         battleMapId: this.contextId,
-        data: [
-          filteredObjects.map((object) => ({ previewId: object.previewId, playerId: object.playerId })),
-        ],
+        data: [filteredObjects.map((object) => ({ previewId: object.previewId, playerId: object.playerId }))],
       });
     }
-
-
 
     canvas.requestRenderAll();
   }

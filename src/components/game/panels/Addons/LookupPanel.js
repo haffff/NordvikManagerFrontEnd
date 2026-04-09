@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Flex, FormLabel, HStack, Image, Textarea } from '@chakra-ui/react'
+import { Flex, HStack, Image, Textarea } from '@chakra-ui/react'
 import * as Dockable from "@hlorenzi/react-dockable"
 import Subscribable from '../../../uiComponents/base/Subscribable';
 import DList from '../../../uiComponents/base/List/DList';
@@ -10,8 +10,8 @@ import DListItemButton from '../../../uiComponents/base/List/ListItemDetails/DLi
 import { FaEye } from 'react-icons/fa';
 import DLabel from '../../../uiComponents/base/Text/DLabel';
 import { JSONTree } from 'react-json-tree';
-import BasePanel from '../../../uiComponents/base/BasePanel';
-import WebHelper from '../../../../helpers/WebHelper';
+import { BasePanel } from '../../../uiComponents/base/BasePanel';
+import { ActiveWebHelper as WebHelper } from '../../../../helpers/transport';
 
 export const LookupPanel = ({ name, content, contentType }) => {
     //let gameData = gamedata.current;

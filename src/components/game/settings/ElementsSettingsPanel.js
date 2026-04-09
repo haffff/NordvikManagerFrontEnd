@@ -1,14 +1,6 @@
 import * as React from "react";
-import {
-  Tabs,
-  TabList,
-  Tab,
-  TabPanels,
-  TabPanel,
-  Flex,
-} from "@chakra-ui/react";
-import { Box, Textarea } from "@chakra-ui/react";
-import WebSocketManagerInstance from "../WebSocketManager";
+import { Tabs, Textarea } from "@chakra-ui/react";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import SettingsPanel from "./SettingsPanel";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import Subscribable from "../../uiComponents/base/Subscribable";
@@ -217,8 +209,9 @@ export const ElementSettingsPanel = ({ dto, battlemapId }) => {
     //let filtered = allEditables.filter((x) => keys.includes(x.key));
     return allEditables;
   };
-
   const sendSettingsUpdate = (dtoToSend) => {
+    // Apply the changed keys onto the live Fabric object so the canvas reflects the edit,
+    // but do it via set() so Fabric can react properly where possible.
     Object.keys(dtoToSend).forEach((key) => {
       if (key !== "id" && dtoToSend[key] !== undefined) {
         dto[key] = dtoToSend[key];

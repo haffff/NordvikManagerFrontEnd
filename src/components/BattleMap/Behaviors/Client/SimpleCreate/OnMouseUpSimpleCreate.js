@@ -1,4 +1,4 @@
-import WebSocketManagerInstance from "../../../../game/WebSocketManager";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../../../../../helpers/transport";
 import DTOConverter from "../../../DTOConverter";
 
 export class OnMouseUpSimpleCreateClientBehavior {

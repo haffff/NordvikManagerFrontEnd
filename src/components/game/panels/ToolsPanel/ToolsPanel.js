@@ -1,6 +1,6 @@
 import * as React from "react";
 import * as Dockable from "@hlorenzi/react-dockable";
-import BasePanel from "../../../uiComponents/base/BasePanel";
+import { BasePanel } from "../../../uiComponents/base/BasePanel";
 import useBMName from "../../../uiComponents/hooks/useBattleMapName";
 import DListItem from "../../../uiComponents/base/List/DListItem";
 import {
@@ -41,6 +41,7 @@ export const ToolsPanel = ({ battleMapId }) => {
   const [playerColor, setPlayerColor] = React.useState("rgba(0,0,0,1)");
 
   const colorRef = React.useRef(playerColor);
+  const registrationIdRef = React.useRef(null);
 
   const config = [
     { type: "label", name: "Select", ignoreAsSeparator: true },
@@ -109,7 +110,7 @@ export const ToolsPanel = ({ battleMapId }) => {
       icon: <FaRuler />,
       name: "Line",
       onClick: () => handleMeasureLine(),
-      selected: mode === "Measure_Line",
+      selected: mode === "Measure_undefined",
     },
     { type: "label", name: "Align" },
     {
@@ -167,7 +168,7 @@ export const ToolsPanel = ({ battleMapId }) => {
   };
 
   const clearMode = () => {
-    if (mode !== "_" || mode !== undefined) {
+    if (mode !== "_" && mode !== undefined) {
       ClientMediator.sendCommand("BattleMap", "DisableAllModes", {
         contextId: _battleMapId,
       });
@@ -259,13 +260,18 @@ export const ToolsPanel = ({ battleMapId }) => {
 
   const updateTools = async () => {
     if (!_battleMapId) {
-      var bmId = await ClientMediator.sendCommandWaitForRegisterAsync("Game", "GetActiveBattleMapId");
+      const bmId = await ClientMediator.sendCommandWaitForRegisterAsync("Game", "GetActiveBattleMapId");
       set_battleMapId(bmId);
       return;
     }
 
-    // Register changes on
     const uuid = UtilityHelper.GenerateUUID();
+    const registrationId = "ToolsPanel" + uuid;
+
+    if (registrationIdRef.current) {
+      ClientMediator.unregister(registrationIdRef.current);
+    }
+    registrationIdRef.current = registrationId;
 
     const dragMode = ClientMediator.sendCommand("BattleMap", "GetDragMode", {
       contextId: _battleMapId,
@@ -273,8 +279,7 @@ export const ToolsPanel = ({ battleMapId }) => {
 
     setDrag(dragMode);
 
-    // get mode and mode type
-    const mode = ClientMediator.sendCommand("BattleMap", "GetCurrentMode", {
+    const currentMode = ClientMediator.sendCommand("BattleMap", "GetCurrentMode", {
       contextId: _battleMapId,
     });
 
@@ -297,17 +302,16 @@ export const ToolsPanel = ({ battleMapId }) => {
     });
     setAlign(align);
 
-    // get player color
-    const playerColor = ClientMediator.sendCommand(
+    const currentPlayerColor = ClientMediator.sendCommand(
       "Game",
       "GetCurrentPlayerColor"
     );
-    setPlayerColor(playerColor);
-    setMode(mode + "_" + modeType);
+    setPlayerColor(currentPlayerColor);
+    setMode(currentMode + "_" + modeType);
 
     ClientMediator.register({
       panel: "ToolsPanel",
-      id: "ToolsPanel" + uuid,
+      id: registrationId,
       onEvent: (event, data) => {
         if (event === "ActivePanelChanged") {
           if (data.panel !== "BattleMap" || data.contextId === _battleMapId) {
@@ -315,8 +319,9 @@ export const ToolsPanel = ({ battleMapId }) => {
           }
 
           set_battleMapId(data.contextId);
-
-          ClientMediator.unregister(uuid);
+          ClientMediator.unregister(registrationId);
+          registrationIdRef.current = null;
+          return;
         }
 
         if (
@@ -346,12 +351,15 @@ export const ToolsPanel = ({ battleMapId }) => {
         }
       },
     });
-  }
+  };
 
   React.useEffect(() => {
     updateTools();
     return () => {
-      ClientMediator.unregister("ToolsPanel" + _battleMapId);
+      if (registrationIdRef.current) {
+        ClientMediator.unregister(registrationIdRef.current);
+        registrationIdRef.current = null;
+      }
     };
   }, [_battleMapId]);
 
@@ -362,8 +370,10 @@ export const ToolsPanel = ({ battleMapId }) => {
         justifyContent={"center"}
         flexWrap={"wrap"}
         tooltip={name}
-        opacity={enabled ? 1 : 0.5}
-        onClick={onClick}
+        opacity={enabled ? 1 : 0.4}
+        cursor={enabled ? "pointer" : "not-allowed"}
+        pointerEvents={enabled ? "auto" : "none"}
+        onClick={enabled ? onClick : undefined}
         key={"Tools_" + _battleMapId + "_" + name + enabled}
       >
         {icon}
@@ -376,10 +386,11 @@ export const ToolsPanel = ({ battleMapId }) => {
       <DListItem
         isSelected={selected}
         flexProps={{ gap: "10px" }}
-        withHover
+        withHover={enabled}
         justifyContent={"center"}
-        onClick={onClick}
-        opacity={enabled ? 1 : 0.5}
+        onClick={enabled ? onClick : undefined}
+        opacity={enabled ? 1 : 0.4}
+        cursor={enabled ? "pointer" : "not-allowed"}
         key={"Tools_" + _battleMapId + "_" + name + enabled}
       >
         {icon}

@@ -1,4 +1,4 @@
-import { Box, Button, HStack, Icon, IconButton, Stack, Tr } from '@chakra-ui/react';
+import { Box, Button, HStack, Icon, IconButton, Stack } from '@chakra-ui/react';
 import * as React from 'react';
 import DockableHelper from '../../../../../helpers/DockableHelper';
 import DropDownButton from '../DropDrownButton';

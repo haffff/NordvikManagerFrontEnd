@@ -1,214 +1,265 @@
 import * as React from "react";
 import {
-  Stack,
-  Heading,
-  Input,
-  Button,
-  ButtonGroup,
   Box,
-  HStack,
-  Image,
+  Button,
   Flex,
+  Heading,
+  HStack,
+  Icon,
+  Image,
+  Input,
+  Separator,
+  Stack,
+  Text,
   Textarea,
-  Dialog,
-  DialogCloseTrigger,
 } from "@chakra-ui/react";
-import WebHelper from "../../helpers/WebHelper";
-import { FaLink } from "react-icons/fa";
-import DContainer from "../uiComponents/base/Containers/DContainer";
-import { DialogContainer } from "../uiComponents/base/Containers/DialogContainer";
+import { FaGlobe, FaLink, FaLock, FaPlus } from "react-icons/fa";
 import { Checkbox } from "../ui/checkbox";
-import { DialogBackdrop, DialogBody, DialogContent, DialogFooter, DialogHeader, DialogRoot } from "../ui/dialog";
+import {
+  DialogBackdrop,
+  DialogBody,
+  DialogCloseTrigger,
+  DialogContent,
+  DialogFooter,
+  DialogHeader,
+  DialogRoot,
+} from "../ui/dialog";
+import WebHelper from "../../helpers/WebHelper";
 
-export const CreateNewDialog = ({ OnSuccess }) => {
-  const [open, setOpen] = React.useState(false);
+const EMPTY_FORM = (publicGamesAllowed) => ({
+  passwordRequired: false,
+  isPublic: publicGamesAllowed !== false,
+});
 
-  const [recommendedAddons, setRecommendedAddons] = React.useState([]);
-  const [showPassword, setShowPassword] = React.useState(false);
-  const [error, setError] = React.useState(false);
-  const [createForm, setCreateForm] = React.useState({
-    passwordRequired: false,
-  });
+export const CreateNewDialog = ({ OnSuccess, publicGamesAllowed = true }) => {
+  const [open, setOpen]       = React.useState(false);
+  const [form, setForm]       = React.useState(EMPTY_FORM(publicGamesAllowed));
+  const [addons, setAddons]   = React.useState([]);
+  const [busy, setBusy]       = React.useState(false);
+  const [error, setError]     = React.useState(null);
 
   React.useEffect(() => {
-    getRecommendedAddons();
+    WebHelper.getAsync("gamelist/GetFeaturedAddons").then((result) => {
+      if (result) setAddons(result);
+    });
   }, []);
 
-  const getRecommendedAddons = async () => {
-    var result = await WebHelper.getAsync("gamelist/GetFeaturedAddons");
+  const set = (field, value) => setForm((f) => ({ ...f, [field]: value }));
 
-    if (result) {
-      setRecommendedAddons(result);
-    }
+  const handleOpen = () => {
+    setForm(EMPTY_FORM(publicGamesAllowed));
+    setError(null);
+    setOpen(true);
   };
 
-  const onFormSubmit = () => {
+  const onSubmit = () => {
+    if (!form.name?.trim()) { setError("Title is required."); return; }
+    setBusy(true);
+    setError(null);
     WebHelper.post(
       "gamelist/addgame",
-      createForm,
-      (obj) => {
-        OnSuccess(obj);
-        setOpen(false);
-      },
-      (result) => {
-        setError(true);
+      form,
+      (obj) => { setBusy(false); OnSuccess(obj); setOpen(false); },
+      async (resp) => {
+        setBusy(false);
+        const body = await resp?.json?.().catch(() => ({}));
+        setError(body?.error ?? "Failed to create game. Please try again.");
       }
     );
   };
 
-  const setField = (field, value) => {
-    setCreateForm({ ...createForm, [field]: value });
-  };
-
   return (
     <>
-      <Button
-        width={"200px"}
-        onClick={() => {
-          setCreateForm({});
-          setOpen(true);
-        }}
-        variant={"outline"}
-      >
-        Create new one
+      <Button width="200px" variant="outline" onClick={handleOpen}>
+        <Icon as={FaPlus} mr={2} /> Create new game
       </Button>
-        <DialogRoot
-          lazyMount
-          open={open}
-          onOpenChange={(e) => setOpen(e.open)}
-          size={"xl"}
-        >
-          <DialogBackdrop />
-          <DialogContent>
-            <DialogCloseTrigger />
-            <DialogHeader>Create new game</DialogHeader>
-            <DialogBody>
-              <form onSubmit={() => {}}>
-                <Stack spacing={4} borderColor={error ? "tomato" : "gray.200"}>
-                  <Flex gap={"40px"} dir="row">
-                    <Stack flex={1}>
-                      <Heading size="xs">Title</Heading>
-                      <Input
-                        placeholder="My epic adventure"
-                        size="md"
-                        onInput={(input) =>
-                          setField("name", input.target.value)
-                        }
-                      />
-                      <Heading size="xs">Password</Heading>
-                      <Checkbox
-                        onChange={(input) =>
-                          setField("passwordRequired", input.target.checked)
-                        }
-                      >
-                        Require Password
-                      </Checkbox>
-                      <Input
-                        type="password"
-                        disabled={!createForm.passwordRequired}
-                        placeholder="Enter password"
-                        size="md"
-                        onInput={(input) =>
-                          setField("password", input.target.value)
-                        }
-                      />
-                    </Stack>
-                    <Stack flex={1}>
-                      <Heading size="xs">Image</Heading>
-                      {createForm.image && (
-                        <Image
-                          src={createForm.image}
-                          boxSize="100px"
-                          objectFit={"contain"}
-                        />
-                      )}
-                      {!createForm.image && (
-                        <Box
-                          boxSize="100px"
-                          display={"flex"}
-                          justifyContent={"center"}
-                          alignItems={"center"}
-                        >
-                          Select Image
-                        </Box>
-                      )}
-                      <Input
-                        type="file"
-                        onChange={(input) => {
-                          //convert input to base64
-                          var reader = new FileReader();
-                          reader.onload = function (e) {
-                            // set base64 to form
-                            setField("image", e.target.result);
-                          };
 
-                          reader.readAsDataURL(input.target.files[0]);
-                        }}
-                      />
-                    </Stack>
-                  </Flex>
+      <DialogRoot lazyMount open={open} onOpenChange={(e) => setOpen(e.open)} size="xl">
+        <DialogBackdrop />
+        <DialogContent>
+          <DialogCloseTrigger />
+          <DialogHeader>Create new game</DialogHeader>
 
-                  <Heading size="xs">Summary</Heading>
+          <DialogBody>
+            <Stack gap={5}>
+              {error && (
+                <Box p={3} borderRadius="md" bg="red.950" border="1px solid" borderColor="red.700">
+                  <Text fontSize="sm" color="red.300">{error}</Text>
+                </Box>
+              )}
+
+              {/* ── Title + Image row ─────────────────────────────────── */}
+              <Flex gap={6}>
+                {/* Cover image */}
+                <Box flexShrink={0}>
+                  <Text fontSize="sm" color="gray.400" mb={2}>Cover image</Text>
+                  <Box
+                    width="120px" height="160px"
+                    borderRadius="lg" overflow="hidden"
+                    border="1px dashed" borderColor="whiteAlpha.300"
+                    bg="gray.800"
+                    display="flex" alignItems="center" justifyContent="center"
+                    position="relative"
+                  >
+                    {form.image
+                      ? <Image src={form.image} width="100%" height="100%" objectFit="cover" />
+                      : <Text fontSize="xs" color="gray.500" textAlign="center" px={2}>No image</Text>
+                    }
+                  </Box>
                   <Input
-                    placeholder="Short description"
-                    size="md"
-                    onChange={(e) => setField("summary", e.target.value)}
+                    mt={2} type="file" size="xs" variant="outline"
+                    accept="image/*"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = (ev) => set("image", ev.target.result);
+                      reader.readAsDataURL(file);
+                    }}
                   />
+                </Box>
 
-                  <Heading size="xs">Description</Heading>
-                  <Textarea
-                    placeholder="Long description"
-                    size="md"
-                    onChange={(e) => setField("description", e.target.value)}
-                  />
-
-                  <Heading size="xs">Recommended Addons</Heading>
+                {/* Title + visibility */}
+                <Stack flex={1} gap={4}>
                   <Box>
-                    <Stack>
-                      {recommendedAddons.map((addon) => (
+                    <Text fontSize="sm" mb={1}>Title <Text as="span" color="red.400">*</Text></Text>
+                    <Input
+                      placeholder="My epic adventure"
+                      onInput={(e) => set("name", e.target.value)}
+                    />
+                  </Box>
+
+                  <Box>
+                    <Text fontSize="sm" mb={1}>Short summary</Text>
+                    <Input
+                      placeholder="One-line teaser…"
+                      onChange={(e) => set("summary", e.target.value)}
+                    />
+                  </Box>
+
+                  <Separator />
+
+                  {/* Visibility */}
+                  <Stack gap={3}>
+                    {publicGamesAllowed && (
+                    <HStack
+                      gap={3} p={3} borderRadius="md" cursor="pointer"
+                      bg={form.isPublic ? "green.950" : "whiteAlpha.50"}
+                      border="1px solid"
+                      borderColor={form.isPublic ? "green.700" : "whiteAlpha.100"}
+                      transition="all 0.15s"
+                      onClick={() => set("isPublic", true)}
+                    >
+                      <Icon as={FaGlobe} color={form.isPublic ? "green.400" : "gray.500"} />
+                      <Box>
+                        <Text fontSize="sm" fontWeight="medium">Public</Text>
+                        <Text fontSize="xs" color="gray.400">Visible to all registered players</Text>
+                      </Box>
+                    </HStack>
+                    )}
+
+                    <HStack
+                      gap={3} p={3} borderRadius="md" cursor="pointer"
+                      bg={!form.isPublic ? "orange.950" : "whiteAlpha.50"}
+                      border="1px solid"
+                      borderColor={!form.isPublic ? "orange.700" : "whiteAlpha.100"}
+                      transition="all 0.15s"
+                      onClick={() => set("isPublic", false)}
+                    >
+                      <Icon as={FaLock} color={!form.isPublic ? "orange.400" : "gray.500"} />
+                      <Box>
+                        <Text fontSize="sm" fontWeight="medium">Private</Text>
+                        <Text fontSize="xs" color="gray.400">Invite-only — share the game link</Text>
+                      </Box>
+                    </HStack>
+                  </Stack>
+
+                  {/* Password (optional regardless of visibility) */}
+                  <Box>
+                    <Checkbox
+                      checked={form.passwordRequired}
+                      onChange={(e) => set("passwordRequired", e.target.checked)}
+                    >
+                      <Text fontSize="sm">Require a password to join</Text>
+                    </Checkbox>
+                    {form.passwordRequired && (
+                      <Input
+                        mt={2} type="password" placeholder="Game password"
+                        onInput={(e) => set("password", e.target.value)}
+                      />
+                    )}
+                  </Box>
+                </Stack>
+              </Flex>
+
+              <Separator />
+
+              {/* ── Description ──────────────────────────────────────── */}
+              <Box>
+                <Text fontSize="sm" mb={1}>Description</Text>
+                <Textarea
+                  placeholder="Tell players what to expect…"
+                  rows={3}
+                  onChange={(e) => set("description", e.target.value)}
+                />
+              </Box>
+
+              {/* ── Recommended addons ───────────────────────────────── */}
+              {addons.length > 0 && (
+                <>
+                  <Separator />
+                  <Box>
+                    <Text fontSize="sm" mb={3}>Recommended add-ons</Text>
+                    <Stack gap={2}>
+                      {addons.map((addon) => (
                         <HStack key={addon.id}>
                           <Checkbox
                             onChange={(e) => {
-                              let newAddons = createForm.addons || [];
-
-                              if (e.target.checked) {
-                                newAddons.push(addon.key);
-                              } else {
-                                newAddons = newAddons.filter(
-                                  (x) => x !== addon.key
-                                );
-                              }
-
-                              setField("addons", newAddons);
+                              const current = form.addons ?? [];
+                              set("addons", e.target.checked
+                                ? [...current, addon.key]
+                                : current.filter((x) => x !== addon.key)
+                              );
                             }}
                           >
-                            {addon.name}
-                            {addon.description && " - " + addon.description}
+                            <Text fontSize="sm">
+                              {addon.name}
+                              {addon.description && (
+                                <Text as="span" color="gray.400"> — {addon.description}</Text>
+                              )}
+                            </Text>
                           </Checkbox>
                           {addon.website && (
-                            <FaLink
-                              href={addon.website}
-                              title={addon.website}
-                            />
+                            <a href={addon.website} target="_blank" rel="noopener noreferrer">
+                              <Icon as={FaLink} color="blue.400" boxSize={3} />
+                            </a>
                           )}
                         </HStack>
                       ))}
                     </Stack>
                   </Box>
-                </Stack>
-              </form>
-            </DialogBody>
-            <DialogFooter>
-              <ButtonGroup>
-                <Button colorScheme={"green"} onClick={onFormSubmit}>
-                  Create
-                </Button>
-                <Button onClick={() => setOpen(false)}>Cancel</Button>
-              </ButtonGroup>
-            </DialogFooter>
-          </DialogContent>
-        </DialogRoot>
+                </>
+              )}
+            </Stack>
+          </DialogBody>
+
+          <DialogFooter>
+            <HStack gap={2}>
+              <Button variant="ghost" onClick={() => setOpen(false)}>Cancel</Button>
+              <Button
+                colorPalette="green"
+                variant="outline"
+                loading={busy}
+                onClick={onSubmit}
+              >
+                <Icon as={FaPlus} mr={1} /> Create game
+              </Button>
+            </HStack>
+          </DialogFooter>
+        </DialogContent>
+      </DialogRoot>
     </>
   );
 };
+
 export default CreateNewDialog;

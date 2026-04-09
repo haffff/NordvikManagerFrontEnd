@@ -1,47 +1,57 @@
 import * as React from "react";
 import * as Dockable from "@hlorenzi/react-dockable";
-import SettingsPanel from "./SettingsPanel";
-import { Tabs, TabList, Tab, TabPanels, TabPanel } from "@chakra-ui/react";
+import { Tabs } from "@chakra-ui/react";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
-import WebSocketManagerInstance from "../WebSocketManager";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import Subscribable from "../../uiComponents/base/Subscribable";
 import SecuritySettingsPanel from "./SecuritySettingsPanel";
-import BasePanel from "../../uiComponents/base/BasePanel";
+import { BasePanel } from "../../uiComponents/base/BasePanel";
 import PropertiesSettingsPanel from "./PropertiesSettingsPanel";
 import { SettingsPanelWithPropertySettings } from "./SettingsPanelWithPropertySettings";
+import { toaster } from "../../ui/toaster";
 
 export const MapSettingsPanel = ({ map }) => {
   const [mapDto, setMapDto] = React.useState(map);
-
   const editables = [
-    { key: "name", label: "Name", toolTip: "Name of map.", type: "string" },
-    { key: "width", label: "Map Width", toolTip: "", min: 100, type: "number" },
+    {
+      key: "name",
+      label: "Name",
+      toolTip: "The display name of this map.",
+      type: "string",
+    },
+    {
+      key: "width",
+      label: "Map Width",
+      toolTip: "Total width of the map canvas in pixels.",
+      min: 100,
+      type: "number",
+    },
     {
       key: "height",
       label: "Map Height",
-      toolTip: "",
+      toolTip: "Total height of the map canvas in pixels.",
       min: 100,
       type: "number",
     },
     {
       key: "gridSize",
       label: "Size of Grid",
-      toolTip: "",
+      toolTip: "Size of each grid square in pixels. Affects snapping and distance calculations.",
       min: 10,
       type: "number",
     },
     {
       key: "gridVisible",
-      label: "Is Grid Visible",
-      toolTip: "",
+      label: "Show Grid",
+      toolTip: "Toggle the visibility of the grid overlay on the map.",
       type: "boolean",
     },
 
     {
       key: "useCustomUnits",
       property: true,
-      label: "Use different unit system",
-      toolTip: "Image of game shown in game list menu for other players.",
+      label: "Use Custom Unit System",
+      toolTip: "Enable a custom distance unit system for this map, overriding the game-wide defaults.",
       type: "boolean",
       category: "Units",
     },
@@ -49,8 +59,8 @@ export const MapSettingsPanel = ({ map }) => {
       key: "useSquaredSystem",
       property: true,
       disableOn: (dto) => dto?.useCustomUnits !== true,
-      label: "Use realistic distance system",
-      toolTip: "Image of game shown in game list menu for other players.",
+      label: "Realistic Distance (Diagonal)",
+      toolTip: "When enabled, diagonal movement costs more than cardinal movement (Pythagorean distance). When disabled, all adjacent squares cost the same (Chebyshev distance).",
       type: "boolean",
       category: "Units",
     },
@@ -59,8 +69,8 @@ export const MapSettingsPanel = ({ map }) => {
       property: true,
       disableOn: (dto) => dto?.useCustomUnits !== true,
       min: 1,
-      label: "Default distance per square",
-      toolTip: "Image of game shown in game list menu for other players.",
+      label: "Distance per Square",
+      toolTip: "How many real-world distance units one grid square represents (e.g. 5 for \"5 ft\" or \"5 m\" per square).",
       type: "number",
       category: "Units",
     },
@@ -68,8 +78,8 @@ export const MapSettingsPanel = ({ map }) => {
       key: "baseDistanceUnit",
       property: true,
       disableOn: (dto) => dto?.useCustomUnits !== true,
-      label: "Default distance unit",
-      toolTip: "Image of game shown in game list menu for other players.",
+      label: "Distance Unit Label",
+      toolTip: "The unit label appended to distance values, e.g. \"ft\", \"m\", or \"km\".",
       type: "string",
       category: "Units",
     },
@@ -99,14 +109,19 @@ export const MapSettingsPanel = ({ map }) => {
     console.log(command);
     WebSocketManagerInstance.Send(command);
   };
-
   const updateSettings = (event) => {
     if (map.id !== event.data.id) {
       return;
     }
 
-    const newDto = {...mapDto, ...event.data};
+    const newDto = { ...mapDto, ...event.data };
     setMapDto(newDto);
+
+    toaster.create({
+      description: "Map settings saved.",
+      type: "success",
+      duration: 4000,
+    });
   };
 
   return (

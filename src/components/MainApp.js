@@ -1,35 +1,132 @@
-import * as React from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import GameList from './gameLobby/GameList';
 import { Game } from './game/Game';
 import WebHelper from '../helpers/WebHelper';
+import TokenStore from '../helpers/TokenStore';
+import { ActiveTransportManager as TransportManager } from '../helpers/transport';
 import FabricTypesInitialize from './FabricTypesInitializer';
-import WebSocketManagerInstance from './game/WebSocketManager';
-import { RegisterForm } from './gameLobby/RegisterForm';
 
-export const MainApp = () => {
+export const MainApp = ({ onAuthRequired }) => {
+    const [gameID, setGameID] = useState();
+    const [centralSessionId, setCentralSessionId] = useState();
+    const [startingSession, setStartingSession] = useState(false);
+    const [sessionError, setSessionError] = useState(null);
 
-    const [gameID, setGameID] = React.useState();
+    // Stable ref so handleExit can read current gameID without being in its dep array
+    const currentGameIdRef = useRef();
+    currentGameIdRef.current = gameID;
 
-    FabricTypesInitialize();
+    useEffect(() => {
+        FabricTypesInitialize();
 
-    if(gameID === undefined)
-    {
-        return (<GameList OnSuccess={setGameID} OnLogout={ () => WebHelper.getNoResp("user/logout",()=>{
-            //remove Authorization cookie
-            window.location.reload();
-        })} />);
-    }
+        return () => {
+            console.log('MainApp: Component unmounting, cleaning up');
+            TransportManager.Close();
+            WebHelper.GameId = undefined;
+        };
+    }, []);
 
-    const onExit = () => {
-        if(WebSocketManagerInstance.WebSocketReady)
-        {
-            WebSocketManagerInstance.Close();
+    const handleLogout = useCallback(() => {
+        // Use fetch directly — WebHelper.getNoResp appends ?gameid=undefined
+        // at lobby stage which causes the backend to reject the request before
+        // clearing the session cookie.
+        fetch(`${WebHelper.ApiAddress}/user/logout`, { method: 'GET', credentials: 'include' })
+            .finally(() => { onAuthRequired?.(); });
+    }, [onAuthRequired]);
+
+    const handleGameSelected = useCallback(async (id) => {
+        setStartingSession(true);
+        setSessionError(null);
+        try {
+            const resp = await fetch(`${WebHelper.ApiAddress}/session/${id}/start`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+            });
+            if (!resp.ok) throw new Error(`Session start failed (${resp.status})`);
+            const { centralSessionId: csId, centralAccessToken } = await resp.json();
+
+            // Store the Central Server access token so WebRTCManager can use it
+            // for signaling — obtained via the GM backend (same-origin, no CORS)
+            if (centralAccessToken) {
+                TokenStore.setTokens(centralAccessToken, TokenStore.getRefreshToken());
+            }
+
+            setCentralSessionId(csId);
+            setGameID(id);
+        } catch (e) {
+            console.error('MainApp: Session start failed:', e);
+            setSessionError(e.message);
+        } finally {
+            setStartingSession(false);
         }
+    }, []);
+
+    const handleAuthFailure = useCallback(() => {
+        console.log('MainApp: Auth failure from central server, redirecting to login');
+        onAuthRequired?.();
+    }, [onAuthRequired]);
+
+    const handleExit = useCallback(() => {
+        console.log('MainApp: Exiting game, stopping session');
+
+        try {
+            if (TransportManager.isConnected()) {
+                TransportManager.Close();
+            }
+        } catch (error) {
+            console.error('MainApp: Error closing transport:', error);
+        }
+
+        const id = currentGameIdRef.current;
+        if (id) {
+            // Fire-and-forget — don't block the UI on the stop call
+            fetch(`${WebHelper.ApiAddress}/session/${id}/stop`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+            }).catch((e) => console.warn('MainApp: session/stop failed:', e));
+        }
+
+        TokenStore.clear();
         setGameID(undefined);
+        setCentralSessionId(undefined);
+    }, []);
+
+    if (startingSession) {
+        return (
+            <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
+                Starting session…
+            </div>
+        );
     }
 
-    //Dopisać ilustratora do kosztów
+    if (sessionError) {
+        return (
+            <div style={{ display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', height: '100vh', gap: '1rem' }}>
+                <div style={{ color: 'salmon' }}>Failed to start session: {sessionError}</div>
+                <button onClick={() => setSessionError(null)}>Back</button>
+            </div>
+        );
+    }
 
-    return (<Game key={gameID} onExit={onExit} gameID={gameID} />);
+    if (gameID === undefined) {
+        return (
+            <GameList
+                OnSuccess={handleGameSelected}
+                OnLogout={handleLogout}
+            />
+        );
+    }
+
+    return (
+        <Game
+            key={gameID}
+            onExit={handleExit}
+            onAuthFailure={handleAuthFailure}
+            gameID={gameID}
+            centralSessionId={centralSessionId}
+        />
+    );
 }
 export default MainApp;

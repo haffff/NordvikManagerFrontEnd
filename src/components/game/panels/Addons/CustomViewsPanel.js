@@ -1,15 +1,15 @@
 import * as React from 'react';
-import { Flex, Circle, FormLabel, HStack, Input, Select, Checkbox, Stack, Card, CardBody, Textarea } from '@chakra-ui/react'
+import { Flex, HStack, Input, Select, Checkbox, Stack, Textarea } from '@chakra-ui/react'
 import * as Dockable from "@hlorenzi/react-dockable"
 import Subscribable from '../../../uiComponents/base/Subscribable';
 import DList from '../../../uiComponents/base/List/DList';
-import WebSocketManagerInstance from '../../WebSocketManager';
-import WebHelper from '../../../../helpers/WebHelper';
+import { ActiveTransportManager as WebSocketManagerInstance } from '../../../../helpers/transport';
+import { ActiveWebHelper as WebHelper } from '../../../../helpers/transport';
 import DContainer from '../../../uiComponents/base/Containers/DContainer';
 import DListItem from '../../../uiComponents/base/List/DListItem';
 import DLabel from '../../../uiComponents/base/Text/DLabel';
 import SettingsPanel from '../../settings/SettingsPanel';
-import BasePanel from '../../../uiComponents/base/BasePanel';
+import { BasePanel } from '../../../uiComponents/base/BasePanel';
 import DListItemButton from '../../../uiComponents/base/List/ListItemDetails/DListItemButton';
 import { FaMinus } from 'react-icons/fa';
 import DListItemsButtonContainer from '../../../uiComponents/base/List/DListItemsButtonContainer';

@@ -1,7 +1,6 @@
 import * as React from "react";
 import LayoutHelper from "../../../../helpers/LayoutCloneHelper";
-import UtilityHelper from "../../../../helpers/UtilityHelper";
-import WebSocketManagerInstance from "../../WebSocketManager";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../../../../helpers/transport";
 import CommandFactory from "../../../BattleMap/Factories/CommandFactory";
 import { FaBook } from "react-icons/fa";
 import LayoutsManagerPanel from "../../panels/LayoutsManagerPanel";
@@ -12,18 +11,17 @@ import CreateDropDownButton from "../../../uiComponents/base/DDItems/SpecialButt
 import DeletableDropDownButton from "../../../uiComponents/base/DDItems/SpecialButtons/DeletableDropDownButton";
 import ClientMediator from "../../../../ClientMediator";
 import CollectionSyncer from "../../../uiComponents/base/CollectionSyncer";
-import WebHelper from "../../../../helpers/WebHelper";
+import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import InputModal from "../../../uiComponents/base/Modals/InputModal";
 
 export const LayoutsMenu = ({ state, battlemapsRef }) => {
   const width = 200;
   const [serverLayouts, setServerLayouts] = React.useState(undefined);
 
-  const openRef = React.createRef();
+  const openRef = React.useRef();
 
   React.useEffect(() => {
     WebHelper.get("Battlemap/GetLayouts", setServerLayouts);
-    const id = UtilityHelper.GenerateUUID();
   }, []);
 
   function DeleteServerLayout({ id }) {
@@ -31,6 +29,7 @@ export const LayoutsMenu = ({ state, battlemapsRef }) => {
   }
 
   return (
+  <>
     <DropDownMenu viewId={"layouts"} width={width} name={"Layouts"}>
       <DropDownItem
         width={width}
@@ -68,41 +67,42 @@ export const LayoutsMenu = ({ state, battlemapsRef }) => {
         state={state}
         element={<LayoutsManagerPanel state={state} />}
       />
-      <CollectionSyncer
-        incrementalUpdate={true}
-        collection={serverLayouts}
-        setCollection={setServerLayouts}
-        commandPrefix={"layout"}
-      />
-      <InputModal
-        openRef={openRef}
-        title={"Save current layout"}
-        getConfigDict={() => [
-          {
-            key: "name",
-            required: true,
-            label: "Name",
-            toolTip: "Name of layout.",
-            type: "string",
-          },
-        ]}
-        onCloseModal={(data, success) => {
-          if (success) {
-            let rootPanel = state.ref.current.rootPanel;
-            let clone = LayoutHelper.GetCloneForSaving(
-              rootPanel,
-              battlemapsRef
-            );
-            let newObj = {
-              name: data.name,
-              value: JSON.stringify(clone),
-            };
-            let cmd = CommandFactory.CreateLayoutAddCommand(newObj);
-            WebSocketManagerInstance.Send(cmd);
-          }
-        }}
-      />
     </DropDownMenu>
+    <CollectionSyncer
+      incrementalUpdate={true}
+      collection={serverLayouts}
+      setCollection={setServerLayouts}
+      commandPrefix={"layout"}
+    />
+    <InputModal
+      openRef={openRef}
+      title={"Save current layout"}
+      getConfigDict={() => [
+        {
+          key: "name",
+          required: true,
+          label: "Name",
+          toolTip: "Name of layout.",
+          type: "string",
+        },
+      ]}
+      onCloseModal={(data, success) => {
+        if (success) {
+          let rootPanel = state.ref.current.rootPanel;
+          let clone = LayoutHelper.GetCloneForSaving(
+            rootPanel,
+            battlemapsRef
+          );
+          let newObj = {
+            name: data.name,
+            value: JSON.stringify(clone),
+          };
+          let cmd = CommandFactory.CreateLayoutAddCommand(newObj);
+          WebSocketManagerInstance.Send(cmd);
+        }
+      }}
+    />
+  </>
   );
 };
 export default LayoutsMenu;

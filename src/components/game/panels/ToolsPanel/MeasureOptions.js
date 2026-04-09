@@ -61,7 +61,7 @@ export const MeasureOptions = ({ battleMapId }) => {
         label={"Don't dissapear"}
         icon={FaClock}
       />
-      { dissappearAfter && <DListItemButton style={{position:"absolute", top: 65, left: 65}} color={'red'} bgColor={'rgba(0,0,0,0.5)'} variant={'elevated'}  label={"Clean"} icon={FaTrash} />}
+      { dissappearAfter && <DListItemButton style={{position:"absolute", top: 65, left: 65}} color={'red'} bgColor={'rgba(0,0,0,0.5)'} variant={'elevated'} label={"Clean"} icon={FaTrash} onClick={() => { ClientMediator.sendCommand("BattleMap", "CleanPreviews", { contextId: battleMapId }); }} />}
       <Stack alignItems={"center"}>
         <DListItemButton
           label={"Exit"}

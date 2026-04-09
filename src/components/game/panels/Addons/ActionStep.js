@@ -1,15 +1,13 @@
-import React, { useEffect } from "react";
+import React from "react";
 import EditTable from "../../settings/EditTable";
-import DContainer from "../../../uiComponents/base/Containers/DContainer";
-import useUUID from "../../../uiComponents/hooks/useUUID";
-import { For, HStack, Select, Stack, createListCollection } from "@chakra-ui/react";
+import { Badge, Box, For, HStack, Stack, Text, createListCollection } from "@chakra-ui/react";
 import { SelectContent, SelectItem, SelectRoot, SelectTrigger, SelectValueText } from "../../../ui/select";
 import DListItemButton from "../../../uiComponents/base/List/ListItemDetails/DListItemButton";
-import {
-  FaArrowAltCircleDown,
-  FaArrowAltCircleUp,
-  FaMinusCircle,
-} from "react-icons/fa";
+import { FaArrowAltCircleDown, FaArrowAltCircleUp, FaMinusCircle, FaChevronDown, FaChevronRight } from "react-icons/fa";
+
+const BG_CARD   = "rgb(42,42,42)";
+const BG_HEADER = "rgb(52,52,52)";
+const BORDER    = "rgb(65,65,65)";
 
 export const ActionStep = ({
   actionId,
@@ -18,158 +16,170 @@ export const ActionStep = ({
   stepsRef,
   setSteps,
 }) => {
-  const [step, setStep] = React.useState(initStep);
-  const guid = useUUID();
+  const [step,     setStep]     = React.useState(initStep);
+  const [expanded, setExpanded] = React.useState(false);
+  const mountedRef              = React.useRef(false);
 
-  const MoveUp = () => {
-    let newSteps = [...stepsRef.current];
-    let foundById = newSteps.find((x) => x.id == step.id);
-    let index = newSteps.indexOf(foundById);
-    if (index > 0) {
-      [newSteps[index - 1], newSteps[index]] = [
-        newSteps[index],
-        newSteps[index - 1],
-      ];
+  const findIdx = (list, id) => list.findIndex((x) => x.id === id);
+
+  const MoveUp = (e) => {
+    e.stopPropagation();
+    const arr = [...stepsRef.current];
+    const idx = findIdx(arr, step.id);
+    if (idx > 0) {
+      [arr[idx - 1], arr[idx]] = [arr[idx], arr[idx - 1]];
+      setSteps(arr);
     }
-    setSteps(newSteps);
   };
 
-  const MoveDown = () => {
-    let newSteps = [...stepsRef.current];
-    let foundById = newSteps.find((x) => x.id == step.id);
-    let index = newSteps.indexOf(foundById);
-    if (index < newSteps.length - 1) {
-      [newSteps[index], newSteps[index + 1]] = [
-        newSteps[index + 1],
-        newSteps[index],
-      ];
+  const MoveDown = (e) => {
+    e.stopPropagation();
+    const arr = [...stepsRef.current];
+    const idx = findIdx(arr, step.id);
+    if (idx !== -1 && idx < arr.length - 1) {
+      [arr[idx], arr[idx + 1]] = [arr[idx + 1], arr[idx]];
+      setSteps(arr);
     }
-    setSteps(newSteps);
   };
 
-  const Update = () => {
-    let foundById = stepsRef.current.find((x) => x.id == step.id);
-    let index = stepsRef.current.indexOf(foundById);
-
-    let newSteps = [...stepsRef.current];
-    newSteps[index] = step;
-    setSteps(newSteps);
+  const Delete = (e) => {
+    e.stopPropagation();
+    const arr = [...stepsRef.current];
+    const idx = findIdx(arr, step.id);
+    if (idx !== -1) { arr.splice(idx, 1); setSteps(arr); }
   };
 
-  const Delete = () => {
-    let foundById = stepsRef.current.find((x) => x.id == step.id);
-    let index = stepsRef.current.indexOf(foundById);
+  // Sync local edits back to parent — skip mount
+  React.useEffect(() => {
+    if (!mountedRef.current) { mountedRef.current = true; return; }
+    const arr = [...stepsRef.current];
+    const idx = findIdx(arr, step.id);
+    if (idx !== -1) { arr[idx] = step; setSteps(arr); }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [step, setSteps]);
 
-    let newSteps = [...stepsRef.current];
-    newSteps.splice(index, 1);
-    setSteps(newSteps);
-  };
-
-  useEffect(() => {
-    Update();
-  }, [step]);
-
-  const GenerateStepData = (step) => {
-    const stepDefinitionBase = [
-      { key: "Label", label: "Label", toolTip: "Label", type: "string" },
+  // Field config — recompute only on type/definitions change
+  const stepContent = React.useMemo(() => {
+    const base = [
+      { key: "Label",   label: "Label",   toolTip: "Label",   type: "string" },
       { key: "Comment", label: "Comment", toolTip: "Comment", type: "string" },
     ];
+    const def = stepDefinitions.find((x) => x.value === step.Type);    if (!def?.arguments?.length) return base;
+    return [...base, ...def.arguments.map((arg) => ({
+      key: arg.name, label: arg.name,
+      toolTip: arg.description || arg.name,
+      type: arg.type.toLowerCase() === "jtoken" ? "string" : arg.type.toLowerCase(),
+    }))];
+  }, [step.Type, stepDefinitions]);
 
-    //Find step type
-    const stepDefinition = stepDefinitions.find((x) => x.value == step.Type);
-    const stepArguments = stepDefinition?.arguments?.map((argument) => {
-      let type = argument.type.toLowerCase() === "jtoken" ? "string" : argument.type.toLowerCase();
-      
-      return ({
-      key: argument.name,
-      label: argument.name,
-      toolTip: argument.name,
-      type: type,
-    })});
+  const stepDefinition = stepDefinitions.find((x) => x.value === step.Type);
 
-    const stepContent = stepDefinitionBase.concat(stepArguments);
+  const stepDefinitionsCollection = React.useMemo(
+    () => createListCollection({ items: stepDefinitions }),
+    [stepDefinitions]
+  );
 
-    return (
-      stepDefinition && (
-        <>
-          <p>{stepDefinition.description}</p>
-          <EditTable
-            keyBase={actionId + step.id + step.Type}
-            dto={step.Data}
-            editableKeyLabelDict={stepContent}
-            hideSaveButton={true}
-            saveOnLeave={true}
-            onSave={(dto) => {
-              setStep({ ...step, Data: {...step.Data, ...dto} });
-            }}
-          />
-        </>
-      )
-    );
-  };
+  const label   = step?.Data?.Label || "Unnamed step";
+  const hasType = Boolean(stepDefinition);
 
-  const stepDefinitionsCollection = createListCollection({items: stepDefinitions});
-  console.log(step.Type);
   return (
-    <DContainer
-      key={initStep.id}
-      withVisibilityToggle={true}
-      title={step?.Data?.Label}
-      backgroundColor="rgb(50,50,50)"
-      collapsed
+    <Box
+      borderWidth="1px" borderColor={BORDER} borderRadius="md"
+      bg={BG_CARD} overflow="hidden"
     >
-      <Stack>
-        <HStack>
-          <DListItemButton
-            label={"Move Up"}
-            icon={FaArrowAltCircleUp}
-            onClick={MoveUp}
-          />
-          <DListItemButton
-            label={"Move Down"}
-            icon={FaArrowAltCircleDown}
-            onClick={MoveDown}
-          />
-          <DListItemButton
-            label={"Delete"}
-            icon={FaMinusCircle}
-            color={"red"}
-            onClick={Delete}
-          />
-        </HStack>
+      {/* ── header row — always visible ── */}
+      <HStack
+        px={3} py="6px" gap={2} cursor="pointer"
+        bg={BG_HEADER}
+        _hover={{ bg: "rgb(60,60,60)" }}
+        transition="background 0.15s"
+        onClick={() => setExpanded((v) => !v)}
+        userSelect="none"
+      >
+        {/* expand chevron */}
+        <Box color="gray.500" flexShrink={0} fontSize="10px">
+          {expanded ? <FaChevronDown /> : <FaChevronRight />}
+        </Box>
 
-        <SelectRoot
+        {/* type badge */}
+        <Badge
+          size="sm" variant="subtle"
+          colorPalette={hasType ? "blue" : "gray"}
+          flexShrink={0} fontSize="2xs"
+          maxWidth="90px" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap"
+        >
+          {step.Type || "No type"}
+        </Badge>
+
+        {/* label */}
+        <Text fontSize="sm" flex={1} color="gray.200" noOfLines={1}>{label}</Text>
+
+        {/* controls — stop propagation so they don't toggle expand */}
+        <HStack gap={0} flexShrink={0} onClick={(e) => e.stopPropagation()}>
+          <DListItemButton label="Move up"   icon={FaArrowAltCircleUp}   onClick={MoveUp}   size="xs" />
+          <DListItemButton label="Move down" icon={FaArrowAltCircleDown} onClick={MoveDown} size="xs" />
+          <DListItemButton label="Delete"    icon={FaMinusCircle}  color="red" onClick={Delete}   size="xs" />
+        </HStack>
+      </HStack>
+
+      {/* ── expandable body ── */}
+      {expanded && (
+        <Stack px={3} py={3} gap={3} borderTopWidth="1px" borderColor={BORDER}>
+          {/* Type selector */}
+          <Box>
+            <Text fontSize="xs" color="gray.500" mb={1} textTransform="uppercase" letterSpacing="wider">
+              Step type
+            </Text>
+            <SelectRoot
               collection={stepDefinitionsCollection}
               value={[step.Type]}
-              onValueChange={(element) => {
-                setStep({ ...step, Type: element.value[0] })
-              }}
+              onValueChange={(e) => setStep((prev) => ({ ...prev, Type: e.value[0] }))}
+              size="sm"
             >
               <SelectTrigger>
-                <SelectValueText placeholder="Select...">
-                  {(items) => items[0].name || "Select..."}
+                <SelectValueText placeholder="Select type…">
+                  {(items) => items[0]?.name ?? "Select type…"}
                 </SelectValueText>
               </SelectTrigger>
               <SelectContent>
                 <For each={stepDefinitionsCollection.items}>
                   {(option, index) => (
-                    <SelectItem
-                      key={index}
-                      selected={step.Type === option.value}
-                      item={option}
-                      value={option.value}
-                    >
+                    <SelectItem key={index} item={option} value={option.value}
+                      selected={step.Type === option.value}>
                       {option.name}
                     </SelectItem>
                   )}
                 </For>
               </SelectContent>
             </SelectRoot>
+          </Box>
 
-        <DContainer title={"Data"} withVisibilityToggle={true}>
-          {GenerateStepData(step)}
-        </DContainer>
-      </Stack>
-    </DContainer>
+          {/* Step arguments */}
+          {stepDefinition && (
+            <Box>
+              {stepDefinition.description && (
+                <Text fontSize="xs" color="gray.500" mb={2} fontStyle="italic">
+                  {stepDefinition.description}
+                </Text>
+              )}
+              <EditTable
+                keyBase={actionId + step.id + step.Type}
+                dto={step.Data}
+                editableKeyLabelDict={stepContent}
+                hideSaveButton
+                saveOnLeave
+                onSave={(dto) => setStep((prev) => ({ ...prev, Data: { ...prev.Data, ...dto } }))}
+              />
+            </Box>
+          )}
+
+          {!stepDefinition && step.Type && (
+            <Text fontSize="xs" color="orange.400">
+              Unknown step type "{step.Type}" — no definition found.
+            </Text>
+          )}
+        </Stack>
+      )}
+    </Box>
   );
 };

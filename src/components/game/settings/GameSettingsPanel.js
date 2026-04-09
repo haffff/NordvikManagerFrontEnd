@@ -1,26 +1,19 @@
 import * as React from "react";
 import {
   Tabs,
-  TabList,
-  Tab,
-  TabPanels,
-  TabPanel,
-  Toast,
 } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
-import WebSocketManagerInstance from "../WebSocketManager";
-import SettingsPanel from "./SettingsPanel";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import Subscribable from "../../uiComponents/base/Subscribable";
 import SecuritySettingsPanel from "./SecuritySettingsPanel";
 import PropertiesSettingsPanel from "./PropertiesSettingsPanel";
-import BasePanel from "../../uiComponents/base/BasePanel";
-import EditTable from "./EditTable";
+import { BasePanel } from "../../uiComponents/base/BasePanel";
 import { SettingsPanelWithPropertySettings } from "./SettingsPanelWithPropertySettings";
-import WebHelper from "../../../helpers/WebHelper";
+import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import useGame from "../../uiComponents/hooks/useGameHook";
 import ClientMediator from "../../../ClientMediator";
-import { Toaster, toaster } from "../../ui/toaster";
+import { toaster } from "../../ui/toaster";
 
 export const GameSettingsPanel = () => {
   const [templates, setTemplates] = React.useState([]);
