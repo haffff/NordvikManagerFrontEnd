@@ -13,7 +13,7 @@ import Subscribable from '../../../uiComponents/base/Subscribable';
 import { Battlemap } from '../../../BattleMap/Battlemap';
 import useClientMediator from '../../../uiComponents/hooks/useClientMediator';
 import { usePermissions } from '../../../../contexts/PermissionsContext';
-import { ENTITY_TYPES, PERM, PERM_LEVEL } from '../../../BattleMap/helpers/permissionBits';
+import { ENTITY_TYPES, PERM, PERM_LEVEL } from '../../../BattleMap/Helpers/permissionBits';
 import UtilityHelper from '../../../../helpers/UtilityHelper';
 import { Tooltip } from '../../../ui/tooltip';
 

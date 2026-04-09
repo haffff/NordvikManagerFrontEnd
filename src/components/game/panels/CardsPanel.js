@@ -9,7 +9,7 @@ import DTreeList from "../../uiComponents/treeList/DTreeList";
 import InputModal from "../../uiComponents/base/Modals/InputModal";
 import ClientMediator from "../../../ClientMediator";
 import { usePermissions } from "../../../contexts/PermissionsContext";
-import { ENTITY_TYPES, PERM } from "../../BattleMap/helpers/permissionBits";
+import { ENTITY_TYPES, PERM } from "../../BattleMap/Helpers/permissionBits";
 import CollectionSyncer from "../../uiComponents/base/CollectionSyncer";
 import DListItemButton from "../../uiComponents/base/List/ListItemDetails/DListItemButton";
 import { FaMinusCircle } from "react-icons/fa";

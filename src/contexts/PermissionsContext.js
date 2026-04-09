@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { PERM } from '../components/BattleMap/helpers/permissionBits';
+import { PERM } from '../components/BattleMap/Helpers/permissionBits';
 
 export const ROLES = {
   ADMIN: 'admin',

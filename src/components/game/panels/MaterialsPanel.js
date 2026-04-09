@@ -17,7 +17,7 @@ import RefreshInfo from '../../uiComponents/treeList/RefreshInfoCard';
 import DockableHelper from '../../../helpers/DockableHelper';
 import ClientMediator from '../../../ClientMediator';
 import { usePermissions } from '../../../contexts/PermissionsContext';
-import { ENTITY_TYPES, PERM } from '../../BattleMap/helpers/permissionBits';
+import { ENTITY_TYPES, PERM } from '../../BattleMap/Helpers/permissionBits';
 import LookupPanel from './Addons/LookupPanel';
 import DTreeListItem from '../../uiComponents/base/List/DTreeListItem';
 import { toaster } from '../../ui/toaster';

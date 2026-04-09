@@ -29,7 +29,7 @@ import { ActiveTransportManager as WebSocketManagerInstance, ActiveWebHelper as 
 import ClientMediator from "../../../../ClientMediator";
 import { Heading } from "@chakra-ui/react";
 import { MenuContent, MenuContextTrigger, MenuRoot } from "../../../ui/menu";
-import { PERM, PERM_LEVEL, ENTITY_TYPES } from "../../../BattleMap/helpers/permissionBits";
+import { PERM, PERM_LEVEL, ENTITY_TYPES } from "../../../BattleMap/Helpers/permissionBits";
 import CommandFactory from "../../../BattleMap/Factories/CommandFactory";
 import UtilityHelper from "../../../../helpers/UtilityHelper";
 import { usePermissions } from "../../../../contexts/PermissionsContext";

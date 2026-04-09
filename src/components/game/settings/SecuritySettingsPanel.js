@@ -20,7 +20,7 @@ import {
 } from "../../ui/select";
 import { createListCollection } from "@chakra-ui/react";
 import { toaster } from "../../ui/toaster";
-import { PERM } from "../../BattleMap/helpers/permissionBits";
+import { PERM } from "../../BattleMap/Helpers/permissionBits";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
