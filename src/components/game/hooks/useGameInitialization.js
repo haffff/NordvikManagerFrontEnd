@@ -7,7 +7,7 @@ import DockableHelper from '../../../helpers/DockableHelper';
 import CardAPI from '../../../CardAPI';
 import ScriptAPI from '../../../ScriptAPI';
 import { _entityPermissionSetter } from '../../../contexts/PermissionsContext';
-import { ENTITY_TYPES, PERM } from '../../BattleMap/helpers/permissionBits';
+import { ENTITY_TYPES, PERM } from '../../BattleMap/Helpers/permissionBits';
 
 // Global flags to prevent duplicate game initialization
 let gameInitializationInProgress = false;
