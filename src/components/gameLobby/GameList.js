@@ -48,7 +48,7 @@ export const GameList = ({ OnSuccess, OnLogout }) => {
     setUserData(user);
     setMeta(serverMeta);
 
-    if (user?.admin) {
+    if (user?.localAdmin) {
       const ver = await WebHelper.getAsync("gamelist/versioninfo");
       if (ver?.isUpdateAvailable) {
         setUpdateAvailable(true);
@@ -99,12 +99,12 @@ export const GameList = ({ OnSuccess, OnLogout }) => {
         </Heading>
 
         <HStack margin={"25px"} marginBottom={"50px"} gap={2}>
-          {userData?.admin && (
+          {userData?.localAdmin && (
             <Button variant="outline" onClick={() => openAppSettingsRef.current()}>
               <Icon as={FaCog} /> Application Settings
             </Button>
           )}
-          {userData?.admin && (
+          {userData?.localAdmin && (
             <Button variant="outline" onClick={() => openUserManagementRef.current()}>
               <Icon as={FaUserFriends} /> User Management
             </Button>
