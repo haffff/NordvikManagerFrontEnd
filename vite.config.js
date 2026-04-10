@@ -12,7 +12,10 @@ export default defineConfig(({ mode }) => {
       .map(([k, v]) => [`process.env.${k}`, JSON.stringify(v)])
   )
 
+  const isPlayer = ({ ...fileEnv, ...process.env }).REACT_APP_MODE === 'player'
+
   return {
+    base: isPlayer ? '/client/' : '/',
     plugins: [react()],
 
     define: {
