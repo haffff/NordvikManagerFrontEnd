@@ -4,7 +4,7 @@ import WebHelper from '../../helpers/WebHelper';
 import UtilityHelper from '../../helpers/UtilityHelper';
 import { toaster } from '../ui/toaster';
 
-export const LoginPanel = ({ OnSuccess }) => {
+export const LoginPanel = ({ OnSuccess, onRegister }) => {
     const [isLogging, setisLogging] = React.useState(false);
     const [error, setError] = React.useState(false);
     const [loginForm, setLoginForm] = React.useState({});
@@ -29,6 +29,11 @@ export const LoginPanel = ({ OnSuccess }) => {
                 <Button variant={'outline'} isLoading={isLogging} onClick={onFormSubmit}>
                     Login
                 </Button>
+                {onRegister && (
+                  <Button variant="ghost" size="sm" onClick={onRegister}>
+                    Create an account
+                  </Button>
+                )}
             </Stack>
         </form>
     )

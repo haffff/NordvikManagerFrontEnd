@@ -10,6 +10,8 @@ import { toaster } from "./ui/toaster";
 export const GMApp = () => {
   const [loggedIn, setLoggedIn] = useState(false);
   const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [isInvitationRequired, setIsInvitationRequired] = useState(true);
+  const [showRegister, setShowRegister] = useState(false);
 
   const [inviteCode] = useState(() => {
     const urlParams = new URLSearchParams(window.location.search);
@@ -17,6 +19,12 @@ export const GMApp = () => {
   });
 
   useEffect(() => {
+    WebHelper.getAsync("meta").then((meta) => {
+      if (meta?.isInvitationRequired !== undefined) {
+        setIsInvitationRequired(meta.isInvitationRequired);
+      }
+    });
+
     WebHelper.getNoResp(
       "user/checklogin",
       () => { setLoggedIn(true); setIsCheckingAuth(false); },
@@ -37,9 +45,10 @@ export const GMApp = () => {
     );
   }
 
-  if (inviteCode) return <RegisterForm code={inviteCode} />;
+  if (inviteCode) return <RegisterForm code={inviteCode} requiresCode={true} />;
   if (loggedIn) return <MainApp onAuthRequired={() => { TokenStore.clear(); setLoggedIn(false); }} />;
-  return <LoginPanel OnSuccess={() => setLoggedIn(true)} />;
+  if (showRegister) return <RegisterForm requiresCode={isInvitationRequired} onBack={() => setShowRegister(false)} />;
+  return <LoginPanel OnSuccess={() => setLoggedIn(true)} onRegister={() => setShowRegister(true)} />;
 };
 
 export default GMApp;

@@ -67,11 +67,10 @@ export const PlayerApp = () => {
     );
   }
 
-  // "Create an account" button clicked (only possible when invitation not required)
   if (showRegister) {
     return (
       <PlayerRegisterForm
-        requiresCode={false}
+        requiresCode={isInvitationRequired}
         onBack={() => setShowRegister(false)}
         OnSuccess={() => setLoggedIn(true)}
       />
@@ -81,7 +80,7 @@ export const PlayerApp = () => {
   return (
     <PlayerLoginPanel
       OnSuccess={() => setLoggedIn(true)}
-      onRegister={isInvitationRequired ? undefined : () => setShowRegister(true)}
+      onRegister={() => setShowRegister(true)}
     />
   );
 };

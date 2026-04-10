@@ -11,9 +11,10 @@ import SignalingClient, { SIGNAL_EVENTS } from '../../helpers/SignalingClient';
 import WebRTCWebHelperInstance from '../../helpers/WebRTCWebHelper';
 import TokenStore from '../../helpers/TokenStore';
 import CentralWebHelper from '../../helpers/CentralWebHelper';
+import WebHelper from '../../helpers/WebHelper';
 
 const CENTRAL_URL = process.env.REACT_APP_CENTRAL_URL || '';
-const STUN_SERVER = process.env.REACT_APP_STUN_SERVER || 'stun:stun.l.google.com:19302';
+const FALLBACK_STUN = process.env.REACT_APP_STUN_SERVER || 'stun:stun.l.google.com:19302';
 
 // Recursively lower-cases the first character of every object key.
 // Mirrors the same helper in WebRTCWebHelper — applied here so push messages
@@ -55,6 +56,7 @@ class WebRTCManager {
   _messageQueue = [];    // queued Send() calls
   _chunkBuffer = new Map(); // chunkId → { parts, received, total } for incoming chunks
   _pendingAuth = false;  // prevents concurrent re-authentication loops
+  _iceServers = null;    // populated from /meta before peer connection starts
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
@@ -75,6 +77,22 @@ class WebRTCManager {
       console.error('[WebRTCManager] Failed to obtain access token', e);
       this._handleError(e);
       return;
+    }
+
+    // Fetch ICE server config from the GM backend /meta endpoint
+    try {
+      const meta = await WebHelper.getAsync('meta');
+      const iceServers = [];
+      if (meta?.stunServers?.length) {
+        iceServers.push({ urls: meta.stunServers });
+      }
+      if (meta?.turnServer) {
+        iceServers.push(meta.turnServer);
+      }
+      this._iceServers = iceServers.length ? iceServers : [{ urls: FALLBACK_STUN }];
+    } catch (e) {
+      console.warn('[WebRTCManager] Failed to fetch ICE config from /meta, using fallback STUN', e);
+      this._iceServers = [{ urls: FALLBACK_STUN }];
     }
 
     // Inject this manager into WebRTCWebHelper
@@ -210,6 +228,7 @@ class WebRTCManager {
     this._role = 'player';
     this._authRetried = false;
     this._pendingAuth = false;
+    this._iceServers = null;
   }
 
   // ── Send / Subscribe (same interface as WebSocketManager) ────────────────
@@ -316,7 +335,7 @@ class WebRTCManager {
 
   async _startPeerConnection() {
     const pc = new RTCPeerConnection({
-      iceServers: [{ urls: STUN_SERVER }],
+      iceServers: this._iceServers ?? [{ urls: FALLBACK_STUN }],
     });
     this._pc = pc;
 
