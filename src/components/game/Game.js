@@ -85,7 +85,15 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
 
   // Initialize custom hooks
   const eventHandlers = useGameEventHandlers({ state, gameState, CreateLayoutElement });
-  const { loadGame, initError, clearInitError, resetInitialization, isInitialized } = useGameInitialization({ state, gameState, CreateLayoutElement });// Game initialization effect - only run once when WebSocket is ready
+  const { loadGame, initError, clearInitError, resetInitialization, isInitialized } = useGameInitialization({ state, gameState, CreateLayoutElement });
+
+  // Reset the module-level initialization flag on unmount so that re-entering the same
+  // game (e.g. after being kicked and rejoining) triggers a fresh loadGame call.
+  React.useEffect(() => {
+    return () => { resetInitialization(); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Game initialization effect - only run once when WebSocket is ready
   React.useEffect(() => {
     if (!WebSocketManagerInstance.WebSocketStarted || isInitialized()) {
       return;

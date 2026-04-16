@@ -1,6 +1,8 @@
 import ClientMediator from "../../../../ClientMediator";
 import { canSee, canControl, PERM, ENTITY_TYPES } from "../../Helpers/permissionBits";
 
+const EVERYONE_ID = '00000000-0000-0000-0000-000000000000';
+
 export class OnPermissionsChangedBehavior {
     async Handle(response, canvas, battleMapId) {
         const { data } = response;
@@ -15,7 +17,7 @@ export class OnPermissionsChangedBehavior {
         {
             ClientMediator.sendCommandWaitForRegister("Game", "GetCurrentPlayer", {}, true).then((currentPlayer) => {
                 const isGM = ClientMediator.sendCommand("Game", "GetIsGM");
-                const bits = isGM ? PERM.ALL : (data.permissions?.[currentPlayer?.id] ?? PERM.NONE);
+                const bits = isGM ? PERM.ALL : (data.permissions?.[currentPlayer?.id] ?? data.permissions?.[EVERYONE_ID] ?? PERM.NONE);
                 ClientMediator.sendCommand("Game", "UpdateEntityPermission", {
                     entityType: data.entityType,
                     entityId: data.id,
@@ -33,7 +35,7 @@ export class OnPermissionsChangedBehavior {
 
         ClientMediator.sendCommandWaitForRegister("Game", "GetCurrentPlayer", {}, true).then((currentPlayer) => {
             const isGM = ClientMediator.sendCommand("Game", "GetIsGM");
-            let permission = isGM ? PERM.ALL : (data.permissions[currentPlayer.id] ?? PERM.NONE);
+            let permission = isGM ? PERM.ALL : (data.permissions?.[currentPlayer.id] ?? data.permissions?.[EVERYONE_ID] ?? PERM.NONE);
 
             obj.set('selectablePermission', canControl(permission));
             obj.set('permission', permission);

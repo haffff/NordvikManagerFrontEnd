@@ -41,8 +41,10 @@ const DieChip = ({ result, diceValue, index }) => {
 
 // ── buildFormulaElements ──────────────────────────────────────────────────────
 const buildFormulaElements = (rolled, dices) => {
-  const regexSplit      = /(\{\d+\})|(\S+)/g;
-  const parts           = rolled.match(regexSplit) ?? [];
+  // Tokenise into: dice placeholders {N}, numeric literals, and operators.
+  // \S+ is intentionally NOT used here — it greedily swallows adjacent tokens
+  // (e.g. "+{1}" becomes one token) when there are no spaces in the formula.
+  const parts = rolled.match(/\{\d+\}|[\d.]+|[+\-*/()]/g) ?? [];
   const elements        = [];
 
   parts.forEach((part, pi) => {

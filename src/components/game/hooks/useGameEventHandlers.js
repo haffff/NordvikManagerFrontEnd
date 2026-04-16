@@ -90,6 +90,10 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
           connectedPlayers = [...connectedPlayers, resp.data];
           setConnectedPlayers(connectedPlayers);
         }
+        if (!players.find((x) => x.id === resp.data.id)) {
+          players = [...players, resp.data];
+          setPlayers(players);
+        }
         break;
       case "player_leave":
         connectedPlayers = connectedPlayers.filter((x) => x.id !== resp.data.id);

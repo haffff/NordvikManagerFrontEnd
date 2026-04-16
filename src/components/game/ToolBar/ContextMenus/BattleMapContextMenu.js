@@ -357,7 +357,7 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
                 icon={<FaWrench/>}
               />
             </DropDownMenu>
-            {maps.length > 0 && (
+            {maps.length > 0 && canEditMap && (
               <DropDownMenu submenu={true} width={width} name={"Switch Map"} icon={<FaExchangeAlt />}>
                 {maps.map(m => (
                   <DropDownItem key={m.id} width={width} name={m.name} onClick={() =>

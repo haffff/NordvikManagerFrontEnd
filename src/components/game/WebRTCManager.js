@@ -53,17 +53,27 @@ class WebRTCManager {
   _gmPeerId = null;
 
   _onMessageEvents = [];
-  _messageQueue = [];    // queued Send() calls
+  _messageQueue = [];        // queued Send() calls
+  _pendingCandidates = [];   // ICE candidates buffered before remoteDescription is set
   _chunkBuffer = new Map(); // chunkId → { parts, received, total } for incoming chunks
   _pendingAuth = false;  // prevents concurrent re-authentication loops
   _iceServers = null;    // populated from /meta before peer connection starts
+
+  // ── Observability fields ──────────────────────────────────────────────────
+  _traceId = null;          // short 8-char UUID prefix generated at Start(), shared with Central Server
+  _connectStartTime = null; // Date.now() at Start(), used to report total connection time
+  _iceSentCount = 0;        // ICE candidates sent to GM backend
+  _iceReceivedCount = 0;    // ICE candidates received from GM backend
 
   // ── Lifecycle ─────────────────────────────────────────────────────────────
 
   async Start(sessionId, onError, role = 'player') {
     if (this.WebSocketStarted) return;
 
-    console.log('[WebRTCManager] Starting for session', sessionId, 'role:', role);
+    this._traceId = crypto.randomUUID().slice(0, 8);
+    this._connectStartTime = Date.now();
+
+    this._log('log', `Starting — session=${sessionId} role=${role}`);
     this._sessionId = sessionId;
     this._role = role;
     this._onErrorCallback = onError;
@@ -74,7 +84,7 @@ class WebRTCManager {
     try {
       await this._ensureAccessToken();
     } catch (e) {
-      console.error('[WebRTCManager] Failed to obtain access token', e);
+      this._log('error', 'Failed to obtain access token', e);
       this._handleError(e);
       return;
     }
@@ -90,8 +100,9 @@ class WebRTCManager {
         iceServers.push(meta.turnServer);
       }
       this._iceServers = iceServers.length ? iceServers : [{ urls: FALLBACK_STUN }];
+      this._log('log', `ICE servers loaded: ${JSON.stringify(this._iceServers)}`);
     } catch (e) {
-      console.warn('[WebRTCManager] Failed to fetch ICE config from /meta, using fallback STUN', e);
+      this._log('warn', 'Failed to fetch ICE config from /meta, using fallback STUN', e);
       this._iceServers = [{ urls: FALLBACK_STUN }];
     }
 
@@ -101,38 +112,40 @@ class WebRTCManager {
     this._signaling = new SignalingClient();
 
     this._signaling.on('connect', () => {
-      console.log('[WebRTCManager] Signaling connected, authenticating');
+      this._log('log', 'Signaling connected, authenticating');
       this._signaling.authenticate({
         token: TokenStore.getAccessToken(),
         sessionId,
         role: this._role ?? 'player',
+        traceId: this._traceId,
       });
     });
 
     this._signaling.on('connect_error', (err) => {
-      console.error('[WebRTCManager] Signaling connection error', err);
+      this._log('error', 'Signaling connection error', err);
       this._handleError(err);
     });
 
     this._signaling.on(SIGNAL_EVENTS.AUTH_ERROR, async ({ error }) => {
-      console.error('[WebRTCManager] Signaling auth error:', error);
+      this._log('error', `Signaling auth error: ${error}`);
 
       // Token expired — try a silent refresh and re-authenticate once
       if (!this._authRetried) {
         this._authRetried = true;
-        console.log('[WebRTCManager] Attempting token refresh after auth error...');
+        this._log('log', 'Attempting token refresh after auth error...');
         try {
           TokenStore.setAccessToken(null); // force _ensureAccessToken to refresh
           await this._ensureAccessToken();
-          console.log('[WebRTCManager] Token refreshed, re-authenticating');
+          this._log('log', 'Token refreshed, re-authenticating');
           this._signaling.authenticate({
             token: TokenStore.getAccessToken(),
             sessionId: this._sessionId,
             role: this._role ?? 'player',
+            traceId: this._traceId,
           });
           return;
         } catch (e) {
-          console.error('[WebRTCManager] Token refresh failed', e);
+          this._log('error', 'Token refresh failed', e);
         }
       }
 
@@ -144,65 +157,85 @@ class WebRTCManager {
     this._signaling.on(SIGNAL_EVENTS.SESSION_INFO, ({ gmPeerId }) => {
       this._pendingAuth = false;
       if (!gmPeerId) {
-        console.warn('[WebRTCManager] GM backend not yet connected to session, retrying in 3s');
-        setTimeout(() => {
+        this._log('warn', 'GM backend not yet connected to session, retrying in 3s');
+        // Set _pendingAuth immediately so PEER_JOINED events arriving during the 3s wait
+        // do not trigger a concurrent re-authentication. The flag stays true until the
+        // next SESSION_INFO response clears it.
+        this._pendingAuth = true;
+        setTimeout(async () => {
           if (!this.WebSocketStarted || !this._signaling) return;
           if (this._gmPeerId) return;
-          this._pendingAuth = true;
+          this._authRetried = false; // allow one token refresh per retry attempt
+          try {
+            await this._ensureAccessToken();
+          } catch (e) {
+            this._pendingAuth = false;
+            this._log('error', 'Token refresh failed during session retry', e);
+            this._handleError(e);
+            return;
+          }
           this._signaling.authenticate({
             token: TokenStore.getAccessToken(),
             sessionId,
             role: this._role,
+            traceId: this._traceId,
           });
+          // _pendingAuth stays true — the next SESSION_INFO response will clear it
         }, 3000);
         return;
       }
       if (this._gmPeerId) return; // already connecting
-      console.log('[WebRTCManager] GM peer id:', gmPeerId);
+      this._log('log', `GM peer id: ${gmPeerId}`);
       this._gmPeerId = gmPeerId;
       this._startPeerConnection();
     });
 
     this._signaling.on(SIGNAL_EVENTS.PEER_JOINED, () => {
-      // GM backend came online while we were waiting — request fresh session-info
-      // Guard: skip if we already have the GM peer id, or a re-auth is already in-flight
+      // peer-joined fires for both players and the GM backend (Central Server broadcasts it for
+      // both roles on first connect). If we're still waiting for the GM peer id, re-authenticate
+      // to get fresh session-info. Guard: skip if already have the GM peer id or a re-auth is in-flight.
       if (!this._gmPeerId && !this._pendingAuth) {
-        console.log('[WebRTCManager] Peer joined, re-authenticating to get GM peer id');
+        this._log('log', 'Peer joined, re-authenticating to get GM peer id');
         this._pendingAuth = true;
         this._signaling.authenticate({
           token: TokenStore.getAccessToken(),
           sessionId,
           role: this._role,
+          traceId: this._traceId,
         });
       }
     });
 
     this._signaling.on(SIGNAL_EVENTS.WEBRTC_ANSWER, ({ answer }) => {
       if (!this._pc) return;
-      console.log('[WebRTCManager] Received answer from GM backend');
+      this._log('log', 'Received answer from GM backend');
       this._pc.setRemoteDescription(new RTCSessionDescription(answer))
-        .catch((e) => console.error('[WebRTCManager] setRemoteDescription error', e));
+        .then(() => {
+          this._log('log', `Remote description set — flushing ${this._pendingCandidates.length} buffered ICE candidate(s)`);
+          // Flush any ICE candidates that arrived before the remote description was set
+          for (const c of this._pendingCandidates) this._applyIceCandidate(c);
+          this._pendingCandidates = [];
+        })
+        .catch((e) => this._log('error', 'setRemoteDescription error', e));
     });
 
     this._signaling.on(SIGNAL_EVENTS.ICE_CANDIDATE, ({ candidate }) => {
       if (!this._pc || !candidate) return;
-      // Ignore candidates that arrive before the remote description — normal race condition during negotiation
-      if (!this._pc.remoteDescription) return;
-      // SIPSorcery sends candidate bodies without the required 'candidate:' prefix; normalise here
-      const candidateStr = candidate.candidate ?? '';
-      const normalizedInit = {
-        ...candidate,
-        candidate: candidateStr.startsWith('candidate:') ? candidateStr : `candidate:${candidateStr}`,
-        // sdpMid can be null from SIPSorcery — fall back to sdpMLineIndex as a string
-        sdpMid: candidate.sdpMid ?? String(candidate.sdpMLineIndex ?? 0),
-      };
-      this._pc.addIceCandidate(new RTCIceCandidate(normalizedInit))
-        .catch((e) => console.error('[WebRTCManager] addIceCandidate error', e));
+      // Buffer candidates that arrive before the remote description is set — they are flushed
+      // immediately after setRemoteDescription resolves in the WEBRTC_ANSWER handler above.
+      if (!this._pc.remoteDescription) {
+        this._pendingCandidates.push(candidate);
+        this._log('log', `ICE candidate buffered (remoteDescription not yet set), total buffered: ${this._pendingCandidates.length}`);
+        return;
+      }
+      this._iceReceivedCount++;
+      this._log('log', `ICE candidate received from GM backend (#${this._iceReceivedCount})`);
+      this._applyIceCandidate(candidate);
     });
 
     this._signaling.on(SIGNAL_EVENTS.PEER_LEFT, ({ peerId }) => {
       if (peerId === this._gmPeerId) {
-        console.warn('[WebRTCManager] GM backend disconnected');
+        this._log('warn', `GM backend disconnected (peerId=${peerId})`);
         this.WebSocketReady = false;
       }
     });
@@ -211,7 +244,7 @@ class WebRTCManager {
   }
 
   Close() {
-    console.log('[WebRTCManager] Closing');
+    this._log('log', 'Closing');
     this._dataChannel?.close();
     this._pc?.close();
     this._signaling?.disconnect();
@@ -223,12 +256,17 @@ class WebRTCManager {
     this.WebSocketStarted = false;
     this.WebSocketReady = false;
     this._messageQueue = [];
+    this._pendingCandidates = [];
     this._chunkBuffer.clear();
     this._sessionId = null;
     this._role = 'player';
     this._authRetried = false;
     this._pendingAuth = false;
     this._iceServers = null;
+    this._traceId = null;
+    this._connectStartTime = null;
+    this._iceSentCount = 0;
+    this._iceReceivedCount = 0;
   }
 
   // ── Send / Subscribe (same interface as WebSocketManager) ────────────────
@@ -241,7 +279,7 @@ class WebRTCManager {
         this._dataChannel.send(JSON.stringify(command));
         return true;
       } catch (e) {
-        console.error('[WebRTCManager] Send error', e);
+        this._log('error', 'Send error', e);
         this._messageQueue.push(command);
         return false;
       }
@@ -255,11 +293,11 @@ class WebRTCManager {
   // browser's RTCDataChannel send limit (~256 KB in Chrome).
   sendRaw(message) {
     if (!this.isChannelReady()) {
-      console.warn('[WebRTCManager] sendRaw called before channel ready, readyState=', this._dataChannel?.readyState);
+      this._log('warn', `sendRaw called before channel ready, readyState=${this._dataChannel?.readyState}`);
       return false;
     }
     const json = JSON.stringify(message);
-    console.log(`[WebRTCManager] sendRaw: ${message.method} ${message.path} (${json.length}b)`);
+    this._log('log', `sendRaw: ${message.method} ${message.path} (${json.length}b)`);
 
     if (json.length <= SEND_CHUNK_SIZE) {
       this._dataChannel.send(json);
@@ -269,7 +307,7 @@ class WebRTCManager {
     // Split into fixed-size string chunks
     const chunkId = crypto.randomUUID();
     const total = Math.ceil(json.length / SEND_CHUNK_SIZE);
-    console.log(`[WebRTCManager] sendRaw: splitting into ${total} chunks (chunkId=${chunkId})`);
+    this._log('log', `sendRaw: splitting into ${total} chunks (chunkId=${chunkId})`);
     for (let i = 0; i < total; i++) {
       const envelope = JSON.stringify({
         type: 'chunk',
@@ -320,6 +358,14 @@ class WebRTCManager {
 
   // ── Private helpers ───────────────────────────────────────────────────────
 
+  // Prefixes every log message with [WebRTC|<traceId>] so all messages for a
+  // single connection attempt can be grepped as a correlated unit.
+  _log(level, msg, ...args) {
+    const prefix = `[WebRTC|${this._traceId ?? '?'}]`;
+    // eslint-disable-next-line no-console
+    console[level](prefix, msg, ...args);
+  }
+
   async _ensureAccessToken() {
     if (TokenStore.getAccessToken()) return;
 
@@ -334,6 +380,7 @@ class WebRTCManager {
   }
 
   async _startPeerConnection() {
+    this._log('log', `Creating RTCPeerConnection with ${this._iceServers?.length ?? 0} ICE server(s)`);
     const pc = new RTCPeerConnection({
       iceServers: this._iceServers ?? [{ urls: FALLBACK_STUN }],
     });
@@ -344,7 +391,8 @@ class WebRTCManager {
     this._dataChannel = dc;
 
     dc.onopen = () => {
-      console.log('[WebRTCManager] Data channel open');
+      const elapsed = Date.now() - (this._connectStartTime ?? Date.now());
+      this._log('log', `Data channel open — ${elapsed}ms from Start() | iceSent=${this._iceSentCount} iceReceived=${this._iceReceivedCount}`);
       this.WebSocketReady = true;
       this._processMessageQueue();
       WebRTCWebHelperInstance.flushQueue();
@@ -353,12 +401,12 @@ class WebRTCManager {
     };
 
     dc.onclose = () => {
-      console.warn('[WebRTCManager] Data channel closed');
+      this._log('warn', 'Data channel closed');
       this.WebSocketReady = false;
     };
 
     dc.onerror = (e) => {
-      console.error('[WebRTCManager] Data channel error', e);
+      this._log('error', 'Data channel error', e);
     };
 
     dc.onmessage = (event) => {
@@ -392,18 +440,20 @@ class WebRTCManager {
           this._dispatchToSubscribers(_camelizeKeys(data));
         }
       } catch (e) {
-        console.error('[WebRTCManager] Failed to parse data channel message', e);
+        this._log('error', 'Failed to parse data channel message', e);
       }
     };
 
     pc.onicecandidate = ({ candidate }) => {
       if (candidate && this._gmPeerId) {
+        this._iceSentCount++;
+        this._log('log', `ICE candidate sent to GM backend (#${this._iceSentCount})`);
         this._signaling.sendIceCandidate({ targetPeerId: this._gmPeerId, candidate });
       }
     };
 
     pc.onconnectionstatechange = () => {
-      console.log('[WebRTCManager] Connection state:', pc.connectionState);
+      this._log('log', `RTCPeerConnection state: ${pc.connectionState}`);
       if (pc.connectionState === 'failed') this._handleError(new Error('WebRTC connection failed'));
     };
 
@@ -411,23 +461,38 @@ class WebRTCManager {
       const offer = await pc.createOffer();
       await pc.setLocalDescription(offer);
       this._signaling.sendOffer({ targetPeerId: this._gmPeerId, offer: pc.localDescription });
-      console.log('[WebRTCManager] Offer sent to GM backend');
+      this._log('log', `Offer sent to GM backend (gmPeerId=${this._gmPeerId})`);
     } catch (e) {
-      console.error('[WebRTCManager] Failed to create/send offer', e);
+      this._log('error', 'Failed to create/send offer', e);
       this._handleError(e);
     }
   }
 
+  // Normalises a raw ICE candidate object and adds it to the peer connection.
+  // SIPSorcery omits the 'candidate:' prefix and can send null sdpMid — both are fixed here.
+  _applyIceCandidate(candidate) {
+    const candidateStr = candidate.candidate ?? '';
+    const normalizedInit = {
+      ...candidate,
+      candidate: candidateStr.startsWith('candidate:') ? candidateStr : `candidate:${candidateStr}`,
+      sdpMid: candidate.sdpMid ?? String(candidate.sdpMLineIndex ?? 0),
+    };
+    this._pc.addIceCandidate(new RTCIceCandidate(normalizedInit))
+      .catch((e) => this._log('error', 'addIceCandidate error', e));
+  }
+
   _processMessageQueue() {
+    const count = this._messageQueue.length;
+    if (count > 0) this._log('log', `Flushing ${count} queued message(s)`);
     while (this._messageQueue.length > 0) {
       const msg = this._messageQueue.shift();
-      try { this._dataChannel.send(JSON.stringify(msg)); } catch (e) { console.error(e); }
+      try { this._dataChannel.send(JSON.stringify(msg)); } catch (e) { this._log('error', 'Failed to flush queued message', e); }
     }
   }
 
   _dispatchToSubscribers(data) {
     this._onMessageEvents.forEach(({ name, method }) => {
-      try { method(data); } catch (e) { console.error(`[WebRTCManager] Subscriber ${name} error`, e); }
+      try { method(data); } catch (e) { this._log('error', `Subscriber ${name} error`, e); }
     });
   }
 

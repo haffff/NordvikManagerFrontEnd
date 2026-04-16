@@ -17,24 +17,47 @@ export class OnMouseDownMeasureStartClientBehavior {
       //get current player
       let player = ClientMediator.sendCommand("Game", "GetCurrentPlayer");
 
+      const measureType = canvas.measure.measureType ?? 'Line';
+
       //Create object
       fabric.util.enlivenObjects([arrow, measure], function ([arrow, measure]) {
-        arrow.set({
-          x1: x,
-          y1: y,
-          x2: x,
-          y2: y,
+        const commonProps = {
           previewId: UtilityHelper.GenerateUUID(),
           stayVisible: canvas.measure.dissappearAfter ? true : false,
           playerId: player.id,
-        });
+        };
+
+        if (measureType === 'Circle') {
+          arrow.set({
+            ...commonProps,
+            left: x,
+            top: y,
+            radius: 0,
+          });
+          // Store origin so mouse:move can compute radius
+          canvas.measure.originX = x;
+          canvas.measure.originY = y;
+        } else {
+          // Line and Cone both use x1/y1/x2/y2 (LineArrow and Cone extend fabric.Line)
+          arrow.set({
+            ...commonProps,
+            x1: x,
+            y1: y,
+            x2: x,
+            y2: y,
+          });
+          if (measureType === 'Cone') {
+            canvas.measure.originX = x;
+            canvas.measure.originY = y;
+          }
+        }
+
         canvas.previewArrow = arrow;
         canvas.add(arrow);
 
         measure.set({
+          ...commonProps,
           previewId: UtilityHelper.GenerateUUID(),
-          stayVisible: canvas.measure.dissappearAfter ? true : false,
-          playerId: player.id,
           top: y + 10,
           left: x + 10,
         });

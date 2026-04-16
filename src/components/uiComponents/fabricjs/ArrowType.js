@@ -22,8 +22,9 @@ const ArrowTypeInit = () => {
         _render: function (ctx) {
             this.callSuper('_render', ctx);
 
-            // do not render if width/height are zeros or object is not visible
-            if (this.width === 0 || this.height === 0 || !this.visible) return;
+            // do not render if the line is a zero-length point or object is not visible.
+            // Use && not || — a horizontal line has height=0 but still needs an arrowhead.
+            if ((this.width === 0 && this.height === 0) || !this.visible) return;
 
             ctx.save();
 

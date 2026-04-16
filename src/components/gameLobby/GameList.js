@@ -130,7 +130,10 @@ export const GameList = ({ OnSuccess, OnLogout }) => {
         <Separator />
         <CreateNewDialog
           publicGamesAllowed={meta?.publicGamesAllowed !== false}
-          OnSuccess={() => WebHelper.get("gamelist/getgames", setGameList)}
+          OnSuccess={() => {
+            WebHelper.get("gamelist/getgames", setGameList);
+            loadPublicGames(publicPage);
+          }}
         />
 
         <Separator marginTop={4} />

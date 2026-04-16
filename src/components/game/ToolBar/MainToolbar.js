@@ -24,9 +24,7 @@ export const MainToolbar = ({
     const centralServerUrl = process.env.REACT_APP_CENTRAL_URL;
     let url =
       `${centralServerUrl}?game=${game.centralSessionId}` +
-      (game.requirePassword
-        ? `&rp=${game.requirePassword}`
-        : "");
+      (game.requirePassword ? `&rp=1` : "");
     if (navigator && navigator.clipboard) {
       navigator.clipboard.writeText(url);
     } else {

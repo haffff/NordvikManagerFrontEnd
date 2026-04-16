@@ -15,6 +15,7 @@ import {
   FaPaintBrush,
   FaRuler,
   FaSquare,
+  FaPlay,
 } from "react-icons/fa";
 import ClientMediator from "../../../../ClientMediator";
 import UtilityHelper from "../../../../helpers/UtilityHelper";
@@ -27,6 +28,7 @@ import { AddCircleOptions } from "./AddCircleOptions";
 import { AddTextOptions } from "./AddTextOptions";
 import { DrawOptions } from "./DrawOptions";
 import { MeasureOptions } from "./MeasureOptions";
+import { MeasureConeOptions } from "./MeasureConeOptions";
 import { Box, For, Separator } from "@chakra-ui/react";
 import { DWrapItem } from "../../../uiComponents/base/DWrapItem";
 
@@ -40,7 +42,6 @@ export const ToolsPanel = ({ battleMapId }) => {
   const [_battleMapId, set_battleMapId] = React.useState(battleMapId);
   const [playerColor, setPlayerColor] = React.useState("rgba(0,0,0,1)");
 
-  const colorRef = React.useRef(playerColor);
   const registrationIdRef = React.useRef(null);
 
   const config = [
@@ -112,6 +113,20 @@ export const ToolsPanel = ({ battleMapId }) => {
       onClick: () => handleMeasureLine(),
       selected: mode === "Measure_undefined",
     },
+    {
+      type: "option",
+      icon: <FaCircle />,
+      name: "Radius",
+      onClick: () => handleMeasureCircle(),
+      selected: mode === "Measure_Circle",
+    },
+    {
+      type: "option",
+      icon: <FaPlay style={{ transform: "rotate(270deg)" }} />,
+      name: "Cone",
+      onClick: () => handleMeasureCone(),
+      selected: mode === "Measure_Cone",
+    },
     { type: "label", name: "Align" },
     {
       type: "option",
@@ -141,10 +156,10 @@ export const ToolsPanel = ({ battleMapId }) => {
   let name = useBMName(_battleMapId);
   ctx.setTitle(`Tools - ` + name);
 
-  const handleDragMode = (mode) => {
+  const handleDragMode = (enabled) => {
     ClientMediator.sendCommand("BattleMap", "SetDragMode", {
       contextId: _battleMapId,
-      enabled: mode,
+      enabled,
     });
   };
 
@@ -156,14 +171,14 @@ export const ToolsPanel = ({ battleMapId }) => {
     });
   };
 
-  const sendCreateMode = (element, sizing, type, overlayOptionsRender) => {
+  const sendCreateMode = (element, sizing, type, overlayContent) => {
     ClientMediator.sendCommandAsync("BattleMap", "SetSimpleCreateMode", {
       contextId: _battleMapId,
       enabled: true,
-      element: element,
+      element,
       withSizing: sizing,
-      overlayContent: overlayOptionsRender(),
-      type: type,
+      overlayContent,
+      type,
     });
   };
 
@@ -189,9 +204,9 @@ export const ToolsPanel = ({ battleMapId }) => {
       height: 21,
     });
 
-    sendCreateMode(obj, true, "Rectangle", () => (
-      <AddShapeOptions key={mode} battleMapId={_battleMapId} />
-    ));
+    sendCreateMode(obj, true, "Rectangle",
+      <AddShapeOptions key={_battleMapId + "_Rectangle"} battleMapId={_battleMapId} />
+    );
   };
 
   const handleCircle = () => {
@@ -208,9 +223,9 @@ export const ToolsPanel = ({ battleMapId }) => {
       height: 100,
       radius: 100,
     });
-    sendCreateMode(obj, false, "Circle", () => (
-      <AddCircleOptions key={mode} battleMapId={_battleMapId} />
-    ));
+    sendCreateMode(obj, false, "Circle",
+      <AddCircleOptions key={_battleMapId + "_Circle"} battleMapId={_battleMapId} />
+    );
   };
 
   const handleText = () => {
@@ -225,9 +240,9 @@ export const ToolsPanel = ({ battleMapId }) => {
       stroke: "rgba(0,0,0,1)",
       text: "Text",
     });
-    sendCreateMode(obj, false, "Text", () => (
-      <AddTextOptions key={mode} battleMapId={_battleMapId} />
-    ));
+    sendCreateMode(obj, false, "Text",
+      <AddTextOptions key={_battleMapId + "_Text"} battleMapId={_battleMapId} />
+    );
   };
 
   const handleFreeDraw = () => {
@@ -244,7 +259,7 @@ export const ToolsPanel = ({ battleMapId }) => {
 
     ClientMediator.sendCommand("BattleMap", "SetFreeDrawMode", {
       contextId: _battleMapId,
-      overlayContent: <DrawOptions key={mode} battleMapId={_battleMapId} />,
+      overlayContent: <DrawOptions key={_battleMapId + "_Draw"} battleMapId={_battleMapId} />,
       enabled: true,
       brush: brush,
     });
@@ -410,11 +425,46 @@ export const ToolsPanel = ({ battleMapId }) => {
       contextId: _battleMapId,
       enabled: true,
       playerColor: playerColor,
-      overlayContent: <MeasureOptions key={mode} battleMapId={_battleMapId} />,
+      overlayContent: <MeasureOptions key={_battleMapId + "_Measure"} battleMapId={_battleMapId} />,
+    });
+  };
+
+  const handleMeasureCircle = () => {
+    if (mode === "Measure_Circle") {
+      clearMode();
+      return;
+    }
+    clearMode();
+
+    ClientMediator.sendCommand("BattleMap", "SetMeasureMode", {
+      contextId: _battleMapId,
+      enabled: true,
+      playerColor: playerColor,
+      type: "Circle",
+      overlayContent: <MeasureOptions key={_battleMapId + "_Measure_Circle"} battleMapId={_battleMapId} />,
+    });
+  };
+
+  const handleMeasureCone = () => {
+    if (mode === "Measure_Cone") {
+      clearMode();
+      return;
+    }
+    clearMode();
+
+    ClientMediator.sendCommand("BattleMap", "SetMeasureMode", {
+      contextId: _battleMapId,
+      enabled: true,
+      playerColor: playerColor,
+      type: "Cone",
+      overlayContent: <MeasureConeOptions key={_battleMapId + "_Measure_Cone"} battleMapId={_battleMapId} />,
     });
   };
 
   // List
+
+  const resolveEnabled = (item) =>
+    _battleMapId ? (item.enabled !== undefined ? item.enabled : true) : false;
 
   let items = undefined;
 
@@ -425,19 +475,12 @@ export const ToolsPanel = ({ battleMapId }) => {
           if (item.type === "label") {
             return <DLabel>{item.name}</DLabel>;
           } else {
-            let enabled = item.enabled !== undefined ? item.enabled : true;
-            if(!_battleMapId)
-            {
-              enabled = false;
-            }
-
-
             return optionDefinition(
               item.icon,
               item.name,
               item.onClick,
               item.selected,
-              enabled
+              resolveEnabled(item)
             );
           }
         }}
@@ -467,18 +510,12 @@ export const ToolsPanel = ({ battleMapId }) => {
 
               return <Separator size={"lg"} {...additionalProps} />;
             } else {
-              let enabled = item.enabled !== undefined ? item.enabled : true;
-              if(!_battleMapId)
-              {
-                enabled = false;
-              }
-
               return wrapOptionDefinition(
                 item.icon,
                 item.name,
                 item.onClick,
                 item.selected,
-                enabled
+                resolveEnabled(item)
               );
             }
           }}

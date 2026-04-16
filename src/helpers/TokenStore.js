@@ -16,7 +16,9 @@ const TokenStore = {
   // Set both at once (after login or refresh)
   setTokens: (accessToken, refreshToken) => {
     _accessToken = accessToken;
-    localStorage.setItem(REFRESH_KEY, refreshToken);
+    if (refreshToken != null) {
+      localStorage.setItem(REFRESH_KEY, refreshToken);
+    }
   },
 
   clear: () => {
