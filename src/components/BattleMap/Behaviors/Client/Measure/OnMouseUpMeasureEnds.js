@@ -4,33 +4,32 @@ import DTOConverter from "../../../DTOConverter";
 
 export class OnMouseUpMeasureEndsClientBehavior {
   Handle(opt, canvas, map, battleMapId) {
-    if (canvas.measureMode && canvas.measure && canvas.previewArrow && !canvas.measure.dissappearAfter) {
-      //if its not left mouse button return
+    if (!canvas.measureMode || !canvas.measure || !canvas.previewArrow) return;
 
-      if (opt.e.button !== 0) {
-        return;
-      }
+    if (opt.e.button !== 0) return;
 
-      let element = canvas.previewArrow;
+    const element = canvas.previewArrow;
+    const measure = canvas.previewMeasure;
 
+    if (!canvas.measure.dissappearAfter) {
+      // Normal mode: remove the preview shapes from the canvas entirely.
       if (canvas.measure.visibleToOthers) {
         WebSocketManagerInstance.Send({
           command: "preview_end",
           battleMapId: battleMapId,
           data: [
             { previewId: element.previewId, playerId: element.playerId },
-            { previewId: canvas.previewMeasure.previewId, playerId: canvas.previewMeasure.playerId },
+            { previewId: measure.previewId, playerId: measure.playerId },
           ],
         });
       }
 
       canvas.remove(element);
-      canvas.previewArrow = undefined;
-
-      //Get measure preview
-      let measure = canvas.previewMeasure;
       canvas.remove(measure);
-      canvas.previewMeasure = undefined;
     }
+    // In both modes: clear the active-preview refs so mouse:move stops updating
+    // the shape and the next mouse:down starts a fresh measurement.
+    canvas.previewArrow = undefined;
+    canvas.previewMeasure = undefined;
   }
 }

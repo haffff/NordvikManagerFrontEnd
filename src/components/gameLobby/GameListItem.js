@@ -170,7 +170,7 @@ const GameSettingsDialog = ({ game, open, onClose, onDeleted, onSaved }) => {
                   variant="outline"
                   flexShrink={0}
                   onClick={() => {
-                    const url = `${PLAYER_FRONTEND_URL}/?game=${game?.id ?? ''}${game?.passwordRequired ? '&rp=1' : ''}`;
+                    const url = `${PLAYER_FRONTEND_URL}/?game=${game?.centralSessionId ?? ''}${game?.passwordRequired ? '&rp=1' : ''}`;
                     navigator.clipboard.writeText(url).then(() =>
                       toaster.create({ description: "Invite link copied!", type: "success", duration: 2500 })
                     );

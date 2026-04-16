@@ -52,10 +52,12 @@ export const WebHelper = {
   GameId: undefined,
 
   addGameId: (addr, customGameId = undefined) => {
+    const id = customGameId || WebHelper.GameId;
+    if (!id) return addr;
     if (addr.includes("?")) {
-      return `${addr}&gameid=${customGameId || WebHelper.GameId}`;
+      return `${addr}&gameid=${id}`;
     }
-    return `${addr}?gameid=${customGameId || WebHelper.GameId}`;
+    return `${addr}?gameid=${id}`;
   },
 
   post: (adress, body, onok, onerror, onException) => {

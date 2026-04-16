@@ -5,6 +5,7 @@ import DTOConverter from "../DTOConverter";
 import ClientMediator from "../../../ClientMediator";
 import { toaster } from "../../ui/toaster";
 import UtilityHelper from "../../../helpers/UtilityHelper";
+import ConeTypeInit from "../../uiComponents/fabricjs/ConeType";
 
 class BMService {
   _clipboard = undefined;
@@ -561,6 +562,8 @@ class BMService {
 
       this.SetDragMode({ enabled: false });
       canvas.dragModeLock = true;
+      canvas.defaultCursor = 'crosshair';
+      canvas.hoverCursor = 'crosshair';
 
       this._addPopupAndOverlay(overlayContent, popupContent);
 
@@ -588,6 +591,8 @@ class BMService {
         canvas.selection = true;
         canvas.modeType = undefined;
         canvas.dragModeLock = false;
+        canvas.defaultCursor = 'default';
+        canvas.hoverCursor = 'move';
 
         this._removePopupAndOverlay();
 
@@ -640,11 +645,49 @@ class BMService {
       this.SetDragMode({ enabled: false });
       canvas.dragModeLock = true;
 
-      canvas.measure.measureArrow = arrowObject ?? new fabric.LineArrow([0, 0, 0, 0], {
-        strokeWidth: 2,
-        stroke: playerColor,   // was duplicated — removed dead first occurrence
-        selectable: false,
-      });
+      canvas.measure.measureType = type ?? 'Line';
+
+      // Build a semi-transparent fill from the player color
+      const fillColor = (() => {
+        try {
+          const c = new fabric.Color(playerColor);
+          c.setAlpha(0.2);
+          return c.toRgba();
+        } catch {
+          return 'rgba(255,255,255,0.2)';
+        }
+      })();
+
+      if (type === 'Circle') {
+        canvas.measure.measureArrow = arrowObject ?? new fabric.Circle({
+          left: 0,
+          top: 0,
+          radius: 0,
+          fill: fillColor,
+          stroke: playerColor,
+          strokeWidth: 2,
+          selectable: false,
+          originX: 'center',
+          originY: 'center',
+          objectCaching: false,
+        });
+      } else if (type === 'Cone') {
+        ConeTypeInit();
+        canvas.measure.coneAngle = 53; // default D&D 5e cone (width = length)
+        canvas.measure.measureArrow = arrowObject ?? new fabric.Cone([0, 0, 0, 0], {
+          strokeWidth: 2,
+          stroke: playerColor,
+          fill: fillColor,
+          selectable: false,
+          coneAngle: 53,
+        });
+      } else {
+        canvas.measure.measureArrow = arrowObject ?? new fabric.LineArrow([0, 0, 0, 0], {
+          strokeWidth: 2,
+          stroke: playerColor,
+          selectable: false,
+        });
+      }
 
       canvas.measure.measureObject = measureObject ?? new fabric.Textbox("0", {
         left: 0,

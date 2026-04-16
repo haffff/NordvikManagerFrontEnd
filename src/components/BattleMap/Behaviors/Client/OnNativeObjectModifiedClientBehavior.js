@@ -7,28 +7,48 @@ import { fabric } from "fabric";
 export class OnNativeObjectModifiedClientBehavior {
   Handle(event, canvas, map, battleMapId) {
     var renderGrid = map.gridVisible;
+    const isMultiSelect = event.target.type === "activeSelection";
+    const shouldSnap = renderGrid && canvas.alignMode !== "none" && !event.transform?.altKey;
 
-    //align to grid when exists and no alt is pressed
-    if (renderGrid && canvas.alignMode !== "none" && !event.transform.altKey) {
-
+    if (shouldSnap) {
       var gridSize = map.gridSize;
 
-      let x = Math.round(event.target.left / gridSize) * gridSize;
-      let y = Math.round(event.target.top / gridSize) * gridSize;
+      if (!isMultiSelect) {
+        // Single object: event.target.left is the left edge (originX:'left') — snap directly.
+        let x = Math.round(event.target.left / gridSize) * gridSize;
+        let y = Math.round(event.target.top / gridSize) * gridSize;
 
-      if(canvas.alignMode === "center")
-      {
-        x += gridSize / 2;
-        y += gridSize / 2;
+        if (canvas.alignMode === "center") {
+          x += gridSize / 2;
+          y += gridSize / 2;
+        }
+
+        event.target.set({ left: x, top: y });
+      } else {
+        // ActiveSelection: fabric.Group uses originX:'center', so event.target.left is the
+        // bounding-box CENTER, not the left edge. Derive the left/top edges, snap those,
+        // then apply the resulting delta back to the group center so that
+        // discardActiveObject() restores objects at the correct snapped canvas positions
+        // without a visual flash.
+        var leftEdge = event.target.left - event.target.width / 2;
+        var topEdge  = event.target.top  - event.target.height / 2;
+
+        var snappedLeft = Math.round(leftEdge / gridSize) * gridSize;
+        var snappedTop  = Math.round(topEdge  / gridSize) * gridSize;
+
+        if (canvas.alignMode === "center") {
+          snappedLeft += gridSize / 2;
+          snappedTop  += gridSize / 2;
+        }
+
+        event.target.set({
+          left: event.target.left + (snappedLeft - leftEdge),
+          top:  event.target.top  + (snappedTop  - topEdge),
+        });
       }
-
-      event.target.set({
-        left: x,
-        top: y,
-      });
     }
 
-    if (event.target.type === "activeSelection") {
+    if (isMultiSelect) {
       event.target.forEachObject(async (subelement) => {
         if (subelement.id && subelement.additionalObjects) {
           await ClientMediator.sendCommandAsync(
@@ -48,19 +68,14 @@ export class OnNativeObjectModifiedClientBehavior {
       }
     }
 
-    if (event.target.type !== "activeSelection") {
-      let action = undefined;
-      if (event.transform) {
-        action = event.transform.action;
-      }
+    if (!isMultiSelect) {
+      let action = event.transform?.action;
       SendObject(event.target, action);
     } else {
       let objects = canvas.getActiveObjects();
-      let action = undefined;
-      if (event.transform) {
-        action = event.transform.action;
-      }
+      let action = event.transform?.action;
       canvas.discardActiveObject();
+
       objects.forEach((element) => {
         SendObject(element, action);
       });

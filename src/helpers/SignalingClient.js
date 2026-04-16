@@ -5,15 +5,16 @@ export const SIGNAL_EVENTS = {
   // Client → Server
   AUTHENTICATE: 'authenticate',
   WEBRTC_OFFER: 'webrtc-offer',
-  WEBRTC_ANSWER: 'webrtc-answer',
-  ICE_CANDIDATE: 'ice-candidate',
   // Server → Client
   AUTHENTICATED: 'authenticated',
   AUTH_ERROR: 'auth-error',
   PEER_JOINED: 'peer-joined',
   PEER_LEFT: 'peer-left',
   SESSION_INFO: 'session-info',
+  WEBRTC_ANSWER: 'webrtc-answer',
   ERROR: 'error',
+  // Bidirectional
+  ICE_CANDIDATE: 'ice-candidate',
 };
 
 class SignalingClient {
@@ -48,8 +49,8 @@ class SignalingClient {
     this._socket?.emit(event, data);
   }
 
-  authenticate({ token, sessionId, role }) {
-    this.emit(SIGNAL_EVENTS.AUTHENTICATE, { token, sessionId, role });
+  authenticate({ token, sessionId, role, traceId }) {
+    this.emit(SIGNAL_EVENTS.AUTHENTICATE, { token, sessionId, role, ...(traceId ? { traceId } : {}) });
   }
 
   sendOffer({ targetPeerId, offer }) {

@@ -12,6 +12,13 @@ export class OnUpdateElementBehavior {
     ).then(async (currentPlayer) => {
       let obj = canvas.getObjects().find((x) => x.id === response.data.id);
       if (obj) {
+        // Object is inside an ActiveSelection — its left/top are group-local coordinates,
+        // not canvas-space. Applying canvas-space echo coordinates would misplace it drastically.
+        if (obj.group) {
+          canvas.requestRenderAll();
+          return;
+        }
+
         // Skip update only if this is an in-progress drag by the current player
         // (the client already has optimistic position; applying the server echo would stutter)
         const isOwnDrag =
