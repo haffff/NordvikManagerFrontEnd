@@ -1,3 +1,4 @@
+import * as React from "react";
 import { FaMailBulk, FaTerminal, FaEye, FaBook, FaQuestion } from "react-icons/fa";
 import { DropDownItem } from "../../uiComponents/base/DDItems/DropDownItem";
 import { DropDownMenu } from "../../uiComponents/base/DDItems/DropDownMenu";
@@ -9,6 +10,7 @@ import { IoIosExit } from "react-icons/io";
 import UtilityHelper from "../../../helpers/UtilityHelper";
 import AddonsMenu from "./ToolBarMenus/AddonsMenu";
 import ClientMediator from "../../../ClientMediator";
+import { Button } from "@chakra-ui/react";
 
 import { toaster } from "../../ui/toaster";
 
@@ -19,6 +21,36 @@ export const MainToolbar = ({
   gameMethods,
   forceRefreshGame,
 }) => {
+  const [additionalButtons, setAdditionalButtons] = React.useState([]);
+
+  React.useEffect(() => {
+    ClientMediator.register({
+      panel: "Toolbar",
+      id: "main-toolbar",
+      AddButton: (buttonData) => {
+        let element;
+        if (buttonData.menuId) {
+          // Create a dropdown menu button so AddMenuItem steps can populate it
+          element = React.createElement(DropDownMenu, {
+            key: buttonData.menuId,
+            viewId: buttonData.menuId,
+            name: buttonData.menuName || buttonData.name,
+          });
+        } else {
+          element = React.createElement(Button, {
+            key: buttonData.name,
+            height: "30px",
+            size: "xs",
+            borderRadius: 0,
+            variant: "outline",
+            onClick: buttonData.onClick,
+          }, buttonData.name);
+        }
+        setAdditionalButtons(prev => [...prev, element]);
+      },
+    });
+  }, []);
+
   const GenerateInviteLink = () => {
     let game = ClientMediator.sendCommand("Game", "GetGame", {});
     const centralServerUrl = process.env.REACT_APP_CENTRAL_URL;
@@ -72,6 +104,7 @@ export const MainToolbar = ({
         battlemapsRef={battlemapsRef}
       />
       <AddonsMenu state={state} />
+      {additionalButtons}
       <DropDownMenu viewId={"experimental"} name={"Experimental"} width={100}>
         <DropDownItem
           key={'main_1'}

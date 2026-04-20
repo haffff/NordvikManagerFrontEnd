@@ -38,6 +38,17 @@ const BG_SURFACE  = "rgb(38,38,38)";
 const BG_RAISED   = "rgb(48,48,48)";
 const BORDER_CLR  = "rgb(65,65,65)";
 
+// ─── permission options (mirrors Permission enum on the backend) ──────────────
+const PERMISSION_ITEMS = [
+  { name: "Not set",         value: "" },
+  { name: "None",            value: "0" },
+  { name: "Read",            value: "1" },
+  { name: "Execute",         value: "2" },
+  { name: "Read + Execute",  value: "3" },
+  { name: "Edit",            value: "8" },
+  { name: "All",             value: "31" },
+];
+
 // ─── FieldRow — label + control pair ─────────────────────────────────────────
 const FieldRow = ({ label, children }) => (
   <Field.Root>
@@ -118,6 +129,16 @@ const ActionPane = React.memo(({
 }) => {
   const [confirmDelete,    setConfirmDelete   ] = React.useState(false);
   const [inputArguments,   setInputArguments  ] = React.useState("");
+
+  const permissionCollection = React.useMemo(
+    () => createListCollection({ items: PERMISSION_ITEMS }),
+    []
+  );
+
+  // Convert numeric/null permission to the string key used by the Select
+  const permVal = (v) => (v == null ? "" : String(v));
+  // Convert Select string back to integer/null for state
+  const permFromSelect = (s) => (s === "" ? null : parseInt(s, 10));
 
   const handleUpdate = () => {
     const payload = { ...selectedAction, content: JSON.stringify(stepsRef.current) };
@@ -218,6 +239,61 @@ const ActionPane = React.memo(({
               />
             </FieldRow>
           </Flex>
+        </Box>
+
+        {/* Permissions */}
+        <Box>
+          <SectionHeader>Permissions</SectionHeader>
+          <HStack gap={3} mt={2} align="flex-start">
+            <FieldRow label="Generic (all players)">
+              <SelectRoot
+                collection={permissionCollection}
+                value={[permVal(selectedAction.genericPermission)]}
+                onValueChange={(e) => set({ genericPermission: permFromSelect(e.value[0]) })}
+                size="sm"
+              >
+                <SelectTrigger>
+                  <SelectValueText placeholder="Not set…">
+                    {(items) => items[0]?.name ?? "Not set…"}
+                  </SelectValueText>
+                </SelectTrigger>
+                <SelectContent>
+                  <For each={permissionCollection.items}>
+                    {(option, index) => (
+                      <SelectItem key={index} item={option} value={option.value}
+                        selected={permVal(selectedAction.genericPermission) === option.value}>
+                        {option.name}
+                      </SelectItem>
+                    )}
+                  </For>
+                </SelectContent>
+              </SelectRoot>
+            </FieldRow>
+            <FieldRow label="GM">
+              <SelectRoot
+                collection={permissionCollection}
+                value={[permVal(selectedAction.gmPermission)]}
+                onValueChange={(e) => set({ gmPermission: permFromSelect(e.value[0]) })}
+                size="sm"
+              >
+                <SelectTrigger>
+                  <SelectValueText placeholder="Not set…">
+                    {(items) => items[0]?.name ?? "Not set…"}
+                  </SelectValueText>
+                </SelectTrigger>
+                <SelectContent>
+                  <For each={permissionCollection.items}>
+                    {(option, index) => (
+                      <SelectItem key={index} item={option} value={option.value}
+                        selected={permVal(selectedAction.gmPermission) === option.value}>
+                        {option.name}
+                      </SelectItem>
+                    )}
+                  </For>
+                </SelectContent>
+              </SelectRoot>
+            </FieldRow>
+          </HStack>
         </Box>
 
         {/* Trigger */}
@@ -361,9 +437,9 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
           WebHelper.getAsync("addon/hooks"),
         ]);
         if (cancelled) return;
-        setActions(actionsData ?? []);
-        setStepDefinitions(stepDefsWrapped?.stepDefinitions ?? []);
-        setHooks(hooksData ?? []);
+        setActions(Array.isArray(actionsData) ? actionsData : []);
+        setStepDefinitions(Array.isArray(stepDefsWrapped?.stepDefinitions) ? stepDefsWrapped.stepDefinitions : []);
+        setHooks(Array.isArray(hooksData) ? hooksData : []);
       } catch (err) {
         console.warn("[ActionsPanel] load failed:", err);
       } finally {
@@ -403,6 +479,10 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
     }
     try {
       const response = await WebHelper.getAsync("addon/action?id=" + id);
+      if (!response) {
+        console.warn("[ActionsPanel] action not found:", id);
+        return;
+      }
       setSelection({ type: "action", action: response });
       setSteps(JSON.parse(response.content ?? "[]"));
     } catch (err) {

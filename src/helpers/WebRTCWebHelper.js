@@ -109,7 +109,11 @@ class WebRTCWebHelper {
   // ── WebHelper-compatible API ─────────────────────────────────────────────
 
   getAsync(path) {
-    return this._sendRequest('GET', path).then((r) => r.body);
+    return this._sendRequest('GET', path).then((r) => {
+      if (r.status >= 200 && r.status < 300) return r.body;
+      console.warn(`[WebRTCWebHelper] getAsync: HTTP ${r.status} for ${path}`);
+      return undefined;
+    });
   }
 
   get(path, onok, onerror, onException) {

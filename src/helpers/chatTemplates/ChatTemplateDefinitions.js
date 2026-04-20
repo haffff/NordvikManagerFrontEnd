@@ -3,5 +3,5 @@ import { RollChatTemplate } from "./RollChatTemplate";
 
 export const ChatTemplateDefintions = {
     "Image": (props) => <Image {...props} />,
-    "Roll": (props) => <RollChatTemplate {...props} />,
+    "Roll": (props) => <RollChatTemplate {...props} />
 }

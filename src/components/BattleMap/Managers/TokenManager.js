@@ -5,6 +5,7 @@ import ClientMediator from "../../../ClientMediator";
 import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import UtilityHelper from "../../../helpers/UtilityHelper";
 import TokenUIRules from "../../../helpers/TokenUIRules";
+import { extractPropNames, isExpressionDep, evaluate } from "../../../helpers/TokenExpressionEvaluator";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -191,39 +192,129 @@ class TokenManager {
    * @returns {boolean} true if the element was mutated
    */
   _applyDep(dep, object, targetElement, properties) {
-    const { dtoProperty, objectProperty, rule, type, source } = dep;
+    const { objectProperty, type, source } = dep;
 
-    const raw = properties.find(
-      (p) =>
-        p.name === dtoProperty &&
-        p.entityName?.toLowerCase()?.startsWith(source)
-    )?.value;
+    let value;
 
-    if (raw === undefined) {
-      return false;
-    }
-
-    let value = coerceValue(raw, type);
-    if (value === undefined) {
-      console.warn(
-        `TokenManager: could not coerce "${raw}" to ${type} for dep ${dtoProperty} on ${object.id}`
-      );
-      return false;
-    }
-
-    // Optional rule transform (e.g. percentage → pixel width)
-    if (rule) {
-      if (!rule.name || !TokenUIRules[rule.name]) {
+    // Expression syntax: %propName% substitution + rule function calls
+    if (isExpressionDep(dep)) {
+      const refNames = extractPropNames(dep.expression);
+      const propsMap = new Map();
+      for (const name of refNames) {
+        const prop = properties.find(
+          (p) => p.name === name && (!p.entityName || p.entityName.toLowerCase().startsWith(source))
+        );
+        if (prop !== undefined) propsMap.set(name, prop.value);
+      }
+      value = evaluate(dep.expression, propsMap, type);
+      if (value === undefined) {
         console.warn(
-          `TokenManager: unknown rule "${rule?.name}" on object ${object.id}`
+          `TokenManager: expression "${dep.expression}" evaluated to undefined on ${object.id}`
         );
         return false;
       }
-      value = TokenUIRules[rule.name]({ ...rule.arguments, value });
+    } else {
+      const { dtoProperty, rule } = dep;
+
+      const raw = properties.find(
+        (p) =>
+          p.name === dtoProperty &&
+          (!p.entityName || p.entityName.toLowerCase().startsWith(source))
+      )?.value;
+
+      if (raw === undefined) {
+        return false;
+      }
+
+      value = coerceValue(raw, type);
+      if (value === undefined) {
+        console.warn(
+          `TokenManager: could not coerce "${raw}" to ${type} for dep ${dtoProperty} on ${object.id}`
+        );
+        return false;
+      }
+
+      // Optional rule transform (e.g. percentage → pixel width)
+      if (rule) {
+        if (!rule.name || !TokenUIRules[rule.name]) {
+          console.warn(
+            `TokenManager: unknown rule "${rule?.name}" on object ${object.id}`
+          );
+          return false;
+        }
+
+        // Resolve propTargetMin / propTargetMax: if the rule argument is a string
+        // treat it as a property name, look it up in the already-fetched properties
+        // (same source filter as dtoProperty), and convert to a number.
+        const ruleArgs = { ...rule.arguments, value };
+        const { propTargetMin, propTargetMax } = rule.arguments ?? {};
+
+        if (typeof propTargetMin === "string") {
+          const prop = properties.find(
+            (p) => p.name === propTargetMin &&
+                   (!p.entityName || p.entityName.toLowerCase().startsWith(source))
+          );
+          const n = parseFloat(prop?.value);
+          ruleArgs.propTargetMin = Number.isNaN(n) ? undefined : n;
+        }
+        if (typeof propTargetMax === "string") {
+          const prop = properties.find(
+            (p) => p.name === propTargetMax &&
+                   (!p.entityName || p.entityName.toLowerCase().startsWith(source))
+          );
+          const n = parseFloat(prop?.value);
+          ruleArgs.propTargetMax = Number.isNaN(n) ? undefined : n;
+        }
+
+        value = TokenUIRules[rule.name](ruleArgs);
+      }
+    } // end legacy path
+
+    // Fabric crashes with a 0×0 cache canvas — clamp width/height to at least 1px.
+    if ((objectProperty === "width" || objectProperty === "height") && typeof value === "number") {
+      value = Math.max(value, 1);
+    }
+
+    // Special case: image src must be a full resource URL so FabricTypesInitializer
+    // can intercept it and fetch via WebRTC.  A raw UUID (no slashes) needs to be
+    // converted, and fabric.Image needs setSrc() — not just set() — to actually
+    // reload the displayed image.
+    if (objectProperty === "src") {
+      const url =
+        typeof value === "string" && !value.includes("/")
+          ? WebHelper.getResourceString(value)
+          : value;
+      targetElement.set("src", url);
+      if (typeof targetElement.setSrc === "function") {
+        targetElement.setSrc(url, () => {});
+      }
+      return true;
     }
 
     targetElement.set(objectProperty, value);
     return true;
+  }
+
+  // ── Prop-ref helpers ─────────────────────────────────────────────────────
+
+  /**
+   * Returns the property names referenced inside rule arguments
+   * (propTargetMin / propTargetMax) for a list of deps so they can be
+   * included in the same batch fetch as each dep's own dtoProperty.
+   */
+  _propRefNames(deps) {
+    const names = [];
+    for (const dep of deps) {
+      if (isExpressionDep(dep)) {
+        names.push(...extractPropNames(dep.expression));
+      } else {
+        const args = dep.rule?.arguments;
+        if (!args) continue;
+        if (typeof args.propTargetMin === "string") names.push(args.propTargetMin);
+        if (typeof args.propTargetMax === "string") names.push(args.propTargetMax);
+      }
+    }
+    return names;
   }
 
   // ── Core: batch-fetch properties for a set of deps ────────────────────────
@@ -231,6 +322,9 @@ class TokenManager {
   /**
    * Groups deps by source, resolves each source's parentId, fetches all
    * needed property names in one call per source, then applies every dep.
+   * Prop-ref names (propTargetMin / propTargetMax on FromTo rules) are
+   * included in the fetch so _applyDep can resolve them without an extra
+   * round-trip.
    *
    * @returns {Promise<boolean>} true if any element was mutated
    */
@@ -238,14 +332,20 @@ class TokenManager {
     if (!propDeps?.length) return false;
 
     // Group by source → { element: [dep, dep], card: [dep], … }
-    const grouped = Object.groupBy(propDeps, (d) => d.source);
+    const grouped = propDeps.reduce((acc, d) => {
+      (acc[d.source] ??= []).push(d);
+      return acc;
+    }, {});
 
     // One fetch per source (parallelised)
     const fetches = Object.entries(grouped).map(async ([source, deps]) => {
       const parentId = this._resolveParentId(source, object);
       if (!parentId) return [];
 
-      const names = [...new Set(deps.map((d) => d.dtoProperty))];
+      const names = [...new Set([
+        ...deps.filter((d) => !isExpressionDep(d)).map((d) => d.dtoProperty),
+        ...this._propRefNames(deps),
+      ])];
       try {
         return await ClientMediator.sendCommandAsync(
           "Properties",
@@ -276,42 +376,64 @@ class TokenManager {
 
   /**
    * Shared by UpdateTokensPropertySpecific & UpdateTokenPropertySpecific.
-   * Applies a single property change without re-fetching — uses the provided
-   * property object directly.
+   * Applies a single property change without a full re-fetch.
+   * If any matching dep has propTargetMin / propTargetMax prop-refs, those
+   * are fetched in one batch per source before applying.
    */
-  _applySinglePropertyToToken(object, property) {
+  async _applySinglePropertyToToken(object, property) {
     const canvas = this._getCanvas();
     let mutated = false;
 
-    // Check the token object itself
-    const objectDeps = object.tokenData?.propDeps?.filter(
-      (d) =>
-        d.dtoProperty === property.name &&
-        property.entityName?.toLowerCase().startsWith(d.source)
-    );
-    if (objectDeps?.length) {
-      for (const dep of objectDeps) {
-        if (this._applyDep(dep, object, object, [property])) mutated = true;
+    // Collect every (target element, dep) pair that matches the changed property
+    const work = []; // [{ target, dep }]
+
+    const matchesDep = (d) => {
+      if (property.entityName && !property.entityName.toLowerCase().startsWith(d.source)) return false;
+      if (isExpressionDep(d)) return extractPropNames(d.expression).includes(property.name);
+      return d.dtoProperty === property.name;
+    };
+
+    for (const dep of object.tokenData?.propDeps?.filter(matchesDep) ?? []) {
+      work.push({ target: object, dep });
+    }
+    for (const element of object.additionalObjects ?? []) {
+      for (const dep of element.tokenData?.propDeps?.filter(matchesDep) ?? []) {
+        work.push({ target: element, dep });
       }
     }
 
-    // Check additional UI elements
-    if (object.additionalObjects) {
-      for (const element of object.additionalObjects) {
-        const elementDeps = element.tokenData?.propDeps?.filter(
-          (d) =>
-            d.dtoProperty === property.name &&
-            property.entityName?.toLowerCase().startsWith(d.source)
-        );
-        if (elementDeps?.length) {
-          for (const dep of elementDeps) {
-            if (this._applyDep(dep, object, element, [property])) mutated = true;
-          }
+    if (!work.length) return;
+
+    // Fetch any prop-ref names required by the matched deps (one batch per source),
+    // excluding the already-available changed property.
+    const refNames = this._propRefNames(work.map((w) => w.dep))
+      .filter((n) => n !== property.name);
+    let properties = [property];
+
+    if (refNames.length) {
+      const source = work[0].dep.source; // all matched deps share the same source
+      const parentId = this._resolveParentId(source, object);
+      if (parentId) {
+        try {
+          const fetched = await ClientMediator.sendCommandAsync(
+            "Properties",
+            "GetByNames",
+            { parentId, names: refNames }
+          );
+          properties = [property, ...(fetched ?? [])];
+        } catch (err) {
+          console.error(
+            `TokenManager: failed to fetch prop-refs [${refNames}] for source "${source}"`,
+            err
+          );
         }
       }
     }
 
-    // Single render call after all mutations
+    for (const { target, dep } of work) {
+      if (this._applyDep(dep, object, target, properties)) mutated = true;
+    }
+
     if (mutated) {
       canvas.requestRenderAll();
     }
@@ -344,10 +466,9 @@ class TokenManager {
         element.selectable = false;
         element.isTokenUI = true;
 
-        // Visibility: hidden by default if flagged as control-only or disabled
-        if (element.tokenData?.showOnTokenControl || element.enabled === false) {
-          element.visible = false;
-        }
+        // Hide every element until deps are applied — prevents Fabric from
+        // trying to cache a 0-dimension element (e.g. text with empty string).
+        element.visible = false;
 
         // Editable i-text: enter editing on double-click, exit on click-away
         if (element.type === "i-text" && element.editable) {
@@ -367,6 +488,7 @@ class TokenManager {
       });
 
       this.UpdateTokenUIPositions({ object });
+      // UpdateTokenBasedOnProperties restores visibility after applying deps
       this.UpdateTokenBasedOnProperties({ tokenId: id });
     });
   }
@@ -454,8 +576,9 @@ class TokenManager {
     // Additional UI elements
     if (object.additionalObjects) {
       for (const element of object.additionalObjects) {
-        // Reset visibility based on enabled flag
-        element.visible = element.enabled !== false;
+        // Restore visibility: hidden if disabled or control-only
+        element.visible = element.enabled !== false &&
+          !element.tokenData?.showOnTokenControl;
         if (!element.visible) continue;
 
         if (
@@ -560,8 +683,14 @@ class TokenManager {
 
     const token = JSON.parse(tokenRaw);
 
+    // Convert the raw resource ID to a full URL so fabric.util.loadImage
+    // recognises it as a backend resource and fetches it via WebRTC.
+    const tokenImageUrl = tokenImageId
+      ? WebHelper.getResourceString(tokenImageId)
+      : undefined;
+
     // Build the Fabric image object
-    fabric.Image.fromURL(tokenImageId, (fabricObject) => {
+    fabric.Image.fromURL(tokenImageUrl, (fabricObject) => {
       fabricObject.set({
         ...token.object,
         name: `${token.prefix ?? "token"} ${characterName}`,
@@ -580,7 +709,10 @@ class TokenManager {
         tokenUiElements: token.additions,
         mapId: map.id,
         layer: TOKEN_LAYER,
-        src: tokenImageId,
+        // resourceId is preserved through the DTO round-trip (ConvertToDTO strips
+        // src but keeps other fields); ConvertFromDTO rebuilds src from resourceId.
+        resourceId: tokenImageId,
+        src: tokenImageUrl,
       });
 
       fabricObject.scaleToWidth(gridSize * tokenSize);

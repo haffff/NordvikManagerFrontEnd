@@ -474,6 +474,10 @@ export const ChatPanel = () => {
       onEvent: (eventName, { all }) => {
         if (eventName === "PlayersChanged") setPlayers(all ?? []);
       },
+
+      SendMessage: (message) => {
+        handleSend(message);
+      }
     });
 
     return () => {
@@ -559,8 +563,8 @@ export const ChatPanel = () => {
   );
 
   // ── Send ─────────────────────────────────────────────────────────────────────
-  const handleSend = React.useCallback(async () => {
-    const trimmed = message.trim();
+  const handleSend = React.useCallback(async (mediator_message) => {
+    const trimmed = mediator_message?.trim() ?? message.trim();
     if (!trimmed) return;
 
     // /c <command> — local command execution

@@ -75,7 +75,7 @@ export const ActionStep = ({
   const stepDefinition = stepDefinitions.find((x) => x.value === step.Type);
 
   const stepDefinitionsCollection = React.useMemo(
-    () => createListCollection({ items: stepDefinitions }),
+    () => createListCollection({ items: Array.isArray(stepDefinitions) ? stepDefinitions : [] }),
     [stepDefinitions]
   );
 

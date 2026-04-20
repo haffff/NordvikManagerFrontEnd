@@ -245,6 +245,7 @@ export const MaterialsPanel = ({ state }) => {
                         <DTreeList
                             items={resources}
                             canEditFolders={canEditFolders}
+                            onDeleteItem={(item) => WebSocketManagerInstance.Send({ command: "resource_delete", data: item.id })}
                             onGenerateEditButtons={(item) => (
                                 <>
                                     <DListItemButton icon={FaLink}        label="Copy link"        onClick={() => generateLink(item.id)} />

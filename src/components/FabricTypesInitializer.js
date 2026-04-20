@@ -1,5 +1,6 @@
 import { fabric } from 'fabric';
 import ArrowTypeInit from "./uiComponents/fabricjs/ArrowType";
+import ConeTypeInit from "./uiComponents/fabricjs/ConeType";
 import { ActiveWebHelper } from '../helpers/transport';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
@@ -89,6 +90,7 @@ if (fabric.Image?.prototype) {
 
 const FabricTypesInitialize = () => {
   ArrowTypeInit();
+  ConeTypeInit();
 };
 
 export default FabricTypesInitialize;

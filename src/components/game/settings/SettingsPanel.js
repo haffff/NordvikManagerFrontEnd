@@ -296,7 +296,11 @@ export const SettingsPanel = ({
       search === "" || editable.label.toLowerCase().includes(search.toLowerCase())
   );
 
-  const grouped = Object.groupBy(filteredEditables, (e) => e.category ?? "default");
+  const grouped = filteredEditables.reduce((acc, e) => {
+    const k = e.category ?? "default";
+    (acc[k] ??= []).push(e);
+    return acc;
+  }, {});
   const defaultItems = grouped["default"] ?? [];
   const namedGroups = Object.entries(grouped).filter(([k]) => k !== "default");
 

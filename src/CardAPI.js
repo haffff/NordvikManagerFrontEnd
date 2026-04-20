@@ -36,8 +36,8 @@ const ALLOWED_COMMANDS = Object.freeze({
  * Anything prefixed with "custom_" is always allowed (addon namespace).
  */
 const ALLOWED_WS_COMMANDS = Object.freeze({
-  chat_message: true,
-  action_execute: true,
+  chat_push: true,
+  execute_action: true,
 });
 
 /**
@@ -502,13 +502,13 @@ class CardAPI {
   // ── Chat ────────────────────────────────────────────────────────────────
 
   SendChatMessage(message) {
-    this._sendWsCommand("chat_message", message);
+    this._sendWsCommand("chat_push", message);
   }
 
   // ── Actions ─────────────────────────────────────────────────────────────
 
   FireAction(action, args) {
-    this._sendWsCommand("action_execute", { action, args });
+    this._sendWsCommand("execute_action", { action, args });
   }
 
   // ── Sandboxed WebSocket send ────────────────────────────────────────────

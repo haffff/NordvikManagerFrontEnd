@@ -35,8 +35,24 @@ export const DropDownMenu = ({
         panel: "DropDownMenu",
         id: viewId,
         contextId: viewId,
-        AddMenuItem: (item) => {
-          setAdditionalItems([...additionalItems, item]);
+        AddMenuItem: (data) => {
+          // Support both a bare React element and { contextId, item } shape
+          const element = (data && data.item !== undefined) ? data.item : data;
+          setAdditionalItems(prev => [...prev, element]);
+        },
+        AddSubMenu: ({ subMenuId, subMenuName }) => {
+          // Only add a submenu if no DropDownMenu with that viewId is already registered
+          const existing = ClientMediator._resolveClients
+            ? ClientMediator._resolveClients("DropDownMenu", { contextId: subMenuId })
+            : null;
+          if (existing && existing.length > 0) return;
+          const submenuElement = React.createElement(DropDownMenu, {
+            key: subMenuId,
+            viewId: subMenuId,
+            name: subMenuName || subMenuId,
+            submenu: true,
+          });
+          setAdditionalItems(prev => [...prev, submenuElement]);
         },
       });
     }

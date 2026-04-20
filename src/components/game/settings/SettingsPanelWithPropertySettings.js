@@ -28,13 +28,11 @@ export const SettingsPanelWithPropertySettings = ({
             const propsEditableKeys = propsEditable.map((x) => x.key);
             const relevantProps = data.filter((x) => propsEditableKeys.includes(x.name));
 
-            setProperties(relevantProps);            // Build a merged snapshot: dto fields + property values (never mutate the incoming dto)
+            setProperties(relevantProps);
+
+            // Build a merged snapshot: dto fields + property values (never mutate the incoming dto)
             const propValues = {};
             propsEditable.forEach((prop) => {
-                // Only fall back to the server-side property if the dto doesn't already carry this key
-                // (use hasOwnProperty so that false/0/null-valued DTO fields are still respected)
-                if (Object.prototype.hasOwnProperty.call(dto, prop.key)) return;
-
                 const found = data.find((x) => x.name === prop.key);
                 let value = found?.value;
                 if (prop.type === "number")  value = parseFloat(value);
@@ -47,14 +45,26 @@ export const SettingsPanelWithPropertySettings = ({
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [dto.id]);
 
-    const propertySave = (dtoToUpdate) => {
+    const propertySave = async (dtoToUpdate) => {
+        // Always reload properties before saving so we have accurate IDs.
+        // Without this, property_add silently fails with AlreadyExists when the
+        // property was created in a previous session and isn't in propertiesRef.
+        const freshData = await WebHelper.getAsync("properties/QueryProperties?parentIds=" + mergedDto.id);
+        if (freshData) {
+            const propsEditable = editableKeyLabelDict.filter((x) => x.property);
+            const propsEditableKeys = propsEditable.map((x) => x.key);
+            const freshProps = freshData.filter((x) => propsEditableKeys.includes(x.name));
+            setProperties(freshProps);
+            propertiesRef.current = freshProps;
+        }
+
         const remaining = { ...dtoToUpdate };
         const propsToUpdate = [];
 
         Object.keys(remaining).forEach((key) => {
             const existingProp = propertiesRef.current.find((x) => x.name === key);
             if (existingProp) {
-                propsToUpdate.push({ ...existingProp, value: remaining[key].toString() });
+                propsToUpdate.push({ ...existingProp, value: remaining[key]?.toString() ?? "" });
                 delete remaining[key];
                 return;
             }
@@ -68,7 +78,7 @@ export const SettingsPanelWithPropertySettings = ({
         });
 
         if (propsToUpdate.length > 0) {
-            ClientMediator.sendCommandAsync("properties", "UpdateBulk", { properties: propsToUpdate });
+            await ClientMediator.sendCommandAsync("properties", "UpdateBulk", { properties: propsToUpdate });
         }
 
         onSave?.(remaining);
