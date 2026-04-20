@@ -1,7 +1,7 @@
 import React from "react";
 import EditTable from "../../settings/EditTable";
 import { Badge, Box, For, HStack, Stack, Text, createListCollection } from "@chakra-ui/react";
-import { SelectContent, SelectItem, SelectRoot, SelectTrigger, SelectValueText } from "../../../ui/select";
+import { SelectContent, SelectItem, SelectItemGroup, SelectRoot, SelectTrigger, SelectValueText } from "../../../ui/select";
 import DListItemButton from "../../../uiComponents/base/List/ListItemDetails/DListItemButton";
 import { FaArrowAltCircleDown, FaArrowAltCircleUp, FaMinusCircle, FaChevronDown, FaChevronRight } from "react-icons/fa";
 
@@ -79,6 +79,16 @@ export const ActionStep = ({
     [stepDefinitions]
   );
 
+  const stepsByCategory = React.useMemo(() => {
+    const map = {};
+    (Array.isArray(stepDefinitions) ? stepDefinitions : []).forEach((s) => {
+      const cat = s.category || "General";
+      if (!map[cat]) map[cat] = [];
+      map[cat].push(s);
+    });
+    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
+  }, [stepDefinitions]);
+
   const label   = step?.Data?.Label || "Unnamed step";
   const hasType = Boolean(stepDefinition);
 
@@ -142,14 +152,16 @@ export const ActionStep = ({
                 </SelectValueText>
               </SelectTrigger>
               <SelectContent>
-                <For each={stepDefinitionsCollection.items}>
-                  {(option, index) => (
-                    <SelectItem key={index} item={option} value={option.value}
-                      selected={step.Type === option.value}>
-                      {option.name}
-                    </SelectItem>
-                  )}
-                </For>
+                {stepsByCategory.map(([category, items]) => (
+                  <SelectItemGroup key={category} label={category}>
+                    {items.map((option, index) => (
+                      <SelectItem key={index} item={option} value={option.value}
+                        selected={step.Type === option.value}>
+                        {option.name}
+                      </SelectItem>
+                    ))}
+                  </SelectItemGroup>
+                ))}
               </SelectContent>
             </SelectRoot>
           </Box>

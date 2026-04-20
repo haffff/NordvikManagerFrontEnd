@@ -25,6 +25,7 @@ import { FaCheck, FaMinus, FaPlay, FaPlus, FaSave, FaTrash, FaFileExport } from 
 import { Switch } from "../../../ui/switch";
 import {  SelectContent,
   SelectItem,
+  SelectItemGroup,
   SelectRoot,
   SelectTrigger,
   SelectValueText,
@@ -134,6 +135,16 @@ const ActionPane = React.memo(({
     () => createListCollection({ items: PERMISSION_ITEMS }),
     []
   );
+
+  const hooksByCategory = React.useMemo(() => {
+    const map = {};
+    hooksCollection.items.forEach((h) => {
+      const cat = h.category || "General";
+      if (!map[cat]) map[cat] = [];
+      map[cat].push(h);
+    });
+    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
+  }, [hooksCollection]);
 
   // Convert numeric/null permission to the string key used by the Select
   const permVal = (v) => (v == null ? "" : String(v));
@@ -313,14 +324,16 @@ const ActionPane = React.memo(({
                 </SelectValueText>
               </SelectTrigger>
               <SelectContent>
-                <For each={hooksCollection.items}>
-                  {(option) => (
-                    <SelectItem key={option.value} item={option} value={option.value}
-                      selected={selectedAction.hook === option.value}>
-                      {option.name}
-                    </SelectItem>
-                  )}
-                </For>
+                {hooksByCategory.map(([category, items]) => (
+                  <SelectItemGroup key={category} label={category}>
+                    {items.map((option) => (
+                      <SelectItem key={option.value} item={option} value={option.value}
+                        selected={selectedAction.hook === option.value}>
+                        {option.name}
+                      </SelectItem>
+                    ))}
+                  </SelectItemGroup>
+                ))}
               </SelectContent>
             </SelectRoot>
           </Box>
