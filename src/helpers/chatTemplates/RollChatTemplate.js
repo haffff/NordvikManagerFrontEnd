@@ -44,7 +44,7 @@ const buildFormulaElements = (rolled, dices) => {
   // Tokenise into: dice placeholders {N}, numeric literals, and operators.
   // \S+ is intentionally NOT used here — it greedily swallows adjacent tokens
   // (e.g. "+{1}" becomes one token) when there are no spaces in the formula.
-  const parts = rolled.match(/\{\d+\}|[\d.]+|[+\-*/()]/g) ?? [];
+  const parts = rolled?.match(/\{\d+\}|[\d.]+|[+\-*/()]/g) ?? [];
   const elements        = [];
 
   parts.forEach((part, pi) => {
@@ -89,6 +89,8 @@ export const RollChatTemplate = ({ object }) => {
   if (!object?.roll) return null;
 
   const { title, roll, message } = object;
+  const chatColor       = object.color;
+  const chatBorderColor = object.borderColor;
   const { rolled, result, dices } = roll;
 
   const formulaElements = buildFormulaElements(rolled, dices ?? []);
@@ -96,8 +98,8 @@ export const RollChatTemplate = ({ object }) => {
     <Box
       borderRadius="6px"
       borderWidth="1px"
-      borderColor={BORDER_CLR}
-      bg={BG_CARD}
+      borderColor={chatBorderColor || BORDER_CLR}
+      bg={chatColor || BG_CARD}
       px="10px"
       py="8px"
       my="2px"

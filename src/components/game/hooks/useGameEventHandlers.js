@@ -187,7 +187,7 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
     const menuItem = React.createElement(DropDownItem, {
       key: item.name,
       name: item.uiName || item.name,
-      onClick: () => ActiveTransportManager.Send(JSON.stringify({ command: "execute_action", data: { Action: item.action } })),
+      onClick: () => ActiveTransportManager.Send({ command: "execute_action", data: { Action: item.action, Args: item.actionArgs ?? undefined } }),
     });
     ClientMediator.sendCommand("DropDownMenu", "AddMenuItem", {
       contextId: targetContextId,
@@ -205,7 +205,7 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
       name: item.uiName || item.name,
       menuId: item.menuId,
       menuName: item.menuName,
-      onClick: () => ActiveTransportManager.Send(JSON.stringify({ command: "execute_action", data: item.action })),
+      onClick: () => ActiveTransportManager.Send({ command: "execute_action", data: { Action: item.action, Args: item.actionArgs ?? undefined } }),
     });
   }, []);
 

@@ -28,12 +28,13 @@ import { ResizeDivider, useDragResize } from "../../../uiComponents/ResizeDivide
 
 const EDITABLE_DICT = [
   { key: "name", label: "UI Name", type: "string" },
+  { key: "key", label: "Key", type: "string" },
   { key: "description", label: "Description", type: "textarea" },
   {
     key: "mainResource",
     label: "Main Resource (JavaScript)",
     type: "materialSelect",
-    additionalFilter: (item) => item.mimeType === "text/javascript",
+    additionalFilter: (item) => item.mimeType === "text/html",
   },
   {
     key: "additionalResources",
@@ -88,10 +89,10 @@ const ResourceBadges = ({ view }) => {
   return (
     <HStack gap="6px" flexShrink={0}>
       {hasJs && (
-        <Badge colorPalette="yellow" variant="subtle" fontSize="10px">
+        <Badge colorPalette="orange" variant="subtle" fontSize="10px">
           <HStack gap="3px">
             <Icon as={FaCode} />
-            <span>JS</span>
+            <span>HTML</span>
           </HStack>
         </Badge>
       )}
@@ -158,7 +159,7 @@ export const CustomViewsPanel = ({ gameDataRef, state }) => {
 
   React.useEffect(() => {
     const load = async () => {
-      const data = await WebHelper.getAsync("materials/getcards");
+      const data = await WebHelper.getAsync("materials/getcustomwiews");
       if (data) setViews(data);
     };
     load();

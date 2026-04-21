@@ -69,8 +69,21 @@ export const ActionStep = ({
       key: arg.name, label: arg.name,
       toolTip: arg.description || arg.name,
       type: arg.type.toLowerCase() === "jtoken" ? "string" : arg.type.toLowerCase(),
+      conditionField: arg.conditionField ?? null,
+      conditionValue: arg.conditionValue ?? null,
     }))];
   }, [step.Type, stepDefinitions]);
+
+  // Filter fields whose ShowIf condition is not currently satisfied
+  const visibleContent = React.useMemo(() => {
+    return stepContent.filter((field) => {
+      if (!field.conditionField) return true;
+      const actual = step.Data?.[field.conditionField];
+      const expected = field.conditionValue;
+      if (typeof actual === 'boolean') return expected === 'true' ? actual : !actual;
+      return String(actual ?? '').toLowerCase() === expected.toLowerCase();
+    });
+  }, [stepContent, step.Data]);
 
   const stepDefinition = stepDefinitions.find((x) => x.value === step.Type);
 
@@ -177,7 +190,7 @@ export const ActionStep = ({
               <EditTable
                 keyBase={actionId + step.id + step.Type}
                 dto={step.Data}
-                editableKeyLabelDict={stepContent}
+                editableKeyLabelDict={visibleContent}
                 hideSaveButton
                 saveOnLeave
                 onSave={(dto) => setStep((prev) => ({ ...prev, Data: { ...prev.Data, ...dto } }))}
