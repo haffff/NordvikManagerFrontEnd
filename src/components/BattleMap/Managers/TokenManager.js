@@ -515,7 +515,9 @@ class TokenManager {
 
     const tokens = this._allTokens();
     for (const token of tokens) {
-      this._applySinglePropertyToToken(token, finalProperty);
+      this._applySinglePropertyToToken(token, finalProperty).catch((err) =>
+        console.error("TokenManager: _applySinglePropertyToToken failed", err)
+      );
     }
   }
 
@@ -543,7 +545,9 @@ class TokenManager {
       entityName: source,
     };
 
-    this._applySinglePropertyToToken(object, finalProperty);
+    this._applySinglePropertyToToken(object, finalProperty).catch((err) =>
+      console.error("TokenManager: _applySinglePropertyToToken failed", err)
+    );
   }
 
   /**

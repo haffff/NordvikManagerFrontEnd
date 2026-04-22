@@ -256,9 +256,14 @@ export const CardPanel = ({ id, name }) => {
         .join("\n");
 
       // Build inline <script> tags for JS — same approach.
+      // Escape </script> occurrences in the decoded content so they don't
+      // prematurely terminate the enclosing script tag.
       const jsScripts = additionalMetas
         .filter((m) => (m.mimeType === "text/javascript" || m.mimeType === "application/javascript") && m.data)
-        .map((m) => `<script>${atob(m.data)}</script>`)
+        .map((m) => {
+          const code = atob(m.data).replace(/<\/script>/gi, "<\\/script>");
+          return `<script>${code}</script>`;
+        })
         .join("\n");
 
       // Inject inline CSS into <head>

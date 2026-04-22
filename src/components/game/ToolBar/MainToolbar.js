@@ -49,6 +49,10 @@ export const MainToolbar = ({
         setAdditionalButtons(prev => [...prev, element]);
       },
     });
+    return () => {
+      ClientMediator.unregister("main-toolbar");
+      setAdditionalButtons([]);
+    };
   }, []);
 
   const GenerateInviteLink = () => {

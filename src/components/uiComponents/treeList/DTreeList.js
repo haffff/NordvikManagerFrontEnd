@@ -81,13 +81,20 @@ function buildPath(item) {
  * The root folder itself is NOT included — caller handles it separately.
  */
 function collectDescendants(folderId, treeItems) {
+    // Build a parentId→children map once (O(n)) to avoid O(n²) repeated filtering
+    const childrenOf = new Map();
+    for (const item of treeItems) {
+        if (!item.parentId) continue;
+        if (!childrenOf.has(item.parentId)) childrenOf.set(item.parentId, []);
+        childrenOf.get(item.parentId).push(item);
+    }
+
     const result = [];
     const recurse = (parentId) => {
-        const children = treeItems.filter(x => x.parentId === parentId);
-        for (const child of children) {
+        for (const child of childrenOf.get(parentId) ?? []) {
             if (child.isFolder) {
-                recurse(child.id);   // contents first
-                result.push(child); // then the sub-folder
+                recurse(child.id);
+                result.push(child);
             } else {
                 result.push(child);
             }

@@ -75,7 +75,8 @@ export function isExpressionDep(dep) {
  * Expression formats:
  *   "RuleName(arg1, arg2, ...)"  — rule function call; first arg is the primary value expression
  *   "%propName%"                 — plain substitution (type-coerced per dep.type)
- *   any math expression          — passed through after %prop% substitution
+ *   any other string             — %prop% substitution applied then type-coerced;
+ *                                  arithmetic is NOT evaluated (use the Math rule for that)
  *
  * @param {string} expression
  * @param {Map<string,string>} propsMap  — property name → raw string value
@@ -112,7 +113,7 @@ export function evaluate(expression, propsMap, type) {
     }
   }
 
-  // Plain expression: substitute %props% then coerce
+  // Plain %prop% substitution then type coercion — no arithmetic evaluation
   const substituted = expression.replace(/%(\w+)%/g, (_, name) => propsMap.get(name) ?? "");
   return coerceValue(substituted.trim(), type);
 }
