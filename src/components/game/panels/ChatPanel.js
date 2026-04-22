@@ -564,7 +564,10 @@ export const ChatPanel = () => {
 
   // ── Send ─────────────────────────────────────────────────────────────────────
   const handleSend = React.useCallback(async (mediator_message) => {
-    const trimmed = mediator_message?.trim() ?? message.trim();
+    const trimmed =
+      typeof mediator_message === "string"
+        ? mediator_message.trim()
+        : message.trim();
     if (!trimmed) return;
 
     // /c <command> — local command execution

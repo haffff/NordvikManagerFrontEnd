@@ -80,6 +80,7 @@ export const ActionStep = ({
       if (!field.conditionField) return true;
       const actual = step.Data?.[field.conditionField];
       const expected = field.conditionValue;
+      if (expected == null) return true;
       if (typeof actual === 'boolean') return expected === 'true' ? actual : !actual;
       return String(actual ?? '').toLowerCase() === expected.toLowerCase();
     });

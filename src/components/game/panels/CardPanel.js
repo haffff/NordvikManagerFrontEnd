@@ -235,12 +235,17 @@ export const CardPanel = ({ id, name }) => {
       // blob: URL those paths resolve against the null origin and 404.
       // Fix: rewrite every root-relative src="/" and href="/" to an absolute
       // URL using the card server's origin (derived from WebHelper.ApiAddress).
-      // const cardOrigin = WebHelper.ApiAddress.replace(/\/api$/, "");
-      // const rebasedHtml = rawHtml.replace(
-      //    /((?:src|href)=["'])\/(?!\/)/g,
-      //    `$1${cardOrigin}/`
-      // );
-      const rebasedHtml = rawHtml;
+      const cardOrigin = (() => {
+        try {
+          return new URL(WebHelper.ApiAddress).origin;
+        } catch (error) {
+          return WebHelper.ApiAddress.replace(/\/api\/?$/, "");
+        }
+      })();
+      const rebasedHtml = rawHtml.replace(
+        /((?:src|href)=["'])\/(?!\/)/g,
+        `$1${cardOrigin}/`
+      );
 
       
       // Build inline <style> tags for CSS — content decoded from base64 metadata.

@@ -21,7 +21,15 @@ export default class ChatMessageParser {
 
       return message;
     } catch (e) {
-      return typeof message === "string" ? message : JSON.stringify(message);
+      if (typeof message === "string") {
+        return message;
+      }
+
+      try {
+        return JSON.stringify(message);
+      } catch (stringifyError) {
+        return String(message);
+      }
     }
   }
 
