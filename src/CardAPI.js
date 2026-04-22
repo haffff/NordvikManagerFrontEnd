@@ -508,8 +508,12 @@ class CardAPI {
   // ── Actions ─────────────────────────────────────────────────────────────
 
   FireAction(action, args) {
-    //cardID is always appended for action to use
-    this._sendWsCommand("execute_action", { action, ...args, cardId: this._cardId });
+    // cardID is always appended for action to use
+    const safeArgs = args && typeof args === "object" ? args : {};
+    this._sendWsCommand("execute_action", {
+      Action: action,
+      Args: { ...safeArgs, cardId: this._cardId },
+    });
   }
 
   // ── Sandboxed WebSocket send ────────────────────────────────────────────
