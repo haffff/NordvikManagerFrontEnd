@@ -107,6 +107,7 @@ export const CardsPanel = ({ state }) => {
         refreshRef={treeRefreshRef}
         onRefresh={loadData}
         canEditFolders={canEditFolders}
+        onDeleteItem={(item) => WebSocketManagerInstance.Send({ command: "card_delete", data: item.id })}
         onAddItem={() => {
           openRef.current({ template: templates[0]?.id });
         }}

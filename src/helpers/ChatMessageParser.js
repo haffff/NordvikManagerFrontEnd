@@ -3,11 +3,14 @@ import { ChatTemplateDefintions } from "./chatTemplates/ChatTemplateDefinitions"
 
 export default class ChatMessageParser {
   ParseMessage(message) {
-    //Try parse json
     try {
+      // Already a parsed object (e.g. incoming WebSocket data that was pre-parsed)
+      if (typeof message === "object" && message !== null && message.type) {
+        return this.GenerateMessageComponent(message);
+      }
+
       const parsedMessage = JSON.parse(message);
 
-      //Check if the parsed message is an object and has a type property
       if (
         typeof parsedMessage === "object" &&
         parsedMessage !== null &&
@@ -18,8 +21,15 @@ export default class ChatMessageParser {
 
       return message;
     } catch (e) {
-      //If parsing fails, return the original message
-      return message;
+      if (typeof message === "string") {
+        return message;
+      }
+
+      try {
+        return JSON.stringify(message);
+      } catch (stringifyError) {
+        return String(message);
+      }
     }
   }
 

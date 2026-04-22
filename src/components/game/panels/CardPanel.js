@@ -104,7 +104,9 @@ function mountBridge(iframe, cardApi, cardId, additionalArguments) {
 
         if (panel === "__register__") {
           // Scoped panel registration
-          result = cardApi.ClientMediator.register(command, data);        } else if (panel === "Properties") {
+          result = cardApi.ClientMediator.register(command, data);        } 
+          
+          else if (panel === "Properties") {
           // Route ALL Properties commands through CardAPI.Properties so every
           // call benefits from the prefilled cache.  parentId is always forced
           // to this card's ID — the card cannot read another card's properties.
@@ -199,12 +201,16 @@ export const CardPanel = ({ id, name }) => {
 
       if (cancelled) return;
 
-      // 3. Fetch additional resource metadata in parallel so we know their
-      //    mimeTypes before building the blob (CSS → <link>, JS → <script>).
+      // 3. Fetch additional resource metadata (including content) in parallel.
+      //    ResourceMetadata returns { id, name, mimeType, data } where data is
+      //    base64-encoded file content — same as the main resource above.
+      //    We inline CSS/JS directly into the blob rather than using <link>/<script src>
+      //    because the sandboxed iframe (null origin, no allow-same-origin) cannot
+      //    make credentialed HTTP requests, and resources are now served over WebRTC.
       const additionalMetas = await Promise.all(
         (response?.additionalResources ?? []).map((resId) =>
           WebHelper.getAsync("materials/ResourceMetadata?id=" + resId).then(
-            (meta) => ({ resId, mimeType: meta?.mimeType })
+            (meta) => ({ resId, mimeType: meta?.mimeType, data: meta?.data })
           )
         )
       );
@@ -216,10 +222,9 @@ export const CardPanel = ({ id, name }) => {
       if (cancelled) { cardApi.destroy(); return; }      // 5. Build the final blob HTML.
       //
       //    • Decode base64 main resource → raw HTML.
-      //    • Inject CSS <link> tags into <head> — safe because the iframe is
-      //      cross-origin (blob: null origin) so these styles never reach the
-      //      parent page. No Shadow DOM needed; the iframe IS the boundary.
-      //    • Inject the CardAPI bridge script + JS <script> tags before </body>.
+      //    • Inline CSS as <style> tags into <head> — content already fetched
+      //      via WebRTC; no HTTP request needed from inside the iframe.
+      //    • Inject the CardAPI bridge script + inline JS <script> tags before </body>.
       //    • The iframe gets a blob: URL → null origin, so it cannot access
       //      parent cookies / localStorage / DOM.
 
@@ -230,28 +235,42 @@ export const CardPanel = ({ id, name }) => {
       // blob: URL those paths resolve against the null origin and 404.
       // Fix: rewrite every root-relative src="/" and href="/" to an absolute
       // URL using the card server's origin (derived from WebHelper.ApiAddress).
-      const cardOrigin = WebHelper.ApiAddress.replace(/\/api$/, "");
+      const cardOrigin = (() => {
+        try {
+          return new URL(WebHelper.ApiAddress).origin;
+        } catch (error) {
+          return WebHelper.ApiAddress.replace(/\/api\/?$/, "");
+        }
+      })();
       const rebasedHtml = rawHtml.replace(
         /((?:src|href)=["'])\/(?!\/)/g,
         `$1${cardOrigin}/`
       );
 
-      // Build <link> tags for CSS additional resources — injected into <head>
-      const cssLinks = additionalMetas
-        .filter((m) => m.mimeType === "text/css")
-        .map((m) => `<link rel="stylesheet" href="${WebHelper.getResourceString(m.resId)}">`)
+      
+      // Build inline <style> tags for CSS — content decoded from base64 metadata.
+      // Inlining avoids any HTTP request from inside the sandboxed null-origin iframe.
+      const cssStyles = additionalMetas
+        .filter((m) => m.mimeType === "text/css" && m.data)
+        .map((m) => `<style>${atob(m.data)}</style>`)
         .join("\n");
 
-      // Build <script> tags for JS additional resources
-      const scriptClose = "</script>";
+      // Build inline <script> tags for JS — same approach.
+      // Escape </script> occurrences in the decoded content so they don't
+      // prematurely terminate the enclosing script tag.
       const jsScripts = additionalMetas
-        .filter((m) => m.mimeType === "text/javascript" || m.mimeType === "application/javascript")
-        .map((m) => `<script src="${WebHelper.getResourceString(m.resId)}">${scriptClose}`)
-        .join("\n");      // Inject CSS links into <head>
-      let iframeHtml = cssLinks
+        .filter((m) => (m.mimeType === "text/javascript" || m.mimeType === "application/javascript") && m.data)
+        .map((m) => {
+          const code = atob(m.data).replace(/<\/script>/gi, "<\\/script>");
+          return `<script>${code}</script>`;
+        })
+        .join("\n");
+
+      // Inject inline CSS into <head>
+      let iframeHtml = cssStyles
         ? rebasedHtml.includes("</head>")
-          ? rebasedHtml.replace("</head>", cssLinks + "\n</head>")
-          : rebasedHtml.replace("<body", cssLinks + "\n<body")
+          ? rebasedHtml.replace("</head>", cssStyles + "\n</head>")
+          : rebasedHtml.replace("<body", cssStyles + "\n<body")
         : rebasedHtml;
 
       // Inject bridge + JS scripts before </body> (append if tag absent)

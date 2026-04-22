@@ -2,8 +2,9 @@ import React, { useCallback } from 'react';
 import UtilityHelper from '../../../helpers/UtilityHelper';
 import DockableHelper from '../../../helpers/DockableHelper';
 import ClientMediator from '../../../ClientMediator';
-import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
+import { ActiveWebHelper as WebHelper, ActiveTransportManager } from '../../../helpers/transport';
 import { toaster } from '../../ui/toaster';
+import { DropDownItem } from '../../uiComponents/base/DDItems/DropDownItem';
 
 /**
  * Custom hook for managing game-specific WebSocket event handlers
@@ -153,6 +154,85 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
     state.commit();
   }, [state, CreateLayoutElement]);
 
+  /**
+   * Backend → client: show a view (card) by viewId.
+   * Payload: { viewId: string, data?: string }
+   */
+  const HandleViewShow = useCallback((resp) => {
+    const panel = DockableHelper.NewFloating(
+      state,
+      CreateLayoutElement({ type: "CardPanel", props: { id: resp.data.viewId, data: resp.data.data } })
+    );
+    panel.rect = panel.rect.withX(50).withY(50);
+    state.commit();
+  }, [state, CreateLayoutElement]);
+
+  /**
+   * Backend → client: add a dynamic menu item to a named dropdown menu.
+   * Payload: { name, uiName, icon, action, location, onlyOwner }
+   */
+  const HandleAddMenuItem = useCallback((resp) => {
+    const item = resp.data;
+
+    // If a submenu is requested, ensure a DropDownMenu is created inside the parent first
+    if (item.subMenuId) {
+
+      ClientMediator.waitForEvent("DropDownMenuReady", (data) => data.viewId === item.subMenuId, 5000)
+        .then(() => {
+          const menuItem = React.createElement(DropDownItem, {
+            key: item.name,
+            name: item.uiName || item.name,
+            onClick: () => ActiveTransportManager.Send({ command: "execute_action", data: { Action: item.action, Args: item.actionArgs ?? undefined } }),
+          });
+          ClientMediator.sendCommand("DropDownMenu", "AddMenuItem", {
+            contextId: item.subMenuId,
+            item: menuItem,
+          });
+        });
+
+      ClientMediator.sendCommand("DropDownMenu", "AddSubMenu", {
+        contextId: item.location || "game",
+        subMenuId: item.subMenuId,
+        subMenuName: item.subMenuName || item.subMenuId,
+      });
+
+      }
+      else {
+        const targetContextId = item.subMenuId || item.location || "game";
+        const menuItem = React.createElement(DropDownItem, {
+          key: item.name,
+          name: item.uiName || item.name,
+          onClick: () => ActiveTransportManager.Send({ command: "execute_action", data: { Action: item.action, Args: item.actionArgs ?? undefined } }),
+        });
+        ClientMediator.sendCommand("DropDownMenu", "AddMenuItem", {
+          contextId: targetContextId,
+          item: menuItem,
+    });
+  }
+  }, []);
+
+  /**
+   * Backend → client: add a dynamic button to the toolbar.
+   * Payload: { name, uiName, icon, action, location, onlyOwner, menuId, menuName }
+   */
+  const HandleAddToolbarButton = useCallback((resp) => {
+    const item = resp.data;
+    ClientMediator.sendCommand("Toolbar", "AddButton", {
+      name: item.uiName || item.name,
+      menuId: item.menuId,
+      menuName: item.menuName,
+      onClick: () => ActiveTransportManager.Send({ command: "execute_action", data: { Action: item.action, Args: item.actionArgs ?? undefined } }),
+    });
+  }, []);
+
+  /**
+   * Backend → client: fire a ClientMediator event.
+   * Payload: { eventName: string, payload?: any }
+   */
+  const HandleFireClientMediator = useCallback((resp) => {
+    ClientMediator.fireEvent(resp.data.eventName, resp.data.payload);
+  }, []);
+
   return {
     HandleShowLayout,
     HandleSettingsChange,
@@ -161,5 +241,9 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
     HandleShowPanel,
     HandleShowCard,
     HandleShowView,
+    HandleViewShow,
+    HandleAddMenuItem,
+    HandleAddToolbarButton,
+    HandleFireClientMediator,
   };
 };

@@ -1,11 +1,15 @@
-import { Box, Flex, HStack, Icon, IconButton, Spinner, Text } from '@chakra-ui/react';
+import { Box, Button, Flex, HStack, Icon, IconButton, Spinner, Text } from '@chakra-ui/react';
 import * as React from 'react';
 import Subscribable from '../base/Subscribable';
 import { ReactTreeList } from '@bartaxyz/react-tree-list';
 import { ActiveTransportManager as WebSocketManagerInstance } from '../../../helpers/transport';
 import InputModal from '../base/Modals/InputModal';
 import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
-import { FaEdit, FaFolder, FaMinusCircle, FaPlus, FaSync } from 'react-icons/fa';
+import { FaEdit, FaFolder, FaMinusCircle, FaPlus, FaSync, FaTrashAlt } from 'react-icons/fa';
+import {
+    DialogRoot, DialogContent, DialogHeader, DialogTitle,
+    DialogBody, DialogFooter,
+} from '../../ui/dialog';
 import DListItemButton from '../base/List/ListItemDetails/DListItemButton';
 import DListItem from '../base/List/DListItem';
 import DynamicIcon from '../icons/DynamicIcon';
@@ -71,6 +75,35 @@ function buildPath(item) {
     return path;
 }
 
+/**
+ * Collect all descendants of a folder in safe deletion order:
+ * leaf items first, then their parent sub-folders (depth-first post-order).
+ * The root folder itself is NOT included — caller handles it separately.
+ */
+function collectDescendants(folderId, treeItems) {
+    // Build a parentId→children map once (O(n)) to avoid O(n²) repeated filtering
+    const childrenOf = new Map();
+    for (const item of treeItems) {
+        if (!item.parentId) continue;
+        if (!childrenOf.has(item.parentId)) childrenOf.set(item.parentId, []);
+        childrenOf.get(item.parentId).push(item);
+    }
+
+    const result = [];
+    const recurse = (parentId) => {
+        for (const child of childrenOf.get(parentId) ?? []) {
+            if (child.isFolder) {
+                recurse(child.id);
+                result.push(child);
+            } else {
+                result.push(child);
+            }
+        }
+    };
+    recurse(folderId);
+    return result;
+}
+
 // ─── sub-components ───────────────────────────────────────────────────────────
 
 const FolderLabel = React.memo(({ id, name, icon, color, treeId }) => (
@@ -101,7 +134,7 @@ const EmptyState = () => (
 /** Toolbar — memoised so it never re-renders during tree redraws. */
 const Toolbar = React.memo(({
     withAddItem, selectedItem, items, canEditFolders,
-    onAddItem, onCreateFolder, onEditFolder, onDeleteFolder,
+    onAddItem, onCreateFolder, onEditFolder, onDeleteFolder, onDeleteAll,
     onGenerateEditButtons, onRefresh, refreshing,
 }) => {
     const isFolder     = Boolean(selectedItem?.isFolder);
@@ -120,8 +153,9 @@ const Toolbar = React.memo(({
                 <DListItemButton label="Add Folder" icon={FaFolder} onClick={onCreateFolder} />
             )}
             {canEditFolders && isFolder && <>
-                <DListItemButton label="Edit Folder"   icon={FaEdit}       onClick={onEditFolder}   />
-                <DListItemButton label="Delete Folder" icon={FaMinusCircle} color="red" onClick={onDeleteFolder} />
+                <DListItemButton label="Edit Folder"    icon={FaEdit}       onClick={onEditFolder}   />
+                <DListItemButton label="Delete Folder"  icon={FaMinusCircle} color="red" onClick={onDeleteFolder} />
+                <DListItemButton label="Delete All"     icon={FaTrashAlt}   color="red" onClick={onDeleteAll} />
             </>}
             {!isFolder && targetEntity && onGenerateEditButtons?.(targetEntity)}
             {onRefresh && (
@@ -151,6 +185,7 @@ export const DTreeList = ({
     generateItem,
     entityType,
     onFolderDelete,
+    onDeleteItem,
     onGenerateEditButtons,
     onSelect,
     refreshRef,
@@ -186,9 +221,17 @@ export const DTreeList = ({
     selectedRef.current  = selected;
     entityTypeRef.current = entityType;
 
+    // Keep onDeleteItem in a ref so callbacks don't go stale
+    const onDeleteItemRef = React.useRef(onDeleteItem);
+    onDeleteItemRef.current = onDeleteItem;
+
     // modal open-fn refs
     const openCreateRef = React.useRef();
     const openEditRef   = React.useRef();
+
+    // delete-all confirmation dialog state
+    const [deleteAllOpen,   setDeleteAllOpen]   = React.useState(false);
+    const [deleteAllTarget, setDeleteAllTarget] = React.useState(null); // { name, count }
 
     // ── open-state preservation ────────────────────────────────────────────────
     const collectOpenStates = React.useCallback(() => {
@@ -321,11 +364,12 @@ export const DTreeList = ({
         const container = document.getElementById(treeId);
         if (!container) return;
         const handler = (e) => {
-            const id = e.target
-                ?.closest(".representsElement")
-                ?.id?.split("/")?.[1]
-                ?? e.target?.querySelector(".representsElement")
-                    ?.id?.split("/")?.[1];
+            // The .representsElement hidden div is a sibling of the generated item
+            // inside the ReactTreeList label — not an ancestor or descendant of the
+            // actual dragged element. Walk up to the draggable row first, then search
+            // down into it to find the hidden div.
+            const row = e.target?.closest('[draggable="true"]');
+            const id = row?.querySelector(".representsElement")?.id?.split("/")?.[1];
             if (!id || id.startsWith("f-")) return;
             sessionStorage.setItem("draggable", JSON.stringify({ entityType: entityTypeRef.current, id }));
         };
@@ -433,6 +477,44 @@ export const DTreeList = ({
         onFolderDelete?.(selectedRef.current.id);
     }, [onFolderDelete]);
 
+    // Opens the confirmation dialog for "Delete All" on the selected folder.
+    const handleOpenDeleteAll = React.useCallback(() => {
+        const folder = selectedRef.current;
+        if (!folder?.id || !folder.isFolder) return;
+        const count = collectDescendants(folder.id, treeItemsRef.current).length;
+        setDeleteAllTarget({ name: folder.name ?? "folder", count });
+        setDeleteAllOpen(true);
+    }, []);
+
+    // Runs the actual recursive deletion after the user confirms.
+    // Sends commands in post-order so leaves are deleted before their parent folders.
+    // The backend rejects tree_remove on a non-empty folder, so if any item fails
+    // (e.g. permission denied) the containing folders survive with remaining items.
+    const executeDeleteAll = React.useCallback(() => {
+        const folder = selectedRef.current;
+        if (!folder?.id) return;
+
+        const descendants = collectDescendants(folder.id, treeItemsRef.current);
+
+        for (const item of descendants) {
+            if (item.isFolder) {
+                WebSocketManagerInstance.Send({ command: "tree_remove", data: item.id });
+            } else {
+                const entity = itemsRef.current.find(x => x.id === item.targetId);
+                if (entity && onDeleteItemRef.current) {
+                    onDeleteItemRef.current(entity, item);
+                } else {
+                    // Fallback: remove only the tree entry if no entity-specific handler
+                    WebSocketManagerInstance.Send({ command: "tree_remove", data: item.id });
+                }
+            }
+        }
+
+        // Delete the root folder last
+        WebSocketManagerInstance.Send({ command: "tree_remove", data: folder.id });
+        onFolderDelete?.(folder.id);
+    }, [onFolderDelete]);
+
     // Build path-prefixed labels for the "add after" dropdown in the create modal
     const getFolderOptions = () =>
         treeItemsRef.current.map(x => {
@@ -492,6 +574,7 @@ export const DTreeList = ({
                 onCreateFolder={() => openCreateRef.current?.({ name: "", parent: selected?.id })}
                 onEditFolder={() => openEditRef.current?.({ ...selected, icon: selected?.itemIcon })}
                 onDeleteFolder={handleDeleteFolder}
+                onDeleteAll={handleOpenDeleteAll}
                 onGenerateEditButtons={onGenerateEditButtons}
                 onRefresh={onRefresh ? () => { fetchTree(); onRefresh(); } : undefined}
                 refreshing={loading}
@@ -502,8 +585,9 @@ export const DTreeList = ({
                 <SearchInput value={filter} onChange={v => setFilter(v)} />
             </Box>
 
-            {/* Tree body */}
-            <Box flex={1} overflowY="auto">
+            {/* Tree body — id={treeId} must be on this always-rendered Box so the
+                dragstart delegated listener (attached once on mount) can find it. */}
+            <Box id={treeId} flex={1} overflowY="auto">
                 {loading ? (
                     <Flex align="center" justify="center" gap="8px" py="24px" color="gray.500">
                         <Spinner size="sm" />
@@ -512,17 +596,42 @@ export const DTreeList = ({
                 ) : treeData.length === 0 ? (
                     <EmptyState />
                 ) : (
-                    <Box id={treeId}>
-                        <ReactTreeList
-                            itemDefaults={{ arrow: "▸" }}
-                            data={treeData}
-                            onSelected={handleSelect}
-                            onChange={setTreeData}
-                            onDrop={onDrop}
-                        />
-                    </Box>
+                    <ReactTreeList
+                        itemDefaults={{ arrow: "▸" }}
+                        data={treeData}
+                        onSelected={handleSelect}
+                        onChange={setTreeData}
+                        onDrop={onDrop}
+                    />
                 )}
             </Box>
+
+            {/* Delete-all confirmation dialog */}
+            <DialogRoot open={deleteAllOpen} onOpenChange={(e) => setDeleteAllOpen(e.open)}>
+                <DialogContent maxW="sm">
+                    <DialogHeader>
+                        <DialogTitle>Delete "{deleteAllTarget?.name}"?</DialogTitle>
+                    </DialogHeader>
+                    <DialogBody>
+                        <Text fontSize="sm">
+                            This will delete the folder and all {deleteAllTarget?.count} item(s) inside.
+                            Items that cannot be deleted due to insufficient permissions will remain.
+                        </Text>
+                    </DialogBody>
+                    <DialogFooter gap={2}>
+                        <Button size="sm" variant="outline" onClick={() => setDeleteAllOpen(false)}>
+                            Cancel
+                        </Button>
+                        <Button
+                            size="sm"
+                            colorPalette="red"
+                            onClick={() => { setDeleteAllOpen(false); executeDeleteAll(); }}
+                        >
+                            Delete All
+                        </Button>
+                    </DialogFooter>
+                </DialogContent>
+            </DialogRoot>
         </Flex>
     );
 };

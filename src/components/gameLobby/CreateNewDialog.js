@@ -215,8 +215,8 @@ export const CreateNewDialog = ({ OnSuccess, publicGamesAllowed = true }) => {
                         <HStack key={addon.id}>
                           <Checkbox
                             onChange={(e) => {
-                              const current = form.addons ?? [];
-                              set("addons", e.target.checked
+                              const current = form.addonsSelected ?? [];
+                              set("addonsSelected", e.target.checked
                                 ? [...current, addon.key]
                                 : current.filter((x) => x !== addon.key)
                               );

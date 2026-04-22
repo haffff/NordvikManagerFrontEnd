@@ -5,6 +5,7 @@ import {
   Input,
   Image,
   Table,
+  Textarea,
   createListCollection,
   For,
 } from "@chakra-ui/react";
@@ -125,6 +126,23 @@ export const EditTable = ({
                 <Input
                   isInvalid={validationDict[key]}
                   size={"xs"}
+                  defaultValue={dto[editable.key]}
+                  onChange={(e) => OnChange(editable.key, e.target.value)}
+                />
+              </Table.Cell>
+            </Table.Row>
+          );
+          break;        case "textarea":
+          element.value = (
+            <Table.Row key={keyBase + editable.key}>
+              <LabelCell label={editable.label} description={editable.toolTip} />
+              <Table.Cell>
+                <Textarea
+                  size="xs"
+                  rows={6}
+                  resize="vertical"
+                  fontFamily="mono"
+                  fontSize="xs"
                   defaultValue={dto[editable.key]}
                   onChange={(e) => OnChange(editable.key, e.target.value)}
                 />

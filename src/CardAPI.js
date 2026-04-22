@@ -36,8 +36,8 @@ const ALLOWED_COMMANDS = Object.freeze({
  * Anything prefixed with "custom_" is always allowed (addon namespace).
  */
 const ALLOWED_WS_COMMANDS = Object.freeze({
-  chat_message: true,
-  action_execute: true,
+  chat_push: true,
+  execute_action: true,
 });
 
 /**
@@ -54,6 +54,53 @@ const ALLOWED_WS_RECEIVE_PREFIXES = Object.freeze([
 // ─── Constants ───────────────────────────────────────────────────────────────
 
 const ADDON_PANEL_PREFIX = "addon_";
+
+// ─── Resource data helpers ────────────────────────────────────────────────────
+
+/** Encode any supported data type to a base64 string. */
+async function _toBase64(data) {
+  if (typeof data === "string") {
+    const bytes = new TextEncoder().encode(data);
+    return _uint8ToBase64(bytes);
+  }
+  if (data instanceof Uint8Array)  return _uint8ToBase64(data);
+  if (data instanceof ArrayBuffer) return _uint8ToBase64(new Uint8Array(data));
+  if (data instanceof Blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload  = () => resolve(reader.result.split(",")[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(data);
+    });
+  }
+  throw new Error("CardAPI.Resources: unsupported data type — expected string, Uint8Array, ArrayBuffer, or Blob");
+}
+
+/** Loop-based uint8 → base64 that avoids call-stack overflow on large buffers. */
+function _uint8ToBase64(bytes) {
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+/** Infer a MIME type string from a value when the caller doesn't specify one. */
+function _mimeTypeOf(data) {
+  if (typeof data === "string") return "text/plain";
+  if (data instanceof Blob)     return data.type || "application/octet-stream";
+  return "application/octet-stream";
+}
+
+/**
+ * Decode a base64 payload from the server into the right JS type.
+ * Text and JSON types become strings; everything else becomes a Blob.
+ */
+function _decodeResourceData(base64, mimeType) {
+  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  const mt = (mimeType ?? "").toLowerCase();
+  if (mt.startsWith("text/") || mt === "application/json")
+    return new TextDecoder().decode(bytes);
+  return new Blob([bytes], { type: mt || "application/octet-stream" });
+}
 
 // ─── CardAPI ──────────────────────────────────────────────────────────────────
 
@@ -421,6 +468,83 @@ class CardAPI {
     },
   };
 
+  // ── Resources API ───────────────────────────────────────────────────────
+  //
+  // Accepts:  string | Uint8Array | ArrayBuffer | Blob
+  // Returns:  string for text/* / application/json, Blob for everything else
+
+  Resources = {
+    /**
+     * Create a new resource identified by a unique key.
+     * @param {string} key         - Unique lookup key within the game.
+     * @param {string|Uint8Array|ArrayBuffer|Blob} data - Content to store.
+     * @param {string} [name]      - Display name (defaults to key).
+     * @param {string} [mimeType]  - MIME type string. Auto-detected when omitted.
+     * @returns {Promise<string>}  GUID of the new resource.
+     */
+    Create: async (key, data, name, mimeType) => {
+      const mt = mimeType ?? _mimeTypeOf(data);
+      const content = await _toBase64(data);
+      const resp = await WebHelper.postAsync("materials/createresource", {
+        key, content, mimeType: mt, name: name ?? key,
+      });
+      if (resp?.status === 409)
+        throw new Error(resp.body?.error ?? "Resource with that key already exists.");
+      if (!resp || resp.status >= 300)
+        throw new Error(resp?.body?.error ?? "Failed to create resource.");
+      return resp.body?.id;
+    },
+
+    /**
+     * Read a resource's content by key.
+     * @param {string} key
+     * @returns {Promise<string|Blob|null>} string for text/json types, Blob otherwise, null if not found.
+     */
+    Read: async (key) => {
+      const resp = await WebHelper.getAsync(
+        `materials/resource?key=${encodeURIComponent(key)}`
+      );
+      if (!resp?.data) return null;
+      return _decodeResourceData(resp.data, resp.mimeType);
+    },
+
+    /**
+     * Overwrite the content of an existing resource by key.
+     * @param {string} key
+     * @param {string|Uint8Array|ArrayBuffer|Blob} data
+     * @param {string} [mimeType]  - New MIME type. Keeps existing type when omitted.
+     */
+    Update: async (key, data, mimeType) => {
+      const content = await _toBase64(data);
+      const mt = mimeType ?? _mimeTypeOf(data);
+      const resp = await WebHelper.putAsync("materials/resourcedata", { key, content, mimeType: mt });
+      if (!resp || resp.status >= 300)
+        throw new Error(resp?.body?.error ?? "Failed to update resource.");
+    },
+
+    /**
+     * Delete a resource by key.
+     */
+    Delete: async (key) => {
+      const resp = await WebHelper.deleteAsync(
+        `materials/resourcedata?key=${encodeURIComponent(key)}`
+      );
+      if (resp?.error) throw new Error(resp.error);
+    },
+
+    /**
+     * Create the resource if it doesn't exist, otherwise update its content.
+     * @returns {Promise<string|undefined>} GUID on create, undefined on update.
+     */
+    Upsert: async (key, data, name, mimeType) => {
+      try {
+        return await this.Resources.Create(key, data, name, mimeType);
+      } catch {
+        await this.Resources.Update(key, data, mimeType);
+      }
+    },
+  };
+
   // ── Sandboxed ClientMediator ────────────────────────────────────────────
 
   /**
@@ -502,13 +626,18 @@ class CardAPI {
   // ── Chat ────────────────────────────────────────────────────────────────
 
   SendChatMessage(message) {
-    this._sendWsCommand("chat_message", message);
+    this._sendWsCommand("chat_push", message);
   }
 
   // ── Actions ─────────────────────────────────────────────────────────────
 
   FireAction(action, args) {
-    this._sendWsCommand("action_execute", { action, args });
+    // cardID is always appended for action to use
+    const safeArgs = args && typeof args === "object" ? args : {};
+    this._sendWsCommand("execute_action", {
+      Action: action,
+      Args: { ...safeArgs, cardId: this._cardId },
+    });
   }
 
   // ── Sandboxed WebSocket send ────────────────────────────────────────────

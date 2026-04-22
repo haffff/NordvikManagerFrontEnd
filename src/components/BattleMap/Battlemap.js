@@ -1,6 +1,5 @@
 /* eslint-disable react-hooks/exhaustive-deps, no-unused-vars */
 import * as React from "react";
-import { fabric } from "fabric";
 import CommandFactory from "./Factories/CommandFactory";
 import { useFabricJSEditor } from "fabricjs-react";
 import { FabricJSCanvas } from "fabricjs-react";
@@ -16,6 +15,7 @@ import "../../stylesheets/battlemap.css";
 import { LoadingScreen } from "../uiComponents/LoadingScreen";
 import { PerformanceMonitor } from "../../helpers/PerformanceMonitor";
 import createLoadCanvas from './Handlers/LoadCanvas';
+import createHandleDrop from './Handlers/HandleDrop';
 import BasePanel from "../uiComponents/base/BasePanel";
 import { _entityPermissionSetter } from "../../contexts/PermissionsContext";
 import { ENTITY_TYPES, PERM } from "./Helpers/permissionBits";
@@ -53,6 +53,14 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
     setLoading(true);
     try {
       const battleMapResponse = await WebHelper.getAsync(`battlemap/GetBattlemap?id=${uuid}`);
+      // Re-fetch fresh map data from the server so LoadCanvas uses updated settings,
+      // not the stale local cache in mapRef.current.
+      if (battleMapResponse?.mapId) {
+        const freshMap = await WebHelper.getAsync(`map/get?mapId=${battleMapResponse.mapId}`);
+        if (freshMap) {
+          mapRef.current = freshMap;
+        }
+      }
       setBattleMapModel(battleMapResponse);
     } catch (err) {
       console.error('ReloadBattleMap failed', err);
@@ -159,6 +167,14 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
     }
   };
 
+  //Handle file drop on battlemap.
+  const HandleDrop = React.useMemo(
+    () => createHandleDrop({ editor, mapRef, battleMapObjectRef, battleMapModel }),
+    // Re-create when editor or map changes so refs/instances are current.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [editor, battleMapModel]
+  );
+
   // Legacy one-shot initialization effect moved below after ChangeMap definition
   React.useEffect(() => {
     WebHelper.get(
@@ -205,84 +221,8 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
     });
   }
 
-  //Handle file drop on battlemap. I should move it to separate component. This will be also required for resources panel(when i will create one)
-  const HandleDrop = (ev) => {
-    if (ev.dataTransfer.items) {
-      const coords = editor.canvas.getPointer(ev);
-      [...ev.dataTransfer.items].forEach((item, i) => {
-        if (item.kind === "string") {
-          let dragObj = JSON.parse(sessionStorage.getItem("draggable"));
-          if (dragObj.entityType === "ResourceModel") {
-            console.log(dragObj);
-            fabric.Image.fromURL(
-              WebHelper.getResourceString(dragObj.id),
-              (img) => {
-                const obj = img;
-                if (!obj.width) {
-                  return;
-                }
-                obj.left = coords.x + 10 * i;
-                obj.top = coords.y + 10 * i;
-                obj.resourceId = dragObj.id;
-                obj.resourceKey = dragObj.key;
-                var cmd = CommandFactory.CreateAddCommand({
-                  object: JSON.stringify(obj),
-                  properties: [],
-                  mapId: map.id,
-                  layer: editor.canvas.selectedLayer,
-                });
-                WebSocketManagerInstance.Send(cmd);
-              }
-            );
-          }
-
-          if (dragObj.entityType === "CardModel") {
-            ClientMediator.sendCommand("BattleMap_token", "CreateToken", {
-              contextId: battleMapObjectRef.current.id,
-              cardId: dragObj.id,
-              position: coords,
-            });
-          }
-
-          if (dragObj.entityType === "MapModel") {
-            let command = CommandFactory.CreateChangeMapCommand(
-              dragObj.id,
-              battleMapObjectRef.current.id
-            );
-            WebSocketManagerInstance.Send(command);
-          }
-        }
-
-        if (item.kind === "file") {
-          WebHelper.postMaterial(
-            item.getAsFile(),
-            (result) => {
-              fabric.Image.fromURL(
-                WebHelper.getResourceString(result.id),
-                (img) => {
-                  const obj = img;
-                  obj.left = coords.x + 10 * i;
-                  obj.top = coords.y + 10 * i;
-                  obj.resourceId = result.id;
-                  obj.resourceKey = result.key;
-                  var cmd = CommandFactory.CreateAddCommand({
-                    object: JSON.stringify(obj),
-                    properties: [],
-                    mapId: map.id,
-                    layer: editor.canvas.selectedLayer,
-                  });
-                  WebSocketManagerInstance.Send(cmd);
-                }
-              );
-            },
-            (error) => {
-              console.error(error);
-            }
-          );
-        }
-      });
-    }
-  };  ctx?.setTitle("BM - " + battleMapModel.name);
+  //Handle file drop on battlemap.
+  ctx?.setTitle("BM - " + battleMapModel.name);
 
   return (
     <Flex

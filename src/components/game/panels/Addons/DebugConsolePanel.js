@@ -722,11 +722,11 @@ export const DebugConsolePanel = ({ state, actionName: initialActionName }) => {
               Paused
             </Text>
             <Text fontSize="12px" color="var(--nordvik-text-color)" fontFamily="mono">
-              {lastMessage?.data?.Step?.Type}
+              {lastMessage?.data?.step?.type}
             </Text>
-            {lastMessage?.data?.Message && (
+            {lastMessage?.data?.message && (
               <Text fontSize="12px" color={TEXT_MUTED} flex={1} overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
-                — {lastMessage.data.Message}
+                — {lastMessage.data.message}
               </Text>
             )}
             <Flex gap="6px" ml="auto" flexShrink={0}>
@@ -816,17 +816,17 @@ export const DebugConsolePanel = ({ state, actionName: initialActionName }) => {
                   <Text fontSize="12px" color={TEXT_MUTED}>No debug events</Text>
                 </Flex>
               )}              {debugMessages.map((x, i) => {
-                const hasError = Boolean(x?.data?.Error);
+                const hasError = Boolean(x?.data?.error);
                 return (
                   <MessageRow
                     key={i}
                     timestamp={x.date}
                     label={
                       hasError
-                        ? x.data.Error
-                        : `${x?.data?.Action?.Name ?? "?"} › ${x?.data?.Step?.Type ?? "?"}`
+                        ? x.data.error
+                        : `${x?.data?.action?.name ?? "?"} › ${x?.data?.step?.type ?? "?"}`
                     }
-                    sublabel={!hasError ? x?.data?.Message : undefined}
+                    sublabel={!hasError ? x?.data?.message : undefined}
                     highlight={x === lastMessage}
                     error={hasError}
                     onInspect={() => showDetails(x)}
@@ -853,9 +853,9 @@ export const DebugConsolePanel = ({ state, actionName: initialActionName }) => {
               <Text fontSize="12px" fontWeight="bold" color="var(--nordvik-text-color)" flex={1}>
                 Variables
               </Text>
-              {lastMessage?.data?.Variables && (
+              {lastMessage?.data?.variables && (
                 <Badge fontSize="10px" bg="rgb(55,55,55)" color={TEXT_MUTED} borderRadius="full" px="6px">
-                  {Object.keys(lastMessage.data.Variables).length}
+                  {Object.keys(lastMessage.data.variables).length}
                 </Badge>
               )}
               {lastMessage && (
@@ -865,7 +865,7 @@ export const DebugConsolePanel = ({ state, actionName: initialActionName }) => {
                     variant="ghost"
                     color={TEXT_MUTED}
                     aria-label="Inspect step"
-                    onClick={() => showDetails(lastMessage, lastMessage?.data?.Step?.Type)}
+                    onClick={() => showDetails(lastMessage, lastMessage?.data?.step?.type)}
                     _hover={{ color: CLR_BLUE }}
                   >
                     <Icon as={FaEye} />
@@ -875,20 +875,20 @@ export const DebugConsolePanel = ({ state, actionName: initialActionName }) => {
             </Flex>
 
             <Flex direction="column" flex={1} overflowY="auto">
-              {!lastMessage?.data?.Variables ? (
+              {!lastMessage?.data?.variables ? (
                 <Flex flex={1} align="center" justify="center">
                   <Text fontSize="12px" color={TEXT_MUTED}>
                     {debugEnabled ? "Waiting for a paused step…" : "Enable debug mode to capture variables"}
                   </Text>
                 </Flex>
               ) : (
-                Object.keys(lastMessage.data.Variables).map((key) => (
+                Object.keys(lastMessage.data.variables).map((key) => (
                   <VariableRow
                     key={key}
                     name={key}
-                    value={lastMessage.data.Variables[key]}
+                    value={lastMessage.data.variables[key]}
                     onInspect={() =>
-                      showDetails(lastMessage.data.Variables[key], key)
+                      showDetails(lastMessage.data.variables[key], key)
                     }
                   />
                 ))

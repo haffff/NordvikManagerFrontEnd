@@ -85,6 +85,8 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
         console.warn('useGameInitialization: no default layout value to load');
       }
 
+      WebSocketManagerInstance.Send({ command: 'client_layout_ready' });
+
       // ── Bootstrap ─────────────────────────────────────────────────────────
       ClientMediator.fireEvent('BattleMapsChanged', game.battleMaps);
       ClientMediator.register(PropertiesManagerInstance);

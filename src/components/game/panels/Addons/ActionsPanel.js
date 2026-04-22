@@ -21,10 +21,11 @@ import CollectionSyncer from "../../../uiComponents/base/CollectionSyncer";
 import { ActionStep } from "./ActionStep";
 import UtilityHelper from "../../../../helpers/UtilityHelper";
 import { ReactTreeList } from "@bartaxyz/react-tree-list";
-import { FaCheck, FaMinus, FaPlay, FaPlus, FaSave, FaTrash, FaFileExport } from "react-icons/fa";
+import { FaBolt, FaCheck, FaMinus, FaPlay, FaPlus, FaSave, FaTrash, FaFileExport, FaSearch, FaChevronDown, FaChevronRight } from "react-icons/fa";
 import { Switch } from "../../../ui/switch";
 import {  SelectContent,
   SelectItem,
+  SelectItemGroup,
   SelectRoot,
   SelectTrigger,
   SelectValueText,
@@ -37,6 +38,17 @@ import { ResizeDivider, useDragResize } from "../../../uiComponents/ResizeDivide
 const BG_SURFACE  = "rgb(38,38,38)";
 const BG_RAISED   = "rgb(48,48,48)";
 const BORDER_CLR  = "rgb(65,65,65)";
+
+// ─── permission options (mirrors Permission enum on the backend) ──────────────
+const PERMISSION_ITEMS = [
+  { name: "Not set",         value: "" },
+  { name: "None",            value: "0" },
+  { name: "Read",            value: "1" },
+  { name: "Execute",         value: "2" },
+  { name: "Read + Execute",  value: "3" },
+  { name: "Edit",            value: "8" },
+  { name: "All",             value: "31" },
+];
 
 // ─── FieldRow — label + control pair ─────────────────────────────────────────
 const FieldRow = ({ label, children }) => (
@@ -63,7 +75,7 @@ const GroupPane = React.memo(({ group, actions }) => {
 
   const runAll = () => {
     groupActions.forEach((a) =>
-      WebSocketManagerInstance.Send({ command: "execute_action", data: { Action: a.name } })
+      WebSocketManagerInstance.Send({ command: "execute_action", data: { Action: a.prefix ? `${a.prefix}/${a.name}` : a.name } })
     );
     setConfirmRun(false);
   };
@@ -119,9 +131,35 @@ const ActionPane = React.memo(({
   const [confirmDelete,    setConfirmDelete   ] = React.useState(false);
   const [inputArguments,   setInputArguments  ] = React.useState("");
 
+  const permissionCollection = React.useMemo(
+    () => createListCollection({ items: PERMISSION_ITEMS }),
+    []
+  );
+
+  const hooksByCategory = React.useMemo(() => {
+    const map = {};
+    hooksCollection.items.forEach((h) => {
+      const cat = h.category || "General";
+      if (!map[cat]) map[cat] = [];
+      map[cat].push(h);
+    });
+    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
+  }, [hooksCollection]);
+
+  // Convert numeric/null permission to the string key used by the Select
+  const permVal = (v) => (v == null ? "" : String(v));
+  // Convert Select string back to integer/null for state
+  const permFromSelect = (s) => (s === "" ? null : parseInt(s, 10));
+
   const handleUpdate = () => {
     const payload = { ...selectedAction, content: JSON.stringify(stepsRef.current) };
     WebSocketManagerInstance.Send({ command: "action_update", data: payload });
+  };
+
+  const handleSaveAndEnable = () => {
+    const payload = { ...selectedAction, content: JSON.stringify(stepsRef.current), isEnabled: true };
+    WebSocketManagerInstance.Send({ command: "action_update", data: payload });
+    setSelectedAction({ ...selectedAction, isEnabled: true });
   };
 
   const handleDelete = () => {
@@ -144,7 +182,7 @@ const ActionPane = React.memo(({
       try { args = JSON.parse(inputArguments); } catch { args = inputArguments; }
     }    WebSocketManagerInstance.Send({
       command: "execute_action",
-      data: { Action: selectedAction.name, ...(args !== undefined && { Args: args }) },
+      data: { Action: selectedAction.prefix ? `${selectedAction.prefix}/${selectedAction.name}` : selectedAction.name, ...(args !== undefined && { Args: args }) },
     });
   };
 
@@ -220,6 +258,37 @@ const ActionPane = React.memo(({
           </Flex>
         </Box>
 
+        {/* Permissions */}
+        <Box>
+          <SectionHeader>Permissions</SectionHeader>
+          <Box mt={2}>
+            <FieldRow label="Generic (all players)">
+              <SelectRoot
+                collection={permissionCollection}
+                value={[permVal(selectedAction.genericPermission)]}
+                onValueChange={(e) => set({ genericPermission: permFromSelect(e.value[0]) })}
+                size="sm"
+              >
+                <SelectTrigger>
+                  <SelectValueText placeholder="Not set…">
+                    {(items) => items[0]?.name ?? "Not set…"}
+                  </SelectValueText>
+                </SelectTrigger>
+                <SelectContent>
+                  <For each={permissionCollection.items}>
+                    {(option, index) => (
+                      <SelectItem key={index} item={option} value={option.value}
+                        selected={permVal(selectedAction.genericPermission) === option.value}>
+                        {option.name}
+                      </SelectItem>
+                    )}
+                  </For>
+                </SelectContent>
+              </SelectRoot>
+            </FieldRow>
+          </Box>
+        </Box>
+
         {/* Trigger */}
         <Box>
           <SectionHeader>Trigger</SectionHeader>
@@ -237,14 +306,16 @@ const ActionPane = React.memo(({
                 </SelectValueText>
               </SelectTrigger>
               <SelectContent>
-                <For each={hooksCollection.items}>
-                  {(option) => (
-                    <SelectItem key={option.value} item={option} value={option.value}
-                      selected={selectedAction.hook === option.value}>
-                      {option.name}
-                    </SelectItem>
-                  )}
-                </For>
+                {hooksByCategory.map(([category, items]) => (
+                  <SelectItemGroup key={category} label={category}>
+                    {items.map((option) => (
+                      <SelectItem key={option.value} item={option} value={option.value}
+                        selected={selectedAction.hook === option.value}>
+                        {option.name}
+                      </SelectItem>
+                    ))}
+                  </SelectItemGroup>
+                ))}
               </SelectContent>
             </SelectRoot>
           </Box>
@@ -297,6 +368,9 @@ const ActionPane = React.memo(({
         <Button size="sm" colorPalette="blue" variant="outline" onClick={handleUpdate}>
           <FaSave /> Save
         </Button>
+        <Button size="sm" colorPalette="green" variant="outline" onClick={handleSaveAndEnable}>
+          <FaBolt /> Save & Enable
+        </Button>
         <Button size="sm" variant="ghost" onClick={handleExport} color="gray.300">
           <FaFileExport /> Export
         </Button>
@@ -317,6 +391,81 @@ const ActionPane = React.memo(({
     </Flex>
   );
 });
+
+// ─── QueryResolver ────────────────────────────────────────────────────────────
+const QueryResolver = () => {
+  const [open,       setOpen]       = React.useState(false);
+  const [expression, setExpression] = React.useState("");
+  const [variables,  setVariables]  = React.useState("");
+  const [result,     setResult]     = React.useState(null);
+  const [error,      setError]      = React.useState(null);
+  const [loading,    setLoading]    = React.useState(false);
+
+  const resolve = async () => {
+    if (!expression.trim()) return;
+    setLoading(true);
+    setResult(null);
+    setError(null);
+    try {
+      let vars;
+      if (variables.trim()) {
+        try { vars = JSON.parse(variables); } catch { setError("Variables must be valid JSON"); setLoading(false); return; }
+      }
+      const resp = await WebHelper.postAsync("addon/resolveQuery", { expression, variables: vars });
+      if (!resp || resp.status < 200 || resp.status >= 300) { setError(`HTTP ${resp?.status ?? "error"}`); return; }
+      setResult(resp.body?.result ?? "(empty)");
+    } catch (e) {
+      setError(e?.message ?? "Request failed");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Box borderTopWidth="1px" borderColor={BORDER_CLR} flexShrink={0}>
+      <HStack
+        px={3} py={2} cursor="pointer" userSelect="none"
+        onClick={() => setOpen(o => !o)}
+        _hover={{ bg: BG_RAISED }}
+      >
+        {open ? <FaChevronDown size={10} color="#718096" /> : <FaChevronRight size={10} color="#718096" />}
+        <FaSearch size={10} color="#718096" />
+        <Text fontSize="xs" color="gray.500" fontWeight="semibold" textTransform="uppercase" letterSpacing="wider">
+          Query Resolver
+        </Text>
+      </HStack>
+      {open && (
+        <Flex direction="column" px={3} pb={3} gap={2}>
+          <Input
+            size="xs" placeholder="%q:{gameId}.name% or %qn:player-&quot;John&quot;.hp%"
+            value={expression} onChange={e => setExpression(e.target.value)}
+            onKeyDown={e => { if (e.key === "Enter") resolve(); }}
+            fontFamily="mono" borderColor={BORDER_CLR}
+            _placeholder={{ color: "gray.600", fontSize: "10px" }}
+          />
+          <Input
+            size="xs" placeholder='Variables JSON (optional) {"myVar":"value"}'
+            value={variables} onChange={e => setVariables(e.target.value)}
+            fontFamily="mono" borderColor={BORDER_CLR}
+            _placeholder={{ color: "gray.600", fontSize: "10px" }}
+          />
+          <Button size="xs" variant="outline" onClick={resolve} loading={loading} colorPalette="blue" alignSelf="flex-end">
+            <FaSearch /> Resolve
+          </Button>
+          {result !== null && (
+            <Box bg={BG_RAISED} borderRadius="md" borderWidth="1px" borderColor={BORDER_CLR} px={2} py={1}>
+              <Text fontSize="xs" color="gray.400" mb="2px">Result</Text>
+              <Text fontSize="xs" fontFamily="mono" color="green.300" wordBreak="break-all">{result}</Text>
+            </Box>
+          )}
+          {error && (
+            <Text fontSize="xs" color="red.400" fontFamily="mono">{error}</Text>
+          )}
+        </Flex>
+      )}
+    </Box>
+  );
+};
 
 // ─── EmptyPane ────────────────────────────────────────────────────────────────
 const EmptyPane = () => (
@@ -361,9 +510,9 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
           WebHelper.getAsync("addon/hooks"),
         ]);
         if (cancelled) return;
-        setActions(actionsData ?? []);
-        setStepDefinitions(stepDefsWrapped?.stepDefinitions ?? []);
-        setHooks(hooksData ?? []);
+        setActions(Array.isArray(actionsData) ? actionsData : []);
+        setStepDefinitions(Array.isArray(stepDefsWrapped?.stepDefinitions) ? stepDefsWrapped.stepDefinitions : []);
+        setHooks(Array.isArray(hooksData) ? hooksData : []);
       } catch (err) {
         console.warn("[ActionsPanel] load failed:", err);
       } finally {
@@ -403,6 +552,10 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
     }
     try {
       const response = await WebHelper.getAsync("addon/action?id=" + id);
+      if (!response) {
+        console.warn("[ActionsPanel] action not found:", id);
+        return;
+      }
       setSelection({ type: "action", action: response });
       setSteps(JSON.parse(response.content ?? "[]"));
     } catch (err) {
@@ -475,6 +628,8 @@ export const ActionsPanel = ({ state, gameDataRef }) => {
                 itemDefaults={{ open: false, arrow: "▸" }}
               />
             )}          </Box>
+
+          <QueryResolver />
         </Flex>
 
         <ResizeDivider onMouseDown={(e) => onDividerMouseDown(0, e)} />

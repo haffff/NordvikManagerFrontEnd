@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Box, Flex, Icon, Image, Spinner, Text } from '@chakra-ui/react';
+import { Box, Flex, Icon, Image, Spinner, Tabs, Text } from '@chakra-ui/react';
 import * as Dockable from "@hlorenzi/react-dockable";
 import DList from '../../uiComponents/base/List/DList';
 import DLabel from '../../uiComponents/base/Text/DLabel';
@@ -90,9 +90,28 @@ export const MaterialsPanel = ({ state }) => {
     const onFolderRenameOpenRef         = React.useRef(null);
     const treeRefreshRef                = React.useRef(null);
 
-    const { hasEntityPermission } = usePermissions();
+    const { hasEntityPermission, isGM } = usePermissions();
     const gameId = React.useMemo(() => ClientMediator.sendCommand("Game", "GetGameId"), []);
     const canEditFolders = hasEntityPermission(ENTITY_TYPES.GAME, gameId, PERM.EDIT);
+
+    const currentPlayer = React.useMemo(() => ClientMediator.sendCommand("Game", "GetCurrentPlayer"), []);
+
+    // For the "All Resources" GM tab: prefix each resource's path with the owner's name
+    // so DTreeList groups them into per-player folders automatically.
+    const allResources = React.useMemo(() =>
+        resources.map(r => ({
+            ...r,
+            path: r.playerName
+                ? (r.path ? `${r.playerName}/${r.path}` : r.playerName)
+                : (r.path ?? null),
+        })),
+    [resources]);
+
+    const myResources = React.useMemo(() =>
+        currentPlayer
+            ? resources.filter(r => r.playerId === currentPlayer.id)
+            : resources,
+    [resources, currentPlayer]);
 
     const loadData = React.useCallback(() => {
         WebHelper.get("materials/getresources",
@@ -217,6 +236,35 @@ export const MaterialsPanel = ({ state }) => {
         );
     }, [state]);
 
+    // ── shared resource list renderer ───────────────────────────────────────
+
+    const renderResourceList = (items, { readOnly = false } = {}) => (
+        <Box flex="1" overflowY="auto">
+            <DList>
+                <DTreeList
+                    items={items}
+                    canEditFolders={canEditFolders && !readOnly}
+                    onDeleteItem={(item) => WebSocketManagerInstance.Send({ command: "resource_delete", data: item.id })}
+                    onGenerateEditButtons={readOnly ? undefined : (item) => (
+                        <>
+                            <DListItemButton icon={FaLink}        label="Copy link"        onClick={() => generateLink(item.id)} />
+                            <DListItemButton icon={FaPen}         label="Rename"            onClick={() => onFolderRenameOpenRef.current({ name: item.name, id: item.id })} />
+                            <DListItemButton icon={FaMinusCircle} label="Delete" color="red" onClick={() => WebSocketManagerInstance.Send({ command: "resource_delete", data: item.id })} />
+                        </>
+                    )}
+                    generateItem={(item) => (
+                        <DTreeListItem entityId={item.id} entityType="ResourceModel" drag>
+                            {getItemBody(item) ?? <DLabel>{item.name}</DLabel>}
+                        </DTreeListItem>
+                    )}
+                    entityType="ResourceModel"
+                    refreshRef={readOnly ? undefined : treeRefreshRef}
+                    onRefresh={loadData}
+                />
+            </DList>
+        </Box>
+    );
+
     // ── render ──────────────────────────────────────────────────────────────
 
     return (
@@ -240,34 +288,32 @@ export const MaterialsPanel = ({ state }) => {
                     onAdd={() => treeRefreshRef.current?.()}
                 />
 
-                <Box flex="1" overflowY="auto">
-                    <DList>
-                        <DTreeList
-                            items={resources}
-                            canEditFolders={canEditFolders}
-                            onGenerateEditButtons={(item) => (
-                                <>
-                                    <DListItemButton icon={FaLink}        label="Copy link"        onClick={() => generateLink(item.id)} />
-                                    <DListItemButton icon={FaPen}         label="Rename"            onClick={() => onFolderRenameOpenRef.current({ name: item.name, id: item.id })} />
-                                    <DListItemButton icon={FaMinusCircle} label="Delete" color="red" onClick={() => WebSocketManagerInstance.Send({ command: "resource_delete", data: item.id })} />
-                                </>
-                            )}
-                            generateItem={(item) => (
-                                <DTreeListItem entityId={item.id} entityType="ResourceModel" drag>
-                                    {getItemBody(item) ?? <DLabel>{item.name}</DLabel>}
-                                </DTreeListItem>
-                            )}
-                            entityType="ResourceModel"
-                            refreshRef={treeRefreshRef}
-                            onRefresh={loadData}
-                        />
-                    </DList>
-                </Box>
+                {isGM ? (
+                    <Tabs.Root defaultValue="mine" display="flex" flexDirection="column" flex="1" minH={0}>
+                        <Tabs.List flexShrink={0}>
+                            <Tabs.Trigger value="mine">My Materials</Tabs.Trigger>
+                            <Tabs.Trigger value="all">All Resources</Tabs.Trigger>
+                        </Tabs.List>
 
-                {/* Upload zone — always visible at the bottom */}
-                <Box px={2} py={2} borderTop="1px solid" borderColor={BORDER_CLR} flexShrink={0}>
-                    <UploadZone uploading={uploading} onFiles={handleFiles} />
-                </Box>
+                        <Tabs.Content value="mine" display="flex" flexDirection="column" flex="1" minH={0} p={0}>
+                            {renderResourceList(myResources)}
+                            <Box px={2} py={2} borderTop="1px solid" borderColor={BORDER_CLR} flexShrink={0}>
+                                <UploadZone uploading={uploading} onFiles={handleFiles} />
+                            </Box>
+                        </Tabs.Content>
+
+                        <Tabs.Content value="all" display="flex" flexDirection="column" flex="1" minH={0} p={0}>
+                            {renderResourceList(allResources)}
+                        </Tabs.Content>
+                    </Tabs.Root>
+                ) : (
+                    <>
+                        {renderResourceList(resources)}
+                        <Box px={2} py={2} borderTop="1px solid" borderColor={BORDER_CLR} flexShrink={0}>
+                            <UploadZone uploading={uploading} onFiles={handleFiles} />
+                        </Box>
+                    </>
+                )}
             </DContainer>
         </BasePanel>
     );
