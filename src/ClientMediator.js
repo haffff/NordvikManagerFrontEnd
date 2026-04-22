@@ -1,3 +1,5 @@
+import { wait } from "@testing-library/user-event/dist/cjs/utils/index.js";
+
 export const ClientMediator = {
   /*
     ClientHashset structure
@@ -199,36 +201,68 @@ export const ClientMediator = {
 
   // ─── Events ──────────────────────────────────────────────────────────────────
 
-  fireEvent: function (eventName, data) {
+  _eventListeners: [],
+
+  _addEventListener: function (handler) {
+    this._eventListeners.push(handler);
+  },
+
+  _removeEventListener: function (handler) {
+    this._eventListeners = this._eventListeners.filter((h) => h !== handler);
+    },
+
+    fireEvent: function (eventName, data) {
     try {
       const now = Date.now();
 
-      // Lightweight dedup: same event name fired within 200ms gets a new token only
-      // if the reference/value actually differs — avoids expensive JSON.stringify.
       const last = this._lastFiredEvent;
       if (last.name === eventName && now - last.time < 200 && last.data === data) {
-        return;
+      return;
       }
 
       this._lastFiredEvent = { name: eventName, data, time: now };
 
-      // Dispatch asynchronously to avoid nested state updates during unmount/mount cycles
       setTimeout(() => {
-        for (const bucket of Object.values(this._clientsHashSet)) {
-          for (const client of Object.values(bucket)) {
-            if (client.onEvent) {
-              try {
-                client.onEvent(eventName, data);
-              } catch (e) {
-                console.error('ClientMediator.fireEvent: client.onEvent threw', e, { clientId: client.id, eventName });
-              }
-            }
+      // Dispatch to panel clients
+      for (const bucket of Object.values(this._clientsHashSet)) {
+        for (const client of Object.values(bucket)) {
+        if (client.onEvent) {
+          try {
+          client.onEvent(eventName, data);
+          } catch (e) {
+          console.error('ClientMediator.fireEvent: client.onEvent threw', e, { clientId: client.id, eventName });
           }
         }
+        }
+      }
+      // Dispatch to standalone event listeners
+      for (const handler of this._eventListeners.slice()) {
+        try {
+        handler(eventName, data);
+        } catch (e) {
+        console.error('ClientMediator.fireEvent: event listener threw', e, { eventName });
+        }
+      }
       }, 0);
     } catch (e) {
       console.error('ClientMediator.fireEvent: unexpected error', e, { eventName });
     }
+    },
+
+    waitForEvent: function (eventName, filterFn, timeout = 5000) {
+    return new Promise((resolve, reject) => {
+      const handler = (eName, data) => {
+        if (eName === eventName && (!filterFn || filterFn(data))) {
+          ClientMediator._removeEventListener(handler);
+          resolve(data);
+        }
+      };
+      ClientMediator._addEventListener(handler);
+      setTimeout(() => {
+        ClientMediator._removeEventListener(handler);
+        reject(new Error(`waitForEvent: timeout after ${timeout}ms`));
+      }, timeout);
+    });
   },
 };
 

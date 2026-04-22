@@ -176,23 +176,39 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
 
     // If a submenu is requested, ensure a DropDownMenu is created inside the parent first
     if (item.subMenuId) {
+
+      ClientMediator.waitForEvent("DropDownMenuReady", (data) => data.viewId === item.subMenuId, 5000)
+        .then(() => {
+          const menuItem = React.createElement(DropDownItem, {
+            key: item.name,
+            name: item.uiName || item.name,
+            onClick: () => ActiveTransportManager.Send({ command: "execute_action", data: { Action: item.action, Args: item.actionArgs ?? undefined } }),
+          });
+          ClientMediator.sendCommand("DropDownMenu", "AddMenuItem", {
+            contextId: item.subMenuId,
+            item: menuItem,
+          });
+        });
+
       ClientMediator.sendCommand("DropDownMenu", "AddSubMenu", {
         contextId: item.location || "game",
         subMenuId: item.subMenuId,
         subMenuName: item.subMenuName || item.subMenuId,
       });
-    }
 
-    const targetContextId = item.subMenuId || item.location || "game";
-    const menuItem = React.createElement(DropDownItem, {
-      key: item.name,
-      name: item.uiName || item.name,
-      onClick: () => ActiveTransportManager.Send({ command: "execute_action", data: { Action: item.action, Args: item.actionArgs ?? undefined } }),
+      }
+      else {
+        const targetContextId = item.subMenuId || item.location || "game";
+        const menuItem = React.createElement(DropDownItem, {
+          key: item.name,
+          name: item.uiName || item.name,
+          onClick: () => ActiveTransportManager.Send({ command: "execute_action", data: { Action: item.action, Args: item.actionArgs ?? undefined } }),
+        });
+        ClientMediator.sendCommand("DropDownMenu", "AddMenuItem", {
+          contextId: targetContextId,
+          item: menuItem,
     });
-    ClientMediator.sendCommand("DropDownMenu", "AddMenuItem", {
-      contextId: targetContextId,
-      item: menuItem,
-    });
+  }
   }, []);
 
   /**

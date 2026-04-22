@@ -141,6 +141,10 @@ class WebRTCWebHelper {
     return this._sendRequest('POST', path, body);
   }
 
+  putAsync(path, body) {
+    return this._sendRequest('PUT', path, body);
+  }
+
   post(path, body, onok, onerror, onException) {
     this._sendRequest('POST', path, body)
       .then((r) => {
