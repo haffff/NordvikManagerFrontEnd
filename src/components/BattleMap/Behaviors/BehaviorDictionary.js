@@ -16,6 +16,7 @@ import { OnPropertyUpdateBehavior } from "./Server/Properties/OnPropertyUpdateBe
 import { OnPropertyDeleteBehavior } from "./Server/Properties/OnPropertyDeleteBehavior";
 import { OnPropertyNotifyBehavior } from "./Server/Properties/OnPropertyNotifyBehavior";
 import { OnTokenClickedInSelectModeClientBehavior } from "./Client/OnTokenClickedInSelectModeBehavior";
+import { OnTokenUIActionClickClientBehavior } from "./Client/OnTokenUIActionClickBehavior";
 import { OnDragStartClientBehavior } from "./Client/Drag/OnDragStart";
 import { OnDragEndClientBehavior } from "./Client/Drag/OnDragEnd";
 import { OnDragMoveClientBehavior } from "./Client/Drag/OnDragMove";
@@ -74,6 +75,7 @@ export const BehaviorDictionaryClient = {
   ],
   "mouse:up": [
     new OnDragEndClientBehavior(),
+    new OnTokenUIActionClickClientBehavior(),
     new OnTokenClickedInSelectModeClientBehavior(),
     new OnMouseUpSimpleCreateClientBehavior(),
     new OnMouseUpMeasureEndsClientBehavior(),

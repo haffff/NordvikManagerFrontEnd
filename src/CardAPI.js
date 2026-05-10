@@ -38,6 +38,7 @@ const ALLOWED_COMMANDS = Object.freeze({
 const ALLOWED_WS_COMMANDS = Object.freeze({
   chat_push: true,
   execute_action: true,
+  action_execute: true,
 });
 
 /**
@@ -466,27 +467,135 @@ class CardAPI {
         subs.splice(index, 1);
       }
     },
+
+    /**
+     * Access properties of any entity without being locked to this card's parentId.
+     * Use this to read/write properties on other cards, tokens, or game entities.
+     * parentId must be supplied explicitly for every call.
+     */
+    Global: {
+      Get: async (parentId, propertyName) => {
+        const fetched = await WebHelper.getAsync(
+          `properties/QueryProperties?parentIds=${parentId}&names=${encodeURIComponent(propertyName)}`
+        );
+        return fetched?.[0] ?? null;
+      },
+
+      GetMany: async (parentId, propertyNames) => {
+        const names = Array.isArray(propertyNames) ? propertyNames : [propertyNames];
+        const fetched = await WebHelper.getAsync(
+          `properties/QueryProperties?parentIds=${parentId}&names=${names.map(encodeURIComponent).join(",")}`
+        );
+        return fetched ?? [];
+      },
+
+      GetByNames: async (parentId, propertyNames) => {
+        return this.Properties.Global.GetMany(parentId, propertyNames);
+      },
+
+      GetProperties: async (parentId) => {
+        const fetched = await WebHelper.getAsync(
+          `properties/QueryProperties?parentIds=${parentId}`
+        );
+        return fetched ?? [];
+      },
+
+      Set: async (parentId, propertyName, value) => {
+        const prop = await this.Properties.Global.Get(parentId, propertyName);
+        if (prop) {
+          // eslint-disable-next-line eqeqeq
+          if (prop.value == value) return;
+          await this._sendCommand("Properties", "Update", {
+            property: { id: prop.id, name: propertyName, value, parentId, entityName: "CardModel" },
+          });
+        } else {
+          await this._sendCommand("Properties", "Add", {
+            property: { name: propertyName, value, parentId, entityName: "CardModel" },
+          });
+        }
+      },
+
+      SetMany: async (parentId, properties) => {
+        const existing = await this.Properties.Global.GetMany(parentId, properties.map((p) => p.name));
+        const existingMap = new Map((existing ?? []).map((p) => [p.name, p]));
+        await Promise.all(
+          properties.map((prop) => {
+            const found = existingMap.get(prop.name);
+            if (found) {
+              // eslint-disable-next-line eqeqeq
+              if (found.value == prop.value) return Promise.resolve();
+              return this._sendCommand("Properties", "Update", {
+                property: { id: found.id, name: prop.name, value: prop.value, parentId, entityName: "CardModel" },
+              });
+            }
+            return this._sendCommand("Properties", "Add", {
+              property: { name: prop.name, value: prop.value, parentId, entityName: "CardModel" },
+            });
+          })
+        );
+      },
+
+      Init: async (parentId, propertyName, value) => {
+        const existing = await this.Properties.Global.Get(parentId, propertyName);
+        if (!existing) {
+          await this._sendCommand("Properties", "Add", {
+            property: { name: propertyName, value, parentId, entityName: "CardModel" },
+          });
+        }
+      },
+
+      InitMany: async (parentId, properties) => {
+        const existing = await this.Properties.Global.GetMany(parentId, properties.map((p) => p.name));
+        const existingNames = new Set((existing ?? []).map((p) => p.name));
+        await Promise.all(
+          properties
+            .filter((p) => !existingNames.has(p.name))
+            .map((p) =>
+              this._sendCommand("Properties", "Add", {
+                property: { name: p.name, value: p.value, parentId, entityName: "CardModel" },
+              })
+            )
+        );
+      },
+
+      Remove: async (parentId, propertyName) => {
+        const prop = await this.Properties.Global.Get(parentId, propertyName);
+        if (!prop) return;
+        await this._sendCommand("Properties", "Remove", { propertyId: prop.id });
+      },
+    },
   };
 
   // ── Resources API ───────────────────────────────────────────────────────
   //
+  // Keys are automatically scoped to this card: the raw key supplied by the
+  // addon is prefixed with "{cardId}/" before hitting the server, so two
+  // different card instances can safely use the same logical key name without
+  // colliding.  Addon authors always work with bare keys.
+  //
   // Accepts:  string | Uint8Array | ArrayBuffer | Blob
   // Returns:  string for text/* / application/json, Blob for everything else
+
+  _scopeKey(key) {
+    return `${this._cardId}/${key}`;
+  }
 
   Resources = {
     /**
      * Create a new resource identified by a unique key.
-     * @param {string} key         - Unique lookup key within the game.
+     * The key is automatically scoped to this card — no need to namespace it manually.
+     * @param {string} key         - Logical key (scoped to this card automatically).
      * @param {string|Uint8Array|ArrayBuffer|Blob} data - Content to store.
      * @param {string} [name]      - Display name (defaults to key).
      * @param {string} [mimeType]  - MIME type string. Auto-detected when omitted.
      * @returns {Promise<string>}  GUID of the new resource.
      */
     Create: async (key, data, name, mimeType) => {
+      const scopedKey = this._scopeKey(key);
       const mt = mimeType ?? _mimeTypeOf(data);
       const content = await _toBase64(data);
       const resp = await WebHelper.postAsync("materials/createresource", {
-        key, content, mimeType: mt, name: name ?? key,
+        key: scopedKey, content, mimeType: mt, name: name ?? key,
       });
       if (resp?.status === 409)
         throw new Error(resp.body?.error ?? "Resource with that key already exists.");
@@ -497,12 +606,13 @@ class CardAPI {
 
     /**
      * Read a resource's content by key.
-     * @param {string} key
+     * @param {string} key  - Logical key (scoped to this card automatically).
      * @returns {Promise<string|Blob|null>} string for text/json types, Blob otherwise, null if not found.
      */
     Read: async (key) => {
+      const scopedKey = this._scopeKey(key);
       const resp = await WebHelper.getAsync(
-        `materials/resource?key=${encodeURIComponent(key)}`
+        `materials/resource?key=${encodeURIComponent(scopedKey)}`
       );
       if (!resp?.data) return null;
       return _decodeResourceData(resp.data, resp.mimeType);
@@ -510,30 +620,34 @@ class CardAPI {
 
     /**
      * Overwrite the content of an existing resource by key.
-     * @param {string} key
+     * @param {string} key  - Logical key (scoped to this card automatically).
      * @param {string|Uint8Array|ArrayBuffer|Blob} data
      * @param {string} [mimeType]  - New MIME type. Keeps existing type when omitted.
      */
     Update: async (key, data, mimeType) => {
+      const scopedKey = this._scopeKey(key);
       const content = await _toBase64(data);
       const mt = mimeType ?? _mimeTypeOf(data);
-      const resp = await WebHelper.putAsync("materials/resourcedata", { key, content, mimeType: mt });
+      const resp = await WebHelper.putAsync("materials/resourcedata", { key: scopedKey, content, mimeType: mt });
       if (!resp || resp.status >= 300)
         throw new Error(resp?.body?.error ?? "Failed to update resource.");
     },
 
     /**
      * Delete a resource by key.
+     * @param {string} key  - Logical key (scoped to this card automatically).
      */
     Delete: async (key) => {
+      const scopedKey = this._scopeKey(key);
       const resp = await WebHelper.deleteAsync(
-        `materials/resourcedata?key=${encodeURIComponent(key)}`
+        `materials/resourcedata?key=${encodeURIComponent(scopedKey)}`
       );
       if (resp?.error) throw new Error(resp.error);
     },
 
     /**
      * Create the resource if it doesn't exist, otherwise update its content.
+     * @param {string} key  - Logical key (scoped to this card automatically).
      * @returns {Promise<string|undefined>} GUID on create, undefined on update.
      */
     Upsert: async (key, data, name, mimeType) => {
@@ -542,6 +656,57 @@ class CardAPI {
       } catch {
         await this.Resources.Update(key, data, mimeType);
       }
+    },
+
+    /**
+     * Access game-wide shared resources without card-scoped key prefixing.
+     * Use this when reading resources created by other cards or the GM
+     * (e.g. shared token images, global config blobs).
+     */
+    Global: {
+      Create: async (key, data, name, mimeType) => {
+        const mt = mimeType ?? _mimeTypeOf(data);
+        const content = await _toBase64(data);
+        const resp = await WebHelper.postAsync("materials/createresource", {
+          key, content, mimeType: mt, name: name ?? key,
+        });
+        if (resp?.status === 409)
+          throw new Error(resp.body?.error ?? "Resource with that key already exists.");
+        if (!resp || resp.status >= 300)
+          throw new Error(resp?.body?.error ?? "Failed to create resource.");
+        return resp.body?.id;
+      },
+
+      Read: async (key) => {
+        const resp = await WebHelper.getAsync(
+          `materials/resource?key=${encodeURIComponent(key)}`
+        );
+        if (!resp?.data) return null;
+        return _decodeResourceData(resp.data, resp.mimeType);
+      },
+
+      Update: async (key, data, mimeType) => {
+        const content = await _toBase64(data);
+        const mt = mimeType ?? _mimeTypeOf(data);
+        const resp = await WebHelper.putAsync("materials/resourcedata", { key, content, mimeType: mt });
+        if (!resp || resp.status >= 300)
+          throw new Error(resp?.body?.error ?? "Failed to update resource.");
+      },
+
+      Delete: async (key) => {
+        const resp = await WebHelper.deleteAsync(
+          `materials/resourcedata?key=${encodeURIComponent(key)}`
+        );
+        if (resp?.error) throw new Error(resp.error);
+      },
+
+      Upsert: async (key, data, name, mimeType) => {
+        try {
+          return await this.Resources.Global.Create(key, data, name, mimeType);
+        } catch {
+          await this.Resources.Global.Update(key, data, mimeType);
+        }
+      },
     },
   };
 

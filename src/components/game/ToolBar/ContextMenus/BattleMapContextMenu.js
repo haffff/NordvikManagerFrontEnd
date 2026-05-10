@@ -360,10 +360,16 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
             {maps.length > 0 && canEditMap && (
               <DropDownMenu submenu={true} width={width} name={"Switch Map"} icon={<FaExchangeAlt />}>
                 {maps.map(m => (
-                  <DropDownItem key={m.id} width={width} name={m.name} onClick={() =>
+                  <DropDownItem key={m.id} uid={m.id} width={width} name={m.name} onClick={() =>
                     ClientMediator.sendCommand("BattleMap", "ChangeMap", { contextId: battleMapId, id: m.id })
                   } />
                 ))}
+                <DropDownItem
+                  width={width}
+                  name={"Add Map"}
+                  onClick={() => WebSocketManagerInstance.Send(CommandFactory.CreateMapAddCommand())}
+                  icon={<FaPlus/>}
+              />
               </DropDownMenu>
             )}
             {canEditMap && (

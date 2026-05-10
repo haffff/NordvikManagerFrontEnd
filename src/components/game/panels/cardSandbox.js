@@ -83,6 +83,36 @@ export const SANDBOX_BRIDGE_SCRIPT = `<script>
         const i = arr.indexOf(cb);
         if (i !== -1) arr.splice(i, 1);
       },
+
+      /** Access properties of any entity — parentId supplied explicitly. */
+      Global: Object.freeze({
+        Get:         (parentId, name)        => _rpc('Properties', 'Get',         { name, parentId, global: true }),
+        GetMany:     (parentId, names)       => _rpc('Properties', 'GetMany',     { names, parentId, global: true }),
+        GetByNames:  (parentId, names)       => _rpc('Properties', 'GetByNames',  { names, parentId, global: true }),
+        GetProperties: (parentId)            => _rpc('Properties', 'GetProperties',{ parentId, global: true }),
+        Set:         (parentId, name, val)   => _rpc('Properties', 'Set',         { name, value: val, parentId, global: true }),
+        SetMany:     (parentId, props)       => _rpc('Properties', 'SetMany',     { properties: props, parentId, global: true }),
+        Init:        (parentId, name, val)   => _rpc('Properties', 'Init',        { name, value: val, parentId, global: true }),
+        InitMany:    (parentId, props)       => _rpc('Properties', 'InitMany',    { properties: props, parentId, global: true }),
+        Remove:      (parentId, name)        => _rpc('Properties', 'Remove',      { name, parentId, global: true }),
+      }),
+    },
+
+    Resources: {
+      Create: (key, data, name, mimeType) => _rpc('Resources', 'Create', { key, data, name, mimeType }),
+      Read:   (key)                        => _rpc('Resources', 'Read',   { key }),
+      Update: (key, data, mimeType)        => _rpc('Resources', 'Update', { key, data, mimeType }),
+      Delete: (key)                        => _rpc('Resources', 'Delete', { key }),
+      Upsert: (key, data, name, mimeType)  => _rpc('Resources', 'Upsert', { key, data, name, mimeType }),
+
+      /** Game-wide resources — key is NOT scoped to this card. */
+      Global: Object.freeze({
+        Create: (key, data, name, mimeType) => _rpc('Resources', 'Create', { key, data, name, mimeType, global: true }),
+        Read:   (key)                        => _rpc('Resources', 'Read',   { key, global: true }),
+        Update: (key, data, mimeType)        => _rpc('Resources', 'Update', { key, data, mimeType, global: true }),
+        Delete: (key)                        => _rpc('Resources', 'Delete', { key, global: true }),
+        Upsert: (key, data, name, mimeType)  => _rpc('Resources', 'Upsert', { key, data, name, mimeType, global: true }),
+      }),
     },
 
     ClientMediator: {
@@ -108,6 +138,7 @@ export const SANDBOX_BRIDGE_SCRIPT = `<script>
   };
 
   Object.freeze(CardAPI.Properties);
+  Object.freeze(CardAPI.Resources);
   Object.freeze(CardAPI.ClientMediator);
   Object.freeze(CardAPI);
 
