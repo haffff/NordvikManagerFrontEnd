@@ -112,8 +112,33 @@ export const LayoutHelper = {
         try {
             state.ref.current.rootPanel = loadedState;
 
-            // Compute next content id safely from saved contents
-            const maxId = contents.length > 0 ? Math.max(...contents.map(c => (c.contentId ?? c.id ?? 0))) : 0;
+            // Collect ALL IDs across every source so idNext never reuses one:
+            //   1. Content IDs from the saved layout's _contents
+            //   2. Panel IDs + content IDs from the newly restored rootPanel tree
+            //   3. Panel IDs + content IDs from any surviving floatingPanels
+            // (The dockable library draws panel IDs *and* content IDs from the same
+            //  idNext counter, so both must be considered.)
+            const allIds = [];
+
+            const collectIds = (panel) => {
+                if (!panel) return;
+                if (typeof panel.id === 'number') allIds.push(panel.id);
+                for (const c of (panel.contentList || [])) {
+                    if (typeof c.contentId === 'number') allIds.push(c.contentId);
+                }
+                for (const sp of (panel.splitPanels || [])) collectIds(sp);
+            };
+
+            for (const c of contents) {
+                const id = c.contentId ?? c.id ?? 0;
+                if (typeof id === 'number') allIds.push(id);
+            }
+            collectIds(loadedState);
+            for (const fp of (state.ref.current.floatingPanels || [])) {
+                collectIds(fp);
+            }
+
+            const maxId = allIds.length > 0 ? Math.max(...allIds) : 0;
             state.ref.current.idNext = (maxId || 0) + 1;
             state.commit();
         } catch (e) {

@@ -122,9 +122,8 @@ const EntryRow = React.memo(({ entry, onInspect }) => {
           fontSize="12px"
           color={color}
           fontFamily="mono"
-          overflow="hidden"
-          textOverflow="ellipsis"
-          whiteSpace="nowrap"
+          whiteSpace="pre-wrap"
+          wordBreak="break-word"
         >
           {entry.message}
         </Text>
@@ -341,7 +340,8 @@ export const EventLogPanel = ({ state }) => {
           <Flex
             direction="column"
             flexShrink={0}
-            maxH="180px"
+            maxH="40%"
+            minH="120px"
             borderTopWidth="1px"
             borderColor={BORDER_CLR}
             bg={BG_RAISED}

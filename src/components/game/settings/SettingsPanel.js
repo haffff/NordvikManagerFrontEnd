@@ -6,7 +6,6 @@ import {
   Card,
   Input,
   Field,
-  Image,
   HStack,
   Button,
   Heading,
@@ -33,6 +32,7 @@ import { MaterialChooser } from "../../uiComponents/MaterialChooser";
 import { PlayerChooser } from "../../uiComponents/PlayerChooser";
 import { SearchInput } from "../../uiComponents/SearchInput";
 import { DColorPicker } from "../../uiComponents/settingsComponents/ColorPicker";
+import ResourceImage from "../../uiComponents/ResourceImage";
 
 // ─── Field card wrapper ────────────────────────────────────────────────────────
 
@@ -158,12 +158,14 @@ const buildInput = (editable, key, value, validationError, disabled, OnChange) =
         />
       );
 
-    case "image":
+    case "image": {
+      const isGuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value ?? "");
       return (
         <>
           {value && (
-            <Image
-              src={WebHelper.getResourceString(value)}
+            <ResourceImage
+              id={isGuid ? value : undefined}
+              resourceKey={isGuid ? undefined : value}
               boxSize="300px"
               objectFit="contain"
               borderRadius="md"
@@ -180,6 +182,7 @@ const buildInput = (editable, key, value, validationError, disabled, OnChange) =
           />
         </>
       );
+    }
 
     case "textarea":
       return (

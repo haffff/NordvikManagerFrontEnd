@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { FaCheckCircle, FaExchangeAlt, FaLock, FaMap, FaMapSigns, FaPlus, FaRegCheckCircle, FaShieldAlt, FaTrash } from 'react-icons/fa';
+import { FaCheckCircle, FaLock, FaMap, FaMapSigns, FaPlus, FaRegCheckCircle, FaShieldAlt, FaTrash } from 'react-icons/fa';
 import MapSelector from '../../panels/MapSelector';
 import { ActiveWebHelper as WebHelper } from '../../../../helpers/transport';
 import DockableHelper from '../../../../helpers/DockableHelper';
@@ -16,6 +16,7 @@ import { usePermissions } from '../../../../contexts/PermissionsContext';
 import { ENTITY_TYPES, PERM, PERM_LEVEL } from '../../../BattleMap/Helpers/permissionBits';
 import UtilityHelper from '../../../../helpers/UtilityHelper';
 import { Tooltip } from '../../../ui/tooltip';
+import SwitchMapSubmenu from '../ContextMenus/SwitchMapSubmenu';
 
 export const BattleMapsMenu = ({ state, maps, onCreateBmModalRef }) => {
     const [battleMaps, setBattleMaps] = React.useState(undefined);
@@ -182,13 +183,13 @@ export const BattleMapsMenu = ({ state, maps, onCreateBmModalRef }) => {
                             } />
                         )}
                         {isOpen && maps.length > 0 && (
-                            <DropDownMenu submenu={true} width={200} name={"Switch Map"} icon={<FaExchangeAlt />}>
-                                {maps.map(m => (
-                                    <DropDownItem key={m.id} width={200} name={m.name} onClick={() =>
-                                        ClientMediator.sendCommand("BattleMap", "ChangeMap", { contextId: x.id, id: m.id })
-                                    } />
-                                ))}
-                            </DropDownMenu>
+                            <SwitchMapSubmenu
+                                maps={maps}
+                                battleMapId={x.id}
+                                currentMapId={ClientMediator.sendCommand('BattleMap', 'GetSelectedMap', { contextId: x.id })?.id}
+                                width={200}
+                                showAddMap={false}
+                            />
                         )}
                         {canEditGame && !isOpen && (
                             <DropDownItem width={200} name={"Delete"} icon={<FaTrash />} onClick={() => DeleteBattleMap(x.id)} />

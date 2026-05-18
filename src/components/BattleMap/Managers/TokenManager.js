@@ -61,6 +61,34 @@ const CREATE_TOKEN_PROPS = [
   "player_owner",
 ];
 
+const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Returns true if value is a bare GUID, false if it's a named/scoped key. */
+const _isGuid = (value) => GUID_RE.test(value ?? "");
+
+/**
+ * Convert a raw resource reference to a full URL for fabric.js / img src use.
+ *  - GUID       → ?id=<uuid>
+ *  - Any other string (named key, scoped key) → ?key=<value>
+ *  - Already a full URL → returned as-is
+ */
+function _toResourceUrl(value) {
+  if (!value || typeof value !== "string") return value;
+  if (value.startsWith("http") || value.startsWith("/")) return value;
+  return _isGuid(value)
+    ? WebHelper.getResourceString(value)
+    : WebHelper.getResourceString(null, value);
+}
+
+/**
+ * Fetch a material by id-or-key, routing correctly to ?id= or ?key=.
+ */
+function _getMaterial(idOrKey, mimeType) {
+  return _isGuid(idOrKey)
+    ? WebHelper.getMaterialAsync(idOrKey, mimeType)
+    : WebHelper.getMaterialAsync(null, mimeType, idOrKey);
+}
+
 /** The implicit propDep injected into every token (card image → fabric src) */
 const IMAGE_PROP_DEP = Object.freeze({
   dtoProperty: "tokenImage",
@@ -536,10 +564,7 @@ class TokenManager {
     // converted, and fabric.Image needs setSrc() — not just set() — to actually
     // reload the displayed image.
     if (objectProperty === "src") {
-      const url =
-        typeof value === "string" && !value.includes("/")
-          ? WebHelper.getResourceString(value)
-          : value;
+      const url = _toResourceUrl(value);
       targetElement.set("src", url);
       if (typeof targetElement.setSrc === "function") {
         targetElement.setSrc(url, () => {});
@@ -843,9 +868,7 @@ class TokenManager {
     let svgMarkup = spec.svgString;
 
     if (!svgMarkup && spec.src) {
-      const url = spec.src.includes("/")
-        ? spec.src
-        : WebHelper.getResourceString(spec.src);
+      const url = _toResourceUrl(spec.src);
       svgMarkup = await WebHelper.getMaterialAsync(url, "image/svg+xml").catch(() => null);
     }
 
@@ -1143,10 +1166,7 @@ class TokenManager {
     const tokenImageId = findPropValue(properties, "tokenImage");
 
     // Fetch the token JSON template
-    const tokenRaw = await WebHelper.getMaterialAsync(
-      tokenId,
-      "application/json"
-    );
+    const tokenRaw = await _getMaterial(tokenId, "application/json");
     if (!tokenRaw) {
       console.error(
         `TokenManager._createTokenAsync: failed to fetch token template "${tokenId}"`
@@ -1159,7 +1179,7 @@ class TokenManager {
     // Convert the raw resource ID to a full URL so fabric.util.loadImage
     // recognises it as a backend resource and fetches it via WebRTC.
     const tokenImageUrl = tokenImageId
-      ? WebHelper.getResourceString(tokenImageId)
+      ? _toResourceUrl(tokenImageId)
       : undefined;
 
     // Build the Fabric image object

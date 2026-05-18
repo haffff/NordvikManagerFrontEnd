@@ -473,7 +473,7 @@ export const ToolsPanel = ({ battleMapId }) => {
       <For each={config}>
         {(item) => {
           if (item.type === "label") {
-            return <DLabel>{item.name}</DLabel>;
+            return <DLabel key={item.name}>{item.name}</DLabel>;
           } else {
             return optionDefinition(
               item.icon,
@@ -508,7 +508,7 @@ export const ToolsPanel = ({ battleMapId }) => {
                 };
               }
 
-              return <Separator size={"lg"} {...additionalProps} />;
+              return <Separator key={item.name} size={"lg"} {...additionalProps} />;
             } else {
               return wrapOptionDefinition(
                 item.icon,

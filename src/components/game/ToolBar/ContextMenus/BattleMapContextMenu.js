@@ -14,7 +14,6 @@ import {
   FaMap,
   FaObjectUngroup,
   FaPaste,
-  FaExchangeAlt,
   FaPlus,
   FaShieldAlt,
   FaTrash,
@@ -28,6 +27,7 @@ import DTOConverter from "../../../BattleMap/DTOConverter";
 import { ActiveTransportManager as WebSocketManagerInstance, ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import ClientMediator from "../../../../ClientMediator";
 import { Heading } from "@chakra-ui/react";
+import SwitchMapSubmenu from "./SwitchMapSubmenu";
 import { MenuContent, MenuContextTrigger, MenuRoot } from "../../../ui/menu";
 import { PERM, PERM_LEVEL, ENTITY_TYPES } from "../../../BattleMap/Helpers/permissionBits";
 import CommandFactory from "../../../BattleMap/Factories/CommandFactory";
@@ -207,13 +207,13 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
             d.open = false;
         }
     }}>
+      <Subscribable commandPrefix="permission_update" onMessage={(msg) => {
+        if (msg.data?.entityType !== 'ElementModel' || msg.data?.id !== selectedId) return;
+        setElementPermissions(msg.data.permissions ?? {});
+      }} />
+      <CollectionSyncer collection={maps} setCollection={setMaps} commandPrefix="map" />
       <MenuContextTrigger >{children}</MenuContextTrigger>
       <MenuContent>
-        <Subscribable commandPrefix="permission_update" onMessage={(msg) => {
-          if (msg.data?.entityType !== 'ElementModel' || msg.data?.id !== selectedId) return;
-          setElementPermissions(msg.data.permissions ?? {});
-        }} />
-        <CollectionSyncer collection={maps} setCollection={setMaps} commandPrefix="map" />
         {selectedObjects && selectedObjects.length === 1 ? (
           <>
             <Heading
@@ -358,19 +358,7 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
               />
             </DropDownMenu>
             {maps.length > 0 && canEditMap && (
-              <DropDownMenu submenu={true} width={width} name={"Switch Map"} icon={<FaExchangeAlt />}>
-                {maps.map(m => (
-                  <DropDownItem key={m.id} uid={m.id} width={width} name={m.name} onClick={() =>
-                    ClientMediator.sendCommand("BattleMap", "ChangeMap", { contextId: battleMapId, id: m.id })
-                  } />
-                ))}
-                <DropDownItem
-                  width={width}
-                  name={"Add Map"}
-                  onClick={() => WebSocketManagerInstance.Send(CommandFactory.CreateMapAddCommand())}
-                  icon={<FaPlus/>}
-              />
-              </DropDownMenu>
+              <SwitchMapSubmenu maps={maps} battleMapId={battleMapId} currentMapId={currentMap?.id} width={width} />
             )}
             {canEditMap && (
               <DropDownItem

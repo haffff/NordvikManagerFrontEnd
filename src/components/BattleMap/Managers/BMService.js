@@ -42,7 +42,11 @@ class BMService {
         args: [],
       },
       ChangeMap: {
-        description: 'Switches the BattleMap to the map with the given ID.',
+        description: 'Requests a map switch via the server (persists + broadcasts to all clients). Required: id (map id)',
+        args: [{ name: 'id', type: 'mapid', required: true }],
+      },
+      ApplyMapChange: {
+        description: 'Applies a server-confirmed map change locally (reloads canvas). Called by OnMapChange handler — do not call directly from UI.',
         args: [{ name: 'id', type: 'mapid', required: true }],
       },
       UpdateMapReference: {
@@ -167,7 +171,15 @@ class BMService {
   ChangeMap(idOrObj) {
     const id = idOrObj?.id ?? idOrObj?.mapId ?? idOrObj;
     if (!id) return `ChangeMap: no map id provided`;
-    if (typeof this._changeMapCommand !== 'function') return `ChangeMap: not ready (canvas not loaded yet)`;
+    const battleMapId = this._battleMapModel?.id;
+    if (!battleMapId) return `ChangeMap: battlemap not loaded yet`;
+    WebSocketManagerInstance.Send(CommandFactory.CreateChangeMapCommand(id, battleMapId));
+  }
+
+  ApplyMapChange(idOrObj) {
+    const id = idOrObj?.id ?? idOrObj?.mapId ?? idOrObj;
+    if (!id) return `ApplyMapChange: no map id provided`;
+    if (typeof this._changeMapCommand !== 'function') return `ApplyMapChange: not ready (canvas not loaded yet)`;
     return this._changeMapCommand(id);
   }
   UpdateMapReference({ mapData }) {
