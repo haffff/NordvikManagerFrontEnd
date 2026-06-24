@@ -51,27 +51,27 @@ export const CommandExecutionHelper = {
 
       if (openedBattleMaps.length === 1) {
         // Only one BattleMap open — use it automatically, don't consume an arg
-        context = openedBattleMaps[0].Id;      } else {
+        context = openedBattleMaps[0].id ?? openedBattleMaps[0].Id;      } else {
         // Multiple open — first positional arg must identify which one.
         // Resolve map names once up-front (one sendCommand call per context).
         const contextMaps = openedBattleMaps.map((x) => ({
           ctx: x,
-          map: ClientMediator.sendCommand('BattleMap', 'GetSelectedMap', { contextId: x.Id }),
+          map: ClientMediator.sendCommand('BattleMap', 'GetSelectedMap', { contextId: x.id ?? x.Id }),
         }));
 
         // Accept: full context UUID  OR  the loaded map's name (case-insensitive).
         const possibleContext = args[0]?.toLowerCase();
         const found = contextMaps.find(
           ({ ctx, map }) =>
-            ctx.Id === args[0] ||
+            (ctx.id ?? ctx.Id) === args[0] ||
             map?.name?.toLowerCase() === possibleContext
         );
         if (!found) {
           if (openedBattleMaps.length === 0) return 'No BattleMap is open.';
-          const labels = contextMaps.map(({ ctx, map }) => map?.name ?? ctx.Id).join(', ');
+          const labels = contextMaps.map(({ ctx, map }) => map?.name ?? (ctx.id ?? ctx.Id)).join(', ');
           return `Context required. Open maps: ${labels}`;
         }
-        context = found.ctx.Id;
+        context = found.ctx.id ?? found.ctx.Id;
         args = args.slice(1); // consume the context token
       }
     }// Map positional index so we can look up the $meta arg name.
@@ -127,9 +127,10 @@ export const CommandExecutionHelper = {
     switch (argType) {      case 'bmcontext': {
         const contexts = ClientMediator.sendCommand('Game', 'GetOpenedBattleMaps') ?? [];
         return contexts.map((ctx) => {
-          const map = ClientMediator.sendCommand('BattleMap', 'GetSelectedMap', { contextId: ctx.Id });
-          const label = map?.name ? `${map.name} (${ctx.Id.slice(0, 8)}…)` : ctx.Id;
-          return { value: ctx.Id, label };
+          const ctxId = ctx.id ?? ctx.Id ?? '';
+          const map = ClientMediator.sendCommand('BattleMap', 'GetSelectedMap', { contextId: ctxId });
+          const label = map?.name ? `${map.name} (${ctxId.slice(0, 8)}…)` : ctxId;
+          return { value: ctxId, label };
         });
       }
       case 'mapid': {

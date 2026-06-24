@@ -1,5 +1,5 @@
 import * as React from "react";
-import { FaMailBulk, FaTerminal, FaEye, FaBook, FaQuestion } from "react-icons/fa";
+import { FaMailBulk, FaTerminal, FaEye, FaBook, FaQuestion, FaFlask, FaCheck } from "react-icons/fa";
 import { DropDownItem } from "../../uiComponents/base/DDItems/DropDownItem";
 import { DropDownMenu } from "../../uiComponents/base/DDItems/DropDownMenu";
 import ToolBar from "./ToolBar";
@@ -22,6 +22,19 @@ export const MainToolbar = ({
   forceRefreshGame,
 }) => {
   const [additionalButtons, setAdditionalButtons] = React.useState([]);
+  const [experimentalEnabled, setExperimentalEnabled] = React.useState(
+    () => localStorage.getItem('nm_experimental_enabled') === 'true'
+  );
+
+  const toggleExperimental = () => {
+    setExperimentalEnabled(prev => {
+      const next = !prev;
+      localStorage.setItem('nm_experimental_enabled', next);
+      return next;
+    });
+    // Force dockable re-render so Panel.js picks up the new localStorage value
+    forceRefreshGame && forceRefreshGame('experimental');
+  };
 
   React.useEffect(() => {
     ClientMediator.register({
@@ -111,6 +124,14 @@ export const MainToolbar = ({
       {additionalButtons}
       <DropDownMenu viewId={"experimental"} name={"Experimental"} width={100}>
         <DropDownItem
+          key={'exp_toggle'}
+          width={180}
+          name={experimentalEnabled ? '⚡ Experimental: ON' : '○ Experimental: OFF'}
+          onClick={toggleExperimental}
+          icon={experimentalEnabled ? <FaCheck /> : <FaFlask />}
+        />
+        {experimentalEnabled && <>
+        <DropDownItem
           key={'main_1'}
           width={180}
           name={'View'}
@@ -142,6 +163,7 @@ export const MainToolbar = ({
             });
           }}
         />
+        </>}
       </DropDownMenu>
     </ToolBar>
   );

@@ -3,6 +3,7 @@ import * as Dockable from "@hlorenzi/react-dockable"
 let globalDockableState = null;
 let dragStateListeners = new Set();
 let lastDraggedPanel = null;
+let popOutHandler = null;
 
 export const DockableHelper = {
     NewFloating: (state,Element) => {
@@ -47,7 +48,15 @@ export const DockableHelper = {
                 console.error('Error in drag state listener:', error);
             }
         });
-    }
+    },
+
+    // Register the pop-out handler (called by useGameApi)
+    registerPopOutHandler: (fn) => {
+        popOutHandler = fn;
+    },
+
+    // Get the registered pop-out handler (called by Container.js via Dockable.Container onPopOut)
+    getPopOutHandler: () => popOutHandler,
 }
 
 // Monitor the dockable state object for changes to draggedPanel

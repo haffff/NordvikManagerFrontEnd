@@ -80,7 +80,7 @@ export default function createLoadCanvas(deps) {
 
     let bmObj = {
       Panel: ctx.layoutContent.panel,
-      PanelContentID: ctx.layoutContent.content.contentId,
+      PanelContentID: ctx.layoutContent.content?.contentId ?? uuid,
       id: uuid,
     };
 

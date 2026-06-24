@@ -43,6 +43,15 @@ export const MainApp = ({ onAuthRequired }) => {
                 credentials: 'include',
                 headers: { 'Content-Type': 'application/json' },
             });
+
+            // 401 = session cookie expired; 400 is also returned by this backend
+            // when the auth cookie is missing or invalid — either way the user
+            // needs to re-authenticate.
+            if (resp.status === 401 || resp.status === 400) {
+                onAuthRequired?.();
+                return;
+            }
+
             if (!resp.ok) throw new Error(`Session start failed (${resp.status})`);
             const { centralSessionId: csId, centralAccessToken } = await resp.json();
 
@@ -60,7 +69,7 @@ export const MainApp = ({ onAuthRequired }) => {
         } finally {
             setStartingSession(false);
         }
-    }, []);
+    }, [onAuthRequired]);
 
     const handleAuthFailure = useCallback(() => {
         console.log('MainApp: Auth failure from central server, redirecting to login');

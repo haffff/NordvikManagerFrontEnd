@@ -42,6 +42,13 @@ export default defineConfig(({ mode }) => {
       globals: true,
       environment: 'jsdom',
       setupFiles: ['./src/setupTests.js'],
+      server: {
+        deps: {
+          // Force ESM processing for styled-components and the dockable library
+          // so that `styled.div` resolves correctly in the jsdom environment.
+          inline: ['styled-components', /@hlorenzi\/react-dockable/, '@emotion/react', '@emotion/cache', '@chakra-ui/react'],
+        },
+      },
     },
   }
 })
