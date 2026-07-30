@@ -643,17 +643,20 @@ class CardAPI {
         `materials/resourcedata?key=${encodeURIComponent(scopedKey)}`
       );
       if (resp?.error) throw new Error(resp.error);
-    },
-
-    /**
+    },    /**
      * Create the resource if it doesn't exist, otherwise update its content.
+     * Falls back to Update ONLY on a 409 / "already exists" error from Create.
+     * Any other error (network failure, permission denied, etc.) is re-thrown
+     * so callers get a clear failure rather than a misleading Update attempt.
      * @param {string} key  - Logical key (scoped to this card automatically).
      * @returns {Promise<string|undefined>} GUID on create, undefined on update.
      */
     Upsert: async (key, data, name, mimeType) => {
       try {
         return await this.Resources.Create(key, data, name, mimeType);
-      } catch {
+      } catch (err) {
+        const msg = String(err?.message ?? err).toLowerCase();
+        if (!msg.includes("already exists")) throw err;
         await this.Resources.Update(key, data, mimeType);
       }
     },
@@ -698,19 +701,19 @@ class CardAPI {
           `materials/resourcedata?key=${encodeURIComponent(key)}`
         );
         if (resp?.error) throw new Error(resp.error);
-      },
-
-      Upsert: async (key, data, name, mimeType) => {
+      },      Upsert: async (key, data, name, mimeType) => {
         try {
           return await this.Resources.Global.Create(key, data, name, mimeType);
-        } catch {
+        } catch (err) {
+          const msg = String(err?.message ?? err).toLowerCase();
+          if (!msg.includes("already exists")) throw err;
           await this.Resources.Global.Update(key, data, mimeType);
         }
       },
     },
   };
 
-  // ── Sandboxed ClientMediator ────────────────────────────────────────────
+  // ── Sandboxed ClientMediator────────────────────────────────────────────
 
   /**
    * Internal: send a command through ClientMediator with allowlist enforcement.
@@ -1016,6 +1019,11 @@ class PropertiesManager {
 
     delete this._propertyCache[propertyId];
     WebSocketManagerInstance.Send({ command: "property_delete", data: propertyId });
+  }
+
+  GetCardId()
+  {
+    return this._cardId;
   }
 }
 

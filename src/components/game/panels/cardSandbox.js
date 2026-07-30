@@ -43,9 +43,10 @@ export const SANDBOX_BRIDGE_SCRIPT = `<script>
 
   // ── RPC state ─────────────────────────────────────────────────────────────
   let _reqCounter = 0;
-  const _pending = {};           // reqId → { resolve, reject }
-  const _propSubscriptions = {}; // name → callback[]
-  const _wsSubscriptions   = []; // callback[]
+  const _pending = {};                  // reqId → { resolve, reject }
+  const _propSubscriptions = {};        // name → callback[]
+  const _globalPropSubscriptions = {};  // "parentId:name" → callback[]
+  const _wsSubscriptions   = [];        // callback[]
 
   // Mutable identity fields — written once on INIT
   let _cardId              = null;
@@ -79,12 +80,11 @@ export const SANDBOX_BRIDGE_SCRIPT = `<script>
       },
       Unsubscribe: (name, cb) => {
         const arr = _propSubscriptions[name];
-        if (!arr) return;
-        const i = arr.indexOf(cb);
+        if (!arr) return;        const i = arr.indexOf(cb);
         if (i !== -1) arr.splice(i, 1);
       },
 
-      /** Access properties of any entity — parentId supplied explicitly. */
+      /** Access propertiesof any entity — parentId supplied explicitly. */
       Global: Object.freeze({
         Get:         (parentId, name)        => _rpc('Properties', 'Get',         { name, parentId, global: true }),
         GetMany:     (parentId, names)       => _rpc('Properties', 'GetMany',     { names, parentId, global: true }),
@@ -95,6 +95,19 @@ export const SANDBOX_BRIDGE_SCRIPT = `<script>
         Init:        (parentId, name, val)   => _rpc('Properties', 'Init',        { name, value: val, parentId, global: true }),
         InitMany:    (parentId, props)       => _rpc('Properties', 'InitMany',    { properties: props, parentId, global: true }),
         Remove:      (parentId, name)        => _rpc('Properties', 'Remove',      { name, parentId, global: true }),
+
+        Subscribe: (parentId, name, cb) => {
+          const key = parentId + ':' + name;
+          if (!_globalPropSubscriptions[key]) _globalPropSubscriptions[key] = [];
+          _globalPropSubscriptions[key].push(cb);
+        },
+        Unsubscribe: (parentId, name, cb) => {
+          const key = parentId + ':' + name;
+          const arr = _globalPropSubscriptions[key];
+          if (!arr) return;
+          const i = arr.indexOf(cb);
+          if (i !== -1) arr.splice(i, 1);
+        },
       }),
     },
 
@@ -166,10 +179,21 @@ export const SANDBOX_BRIDGE_SCRIPT = `<script>
       }
 
       case 'PROPERTY_EVENT': {
-        const subs = _propSubscriptions[msg.name];
-        if (!subs?.length) break;
-        for (const cb of subs) {
-          try { cb(msg.propData); } catch (e) { console.error('CardAPI prop subscriber error', e); }
+        if (msg.global) {
+          // Global property event — keyed by "parentId:name"
+          const key = msg.parentId + ':' + msg.name;
+          const gsubs = _globalPropSubscriptions[key];
+          if (gsubs?.length) {
+            for (const cb of gsubs) {
+              try { cb(msg.propData); } catch (e) { console.error('CardAPI global prop subscriber error', e); }
+            }
+          }
+        } else {
+          const subs = _propSubscriptions[msg.name];
+          if (!subs?.length) break;
+          for (const cb of subs) {
+            try { cb(msg.propData); } catch (e) { console.error('CardAPI prop subscriber error', e); }
+          }
         }
         break;
       }
