@@ -230,7 +230,7 @@ export const TemplatesPanel = ({ gameDataRef }) => {
       );
       const matchingCardIds = (templateIdProps ?? [])
         .filter((p) => p.value === selectedTemplate.id)
-        .map((p) => p.parentID);
+        .map((p) => p.parentId);
 
       if (!matchingCardIds.length) {
         toaster.create({ description: "No cards are using this template.", type: "info", duration: 4000 });
@@ -264,12 +264,12 @@ export const TemplatesPanel = ({ gameDataRef }) => {
         }
 
         // Add token property for cards that don't have one yet
-        const cardsWithToken = new Set((existingTokenProps ?? []).map((p) => p.parentID));
+        const cardsWithToken = new Set((existingTokenProps ?? []).map((p) => p.parentId));
         for (const cardId of matchingCardIds) {
           if (!cardsWithToken.has(cardId)) {
             WebSocketManagerInstance.Send({
               command: "property_add",
-              data: { name: "token", value: tokenValue, parentId: cardId, EntityName: "CardModel" },
+              data: { name: "token", value: tokenValue, parentId: cardId, entityName: "CardModel" },
             });
           }
         }

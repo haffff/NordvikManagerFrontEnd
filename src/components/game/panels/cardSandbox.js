@@ -23,7 +23,7 @@
  * ─────────────────────────────────────────
  *   { type: "INIT",           cardId, additionalArguments }
  *   { type: "CMD_RESULT",     reqId, result, error? }
- *   { type: "PROPERTY_EVENT", eventType, name, propData }
+ *   { type: "PROPERTY_EVENT", eventType, name, propData, global?, parentId? }
  *   { type: "WS_EVENT",       command, data }
  *
  * postMessage protocol (sandbox → parent)
@@ -138,7 +138,7 @@ export const SANDBOX_BRIDGE_SCRIPT = `<script>
       parent.postMessage({ type: 'WS_SEND', command: 'chat_message', data: message }, '*'),
 
     FireAction: (action, args) =>
-      parent.postMessage({ type: 'WS_SEND', command: 'action_execute', data: { action, args } }, '*'),
+      parent.postMessage({ type: 'WS_SEND', command: 'execute_action', data: { action, args } }, '*'),
 
     SendCustomCommandToServer: (command, data) =>
       parent.postMessage({ type: 'WS_SEND', command, data }, '*'),

@@ -1,5 +1,6 @@
 import * as React from "react";
-import { Box, Flex, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, Text } from "@chakra-ui/react";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../transport";
 
 // ── Design tokens (kept local so the file is self-contained) ──────────────────
 const BG_CARD    = "rgb(48,48,48)";
@@ -84,11 +85,45 @@ const buildFormulaElements = (rolled, dices) => {
   return elements;
 };
 
+// ── ActionButtons ───────────────────────────────────────────────────────────
+// Follow-up buttons attached to a roll (e.g. "Roll Damage" after an attack roll).
+// Each carries its own baked-in args, so clicking it doesn't need any of this
+// component's own state — it just re-fires the action over the same transport
+// a card's Api.FireAction would use.
+const ActionButtons = ({ actions }) => {
+  const [usedIndices, setUsedIndices] = React.useState(() => new Set());
+
+  if (!actions?.length) return null;
+
+  const fire = (action, index) => {
+    WebSocketManagerInstance.Send({
+      command: "execute_action",
+      data: { Action: action.actionName, Args: action.args ?? {} },
+    });
+    setUsedIndices((prev) => new Set(prev).add(index));
+  };
+
+  return (
+    <Flex direction="row" flexWrap="wrap" gap="6px" mt="6px">
+      {actions.map((action, index) => (
+        <Button
+          key={index}
+          size="xs"
+          disabled={usedIndices.has(index)}
+          onClick={() => fire(action, index)}
+        >
+          {action.label || "Roll"}
+        </Button>
+      ))}
+    </Flex>
+  );
+};
+
 // ── RollChatTemplate ──────────────────────────────────────────────────────────
 export const RollChatTemplate = ({ object }) => {
   if (!object?.roll) return null;
 
-  const { title, roll, message } = object;
+  const { title, roll, message, actions } = object;
   const chatColor       = object.color;
   const chatBorderColor = object.borderColor;
   const { rolled, result, dices } = roll;
@@ -142,6 +177,9 @@ export const RollChatTemplate = ({ object }) => {
           {message}
         </Text>
       )}
+
+      {/* Optional follow-up action buttons (e.g. "Roll Damage") */}
+      <ActionButtons actions={actions} />
     </Box>
   );
 };

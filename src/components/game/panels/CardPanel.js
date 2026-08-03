@@ -23,7 +23,7 @@ import CardAPIFactory from "../../../CardAPI";
  * Protocol (parent → iframe):
  *   INIT            { cardId, additionalArguments }
  *   CMD_RESULT      { reqId, result, error? }
- *   PROPERTY_EVENT  { eventType, name, propData }
+ *   PROPERTY_EVENT  { eventType, name, propData, global?, parentId? }
  *   WS_EVENT        { command, data }
  *   LOAD_RESOURCES  { scripts: string[], styles: string[] }
  *
@@ -62,15 +62,35 @@ function mountBridge(iframe, cardApi, cardId, additionalArguments) {
     );
     if (!allowed) return;
 
-    // Property events scoped to this card → PROPERTY_EVENT (avoids full re-fetch)
+    // Property events → PROPERTY_EVENT (avoids full re-fetch).
+    // Events scoped to this card match Properties.Subscribe(name, cb) in the sandbox.
+    // Anything else is tagged global + parentId so it matches
+    // Properties.Global.Subscribe(parentId, name, cb) instead — that RPC surface
+    // works on any entity's properties, not just this card's own.
     if (command === "property_add" || command === "property_update") {
-      if (data?.parentId !== cardId) return;
-      post({ type: "PROPERTY_EVENT", eventType: "update", name: data.name, propData: data });
+      // PropertyDTO.ParentID is explicitly tagged [JsonProperty("parentId")]
+      // server-side so it matches WebSocketCommandNames.DataKeyParentId — the
+      // same key GameLobby's permission-filtered broadcast reads. The server
+      // now always broadcasts a freshly serialized, canonical PropertyDTO for
+      // every add/update/remove (PropertiesHandler.cs), so this casing is
+      // consistent regardless of what triggered the change.
+      const parentId = data?.parentId;
+      if (parentId === cardId) {
+        post({ type: "PROPERTY_EVENT", eventType: "update", name: data.name, propData: data });
+      } else {
+        post({ type: "PROPERTY_EVENT", eventType: "update", name: data.name, propData: data, global: true, parentId });
+      }
       return;
     }
     if (command === "property_remove") {
-      if (data?.parentId !== cardId) return;
-      post({ type: "PROPERTY_EVENT", eventType: "remove", name: data.name, propData: null });
+      // Also a full PropertyDTO now (previously a bare property ID string with
+      // no parentId at all, which made correct routing impossible).
+      const parentId = data?.parentId;
+      if (parentId === cardId) {
+        post({ type: "PROPERTY_EVENT", eventType: "remove", name: data.name, propData: null });
+      } else {
+        post({ type: "PROPERTY_EVENT", eventType: "remove", name: data.name, propData: null, global: true, parentId });
+      }
       return;
     }
 
@@ -93,6 +113,12 @@ function mountBridge(iframe, cardApi, cardId, additionalArguments) {
 
     // ── Outbound WS command ────────────────────────────────────────────────
     if (type === "WS_SEND") {
+      // FireAction is routed through the real CardAPI method (not a raw send)
+      // so cardId injection and the execute_action wire format live in one place.
+      if (command === "execute_action" && data && typeof data === "object") {
+        cardApi.FireAction(data.action, data.args);
+        return;
+      }
       cardApi.SendCustomCommandToServer(command, data);
       return;
     }

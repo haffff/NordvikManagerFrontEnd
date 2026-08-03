@@ -40,6 +40,22 @@ const TEXT_MUTED = "rgb(140,140,140)";
 
 const ChatParser = new ChatMessageParser();
 
+// Live-pushed chat messages (chat_push) carry no persisted id, and history loaded
+// from battlemap/getchat gets prepended/appended around them as the user scrolls —
+// so `items` array *positions* are not stable across renders. Stamping a key once,
+// at the moment an item first enters state, is what lets React key each ChatBubble
+// by identity instead of by position: without this, using the array index as key
+// (items.map((item, i) => <ChatBubble key={i} .../>)) causes every new incoming
+// message (prepended to the front) to shift every other message's key by one,
+// so React reassigns each ChatBubble instance's props onto a *different* message
+// while keeping its old internal state (e.g. a chat roll's clicked/disabled
+// "Roll Damage" button) — the "some messages allow rolling, some don't" bug.
+// MessageDTO has no explicit [JsonPropertyName] pinning, so REST vs WS casing for
+// its Id field isn't guaranteed — check both rather than assume one.
+// Exported for direct unit testing — otherwise module-private.
+export const stampKey  = (item) => ({ ...item, _reactKey: item?.id ?? item?.Id ?? UtilityHelper.GenerateUUID() });
+export const stampKeys = (items) => (items ?? []).map(stampKey);
+
 // ── Command autocompletion ────────────────────────────────────────────────────
 // Parses the textarea value whenever it starts with "/c " and shows a floating
 // suggestion list above the compose bar.
@@ -455,7 +471,7 @@ export const ChatPanel = () => {
           Promise.resolve(ClientMediator.sendCommand("Game", "GetCurrentPlayer", {})),
         ]);
         if (cancelledRef.current) return;
-        setItems(chatItems ?? []);
+        setItems(stampKeys(chatItems));
         setPlayers(allPlayers ?? []);
         setCurrentPlayerId(currentPlayer?.id);
       } catch (err) {
@@ -500,7 +516,7 @@ export const ChatPanel = () => {
         if (cancelled) return;
         setReachedTop(false);
         setLoadedPages(0);
-        setItems(x ?? []);
+        setItems(stampKeys(x));
       } catch (err) {
         console.error("[ChatPanel] Reload failed:", err);
       }
@@ -513,7 +529,7 @@ export const ChatPanel = () => {
 
   // ── Incoming WS chat message ────────────────────────────────────────────────
   const onChatMessage = React.useCallback((event) => {
-    setItems((prev) => [event, ...prev]);
+    setItems((prev) => [stampKey(event), ...prev]);
   }, []);
 
   // ── Player settings update (no state mutation) ──────────────────────────────
@@ -544,7 +560,7 @@ export const ChatPanel = () => {
       if (!x || x.length === 0) {
         setReachedTop(true);
       } else {
-        setItems((prev) => [...prev, ...x]);
+        setItems((prev) => [...prev, ...stampKeys(x)]);
         setLoadedPages(nextPage);
       }
     } catch (err) {
@@ -586,7 +602,7 @@ export const ChatPanel = () => {
             ? JSON.stringify(result, null, 2)
             : String(result)
           : `Executed ${cmessage}`;
-      setItems((prev) => [{ data: display }, ...prev]);
+      setItems((prev) => [stampKey({ data: display }), ...prev]);
       setMessage("");
       return;
     }
@@ -644,7 +660,7 @@ export const ChatPanel = () => {
           ) : (
             items.map((item, i) => (
               <ChatBubble
-                key={i}
+                key={item._reactKey ?? i}
                 item={item}
                 nextItem={items[i + 1]}
                 players={players}

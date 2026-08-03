@@ -38,7 +38,6 @@ const ALLOWED_COMMANDS = Object.freeze({
 const ALLOWED_WS_COMMANDS = Object.freeze({
   chat_push: true,
   execute_action: true,
-  action_execute: true,
 });
 
 /**
@@ -152,6 +151,11 @@ class CardAPI {
     }
 
     if (command === "property_add" || command === "property_update") {
+      // PropertyDTO.ParentID is explicitly tagged [JsonProperty("parentId")]
+      // server-side (matches WebSocketCommandNames.DataKeyParentId, which
+      // GameLobby's permission-filtered broadcast also keys off of) — the
+      // server always broadcasts a freshly serialized, canonical PropertyDTO
+      // now, so this casing is consistent regardless of what triggered the change.
       if (data.parentId !== this._cardId) return;
       this._updateCache(data);
       this._notifySubscribers(data.name, data);
@@ -159,6 +163,7 @@ class CardAPI {
     }
 
     if (command === "property_remove") {
+      // Also a full PropertyDTO now (previously a bare property ID string).
       if (data.parentId !== this._cardId) return;
       this._propertyCache.delete(data.name);
       this._notifySubscribers(data.name, null);
@@ -850,8 +855,10 @@ class PropertiesManager {
       if (command.command === "property_update" || command.command === "property_add") {
         this._propertyCache[command.data.id] = command.data;
       }
-      if (command.command === "property_delete") {
-        delete this._propertyCache[command.data];
+      if (command.command === "property_remove") {
+        // Server now broadcasts a full PropertyDTO for removes too (previously
+        // a bare property ID string).
+        delete this._propertyCache[command.data.id];
       }
     });
   }
@@ -927,7 +934,7 @@ class PropertiesManager {
 
     if (getFromCache) {
       return Object.values(this._propertyCache).filter(
-        (x) => x.parentID === parentId && x.name.startsWith(prefix)
+        (x) => x.parentId === parentId && x.name.startsWith(prefix)
       );
     }
 
@@ -988,7 +995,7 @@ class PropertiesManager {
     properties.forEach((x) => { this._propertyCache[x.id] = x; });
     WebSocketManagerInstance.Send({
       command: "property_notify",
-      data: { id: properties[0]?.parentID },
+      data: { id: properties[0]?.parentId },
     });
   }
 
@@ -1018,7 +1025,7 @@ class PropertiesManager {
     if (isCommand && !propertyId) return "--propertyId is required";
 
     delete this._propertyCache[propertyId];
-    WebSocketManagerInstance.Send({ command: "property_delete", data: propertyId });
+    WebSocketManagerInstance.Send({ command: "property_remove", data: propertyId });
   }
 
   GetCardId()
