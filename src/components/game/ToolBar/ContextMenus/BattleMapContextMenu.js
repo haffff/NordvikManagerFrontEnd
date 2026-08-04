@@ -326,6 +326,7 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
         ) : (
           <>
             <DropDownMenu
+              viewId={"battlemap_add"}
               submenu={true}
               width={width}
               name={"Add"}
