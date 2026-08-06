@@ -20,6 +20,7 @@ export const DListItemButton = ({
   return (
     <Tooltip openDelay={300} content={label} variant="outline" fontSize="md">
       <IconButton
+        aria-label={label}
         visibility={hidden ? "hidden" : "visible"}
         backgroundColor={bgColor}
         margin={setMargin}

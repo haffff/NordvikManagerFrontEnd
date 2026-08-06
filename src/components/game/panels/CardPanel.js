@@ -23,7 +23,7 @@ import CardAPIFactory from "../../../CardAPI";
  * Protocol (parent → iframe):
  *   INIT            { cardId, additionalArguments }
  *   CMD_RESULT      { reqId, result, error? }
- *   PROPERTY_EVENT  { eventType, name, propData }
+ *   PROPERTY_EVENT  { eventType, name, propData, global?, parentId? }
  *   WS_EVENT        { command, data }
  *   LOAD_RESOURCES  { scripts: string[], styles: string[] }
  *
@@ -62,15 +62,35 @@ function mountBridge(iframe, cardApi, cardId, additionalArguments) {
     );
     if (!allowed) return;
 
-    // Property events scoped to this card → PROPERTY_EVENT (avoids full re-fetch)
+    // Property events → PROPERTY_EVENT (avoids full re-fetch).
+    // Events scoped to this card match Properties.Subscribe(name, cb) in the sandbox.
+    // Anything else is tagged global + parentId so it matches
+    // Properties.Global.Subscribe(parentId, name, cb) instead — that RPC surface
+    // works on any entity's properties, not just this card's own.
     if (command === "property_add" || command === "property_update") {
-      if (data?.parentId !== cardId) return;
-      post({ type: "PROPERTY_EVENT", eventType: "update", name: data.name, propData: data });
+      // PropertyDTO.ParentID is explicitly tagged [JsonProperty("parentId")]
+      // server-side so it matches WebSocketCommandNames.DataKeyParentId — the
+      // same key GameLobby's permission-filtered broadcast reads. The server
+      // now always broadcasts a freshly serialized, canonical PropertyDTO for
+      // every add/update/remove (PropertiesHandler.cs), so this casing is
+      // consistent regardless of what triggered the change.
+      const parentId = data?.parentId;
+      if (parentId === cardId) {
+        post({ type: "PROPERTY_EVENT", eventType: "update", name: data.name, propData: data });
+      } else {
+        post({ type: "PROPERTY_EVENT", eventType: "update", name: data.name, propData: data, global: true, parentId });
+      }
       return;
     }
     if (command === "property_remove") {
-      if (data?.parentId !== cardId) return;
-      post({ type: "PROPERTY_EVENT", eventType: "remove", name: data.name, propData: null });
+      // Also a full PropertyDTO now (previously a bare property ID string with
+      // no parentId at all, which made correct routing impossible).
+      const parentId = data?.parentId;
+      if (parentId === cardId) {
+        post({ type: "PROPERTY_EVENT", eventType: "remove", name: data.name, propData: null });
+      } else {
+        post({ type: "PROPERTY_EVENT", eventType: "remove", name: data.name, propData: null, global: true, parentId });
+      }
       return;
     }
 
@@ -93,6 +113,12 @@ function mountBridge(iframe, cardApi, cardId, additionalArguments) {
 
     // ── Outbound WS command ────────────────────────────────────────────────
     if (type === "WS_SEND") {
+      // FireAction is routed through the real CardAPI method (not a raw send)
+      // so cardId injection and the execute_action wire format live in one place.
+      if (command === "execute_action" && data && typeof data === "object") {
+        cardApi.FireAction(data.action, data.args);
+        return;
+      }
       cardApi.SendCustomCommandToServer(command, data);
       return;
     }
@@ -107,13 +133,48 @@ function mountBridge(iframe, cardApi, cardId, additionalArguments) {
           result = cardApi.ClientMediator.register(command, data);        } 
           
           else if (panel === "Properties") {
-          // Route ALL Properties commands through CardAPI.Properties so every
-          // call benefits from the prefilled cache.  parentId is always forced
-          // to this card's ID — the card cannot read another card's properties.
+          const isGlobal = !!data?.global;
+          const pid = data?.parentId;
+
+          if (isGlobal) {
+            // Global: parentId comes from the RPC payload — not forced to this card.
+            const method = cardApi.Properties.Global[command];
+            if (typeof method !== "function") throw new Error(`Unknown Properties.Global method: ${command}`);
+
+            switch (command) {
+              case "Get":
+                result = await method(pid, data?.name);
+                break;
+              case "GetMany":
+              case "GetByNames":
+                result = await method(pid, data?.names ?? data?.name);
+                break;
+              case "GetProperties":
+                result = await method(pid);
+                break;
+              case "Set":
+                result = await method(pid, data?.name, data?.value);
+                break;
+              case "SetMany":
+                result = await method(pid, data?.properties);
+                break;
+              case "Init":
+                result = await method(pid, data?.name, data?.value);
+                break;
+              case "InitMany":
+                result = await method(pid, data?.properties);
+                break;
+              case "Remove":
+                result = await method(pid, data?.name);
+                break;
+              default:
+                result = await method(pid, data?.name ?? data?.names, data?.value ?? data?.properties);
+            }
+          } else {
+          // Scoped: parentId is always this card's ID.
           const method = cardApi.Properties[command];
           if (typeof method !== "function") throw new Error(`Unknown Properties method: ${command}`);
 
-          // Dispatch by method name so every argument shape is handled correctly.
           switch (command) {
             case "Get":
               result = await method(data?.name);
@@ -143,6 +204,28 @@ function mountBridge(iframe, cardApi, cardId, additionalArguments) {
             default:
               result = await method(data?.name ?? data?.names, data?.value ?? data?.properties);
           }
+          }
+
+        } else if (panel === "Resources") {
+          const resourceTarget = data?.global ? cardApi.Resources.Global : cardApi.Resources;
+          const method = resourceTarget[command];
+          if (typeof method !== "function") throw new Error(`Unknown Resources method: ${command}`);
+
+          switch (command) {
+            case "Read":
+            case "Delete":
+              result = await method(data?.key);
+              break;
+            case "Update":
+              result = await method(data?.key, data?.data, data?.mimeType);
+              break;
+            case "Create":
+            case "Upsert":
+              result = await method(data?.key, data?.data, data?.name, data?.mimeType);
+              break;
+            default:
+              result = await method(data?.key, data?.data, data?.name, data?.mimeType);
+          }
 
         } else {
           // Generic allowlisted ClientMediator command
@@ -171,6 +254,7 @@ export const CardPanel = ({ id, name }) => {
   const panelId = useUUID();
   const iframeRef = React.useRef(null);
   const cleanupRef = React.useRef(null);
+  const sandboxUrlRef = React.useRef(null);
 
   const ctx = Dockable.useContentContext();
   ctx.setTitle(name);
@@ -236,10 +320,12 @@ export const CardPanel = ({ id, name }) => {
       // Fix: rewrite every root-relative src="/" and href="/" to an absolute
       // URL using the card server's origin (derived from WebHelper.ApiAddress).
       const cardOrigin = (() => {
+        const addr = WebHelper.ApiAddress;
+        if (!addr) return "";
         try {
-          return new URL(WebHelper.ApiAddress).origin;
+          return new URL(addr).origin;
         } catch (error) {
-          return WebHelper.ApiAddress.replace(/\/api\/?$/, "");
+          return addr.replace(/\/api\/?$/, "");
         }
       })();
       const rebasedHtml = rawHtml.replace(
@@ -248,22 +334,23 @@ export const CardPanel = ({ id, name }) => {
       );
 
       
-      // Build inline <style> tags for CSS — content decoded from base64 metadata.
-      // Inlining avoids any HTTP request from inside the sandboxed null-origin iframe.
+      // Build <link rel="stylesheet"> tags for CSS using data URIs.
+      // Using data URIs avoids any HTTP request from the null-origin iframe AND
+      // avoids the </style> injection risk when CSS is decoded and inlined.
       const cssStyles = additionalMetas
         .filter((m) => m.mimeType === "text/css" && m.data)
-        .map((m) => `<style>${atob(m.data)}</style>`)
+        .map((m) => `<link rel="stylesheet" href="data:text/css;base64,${m.data}">`)
         .join("\n");
 
-      // Build inline <script> tags for JS — same approach.
-      // Escape </script> occurrences in the decoded content so they don't
-      // prematurely terminate the enclosing script tag.
+      // Build <script src="data:..."> tags for JS using data URIs.
+      // Inlining JS as <script>code</script> is unsafe when the bundle contains
+      // template literals that embed HTML (e.g. Vite's modulepreload polyfill
+      // includes the full page HTML as a string), which can contain </script>
+      // and prematurely terminate the outer script block. Base64 characters
+      // (A-Za-z0-9+/=) can never form </script>, so the HTML parser is always safe.
       const jsScripts = additionalMetas
         .filter((m) => (m.mimeType === "text/javascript" || m.mimeType === "application/javascript") && m.data)
-        .map((m) => {
-          const code = atob(m.data).replace(/<\/script>/gi, "<\\/script>");
-          return `<script>${code}</script>`;
-        })
+        .map((m) => `<script src="data:text/javascript;base64,${m.data}"></script>`)
         .join("\n");
 
       // Inject inline CSS into <head>
@@ -277,7 +364,12 @@ export const CardPanel = ({ id, name }) => {
       const bodyInjection = SANDBOX_BRIDGE_SCRIPT + (jsScripts ? "\n" + jsScripts : "");
       iframeHtml = iframeHtml.includes("</body>")
         ? iframeHtml.replace("</body>", bodyInjection + "\n</body>")
-        : iframeHtml + bodyInjection;      const sandboxUrl = URL.createObjectURL(
+        : iframeHtml + bodyInjection;      // Revoke the previous blob URL before creating a new one (handles
+      // the case where load() runs twice before cleanup, e.g. StrictMode).
+      if (sandboxUrlRef.current) {
+        URL.revokeObjectURL(sandboxUrlRef.current);
+      }
+      sandboxUrlRef.current = URL.createObjectURL(
         new Blob([iframeHtml], { type: "text/html" })
       );
 
@@ -288,12 +380,11 @@ export const CardPanel = ({ id, name }) => {
       //    listeners), so INIT → cardapi:ready fires at the right time.
       cleanupRef.current = mountBridge(iframe, cardApi, id, additionalArguments);
 
-      iframe.onload = () => {
-        if (cancelled) return;
-        URL.revokeObjectURL(sandboxUrl);
-      };
-
-      iframe.src = sandboxUrl;
+      // Do NOT revoke the blob URL in onload — when the dockable panel is
+      // moved in the DOM the browser resets the iframe and re-navigates to
+      // the same blob URL.  We keep it alive for the full lifetime of the
+      // component and revoke it only on unmount (see cleanup below).
+      iframe.src = sandboxUrlRef.current;
     };
 
     load();
@@ -302,6 +393,10 @@ export const CardPanel = ({ id, name }) => {
       cancelled = true;
       cleanupRef.current?.();
       cleanupRef.current = null;
+      if (sandboxUrlRef.current) {
+        URL.revokeObjectURL(sandboxUrlRef.current);
+        sandboxUrlRef.current = null;
+      }
     };
   }, [panelId, id]);
 

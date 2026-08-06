@@ -70,7 +70,7 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
   }, [uuid]);
 
   // Hoisted delegate to the extracted LoadCanvas handler. Using a function declaration
-  // ensures callers defined earlier (ChangeMap, effects) can call it safely.
+  // ensures callers defined earlier (ApplyMapChange, effects) can call it safely.
   async function LoadCanvas() {
     const loadFn = createLoadCanvas({
       editor,
@@ -84,7 +84,7 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
       uuid,
       setLoading,
       reloadBattleMap: ReloadBattleMap,
-      changeMap: ChangeMap,
+      changeMap: ApplyMapChange,
     });
     await loadFn();
   }
@@ -107,7 +107,7 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
         uuid,
         setLoading,
         reloadBattleMap: ReloadBattleMap,
-        changeMap: ChangeMap,
+        changeMap: ApplyMapChange,
       });
       await loadFn();
       if (mounted) {
@@ -121,11 +121,11 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
     };
   }, [battleMapModel, hasCanvas]);
 
-  //change map
-  const ChangeMap = async (mapId) => {
+  //apply map change (local canvas reload — called from OnMapChange server handler)
+  const ApplyMapChange = async (mapId) => {
     const respMap = await WebHelper.getAsync(`map/get?mapId=${mapId}`);
     if (!respMap) {
-      console.error(`ChangeMap: map/get returned nothing for mapId="${mapId}"`);
+      console.error(`ApplyMapChange: map/get returned nothing for mapId="${mapId}"`);
       return `Map not found: ${mapId}`;
     }
     mapRef.current = respMap;
@@ -146,7 +146,7 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
         }
       }
     } catch (e) {
-      console.warn('ChangeMap: failed to load map entity permissions', e);
+      console.warn('ApplyMapChange: failed to load map entity permissions', e);
     }
     const allProps = [];
     allProps.push(...mapRef.current.properties);
@@ -175,12 +175,12 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
     [editor, battleMapModel]
   );
 
-  // Legacy one-shot initialization effect moved below after ChangeMap definition
+  // Legacy one-shot initialization effect moved below after ApplyMapChange definition
   React.useEffect(() => {
     WebHelper.get(
       `battlemap/getbattlemap?id=${withID}`,
       async (resp) => {
-        await ChangeMap(resp.mapId);
+        await ApplyMapChange(resp.mapId);
         setBattleMapModel(resp);
       },
       (error) => {

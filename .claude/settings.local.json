@@ -4,7 +4,8 @@
       "Bash(xargs grep:*)",
       "Bash(ls:*)",
       "Bash(node -e ':*)",
-      "Bash(node -e \" const panels = ['Battlemap','ChatPanel','CardPanel','CardsPanel','MapSelector','PlayersPanel','PropertiesPanel','ToolsPanel','ActionsPanel']; // Simulate what type.name returns for named function components panels.forEach\\(p => console.log\\(p\\)\\); \")"
+      "Bash(node -e \" const panels = ['Battlemap','ChatPanel','CardPanel','CardsPanel','MapSelector','PlayersPanel','PropertiesPanel','ToolsPanel','ActionsPanel']; // Simulate what type.name returns for named function components panels.forEach\\(p => console.log\\(p\\)\\); \")",
+      "Bash(pnpm run *)"
     ]
   }
 }

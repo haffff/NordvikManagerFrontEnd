@@ -3,7 +3,7 @@ import * as React from "react";
 import { MenuItem } from "../../../ui/menu";
 import { usePermissions } from "../../../../contexts/PermissionsContext";
 
-export const DropDownItem = ({ accessKey, name, onClick, icon, width, gmOnly, adminOnly }) => {
+export const DropDownItem = ({ accessKey, name, onClick, icon, width, gmOnly, adminOnly, uid }) => {
   const { isGM, isAdmin } = usePermissions();
   if (gmOnly && !isGM) return null;
   if (adminOnly && !isAdmin) return null;
@@ -23,7 +23,7 @@ export const DropDownItem = ({ accessKey, name, onClick, icon, width, gmOnly, ad
   }
 
   return (
-    <MenuItem value={name} width={width} onClick={onClick}>
+    <MenuItem value={uid ?? name} width={width} onClick={onClick}>
         {renderedIcon} {name}
     </MenuItem>
   );

@@ -168,6 +168,24 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
   }, [state, CreateLayoutElement]);
 
   /**
+   * Waits until a DropDownMenu with the given viewId has registered with
+   * ClientMediator, resolving immediately if it already has. Plain
+   * ClientMediator.sendCommand("DropDownMenu", ...) silently drops the message
+   * if nothing is registered yet for that contextId (it doesn't queue), and
+   * waitForEvent alone only catches *future* "DropDownMenuReady" firings — it
+   * hangs forever if the target registered (and fired ready) before this runs.
+   * Lazily-mounted targets (e.g. the battlemap right-click menu's "Add"
+   * submenu, only mounted once a battlemap panel exists) need both checks.
+   */
+  const whenDropDownMenuReady = useCallback((viewId) => {
+    const existing = ClientMediator._resolveClients
+      ? ClientMediator._resolveClients("DropDownMenu", { contextId: viewId })
+      : null;
+    if (existing && existing.length > 0) return Promise.resolve();
+    return ClientMediator.waitForEvent("DropDownMenuReady", (data) => data.viewId === viewId, 5000);
+  }, []);
+
+  /**
    * Backend → client: add a dynamic menu item to a named dropdown menu.
    * Payload: { name, uiName, icon, action, location, onlyOwner }
    */
@@ -177,7 +195,7 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
     // If a submenu is requested, ensure a DropDownMenu is created inside the parent first
     if (item.subMenuId) {
 
-      ClientMediator.waitForEvent("DropDownMenuReady", (data) => data.viewId === item.subMenuId, 5000)
+      whenDropDownMenuReady(item.subMenuId)
         .then(() => {
           const menuItem = React.createElement(DropDownItem, {
             key: item.name,
@@ -188,28 +206,37 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
             contextId: item.subMenuId,
             item: menuItem,
           });
-        });
+        })
+        .catch((e) => console.warn(`HandleAddMenuItem: submenu "${item.subMenuId}" never became ready`, e));
 
-      ClientMediator.sendCommand("DropDownMenu", "AddSubMenu", {
-        contextId: item.location || "game",
-        subMenuId: item.subMenuId,
-        subMenuName: item.subMenuName || item.subMenuId,
-      });
+      whenDropDownMenuReady(item.location || "game")
+        .then(() => {
+          ClientMediator.sendCommand("DropDownMenu", "AddSubMenu", {
+            contextId: item.location || "game",
+            subMenuId: item.subMenuId,
+            subMenuName: item.subMenuName || item.subMenuId,
+          });
+        })
+        .catch((e) => console.warn(`HandleAddMenuItem: parent menu "${item.location || "game"}" never became ready`, e));
 
       }
       else {
         const targetContextId = item.subMenuId || item.location || "game";
-        const menuItem = React.createElement(DropDownItem, {
-          key: item.name,
-          name: item.uiName || item.name,
-          onClick: () => ActiveTransportManager.Send({ command: "execute_action", data: { Action: item.action, Args: item.actionArgs ?? undefined } }),
-        });
-        ClientMediator.sendCommand("DropDownMenu", "AddMenuItem", {
-          contextId: targetContextId,
-          item: menuItem,
-    });
+        whenDropDownMenuReady(targetContextId)
+          .then(() => {
+            const menuItem = React.createElement(DropDownItem, {
+              key: item.name,
+              name: item.uiName || item.name,
+              onClick: () => ActiveTransportManager.Send({ command: "execute_action", data: { Action: item.action, Args: item.actionArgs ?? undefined } }),
+            });
+            ClientMediator.sendCommand("DropDownMenu", "AddMenuItem", {
+              contextId: targetContextId,
+              item: menuItem,
+            });
+          })
+          .catch((e) => console.warn(`HandleAddMenuItem: menu "${targetContextId}" never became ready`, e));
   }
-  }, []);
+  }, [whenDropDownMenuReady]);
 
   /**
    * Backend → client: add a dynamic button to the toolbar.

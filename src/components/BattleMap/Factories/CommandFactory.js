@@ -37,7 +37,7 @@ export const CommandFactory = {
         return { command: "map_remove", data: mapId };
     },
     CreateMapAddCommand: () => {
-        return { command: "map_add", data: {} };
+        return { command: "map_add" };
     },
     CreateLayoutAddCommand: (layout) => {
         return { command: "layout_add", data: layout };

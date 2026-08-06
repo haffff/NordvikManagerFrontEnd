@@ -449,7 +449,17 @@ class WebRTCManager {
         this._iceSentCount++;
         this._log('log', `ICE candidate sent to GM backend (#${this._iceSentCount})`);
         this._signaling.sendIceCandidate({ targetPeerId: this._gmPeerId, candidate });
+      } else if (!candidate) {
+        this._log('log', `ICE gathering complete — sent=${this._iceSentCount} received=${this._iceReceivedCount}`);
       }
+    };
+
+    pc.onicegatheringstatechange = () => {
+      this._log('log', `ICE gathering state: ${pc.iceGatheringState}`);
+    };
+
+    pc.oniceconnectionstatechange = () => {
+      this._log('log', `ICE connection state: ${pc.iceConnectionState}`);
     };
 
     pc.onconnectionstatechange = () => {

@@ -1,7 +1,8 @@
 import * as React from 'react';
 
-import { FaCode, FaHammer, FaWpforms } from 'react-icons/fa';
+import { FaCode, FaHammer, FaList, FaWpforms } from 'react-icons/fa';
 import DebugConsolePanel from '../../panels/Addons/DebugConsolePanel';
+import EventLogPanel from '../../panels/Addons/EventLogPanel';
 import ActionsPanel from '../../panels/Addons/ActionsPanel';
 import { IoMdDocument, IoMdFolder } from 'react-icons/io';
 import CustomViewsPanel from '../../panels/Addons/CustomViewsPanel';
@@ -25,6 +26,7 @@ export const AddonsMenu = ({ state, gameDataManagerRef }) => {
             <DropDownMenu viewId={"addons_code"} name="Code" submenu={true} width={150} expandableLocationName={"addons"} expandableWithAction={true} state={state} gameDataRef={gameDataManagerRef}>
                 <CreateDropDownButton width={150} name="Actions" icon={FaHammer} state={state} element={(<ActionsPanel state={state} gameDataRef={gameDataManagerRef} />)} />
                 <CreateDropDownButton width={150} name="Debug Console" icon={FaCode} state={state} element={(<DebugConsolePanel state={state} />)} />
+                <CreateDropDownButton width={150} name="Event Log" icon={FaList} state={state} element={(<EventLogPanel state={state} />)} />
             </DropDownMenu>
 
         </DropDownMenu>

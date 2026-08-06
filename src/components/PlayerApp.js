@@ -1,8 +1,9 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { PlayerLoginPanel } from './auth/PlayerLoginPanel';
 import { PlayerRegisterForm } from './auth/PlayerRegisterForm';
 import { PlayerMainApp } from './PlayerMainApp';
 import CentralWebHelper from '../helpers/CentralWebHelper';
+import TokenStore from '../helpers/TokenStore';
 import UtilityHelper from '../helpers/UtilityHelper';
 import { toaster } from './ui/toaster';
 
@@ -46,6 +47,11 @@ export const PlayerApp = () => {
     );
   }, []);
 
+  const handleAuthRequired = useCallback(() => {
+    TokenStore.clear();
+    setLoggedIn(false);
+  }, []);
+
   if (isCheckingAuth) {
     return ( 
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh' }}>
@@ -54,7 +60,7 @@ export const PlayerApp = () => {
     );
   }
 
-  if (loggedIn) return <PlayerMainApp autoGameId={gameId} requiresPassword={requiresPassword} />;
+  if (loggedIn) return <PlayerMainApp autoGameId={gameId} requiresPassword={requiresPassword} onAuthRequired={handleAuthRequired} />;
 
   // Invite link in URL → always show register form (regardless of isInvitationRequired)
   if (inviteCode) {

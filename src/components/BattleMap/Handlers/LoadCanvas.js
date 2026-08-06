@@ -45,14 +45,14 @@ export default function createLoadCanvas(deps) {
     BattleMapServices.BMService._BMQueryService =
       BattleMapServices.BMQueryService;
 
-    // for now save editGridMode
     let oldEditGridMode = editor.canvas.editGridMode;
+    let oldSelectedLayer = editor.canvas.selectedLayer;
     editor.canvas.clear();
     editor.canvas.editGridMode = oldEditGridMode;
     editor.canvas.fireRightClick = true;
     editor.canvas.fireMiddleClick = true;
     editor.canvas.align = "left";
-    editor.canvas.selectedLayer = 100;
+    editor.canvas.selectedLayer = oldSelectedLayer ?? 100;
     editor.canvas.defaultCursor = "default";
     editor.canvas.hoverCursor = "default";
 
@@ -80,7 +80,7 @@ export default function createLoadCanvas(deps) {
 
     let bmObj = {
       Panel: ctx.layoutContent.panel,
-      PanelContentID: ctx.layoutContent.content.contentId,
+      PanelContentID: ctx.layoutContent.content?.contentId ?? uuid,
       id: uuid,
     };
 

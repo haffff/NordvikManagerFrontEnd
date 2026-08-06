@@ -3,6 +3,7 @@ import ActionsPanel from "../components/game/panels/Addons/ActionsPanel";
 import AddonsManagePanel from "../components/game/panels/Addons/AddonsManagePanel";
 import CustomViewsPanel from "../components/game/panels/Addons/CustomViewsPanel";
 import DebugConsolePanel from "../components/game/panels/Addons/DebugConsolePanel";
+import EventLogPanel from "../components/game/panels/Addons/EventLogPanel";
 import LookupPanel from "../components/game/panels/Addons/LookupPanel";
 import TemplatesPanel from "../components/game/panels/Addons/TemplatesPanel";
 import AdminPlayersPanel from "../components/game/panels/AdminPlayersPanel";
@@ -29,6 +30,7 @@ export const PanelList = {
     AddonsManagePanel: AddonsManagePanel,
     CustomViewsPanel: CustomViewsPanel,
     DebugConsolePanel: DebugConsolePanel,
+    EventLogPanel: EventLogPanel,
     LookupPanel: LookupPanel,
     TemplatesPanel: TemplatesPanel,
     ToolsPanel: ToolsPanel,

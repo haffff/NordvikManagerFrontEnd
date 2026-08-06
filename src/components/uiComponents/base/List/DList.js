@@ -11,7 +11,7 @@ export const DList = (props) => {
         overflowY={mainComponent ? "auto" : undefined}>
             {children}
             {withAddButton ? 
-            (<Button variant={'outline'} onClick={handleAdd} padding={3} margin={1} size='sm' width="97%">
+            (<Button aria-label="Add item" variant={'outline'} onClick={handleAdd} padding={3} margin={1} size='sm' width="97%">
                 <Center><Icon as={FaPlus} /></Center>
             </Button>) : 
             undefined}

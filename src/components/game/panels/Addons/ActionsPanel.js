@@ -169,6 +169,14 @@ const ActionPane = React.memo(({
 
   const handleExport = () => {
     const payload = { ...selectedAction, hook: parseInt(selectedAction.hook, 10) };
+
+    //prepare content property to be an object not string
+    try {
+      payload.content = JSON.parse(payload.content);
+    } catch {
+      payload.content = {};
+    }
+
     const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "text/plain" });
     const a = document.createElement("a");
     a.href = URL.createObjectURL(blob);

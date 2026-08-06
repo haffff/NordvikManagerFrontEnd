@@ -206,13 +206,15 @@ export const PropertiesSettingsPanel = ({ dto, type, initProperties }) => {
         const idx = next.findIndex((x) => x.id === event.data.id);
         if (idx !== -1) next[idx] = event.data;
         toaster.create({ description: `Property "${event.data?.name}" updated`, type: "success", duration: 4000 });
-      } else if (event.command === "property_add" && (event.data.parentId === dto.id || event.data.parentID === dto.id)) {
+      } else if (event.command === "property_add" && event.data.parentId === dto.id) {
         const optimisticIdx = next.findIndex((x) => x.toAdd && x.name === event.data.name);
         if (optimisticIdx !== -1) next[optimisticIdx] = event.data;
         else next.push(event.data);
         toaster.create({ description: `Property "${event.data?.name}" added`, type: "success", duration: 4000 });
       } else if (event.command === "property_remove") {
-        const idx = next.findIndex((x) => x.id === event.data);
+        // Server now broadcasts a full PropertyDTO for removes too (previously
+        // a bare property ID string).
+        const idx = next.findIndex((x) => x.id === event.data.id);
         const name = next[idx]?.name;
         next = next.filter((_, i) => i !== idx);
         toaster.create({ description: `Property "${name}" removed`, type: "success", duration: 4000 });

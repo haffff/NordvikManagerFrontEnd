@@ -163,7 +163,7 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
         battlemapsRef={battleMapContexts}
         forceRefreshGame={forceUpdate}
       />      <Flex style={{ height: "100%", overflow: "hidden" }}>
-        <Dockable.Container state={state} />
+      <Dockable.Container state={state} onPopOut={DockableHelper.getPopOutHandler()} />
       </Flex><QuickCommandDialog state={state} openRef={quickCommandDialogOpenRef} />
       
       {portaledPanels}

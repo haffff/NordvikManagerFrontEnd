@@ -6,6 +6,7 @@ import LayoutHelper from '../../../helpers/LayoutCloneHelper';
 import UtilityHelper from '../../../helpers/UtilityHelper';
 import { ROLES } from '../../../contexts/PermissionsContext';
 import { _entityPermissionSetter } from '../../../contexts/PermissionsContext';
+import BrowserWindowPortal from '../../uiComponents/base/BrowserWindowPortal';
 
 // (recentContextOps removed — replaced with pendingBMContextIds ref inside useGameApi)
 
@@ -310,6 +311,21 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
     };
 
     ClientMediator.register(gameApi);
+
+    // Register the pop-out handler so Container.js can call it via DockableHelper
+    const handlePopOut = (element, title, contentId) => {
+      const id = `popout_${Date.now()}_${Math.random().toString(36).slice(2)}`;
+      setPortaledPanels(prev => [
+        ...prev,
+        React.createElement(BrowserWindowPortal, {
+          key: id,
+          title: title || 'Panel',
+          contentId: contentId,
+          onClose: () => setPortaledPanels(p => p.filter(x => x.key !== id)),
+        }, element),
+      ]);
+    };
+    DockableHelper.registerPopOutHandler(handlePopOut);
 
     // No cleanup / unregister — the Game client lives for the entire session.
     // Re-registration (same id) updates the client in place (see ClientMediator.register).

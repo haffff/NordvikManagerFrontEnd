@@ -33,3 +33,5 @@ my-credentials
 
 .local
 .local/*
+.claude/settings.local.json
+.claude

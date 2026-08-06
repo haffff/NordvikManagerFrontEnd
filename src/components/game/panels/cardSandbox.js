@@ -23,7 +23,7 @@
  * ─────────────────────────────────────────
  *   { type: "INIT",           cardId, additionalArguments }
  *   { type: "CMD_RESULT",     reqId, result, error? }
- *   { type: "PROPERTY_EVENT", eventType, name, propData }
+ *   { type: "PROPERTY_EVENT", eventType, name, propData, global?, parentId? }
  *   { type: "WS_EVENT",       command, data }
  *
  * postMessage protocol (sandbox → parent)
@@ -43,9 +43,10 @@ export const SANDBOX_BRIDGE_SCRIPT = `<script>
 
   // ── RPC state ─────────────────────────────────────────────────────────────
   let _reqCounter = 0;
-  const _pending = {};           // reqId → { resolve, reject }
-  const _propSubscriptions = {}; // name → callback[]
-  const _wsSubscriptions   = []; // callback[]
+  const _pending = {};                  // reqId → { resolve, reject }
+  const _propSubscriptions = {};        // name → callback[]
+  const _globalPropSubscriptions = {};  // "parentId:name" → callback[]
+  const _wsSubscriptions   = [];        // callback[]
 
   // Mutable identity fields — written once on INIT
   let _cardId              = null;
@@ -79,10 +80,52 @@ export const SANDBOX_BRIDGE_SCRIPT = `<script>
       },
       Unsubscribe: (name, cb) => {
         const arr = _propSubscriptions[name];
-        if (!arr) return;
-        const i = arr.indexOf(cb);
+        if (!arr) return;        const i = arr.indexOf(cb);
         if (i !== -1) arr.splice(i, 1);
       },
+
+      /** Access propertiesof any entity — parentId supplied explicitly. */
+      Global: Object.freeze({
+        Get:         (parentId, name)        => _rpc('Properties', 'Get',         { name, parentId, global: true }),
+        GetMany:     (parentId, names)       => _rpc('Properties', 'GetMany',     { names, parentId, global: true }),
+        GetByNames:  (parentId, names)       => _rpc('Properties', 'GetByNames',  { names, parentId, global: true }),
+        GetProperties: (parentId)            => _rpc('Properties', 'GetProperties',{ parentId, global: true }),
+        Set:         (parentId, name, val)   => _rpc('Properties', 'Set',         { name, value: val, parentId, global: true }),
+        SetMany:     (parentId, props)       => _rpc('Properties', 'SetMany',     { properties: props, parentId, global: true }),
+        Init:        (parentId, name, val)   => _rpc('Properties', 'Init',        { name, value: val, parentId, global: true }),
+        InitMany:    (parentId, props)       => _rpc('Properties', 'InitMany',    { properties: props, parentId, global: true }),
+        Remove:      (parentId, name)        => _rpc('Properties', 'Remove',      { name, parentId, global: true }),
+
+        Subscribe: (parentId, name, cb) => {
+          const key = parentId + ':' + name;
+          if (!_globalPropSubscriptions[key]) _globalPropSubscriptions[key] = [];
+          _globalPropSubscriptions[key].push(cb);
+        },
+        Unsubscribe: (parentId, name, cb) => {
+          const key = parentId + ':' + name;
+          const arr = _globalPropSubscriptions[key];
+          if (!arr) return;
+          const i = arr.indexOf(cb);
+          if (i !== -1) arr.splice(i, 1);
+        },
+      }),
+    },
+
+    Resources: {
+      Create: (key, data, name, mimeType) => _rpc('Resources', 'Create', { key, data, name, mimeType }),
+      Read:   (key)                        => _rpc('Resources', 'Read',   { key }),
+      Update: (key, data, mimeType)        => _rpc('Resources', 'Update', { key, data, mimeType }),
+      Delete: (key)                        => _rpc('Resources', 'Delete', { key }),
+      Upsert: (key, data, name, mimeType)  => _rpc('Resources', 'Upsert', { key, data, name, mimeType }),
+
+      /** Game-wide resources — key is NOT scoped to this card. */
+      Global: Object.freeze({
+        Create: (key, data, name, mimeType) => _rpc('Resources', 'Create', { key, data, name, mimeType, global: true }),
+        Read:   (key)                        => _rpc('Resources', 'Read',   { key, global: true }),
+        Update: (key, data, mimeType)        => _rpc('Resources', 'Update', { key, data, mimeType, global: true }),
+        Delete: (key)                        => _rpc('Resources', 'Delete', { key, global: true }),
+        Upsert: (key, data, name, mimeType)  => _rpc('Resources', 'Upsert', { key, data, name, mimeType, global: true }),
+      }),
     },
 
     ClientMediator: {
@@ -95,7 +138,7 @@ export const SANDBOX_BRIDGE_SCRIPT = `<script>
       parent.postMessage({ type: 'WS_SEND', command: 'chat_message', data: message }, '*'),
 
     FireAction: (action, args) =>
-      parent.postMessage({ type: 'WS_SEND', command: 'action_execute', data: { action, args } }, '*'),
+      parent.postMessage({ type: 'WS_SEND', command: 'execute_action', data: { action, args } }, '*'),
 
     SendCustomCommandToServer: (command, data) =>
       parent.postMessage({ type: 'WS_SEND', command, data }, '*'),
@@ -108,6 +151,7 @@ export const SANDBOX_BRIDGE_SCRIPT = `<script>
   };
 
   Object.freeze(CardAPI.Properties);
+  Object.freeze(CardAPI.Resources);
   Object.freeze(CardAPI.ClientMediator);
   Object.freeze(CardAPI);
 
@@ -135,10 +179,21 @@ export const SANDBOX_BRIDGE_SCRIPT = `<script>
       }
 
       case 'PROPERTY_EVENT': {
-        const subs = _propSubscriptions[msg.name];
-        if (!subs?.length) break;
-        for (const cb of subs) {
-          try { cb(msg.propData); } catch (e) { console.error('CardAPI prop subscriber error', e); }
+        if (msg.global) {
+          // Global property event — keyed by "parentId:name"
+          const key = msg.parentId + ':' + msg.name;
+          const gsubs = _globalPropSubscriptions[key];
+          if (gsubs?.length) {
+            for (const cb of gsubs) {
+              try { cb(msg.propData); } catch (e) { console.error('CardAPI global prop subscriber error', e); }
+            }
+          }
+        } else {
+          const subs = _propSubscriptions[msg.name];
+          if (!subs?.length) break;
+          for (const cb of subs) {
+            try { cb(msg.propData); } catch (e) { console.error('CardAPI prop subscriber error', e); }
+          }
         }
         break;
       }

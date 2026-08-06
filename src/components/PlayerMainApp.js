@@ -55,7 +55,7 @@ const AutoJoinScreen = ({
   </Box>
 );
 
-export const PlayerMainApp = ({ autoGameId = null, requiresPassword = false }) => {
+export const PlayerMainApp = ({ autoGameId = null, requiresPassword = false, onAuthRequired }) => {
   const [sessionId, setSessionId] = useState(undefined);
   const [centralSessionId, setCentralSessionId] = useState(undefined);
   const [autoJoinState, setAutoJoinState] = useState(
@@ -103,6 +103,9 @@ export const PlayerMainApp = ({ autoGameId = null, requiresPassword = false }) =
         // 409 = already a member — still proceed; read centralSessionId from body if present
         const body = await resp?.json?.().catch(() => ({}));
         handleSessionReady(id, body?.centralSessionId);
+      } else if (resp?.status === 401) {
+        // Access token AND refresh token are both expired — user must log in again.
+        onAuthRequired?.();
       } else {
         const body = await resp?.json?.().catch(() => ({}));
         setAutoJoinError(body?.error ?? 'Failed to join game.');
@@ -112,7 +115,7 @@ export const PlayerMainApp = ({ autoGameId = null, requiresPassword = false }) =
       setAutoJoinError('Connection error. Please try again.');
       setAutoJoinState('error');
     }
-  }, [handleSessionReady]);
+  }, [handleSessionReady, onAuthRequired]);
 
   const handleLogout = useCallback(() => {
     CentralWebHelper.getNoResp(
