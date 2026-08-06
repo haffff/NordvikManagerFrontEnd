@@ -868,8 +868,8 @@ class TokenManager {
     let svgMarkup = spec.svgString;
 
     if (!svgMarkup && spec.src) {
-      const url = _toResourceUrl(spec.src);
-      svgMarkup = await WebHelper.getMaterialAsync(url, "image/svg+xml").catch(() => null);
+      const data = await _getMaterial(spec.src, "text/plain").catch(() => null);
+      svgMarkup = typeof data === "string" ? data : null;
     }
 
     if (!svgMarkup) {
