@@ -45,6 +45,9 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
 
       // ── Fetch core data ────────────────────────────────────────────────────
       const player = await WebHelper.getAsync('battlemap/getplayer');
+      if (!player) {
+        throw new Error('Failed to load player: server rejected battlemap/getplayer (see console for HTTP status)');
+      }
       currentPlayerRef.current = player;
       setCurrentPlayerId(player.id);
 

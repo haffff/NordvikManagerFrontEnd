@@ -154,8 +154,8 @@ class WebRTCWebHelper {
       .catch((e) => { if (onException) onException(e); else console.error(e); });
   }
 
-  deleteAsync(path) {
-    return this._sendRequest('DELETE', path).then((r) => r.body);
+  deleteAsync(path, body = null) {
+    return this._sendRequest('DELETE', path, body).then((r) => r.body);
   }
 
   // ── Material / resource helpers ──────────────────────────────────────────

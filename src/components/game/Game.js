@@ -16,6 +16,7 @@ import { useGameState } from "./hooks/useGameState";
 import DockableHelper from "../../helpers/DockableHelper";
 import { DragOptimizationProvider } from "../uiComponents/base/DragOptimizationContext";
 import { PermissionsProvider } from "../../contexts/PermissionsContext";
+import PlaybackManager from "./PlaybackManager";
 
 export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
   const gameState = useGameState(gameID, onExit);
@@ -156,6 +157,7 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
       <Subscribable onMessage={eventHandlers.HandleAddMenuItem} commandPrefix={"menu_item_add"} />
       <Subscribable onMessage={eventHandlers.HandleAddToolbarButton} commandPrefix={"toolbar_button_add"} />
       <Subscribable onMessage={eventHandlers.HandleFireClientMediator} commandPrefix={"client_mediator_fire"} />
+      <PlaybackManager />
       <MainToolbar
         key={gameID}
         state={state}

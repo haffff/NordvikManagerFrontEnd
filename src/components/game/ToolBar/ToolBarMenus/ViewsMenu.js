@@ -1,13 +1,15 @@
 import * as React from 'react';
 import ToolsPanel from '../../panels/ToolsPanel/ToolsPanel';
 import ChatPanel from '../../panels/ChatPanel';
-import { FaPaintBrush, FaTools, FaUserAlt, FaUserCog, FaUserFriends } from 'react-icons/fa';
+import { FaMusic, FaPaintBrush, FaTools, FaUserAlt, FaUserCog, FaUserFriends, FaVolumeUp } from 'react-icons/fa';
 import { IoMdChatboxes } from 'react-icons/io';
 import PlayersPanel from '../../panels/PlayersPanel';
 import AdminPlayersPanel from '../../panels/AdminPlayersPanel';
 import { BattleMapsMenu } from './BattleMapsMenu';
 import CardsPanel from '../../panels/CardsPanel';
 import MaterialsPanel from '../../panels/MaterialsPanel';
+import PlaylistsPanel from '../../panels/PlaylistsPanel';
+import SoundboardPanel from '../../panels/SoundboardPanel';
 import DropDownMenu from '../../../uiComponents/base/DDItems/DropDownMenu';
 import CreateDropDownButton from '../../../uiComponents/base/DDItems/SpecialButtons/CreateDropDownButton';
 import ClientMediator from '../../../../ClientMediator';
@@ -37,6 +39,8 @@ export const ViewsMenu = ({ state, onDropDown }) => {
                 <CreateDropDownButton width={150} name={"Players"} icon={<FaUserFriends />} state={state} element={<PlayersPanel />} />
                 <CreateDropDownButton width={150} name={"Cards"} icon={<FaUserAlt />} state={state} element={<CardsPanel state={state} />} />
                 <CreateDropDownButton width={150} name={"Materials"} icon={<FaPaintBrush />} state={state} element={<MaterialsPanel state={state} />} />
+                <CreateDropDownButton gmOnly width={150} name={"Playlists"} icon={<FaMusic />} state={state} element={<PlaylistsPanel state={state} />} />
+                <CreateDropDownButton gmOnly width={150} name={"Soundboard"} icon={<FaVolumeUp />} state={state} element={<SoundboardPanel state={state} />} />
                 <CreateDropDownButton gmOnly width={150} name={"Manage Players"} icon={<FaUserCog />} state={state} element={<AdminPlayersPanel state={state} />} />
             </DropDownMenu>
             {/* Keep maps in sync with server events so the "Add new" dialog and Switch Map always reflect current maps */}
