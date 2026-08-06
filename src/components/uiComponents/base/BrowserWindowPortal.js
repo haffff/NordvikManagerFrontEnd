@@ -54,9 +54,11 @@ export const BrowserWindowPortal = ({ children, title = 'Panel', contentId, onCl
         }
 
         // Write a minimal HTML skeleton so the document is ready to accept portals.
-        newWin.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${title}</title></head><body style="margin:0;padding:0;width:100vw;height:100vh;overflow:hidden;background:#1e1e1e;"></body></html>`);
+        newWin.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title></title></head><body style="margin:0;padding:0;width:100vw;height:100vh;overflow:hidden;background:#1e1e1e;"></body></html>`);
         newWin.document.close();
-
+        newWin.document.title = title;
+
+
         // ── Copy <html> element attributes (Chakra theme, color-mode class) ───────
         const syncHtmlAttrs = () => {
             const srcHtml = document.documentElement;
