@@ -25,6 +25,7 @@ import LookupPanel from './Addons/LookupPanel';
 import DTreeListItem from '../../uiComponents/base/List/DTreeListItem';
 import { toaster } from '../../ui/toaster';
 import ResourceImage from '../../uiComponents/ResourceImage';
+import { Tooltip } from '../../ui/tooltip';
 import {
     DialogRoot, DialogContent, DialogBody, DialogCloseTrigger, DialogHeader, DialogFooter, DialogTitle,
 } from '../../ui/dialog';
@@ -397,15 +398,32 @@ export const MaterialsPanel = ({ state }) => {
         if (item.mimeType?.startsWith("image")) {
             return (
                 <>
-                    <ResourceImage
-                        id={item.id}
-                        objectFit="contain"
-                        boxSize="36px"
-                        borderRadius="sm"
-                        cursor="pointer"
-                        onClick={openPreview}
-                        fallbackSrc={undefined}
-                    />
+                    <Tooltip
+                        openDelay={1000}
+                        closeDelay={0}
+                        contentProps={{
+                            bg: "var(--nordvik-secondary-color)",
+                            color: "var(--nordvik-text-color)",
+                        }}
+                        content={
+                            <Flex direction="column" alignItems="center" gap="4px" p="2px">
+                                <ResourceImage id={item.id} height="200px" fallbackSrc={undefined} />
+                                <Text fontSize="12px" fontWeight="medium">{item.name}</Text>
+                            </Flex>
+                        }
+                    >
+                        <Box flexShrink={0}>
+                            <ResourceImage
+                                id={item.id}
+                                objectFit="contain"
+                                boxSize="36px"
+                                borderRadius="sm"
+                                cursor="pointer"
+                                onClick={openPreview}
+                                fallbackSrc={undefined}
+                            />
+                        </Box>
+                    </Tooltip>
                     <DLabel>{item.name}</DLabel>
                 </>
             );

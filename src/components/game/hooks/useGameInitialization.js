@@ -2,6 +2,7 @@ import { useCallback, useState } from 'react';
 import LayoutHelper from '../../../helpers/LayoutCloneHelper';
 import ClientMediator from '../../../ClientMediator';
 import { PropertiesManagerInstance } from '../../../CardAPI';
+import ActionService from '../ActionService';
 import { ActiveWebHelper as WebHelper, ActiveTransportManager as WebSocketManagerInstance } from '../../../helpers/transport';
 import DockableHelper from '../../../helpers/DockableHelper';
 import CardAPI from '../../../CardAPI';
@@ -30,6 +31,7 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
     setIsGM,
     currentPlayerRef,
     gameRef,
+    keyboardEventsManagerRef,
   } = gameState;
 
   const loadGame = useCallback(async () => {
@@ -50,6 +52,16 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
       }
       currentPlayerRef.current = player;
       setCurrentPlayerId(player.id);
+
+      // Exposes ClientMediator.sendCommandAsync("Keyboard", "Fire", { actionName })
+      // so shortcuts can be triggered programmatically, not just by real keypresses.
+      ClientMediator.register(keyboardEventsManagerRef.current);
+
+      // User-scoped, independent of game data — fire-and-forget so a slow/failed
+      // fetch doesn't block the rest of init; shortcuts just fall back to defaults.
+      keyboardEventsManagerRef.current
+        .GetKeyboardConfigFromCentralServer()
+        .catch((e) => console.warn('useGameInitialization: failed to load keyboard bindings', e));
 
       const game = await WebHelper.getAsync('battlemap/getfullgame');
       // Populate refs so useGameApi's GetGame/GetOwner/GetCurrentPlayer resolve
@@ -93,6 +105,7 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
       // ── Bootstrap ─────────────────────────────────────────────────────────
       ClientMediator.fireEvent('BattleMapsChanged', game.battleMaps);
       ClientMediator.register(PropertiesManagerInstance);
+      ClientMediator.register(ActionService);
       WebSocketManagerInstance.Send({ command: 'player_list' });
 
       window.CreateCardAPI = CardAPI;
@@ -111,7 +124,7 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
     } finally {
       gameInitializationInProgress = false;
     }
-  }, [state, CreateLayoutElement, setCurrentPlayerId, setPlayers, setLayout, setIsGM, currentPlayerRef, gameRef]);
+  }, [state, CreateLayoutElement, setCurrentPlayerId, setPlayers, setLayout, setIsGM, currentPlayerRef, gameRef, keyboardEventsManagerRef]);
 
   return {
     loadGame,

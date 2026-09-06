@@ -11,7 +11,7 @@ import DLabel from "../../uiComponents/base/Text/DLabel";
 import DListItemButton from "../../uiComponents/base/List/ListItemDetails/DListItemButton";
 import DListItemsButtonContainer from "../../uiComponents/base/List/DListItemsButtonContainer";
 import SettingsPanel from "../settings/SettingsPanel";
-import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
+import ClientMediator from "../../../ClientMediator";
 import { usePermissions } from "../../../contexts/PermissionsContext";
 import { useDragResize } from "../../uiComponents/ResizeDivider";
 
@@ -188,7 +188,7 @@ export const PlaylistsPanel = () => {
   ctx.setTitle("Playlists");
 
   const loadPlaylists = React.useCallback(async () => {
-    const data = await WebHelper.getAsync("Playlist/GetPlaylists?kind=0");
+    const data = await ClientMediator.sendCommandAsync("Playlist", "GetPlaylists", { kind: 0 });
     if (data) setPlaylists(data);
   }, []);
 
@@ -199,7 +199,7 @@ export const PlaylistsPanel = () => {
   // Initial playback status, for button/badge state — actual audio playback is owned by
   // PlaybackManager (Game.js), this is display-only.
   React.useEffect(() => {
-    WebHelper.getAsync("Playlist/GetCurrentPlayback").then((data) => {
+    ClientMediator.sendCommandAsync("Playlist", "GetCurrentPlayback").then((data) => {
       if (!Array.isArray(data)) return;
       const next = {};
       data.forEach((s) => { next[s.playlistId] = s.isPaused ? "paused" : "playing"; });
@@ -254,7 +254,7 @@ export const PlaylistsPanel = () => {
   // ── Actions ─────────────────────────────────────────────────────────────────
 
   const handleAdd = async () => {
-    const { status, body } = await WebHelper.postAsync("Playlist/AddPlaylist", {
+    const { status, body } = await ClientMediator.sendCommandAsync("Playlist", "AddPlaylist", {
       Name: "New Playlist",
       Description: "",
       Mode: 0,
@@ -272,21 +272,21 @@ export const PlaylistsPanel = () => {
   };
 
   const handlePlay = async (playlist) => {
-    const { status, body } = await WebHelper.postAsync("Playlist/PlayPlaylist", { PlaylistId: playlist.id });
+    const { status, body } = await ClientMediator.sendCommandAsync("Playlist", "Play", { playlistId: playlist.id });
     if (status < 200 || status >= 300) {
       toaster.create({ title: "Failed to play playlist", description: body?.error, type: "error", duration: 5000 });
     }
   };
 
   const handlePause = async (playlist) => {
-    const { status, body } = await WebHelper.postAsync("Playlist/PausePlaylist", { PlaylistId: playlist.id });
+    const { status, body } = await ClientMediator.sendCommandAsync("Playlist", "Pause", { playlistId: playlist.id });
     if (status < 200 || status >= 300) {
       toaster.create({ title: "Failed to pause playlist", description: body?.error, type: "error", duration: 5000 });
     }
   };
 
   const handleStopPlayback = async (playlist) => {
-    const { status, body } = await WebHelper.postAsync("Playlist/StopPlaylist", { PlaylistId: playlist.id });
+    const { status, body } = await ClientMediator.sendCommandAsync("Playlist", "Stop", { playlistId: playlist.id });
     if (status < 200 || status >= 300) {
       toaster.create({ title: "Failed to stop playlist", description: body?.error, type: "error", duration: 5000 });
     }
@@ -296,7 +296,7 @@ export const PlaylistsPanel = () => {
   // number (0 Ok / 5 NoChange). Anything else — including `undefined`, which is what
   // the plain-400 "not a player in this game" case yields — is treated as a failure.
   const handleDelete = async (playlist) => {
-    const body = await WebHelper.deleteAsync("Playlist/RemovePlaylist", playlist.id);
+    const body = await ClientMediator.sendCommandAsync("Playlist", "RemovePlaylist", playlist.id);
     if (typeof body !== "number") {
       toaster.create({ title: "Failed to delete playlist", description: body?.error, type: "error", duration: 5000 });
       return;
@@ -313,7 +313,7 @@ export const PlaylistsPanel = () => {
   const handleSave = async (changes) => {
     if (!editorDto) return;
     const merged = { ...editorDto, ...changes };
-    const { status, body } = await WebHelper.putAsync("Playlist/UpdatePlaylist", {
+    const { status, body } = await ClientMediator.sendCommandAsync("Playlist", "UpdatePlaylist", {
       Id: merged.id,
       Name: merged.name,
       Description: merged.description ?? "",

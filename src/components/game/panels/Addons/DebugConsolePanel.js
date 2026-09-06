@@ -29,6 +29,7 @@ import LookupPanel from "./LookupPanel";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../../helpers/transport";
 import { ResizeDivider, useDragResize } from "../../../uiComponents/ResizeDivider";
 import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
+import ClientMediator from "../../../../ClientMediator";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const BG_SURFACE  = "rgb(28,28,28)";
@@ -589,7 +590,7 @@ export const DebugConsolePanel = ({ state, actionName: initialActionName }) => {
     if (inputArguments.trim()) {
       try { args = JSON.parse(inputArguments); } catch { args = inputArguments; }
     }
-    return { Action: actionName.trim(), ...(args !== undefined && { Args: args }) };
+    return { name: actionName.trim(), args };
   }, [actionName, inputArguments]);
 
   // ── Render ─────────────────────────────────────────────────────────────────
@@ -620,7 +621,7 @@ export const DebugConsolePanel = ({ state, actionName: initialActionName }) => {
             onChange={(e) => setActionName(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && actionName.trim()) {
-                WebSocketManagerInstance.Send({ command: "execute_action", data: buildRunPayload() });
+                ClientMediator.sendCommand("Action", "Run", buildRunPayload());
               }
             }}
             w="160px"
@@ -639,7 +640,7 @@ export const DebugConsolePanel = ({ state, actionName: initialActionName }) => {
             onChange={(e) => setInputArguments(e.target.value)}
             onKeyDown={(e) => {
               if (e.key === "Enter" && actionName.trim()) {
-                WebSocketManagerInstance.Send({ command: "execute_action", data: buildRunPayload() });
+                ClientMediator.sendCommand("Action", "Run", buildRunPayload());
               }
             }}
             w="180px"
@@ -660,7 +661,7 @@ export const DebugConsolePanel = ({ state, actionName: initialActionName }) => {
               color="var(--nordvik-text-color)"
               onClick={() => {
                 if (!actionName.trim()) return;
-                WebSocketManagerInstance.Send({ command: "execute_action", data: buildRunPayload() });
+                ClientMediator.sendCommand("Action", "Run", buildRunPayload());
               }}
             >
               <Icon as={FaPlay} />

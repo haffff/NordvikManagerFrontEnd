@@ -1,6 +1,7 @@
 import { fabric } from "fabric";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import ClientMediator from "../../../ClientMediator";
+import { RESERVED_LAYERS } from "../Constants/layers";
 
 class GridFactory {
   DrawGrid = (gridSize, size, mapId) => {
@@ -12,7 +13,7 @@ class GridFactory {
         type: "line",
         stroke: "#aaa",
         selectable: false,
-        layer: 0,
+        layer: RESERVED_LAYERS.GRID,
       });
       gridArr.push(line);
     }
@@ -23,7 +24,7 @@ class GridFactory {
         type: "line",
         stroke: "#aaa",
         selectable: false,
-        layer: 0,
+        layer: RESERVED_LAYERS.GRID,
       });
       gridArr.push(line);
     }
@@ -33,7 +34,7 @@ class GridFactory {
       type: "line",
       stroke: "#aaa",
       selectable: false,
-      layer: 0,
+      layer: RESERVED_LAYERS.GRID,
     });
     gridArr.push(line);
 
@@ -42,7 +43,7 @@ class GridFactory {
       type: "line",
       stroke: "#aaa",
       selectable: false,
-      layer: 0,
+      layer: RESERVED_LAYERS.GRID,
     });
     gridArr.push(line);
 
@@ -54,7 +55,7 @@ class GridFactory {
       name: ".grid",
       selectable: false,
       interactive: false,
-      layer: 0,
+      layer: RESERVED_LAYERS.GRID,
       objectCaching: false,
     });
 

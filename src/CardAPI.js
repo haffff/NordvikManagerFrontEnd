@@ -18,6 +18,10 @@ const ALLOWED_COMMANDS = Object.freeze({
   "Properties.Update": true,
   "Properties.Remove": true,
   "Properties.GetProperties": true,
+  "Properties.ListAdd": true,
+  "Properties.ListRemove": true,
+  "Properties.ListUpdate": true,
+  "Properties.ListReorder": true,
 
   // Read-only game queries
   "Game.GetPlayers": true,
@@ -569,6 +573,49 @@ class CardAPI {
         await this._sendCommand("Properties", "Remove", { propertyId: prop.id });
       },
     },
+
+    /**
+     * Repeating-row data for a single property — the value is a JSON array of
+     * {id, fields} rows stored server-side. The target property must already
+     * exist (Properties.Init(name, "[]") first); rows are addressed by their
+     * own stable id, not position, so remove/reorder never shift other rows.
+     * Updates arrive back through the normal property_update broadcast/cache,
+     * same as Properties.Set — no separate subscription needed.
+     */
+    List: {
+      // itemId is optional — omit it to let the server generate one (the
+      // normal case). Pass one when a caller already handed the row's id out
+      // before the row exists server-side (e.g. a Roll20 sheet worker's
+      // generateRowID(), which must be usable as a setAttrs() key immediately).
+      // The server rejects a duplicate id, it never silently reassigns one.
+      Add: async (propertyName, fields, itemId) => {
+        const prop = await this.Properties.Get(propertyName);
+        if (!prop) {
+          throw new Error(
+            `Properties.List.Add: property "${propertyName}" does not exist — call Properties.Init(name, "[]") first`
+          );
+        }
+        await this._sendCommand("Properties", "ListAdd", { propertyId: prop.id, fields, itemId });
+      },
+
+      Remove: async (propertyName, itemId) => {
+        const prop = await this.Properties.Get(propertyName);
+        if (!prop) return;
+        await this._sendCommand("Properties", "ListRemove", { propertyId: prop.id, itemId });
+      },
+
+      Update: async (propertyName, itemId, fields) => {
+        const prop = await this.Properties.Get(propertyName);
+        if (!prop) return;
+        await this._sendCommand("Properties", "ListUpdate", { propertyId: prop.id, itemId, fields });
+      },
+
+      Reorder: async (propertyName, orderedItemIds) => {
+        const prop = await this.Properties.Get(propertyName);
+        if (!prop) return;
+        await this._sendCommand("Properties", "ListReorder", { propertyId: prop.id, orderedItemIds });
+      },
+    },
   };
 
   // ── Resources API ───────────────────────────────────────────────────────
@@ -1026,6 +1073,32 @@ class PropertiesManager {
 
     delete this._propertyCache[propertyId];
     WebSocketManagerInstance.Send({ command: "property_remove", data: propertyId });
+  }
+
+  // ── Property-list ops ─────────────────────────────────────────────────
+  // Rows live inside a single property's Value as a JSON array of {id, fields}.
+  // The server rewrites its broadcast to plain property_update, so the result
+  // lands in _propertyCache via the constructor's subscription, same as Add/
+  // Update/Remove above — no extra cache-handling needed here.
+
+  async ListAdd({ propertyId, fields, itemId, isCommand }) {
+    if (isCommand && !propertyId) return "--propertyId is required";
+    WebSocketManagerInstance.Send({ command: "property_list_item_add", data: { propertyId, fields, itemId } });
+  }
+
+  async ListRemove({ propertyId, itemId, isCommand }) {
+    if (isCommand && (!propertyId || !itemId)) return "--propertyId and --itemId are required";
+    WebSocketManagerInstance.Send({ command: "property_list_item_remove", data: { propertyId, itemId } });
+  }
+
+  async ListUpdate({ propertyId, itemId, fields, isCommand }) {
+    if (isCommand && (!propertyId || !itemId)) return "--propertyId and --itemId are required";
+    WebSocketManagerInstance.Send({ command: "property_list_item_update", data: { propertyId, itemId, fields } });
+  }
+
+  async ListReorder({ propertyId, orderedItemIds, isCommand }) {
+    if (isCommand && !propertyId) return "--propertyId is required";
+    WebSocketManagerInstance.Send({ command: "property_list_reorder", data: { propertyId, orderedItemIds } });
   }
 
   GetCardId()

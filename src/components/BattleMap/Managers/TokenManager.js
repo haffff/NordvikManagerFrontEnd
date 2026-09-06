@@ -6,8 +6,10 @@ import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import UtilityHelper from "../../../helpers/UtilityHelper";
 import TokenUIRules from "../../../helpers/TokenUIRules";
 import { extractPropNames, isExpressionDep, evaluate } from "../../../helpers/TokenExpressionEvaluator";
+import { SYSTEM_ASSET_KEYS } from "../../../helpers/systemAssets";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
+import { RESERVED_LAYERS } from "../Constants/layers";
 
 // ─── React-icons dynamic pack loader ─────────────────────────────────────────
 // Vite requires statically-analyzable import() paths. A fully dynamic template
@@ -49,8 +51,8 @@ const ICON_PACK_LOADERS = {
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const TOKEN_LAYER = 100;
-const TOKEN_UI_LAYER = 110;
+const TOKEN_LAYER = RESERVED_LAYERS.TOKEN;
+const TOKEN_UI_LAYER = RESERVED_LAYERS.TOKEN_UI;
 
 /** Property names fetched when spawning a new token */
 const CREATE_TOKEN_PROPS = [
@@ -316,8 +318,9 @@ class TokenManager {
    * Two action types are supported, selected by which key is present:
    *
    * ── Server-side  (key: "Action") ─────────────────────────────────────────
-   *   Sends `execute_action` via WebSocket.  `cardId` and `tokenId` are always
-   *   appended to `Args` so the server handler can scope the request.
+   *   Runs it via ClientMediator.sendCommand("Action", "Run", ...) (ActionService,
+   *   wraps `execute_action`).  `cardId` and `tokenId` are always appended to
+   *   `args` so the server handler can scope the request.
    *
    *   Example:
    *     { "Action": "set_status_poisoned", "Args": { "value": "true" } }
@@ -342,15 +345,12 @@ class TokenManager {
   _dispatchTokenUIAction(parentToken, element, action) {
     // ── Server-side action ──────────────────────────────────────────────────
     if (action.Action) {
-      WebSocketManagerInstance.Send({
-        command: "execute_action",
-        data: {
-          Action: action.Action,
-          Args: {
-            ...(action.Args ?? {}),
-            cardId:  parentToken?.tokenData?.cardId,
-            tokenId: parentToken?.id,
-          },
+      ClientMediator.sendCommand("Action", "Run", {
+        name: action.Action,
+        args: {
+          ...(action.Args ?? {}),
+          cardId:  parentToken?.tokenData?.cardId,
+          tokenId: parentToken?.id,
         },
       });
       return;
@@ -1177,10 +1177,10 @@ class TokenManager {
     const token = JSON.parse(tokenRaw);
 
     // Convert the raw resource ID to a full URL so fabric.util.loadImage
-    // recognises it as a backend resource and fetches it via WebRTC.
-    const tokenImageUrl = tokenImageId
-      ? _toResourceUrl(tokenImageId)
-      : undefined;
+    // recognises it as a backend resource and fetches it via WebRTC. No
+    // tokenImage assigned yet (card has none set) falls back to the
+    // emptyTokenImage placeholder key rather than loading no image at all.
+    const tokenImageUrl = _toResourceUrl(tokenImageId || SYSTEM_ASSET_KEYS.EMPTY_TOKEN_IMAGE);
 
     // Build the Fabric image object
     fabric.Image.fromURL(tokenImageUrl, (fabricObject) => {

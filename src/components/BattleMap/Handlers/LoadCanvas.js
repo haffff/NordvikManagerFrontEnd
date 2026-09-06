@@ -6,6 +6,7 @@ import LoadBMSubscriptions from "../Loaders/LoadBMSubscriptions";
 import DTOConverter from "../DTOConverter";
 import GridHelper from '../Helpers/GridHelper';
 import { fabric } from "fabric";
+import { RESERVED_LAYERS } from "../Constants/layers";
 
 // Factory that creates a LoadCanvas async function bound to provided dependencies
 export default function createLoadCanvas(deps) {
@@ -52,7 +53,7 @@ export default function createLoadCanvas(deps) {
     editor.canvas.fireRightClick = true;
     editor.canvas.fireMiddleClick = true;
     editor.canvas.align = "left";
-    editor.canvas.selectedLayer = oldSelectedLayer ?? 100;
+    editor.canvas.selectedLayer = oldSelectedLayer ?? RESERVED_LAYERS.TOKEN;
     editor.canvas.defaultCursor = "default";
     editor.canvas.hoverCursor = "default";
 

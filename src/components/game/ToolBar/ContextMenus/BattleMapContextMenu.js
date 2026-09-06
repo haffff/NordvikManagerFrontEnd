@@ -34,6 +34,8 @@ import CommandFactory from "../../../BattleMap/Factories/CommandFactory";
 import UtilityHelper from "../../../../helpers/UtilityHelper";
 import { usePermissions } from "../../../../contexts/PermissionsContext";
 import { Tooltip } from "../../../ui/tooltip";
+import { RESERVED_LAYERS } from "../../../BattleMap/Constants/layers";
+import { useCustomLayers } from "../../../uiComponents/hooks/useCustomLayers";
 
 export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) => {
   const selectedObjects = canvas?.getActiveObjects() || [];
@@ -42,6 +44,9 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
   // Resolve the current map id for entity-level permission checks
   const currentMap = ClientMediator.sendCommand("BattleMap", "GetSelectedMap", { contextId: battleMapId });
   const canEditMap = hasEntityPermission(ENTITY_TYPES.MAP, currentMap?.id, PERM.EDIT);
+
+  const gameId = React.useMemo(() => ClientMediator.sendCommand("Game", "GetGameId"), []);
+  const { layers } = useCustomLayers(gameId);
 
   // { [playerId]: bits } for the currently selected element
   const [elementPermissions, setElementPermissions] = React.useState({});
@@ -248,7 +253,7 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
               <DropDownItem
                 width={width}
                 name={"Ungroup"}
-                onClick={() => SwitchLayer(-100)}
+                onClick={() => SwitchLayer(RESERVED_LAYERS.MAP)}
                 icon={FaObjectUngroup}
               />
               <DropDownItem
@@ -270,18 +275,15 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
               name={"Move to layer"}
               icon={FaLayerGroup}
             >
-              <DropDownItem
-                width={width}
-                name={"Token"}
-                onClick={() => SwitchLayer(100)}
-                icon={FaChess}
-              />
-              <DropDownItem
-                width={width}
-                name={"Background"}
-                onClick={() => SwitchLayer(-100)}
-                icon={FaMap}
-              />
+              {layers.filter((l) => l.kind !== "reserved-grid").map((l) => (
+                <DropDownItem
+                  key={l.key}
+                  width={width}
+                  name={l.name}
+                  onClick={() => SwitchLayer(l.layerId)}
+                  icon={l.kind === "reserved-token" ? FaChess : l.kind === "reserved-map" ? FaMap : FaLayerGroup}
+                />
+              ))}
             </DropDownMenu>
             <DropDownItem
               width={width}

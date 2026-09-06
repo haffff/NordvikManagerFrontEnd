@@ -8,12 +8,14 @@ import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import Subscribable from "../../uiComponents/base/Subscribable";
 import SecuritySettingsPanel from "./SecuritySettingsPanel";
 import PropertiesSettingsPanel from "./PropertiesSettingsPanel";
+import SystemAssetsSettingsPanel from "./SystemAssetsSettingsPanel";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
 import { SettingsPanelWithPropertySettings } from "./SettingsPanelWithPropertySettings";
 import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import useGame from "../../uiComponents/hooks/useGameHook";
 import ClientMediator from "../../../ClientMediator";
 import { toaster } from "../../ui/toaster";
+import LayerListEditor from "./LayerListEditor";
 
 export const GameSettingsPanel = () => {
   const [templates, setTemplates] = React.useState([]);
@@ -64,12 +66,12 @@ export const GameSettingsPanel = () => {
 
   const battleMapEditables = [
     {
-      key: "additionalLayers",
-      property: true,
-      label: "Additional Layers",
-      toolTip: "Image of game shown in game list menu for other players.",
-      type: "boolean",
+      key: "customLayers",
+      label: "Custom Layers",
+      toolTip: "Named layers players and GM can select and place elements on, in addition to the built-in Map and Token layers.",
+      type: "custom",
       category: "Layers",
+      customComponent: () => <LayerListEditor gameId={gameData.id} />,
     },
 
     {
@@ -153,8 +155,17 @@ export const GameSettingsPanel = () => {
       return;
     }
     WebHelper.get(
-      "materials/gettemplatesfull?gameId=" + gameData.id,
-      setTemplates
+      "materials/gettemplatesfull",
+      setTemplates,
+      (error) => {
+        console.error("GameSettingsPanel: failed to load card templates", error);
+        toaster.create({
+          title: "Failed to load card templates",
+          description: "The character sheet template list may be empty because of this — try refreshing.",
+          type: "error",
+          duration: 6000,
+        });
+      }
     );
   }, [gameData]);
   let dto = gameData;
@@ -200,6 +211,7 @@ export const GameSettingsPanel = () => {
             <Tabs.Trigger value="character">Character Sheets</Tabs.Trigger>
             <Tabs.Trigger value="permissions">Permissions</Tabs.Trigger>
             <Tabs.Trigger value="props">Properties</Tabs.Trigger>
+            <Tabs.Trigger value="assets">Sounds & Images</Tabs.Trigger>
             <Tabs.Trigger value="adv">Advanced</Tabs.Trigger>
           </Tabs.List>
           <Tabs.Content value="general">
@@ -233,6 +245,9 @@ export const GameSettingsPanel = () => {
               dto={dto}
               type="GameModel"
             />
+          </Tabs.Content>
+          <Tabs.Content value="assets">
+            <SystemAssetsSettingsPanel />
           </Tabs.Content>
           <Tabs.Content value="adv">
             <SettingsPanelWithPropertySettings

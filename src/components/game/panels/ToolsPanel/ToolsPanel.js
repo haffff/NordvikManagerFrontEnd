@@ -10,6 +10,7 @@ import {
   FaCircle,
   FaDotCircle,
   FaHandPaper,
+  FaLayerGroup,
   FaMap,
   FaMousePointer,
   FaPaintBrush,
@@ -31,6 +32,7 @@ import { MeasureOptions } from "./MeasureOptions";
 import { MeasureConeOptions } from "./MeasureConeOptions";
 import { Box, For, Separator } from "@chakra-ui/react";
 import { DWrapItem } from "../../../uiComponents/base/DWrapItem";
+import { useCustomLayers } from "../../../uiComponents/hooks/useCustomLayers";
 
 export const ToolsPanel = ({ battleMapId }) => {
   const panelRef = React.useRef(null);
@@ -41,6 +43,8 @@ export const ToolsPanel = ({ battleMapId }) => {
   const [alignMode, setAlign] = React.useState(undefined);
   const [_battleMapId, set_battleMapId] = React.useState(battleMapId);
   const [playerColor, setPlayerColor] = React.useState("rgba(0,0,0,1)");
+  const gameId = React.useMemo(() => ClientMediator.sendCommand("Game", "GetGameId"), []);
+  const { layers } = useCustomLayers(gameId);
 
   const registrationIdRef = React.useRef(null);
 
@@ -62,20 +66,15 @@ export const ToolsPanel = ({ battleMapId }) => {
       enabled: !mode || mode === "_",
     },
     { type: "label", name: "Layer" },
-    {
+    // Grid is never a placeable layer (no button for it) — everything else,
+    // reserved or custom, renders in correct top-to-bottom stacking order.
+    ...layers.filter((l) => l.kind !== "reserved-grid").map((l) => ({
       type: "option",
-      icon: <FaChess />,
-      name: "Token",
-      onClick: () => handleLayer(100),
-      selected: layer === 100,
-    },
-    {
-      type: "option",
-      icon: <FaMap />,
-      name: "Map",
-      onClick: () => handleLayer(-100, true),
-      selected: layer === -100,
-    },
+      icon: l.kind === "reserved-token" ? <FaChess /> : l.kind === "reserved-map" ? <FaMap /> : <FaLayerGroup />,
+      name: l.name,
+      onClick: () => handleLayer(l.layerId, l.kind === "reserved-map"),
+      selected: layer === l.layerId,
+    })),
     { type: "label", name: "Draw" },
     {
       type: "option",

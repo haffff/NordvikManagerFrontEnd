@@ -2,7 +2,6 @@ import React, { useCallback } from 'react';
 import UtilityHelper from '../../../helpers/UtilityHelper';
 import DockableHelper from '../../../helpers/DockableHelper';
 import ClientMediator from '../../../ClientMediator';
-import { ActiveWebHelper as WebHelper, ActiveTransportManager } from '../../../helpers/transport';
 import { toaster } from '../../ui/toaster';
 import { DropDownItem } from '../../uiComponents/base/DDItems/DropDownItem';
 
@@ -200,7 +199,7 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
           const menuItem = React.createElement(DropDownItem, {
             key: item.name,
             name: item.uiName || item.name,
-            onClick: () => ActiveTransportManager.Send({ command: "execute_action", data: { Action: item.action, Args: item.actionArgs ?? undefined } }),
+            onClick: () => ClientMediator.sendCommand("Action", "Run", { name: item.action, args: item.actionArgs ?? undefined }),
           });
           ClientMediator.sendCommand("DropDownMenu", "AddMenuItem", {
             contextId: item.subMenuId,
@@ -227,7 +226,7 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
             const menuItem = React.createElement(DropDownItem, {
               key: item.name,
               name: item.uiName || item.name,
-              onClick: () => ActiveTransportManager.Send({ command: "execute_action", data: { Action: item.action, Args: item.actionArgs ?? undefined } }),
+              onClick: () => ClientMediator.sendCommand("Action", "Run", { name: item.action, args: item.actionArgs ?? undefined }),
             });
             ClientMediator.sendCommand("DropDownMenu", "AddMenuItem", {
               contextId: targetContextId,
@@ -248,7 +247,7 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
       name: item.uiName || item.name,
       menuId: item.menuId,
       menuName: item.menuName,
-      onClick: () => ActiveTransportManager.Send({ command: "execute_action", data: { Action: item.action, Args: item.actionArgs ?? undefined } }),
+      onClick: () => ClientMediator.sendCommand("Action", "Run", { name: item.action, args: item.actionArgs ?? undefined }),
     });
   }, []);
 

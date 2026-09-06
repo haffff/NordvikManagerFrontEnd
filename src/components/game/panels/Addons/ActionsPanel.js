@@ -17,6 +17,7 @@ import {
 import * as Dockable from "@hlorenzi/react-dockable";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../../helpers/transport";
 import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
+import ClientMediator from "../../../../ClientMediator";
 import CollectionSyncer from "../../../uiComponents/base/CollectionSyncer";
 import { ActionStep } from "./ActionStep";
 import UtilityHelper from "../../../../helpers/UtilityHelper";
@@ -75,7 +76,7 @@ const GroupPane = React.memo(({ group, actions }) => {
 
   const runAll = () => {
     groupActions.forEach((a) =>
-      WebSocketManagerInstance.Send({ command: "execute_action", data: { Action: a.prefix ? `${a.prefix}/${a.name}` : a.name } })
+      ClientMediator.sendCommand("Action", "Run", { name: a.prefix ? `${a.prefix}/${a.name}` : a.name })
     );
     setConfirmRun(false);
   };
@@ -188,9 +189,9 @@ const ActionPane = React.memo(({
     let args;
     if (inputArguments.trim()) {
       try { args = JSON.parse(inputArguments); } catch { args = inputArguments; }
-    }    WebSocketManagerInstance.Send({
-      command: "execute_action",
-      data: { Action: selectedAction.prefix ? `${selectedAction.prefix}/${selectedAction.name}` : selectedAction.name, ...(args !== undefined && { Args: args }) },
+    }    ClientMediator.sendCommand("Action", "Run", {
+      name: selectedAction.prefix ? `${selectedAction.prefix}/${selectedAction.name}` : selectedAction.name,
+      args,
     });
   };
 

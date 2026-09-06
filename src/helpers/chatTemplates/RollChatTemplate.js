@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Box, Button, Flex, Text } from "@chakra-ui/react";
-import { ActiveTransportManager as WebSocketManagerInstance } from "../transport";
+import ClientMediator from "../../ClientMediator";
 
 // ── Design tokens (kept local so the file is self-contained) ──────────────────
 const BG_CARD    = "rgb(48,48,48)";
@@ -12,10 +12,25 @@ const CLR_NORMAL = "rgb(200,200,200)";  // light-grey
 const CLR_MUTED  = "rgb(140,140,140)";
 
 // ── DieChip ───────────────────────────────────────────────────────────────────
-const DieChip = ({ result, diceValue, index }) => {
-  const isCrit = result === diceValue;
-  const isFail = result === 1;
-  const color  = isCrit ? CLR_CRIT : isFail ? CLR_FAIL : CLR_NORMAL;
+// kept/exploded/success default to the dice engine's "plain NdM roll" defaults
+// (true/false/undefined) so old-shaped roll data (no modifiers) renders exactly
+// as before.
+const DieChip = ({ result, diceValue, index, kept = true, exploded = false, success }) => {
+  const isCrit = success === undefined && result === diceValue;
+  const isFail = success === undefined && result === 1;
+  const color =
+    success === true ? CLR_CRIT :
+    success === false ? CLR_FAIL :
+    isCrit ? CLR_CRIT :
+    isFail ? CLR_FAIL :
+    CLR_NORMAL;
+
+  const title =
+    success === true ? "Success" :
+    success === false ? "Failure" :
+    isCrit ? "Critical!" :
+    isFail ? "Fail" :
+    undefined;
 
   return (
     <Box
@@ -29,11 +44,14 @@ const DieChip = ({ result, diceValue, index }) => {
       borderRadius="4px"
       bg={BG_DIE}
       borderWidth="1px"
+      borderStyle={exploded ? "dashed" : "solid"}
       borderColor={color}
       fontSize="12px"
       fontWeight="bold"
       color={color}
-      title={isCrit ? "Critical!" : isFail ? "Fail" : undefined}
+      opacity={kept ? 1 : 0.4}
+      textDecoration={kept ? "none" : "line-through"}
+      title={[title, kept ? null : "Dropped", exploded ? "Exploded" : null].filter(Boolean).join(" · ") || undefined}
     >
       {result}
     </Box>
@@ -55,7 +73,15 @@ const buildFormulaElements = (rolled, dices) => {
 
       if (matched.length === 1) {
         elements.push(
-          <DieChip key={`p${pi}`} result={matched[0].result} diceValue={matched[0].diceValue} index={idx} />
+          <DieChip
+            key={`p${pi}`}
+            result={matched[0].result}
+            diceValue={matched[0].diceValue}
+            index={idx}
+            kept={matched[0].kept}
+            exploded={matched[0].exploded}
+            success={matched[0].success}
+          />
         );
       } else {
         // Multiple dice for the same placeholder — wrap in parens
@@ -64,7 +90,7 @@ const buildFormulaElements = (rolled, dices) => {
             <Text fontSize="12px" color={CLR_MUTED}>(</Text>
             {matched.map((d, di) => (
               <React.Fragment key={di}>
-                <DieChip result={d.result} diceValue={d.diceValue} index={idx} />
+                <DieChip result={d.result} diceValue={d.diceValue} index={idx} kept={d.kept} exploded={d.exploded} success={d.success} />
                 {di < matched.length - 1 && (
                   <Text fontSize="12px" color={CLR_MUTED}>+</Text>
                 )}
@@ -96,10 +122,7 @@ const ActionButtons = ({ actions }) => {
   if (!actions?.length) return null;
 
   const fire = (action, index) => {
-    WebSocketManagerInstance.Send({
-      command: "execute_action",
-      data: { Action: action.actionName, Args: action.args ?? {} },
-    });
+    ClientMediator.sendCommand("Action", "Run", { name: action.actionName, args: action.args ?? {} });
     setUsedIndices((prev) => new Set(prev).add(index));
   };
 
@@ -126,7 +149,8 @@ export const RollChatTemplate = ({ object }) => {
   const { title, roll, message, actions } = object;
   const chatColor       = object.color;
   const chatBorderColor = object.borderColor;
-  const { rolled, result, dices } = roll;
+  const { rolled, result, dices, successCount, failureCount } = roll;
+  const hasSuccessFail = successCount != null || failureCount != null;
 
   const formulaElements = buildFormulaElements(rolled, dices ?? []);
   return (
@@ -170,6 +194,15 @@ export const RollChatTemplate = ({ object }) => {
           {result}
         </Box>
       </Flex>
+
+      {/* Success/failure counts (only present for cs>N/cf<N rolls) */}
+      {hasSuccessFail && (
+        <Text fontSize="11px" color={CLR_MUTED} mb="4px">
+          {successCount != null && <>{successCount} success{successCount === 1 ? "" : "es"}</>}
+          {successCount != null && failureCount != null && "  ·  "}
+          {failureCount != null && <>{failureCount} failure{failureCount === 1 ? "" : "s"}</>}
+        </Text>
+      )}
 
       {/* Optional narrative message */}
       {message && (

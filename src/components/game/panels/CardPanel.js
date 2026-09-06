@@ -132,7 +132,34 @@ function mountBridge(iframe, cardApi, cardId, additionalArguments) {
           // Scoped panel registration
           result = cardApi.ClientMediator.register(command, data);        } 
           
-          else if (panel === "Properties") {
+          else if (panel === "Properties" && command.startsWith("List")) {
+          // Repeating-row list ops (never global — a list property always
+          // belongs to this card). Property.List[command] lookup is separate
+          // from the flat cardApi.Properties[command] lookup below because
+          // src/CardAPI.js nests these under .List, not as flat "ListAdd"
+          // methods — a plain cardApi.Properties["ListAdd"] lookup would
+          // always be undefined.
+          const method = cardApi.Properties.List[command.slice(4)];
+          if (typeof method !== "function") throw new Error(`Unknown Properties.List method: ${command}`);
+
+          switch (command) {
+            case "ListAdd":
+              result = await method(data?.name, data?.fields, data?.itemId);
+              break;
+            case "ListRemove":
+              result = await method(data?.name, data?.itemId);
+              break;
+            case "ListUpdate":
+              result = await method(data?.name, data?.itemId, data?.fields);
+              break;
+            case "ListReorder":
+              result = await method(data?.name, data?.orderedItemIds);
+              break;
+            default:
+              throw new Error(`Unknown Properties.List method: ${command}`);
+          }
+
+        } else if (panel === "Properties") {
           const isGlobal = !!data?.global;
           const pid = data?.parentId;
 

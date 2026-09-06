@@ -2,6 +2,9 @@ import * as React from "react";
 import { ActiveWebHelper as WebHelper } from "../../helpers/transport";
 import Subscribable from "../uiComponents/base/Subscribable";
 import { usePermissions } from "../../contexts/PermissionsContext";
+import ClientMediator from "../../ClientMediator";
+import { SYSTEM_ASSET_KEYS, playSystemSound } from "../../helpers/systemAssets";
+import PlaylistService from "./PlaylistService";
 
 // Always-mounted singleton (see Game.js) that owns actual audio playback for the
 // soundboard and playlist player. It is not a panel — it keeps playing regardless of
@@ -17,6 +20,19 @@ export const PlaybackManager = () => {
   const { isGM } = usePermissions();
   const isGMRef = React.useRef(isGM);
   isGMRef.current = isGM;
+
+  // Set once on mount (mirrors ChatPanel's own lookup) — used only to skip playing
+  // the incoming-message sound for messages this client itself just sent.
+  const currentPlayerIdRef = React.useRef(undefined);
+  React.useEffect(() => {
+    currentPlayerIdRef.current = ClientMediator.sendCommand("Game", "GetCurrentPlayer", {})?.id;
+  }, []);
+
+  // Registered here (rather than inside PlaylistsPanel/SoundboardPanel) so
+  // Playlist CRUD/playback commands stay reachable while those panels are closed.
+  React.useEffect(() => {
+    ClientMediator.register(PlaylistService);
+  }, []);
 
   // playlistId -> { mode, repeat, trackOrder, currentTrackIndex, elements: {trackId: Audio}, endedTrackIds: Set }
   const playlistsRef = React.useRef({});
@@ -221,6 +237,14 @@ export const PlaybackManager = () => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Chat notification sound — skips the sender's own client so sending a message
+  // doesn't ding yourself. Lives here (always-mounted) rather than in ChatPanel so
+  // it plays even when the chat panel isn't open.
+  const onChatMessage = React.useCallback((event) => {
+    if (event?.playerId !== undefined && event.playerId === currentPlayerIdRef.current) return;
+    playSystemSound(SYSTEM_ASSET_KEYS.CHAT_MESSAGE_SOUND);
+  }, []);
+
   // Resync on mount — pick up any playlists already playing when this client (re)connects.
   React.useEffect(() => {
     WebHelper.getAsync("Playlist/GetCurrentPlayback")
@@ -244,6 +268,7 @@ export const PlaybackManager = () => {
     <>
       <Subscribable commandPrefix="playlist" onMessage={onPlaylistEvent} />
       <Subscribable commandPrefix="sound" onMessage={onSoundEvent} />
+      <Subscribable commandPrefix="chat" onMessage={onChatMessage} />
     </>
   );
 };

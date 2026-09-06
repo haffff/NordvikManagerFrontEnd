@@ -84,6 +84,19 @@ export const SANDBOX_BRIDGE_SCRIPT = `<script>
         if (i !== -1) arr.splice(i, 1);
       },
 
+      /**
+       * Repeating-row list data for a single property — see
+       * src/CardAPI.js's Properties.List for the full contract (stable
+       * per-row ids, Init(name, "[]") required first). Add's itemId is
+       * optional — omit it to let the server generate one.
+       */
+      List: Object.freeze({
+        Add:     (name, fields, itemId)   => _rpc('Properties', 'ListAdd',     { name, fields, itemId }),
+        Remove:  (name, itemId)           => _rpc('Properties', 'ListRemove',  { name, itemId }),
+        Update:  (name, itemId, fields)   => _rpc('Properties', 'ListUpdate',  { name, itemId, fields }),
+        Reorder: (name, orderedItemIds)   => _rpc('Properties', 'ListReorder', { name, orderedItemIds }),
+      }),
+
       /** Access propertiesof any entity — parentId supplied explicitly. */
       Global: Object.freeze({
         Get:         (parentId, name)        => _rpc('Properties', 'Get',         { name, parentId, global: true }),
@@ -134,8 +147,12 @@ export const SANDBOX_BRIDGE_SCRIPT = `<script>
       register: (name, manager) => _rpc('__register__', name, manager),
     },
 
+    // Must match the real backend WS command (ChatHandler.cs's "chat_push"
+    // case, also what src/CardAPI.js's own non-sandboxed SendChatMessage
+    // sends) — ALLOWED_WS_COMMANDS only permits "chat_push", so anything
+    // else is silently blocked by CardPanel.js's SendCustomCommandToServer.
     SendChatMessage: (message) =>
-      parent.postMessage({ type: 'WS_SEND', command: 'chat_message', data: message }, '*'),
+      parent.postMessage({ type: 'WS_SEND', command: 'chat_push', data: message }, '*'),
 
     FireAction: (action, args) =>
       parent.postMessage({ type: 'WS_SEND', command: 'execute_action', data: { action, args } }, '*'),

@@ -72,7 +72,7 @@ export const MainToolbar = ({
     let game = ClientMediator.sendCommand("Game", "GetGame", {});
     const centralServerUrl = process.env.REACT_APP_CENTRAL_URL;
     let url =
-      `${centralServerUrl}?game=${game.centralSessionId}` +
+      `${centralServerUrl}/client?game=${game.centralSessionId}` +
       (game.requirePassword ? `&rp=1` : "");
     if (navigator && navigator.clipboard) {
       navigator.clipboard.writeText(url);

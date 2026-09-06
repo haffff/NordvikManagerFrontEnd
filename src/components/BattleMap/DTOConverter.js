@@ -1,5 +1,6 @@
 import { ActiveWebHelper as WebHelper } from "../../helpers/transport";
 import { canControl } from "./Helpers/permissionBits";
+import { SYSTEM_ASSET_KEYS } from "../../helpers/systemAssets";
 
 export const DTOConverter = {
 
@@ -45,8 +46,14 @@ export const DTOConverter = {
         object.layer = dto.layer;
         if (object.resourceId || object.resourceKey) {
             object.src = WebHelper.getResourceString(object.resourceId, object.resourceKey);
+        } else if (object.isToken) {
+            // Token with no image assigned yet — resolve src to the placeholder key
+            // without writing it onto resourceId/resourceKey, so this stays a
+            // display-only fallback and never gets persisted as a real assignment
+            // on the next save (ConvertToDTO only strips `src`, not resourceKey).
+            object.src = WebHelper.getResourceString(null, SYSTEM_ASSET_KEYS.EMPTY_TOKEN_IMAGE);
         }
-        
+
         return object
     }
 }

@@ -11,7 +11,7 @@ import DLabel from "../../uiComponents/base/Text/DLabel";
 import DListItemButton from "../../uiComponents/base/List/ListItemDetails/DListItemButton";
 import DListItemsButtonContainer from "../../uiComponents/base/List/DListItemsButtonContainer";
 import SettingsPanel from "../settings/SettingsPanel";
-import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
+import ClientMediator from "../../../ClientMediator";
 import { usePermissions } from "../../../contexts/PermissionsContext";
 import { useDragResize } from "../../uiComponents/ResizeDivider";
 
@@ -156,7 +156,7 @@ export const SoundboardPanel = () => {
   ctx.setTitle("Soundboard");
 
   const loadBoards = React.useCallback(async () => {
-    const data = await WebHelper.getAsync("Playlist/GetPlaylists?kind=1");
+    const data = await ClientMediator.sendCommandAsync("Playlist", "GetPlaylists", { kind: 1 });
     if (data) setBoards(data);
   }, []);
 
@@ -185,7 +185,7 @@ export const SoundboardPanel = () => {
   // ── Actions ─────────────────────────────────────────────────────────────────
 
   const handleAdd = async () => {
-    const { status, body } = await WebHelper.postAsync("Playlist/AddPlaylist", {
+    const { status, body } = await ClientMediator.sendCommandAsync("Playlist", "AddPlaylist", {
       Name: "New Soundboard",
       Description: "",
       Mode: 0,
@@ -205,7 +205,7 @@ export const SoundboardPanel = () => {
   // RemovePlaylist's success path always returns the CommandResponse enum as a bare
   // number (0 Ok / 5 NoChange) — same contract PlaylistsPanel relies on.
   const handleDelete = async (board) => {
-    const body = await WebHelper.deleteAsync("Playlist/RemovePlaylist", board.id);
+    const body = await ClientMediator.sendCommandAsync("Playlist", "RemovePlaylist", board.id);
     if (typeof body !== "number") {
       toaster.create({ title: "Failed to delete soundboard", description: body?.error, type: "error", duration: 5000 });
       return;
@@ -217,7 +217,7 @@ export const SoundboardPanel = () => {
   const handleSave = async (changes) => {
     if (!editorDto) return;
     const merged = { ...editorDto, ...changes };
-    const { status, body } = await WebHelper.putAsync("Playlist/UpdatePlaylist", {
+    const { status, body } = await ClientMediator.sendCommandAsync("Playlist", "UpdatePlaylist", {
       Id: merged.id,
       Name: merged.name,
       Description: merged.description ?? "",
@@ -237,11 +237,11 @@ export const SoundboardPanel = () => {
   // Do not optimistically play locally — wait for the resulting sound_play broadcast,
   // same as PlaylistsPanel waits for playlist_notify before refetching.
   const handlePlay = (resource) => {
-    WebHelper.postAsync("Soundboard/PlaySound", { ResourceId: resource.id });
+    ClientMediator.sendCommandAsync("Playlist", "PlaySound", { resourceId: resource.id });
   };
 
   const handleStop = (resource) => {
-    WebHelper.postAsync("Soundboard/StopSound", { ResourceId: resource.id });
+    ClientMediator.sendCommandAsync("Playlist", "StopSound", { resourceId: resource.id });
   };
 
   // ── Derived state ────────────────────────────────────────────────────────────
