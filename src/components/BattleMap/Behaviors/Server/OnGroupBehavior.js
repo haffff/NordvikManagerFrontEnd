@@ -18,7 +18,9 @@ export class OnGroupBehavior {
                 element.id = response.data.id;
                 element.selectable = canControl(response.data.permission) && response.data.layer == selectedLayer;
 
-                let found = canvas._objects.findIndex(x => x.layer >= element.layer);
+                // Strict '>' so the regrouped element lands on top of any existing
+                // same-layer objects (newest-on-top), same fix as OnAddElementBehavior.
+                let found = canvas._objects.findIndex(x => x.layer > element.layer);
                 if (found == -1) {
                     if (!element.properties) {
                         element.properties = [];
@@ -30,9 +32,10 @@ export class OnGroupBehavior {
                 }
 
                 ClientMediator.sendCommandWaitForRegister("Game","GetCurrentPlayer", {},true).then((currentPlayer) => {
-                    if (response.playerId === currentPlayer.id)
+                    if (response.playerId === currentPlayer.id) {
                         canvas.setActiveObject(element);
-                        canvas.requestRenderAll();
+                    }
+                    canvas.requestRenderAll();
                 });
             });
         });

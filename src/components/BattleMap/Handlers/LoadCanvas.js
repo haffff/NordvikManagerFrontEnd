@@ -6,7 +6,7 @@ import LoadBMSubscriptions from "../Loaders/LoadBMSubscriptions";
 import DTOConverter from "../DTOConverter";
 import GridHelper from '../Helpers/GridHelper';
 import { fabric } from "fabric";
-import { RESERVED_LAYERS } from "../Constants/layers";
+import { RESERVED_LAYERS, compareLayers } from "../Constants/layers";
 
 // Factory that creates a LoadCanvas async function bound to provided dependencies
 export default function createLoadCanvas(deps) {
@@ -60,6 +60,9 @@ export default function createLoadCanvas(deps) {
     // Assign battlemap instance when necessary
     BattleMapServices.BMQueryService._canvas = editor.canvas;
     BattleMapServices.BMQueryService._battleMapModel = battleMapModel;
+    // Load() here (before ClientMediator.register() below) sets .panel/.id/.contextId,
+    // which register() requires to already be set. It's called again after
+    // LoadBMSubscriptions() further down — see the comment there for why.
     BattleMapServices.BMQueryService.Load();
     BattleMapServices.BMService._canvas = editor.canvas;
     BattleMapServices.BMService._refreshCommand = forceUpdate;
@@ -99,6 +102,17 @@ export default function createLoadCanvas(deps) {
 
     LoadBMSubscriptions(editor.canvas, references);
 
+    // Re-run BMQueryService.Load() here, after LoadBMSubscriptions(). LoadBMSubscriptions
+    // does canvas.off(key) for every key it manages — including
+    // "selection:created/updated/cleared" — and fabric's off(eventName) with no handler
+    // argument clears ALL listeners for that event, not just the caller's own. The
+    // earlier BMQueryService.Load() call above (needed before ClientMediator.register()
+    // so .panel/.id are set) was getting its selection handlers wiped out immediately
+    // after being set up, silently breaking SubscribeSelectionChanged for the canvas's
+    // entire lifetime. Load() is idempotent (off-then-on for its own 3 events each
+    // time), so calling it again here is safe and just re-establishes what got wiped.
+    BattleMapServices.BMQueryService.Load();
+
     // extend toObject for serialization
     fabric.Object.prototype.toObject = (function (toObject) {
       return function () {
@@ -124,9 +138,7 @@ export default function createLoadCanvas(deps) {
 
     // sort layers helper
     editor.canvas.sortLayers = function () {
-      this._objects.sort((a, b) =>
-        a.layer > b.layer || a.insideLayerIndex > b.insideLayerIndex ? 1 : -1
-      );
+      this._objects.sort(compareLayers);
     };
 
     // Load elements and register them in ElementsStorage

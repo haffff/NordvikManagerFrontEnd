@@ -93,6 +93,13 @@ export class OnNativeObjectModifiedClientBehavior {
       {
         case "drag":
           dto = DTOConverter.ConvertToDTOMinified(target, ["left", "top"]);
+          // Flags this object's own drag-confirmation echo so
+          // OnUpdateElementBehavior's isOwnDrag check can skip re-animating it —
+          // the local object already sits at its final position, so re-animating
+          // its own echo just risks a stutter (and, worse, a token-UI hide/restore
+          // race if a second update lands before the animation's onComplete).
+          // Consumed (cleared) by OnUpdateElementBehavior when that echo arrives.
+          target.isBeingDragged = true;
           break;
         case "scale":
           dto = DTOConverter.ConvertToDTOMinified(target, ["scaleX", "scaleY"]);

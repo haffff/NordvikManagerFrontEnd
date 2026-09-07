@@ -12,10 +12,16 @@ export const SettingsMenu = ({ Dockable,
 })  => {
     const [currentPlayer, setCurrentPlayer] = React.useState(undefined);
 
-    if(!currentPlayer)
-    {
-        ClientMediator.sendCommandWaitForRegister("Game","GetCurrentPlayer",{},true).then(x => setCurrentPlayer(x));
-    }
+    // Was a side effect directly in the render body — re-fired on every re-render
+    // until it resolved (sendCommandWaitForRegister has no de-dupe, so each
+    // re-render queued another awaiting-request), and had no unmount guard.
+    React.useEffect(() => {
+        let cancelled = false;
+        ClientMediator.sendCommandWaitForRegister("Game","GetCurrentPlayer",{},true).then(x => {
+            if (!cancelled) setCurrentPlayer(x);
+        });
+        return () => { cancelled = true; };
+    }, []);
 
     return (
         <DropDownMenu viewId={"settings"} name={"Settings"} width={100} expandableLocationName={"settings"} expandableWithAction={true} state={state}>

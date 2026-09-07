@@ -408,12 +408,15 @@ class BMService {
       canvas.getObjects().forEach((object) => {
         if (object.layer === layer) {
           if (object.currentlyEdited !== undefined) return;
-          if (object.origOpacity) {
+          // Truthiness check (`if (object.origOpacity)`) fails to restore an object
+          // whose original opacity was exactly 0 — it stayed dimmed forever. Compare
+          // against undefined instead, same fix in both branches below.
+          if (object.origOpacity !== undefined) {
             object.set({ opacity: object.origOpacity, origOpacity: undefined });
           }
         } else {
           if (object.origOpacity === undefined) {
-            object.set({ origOpacity: object.opacity, opacity: object.opacity - 0.5 });
+            object.set({ origOpacity: object.opacity, opacity: Math.max(0, object.opacity - 0.5) });
           }
           object.set("currentlyEdited", undefined);
         }
@@ -424,7 +427,7 @@ class BMService {
       canvas.editLayer = undefined;
       canvas.modeLock = undefined;
       canvas.getObjects().forEach((object) => {
-        if (object.origOpacity) {
+        if (object.origOpacity !== undefined) {
           object.set({ opacity: object.origOpacity, origOpacity: undefined });
         }
         object.set("currentlyEdited", undefined);
@@ -858,7 +861,10 @@ class BMService {
       WebSocketManagerInstance.Send({
         command: "preview_end",
         battleMapId: this.contextId,
-        data: [filteredObjects.map((object) => ({ previewId: object.previewId, playerId: object.playerId }))],
+        // Flat array of {previewId, playerId}, matching every other preview_end
+        // sender (e.g. OnMouseUpMeasureEnds.js) — this used to be wrapped in an
+        // extra [ ], the only preview_end sent for "stay visible" previews.
+        data: filteredObjects.map((object) => ({ previewId: object.previewId, playerId: object.playerId })),
       });
     }
 

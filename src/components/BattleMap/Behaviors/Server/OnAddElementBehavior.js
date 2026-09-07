@@ -33,8 +33,11 @@ export class OnAddElementBehavior {
 
           element.properties = parsedProps;
 
+          // Strict '>' (not '>=') so a new same-layer element is inserted after —
+          // i.e. rendered on top of — any existing objects already on that layer,
+          // matching the usual "newest on top" expectation.
           let found = canvas._objects.findIndex(
-            (x) => x.layer >= element.layer
+            (x) => x.layer > element.layer
           );
           if (found == -1) {
             canvas.add(element);

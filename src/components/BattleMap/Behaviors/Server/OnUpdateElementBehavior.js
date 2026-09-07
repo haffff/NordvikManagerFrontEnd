@@ -1,6 +1,7 @@
 import ClientMediator from "../../../../ClientMediator";
 import UtilityHelper from "../../../../helpers/UtilityHelper";
 import DTOConverter from "../../DTOConverter";
+import { compareLayers } from "../../Constants/layers";
 
 export class OnUpdateElementBehavior {
   async Handle(response, canvas, battleMapId) {
@@ -28,6 +29,7 @@ export class OnUpdateElementBehavior {
           obj.isBeingDragged;
 
         if (isOwnDrag) {
+          obj.isBeingDragged = false; // consume — this echo has now been accounted for
           canvas.requestRenderAll();
           return;
         }
@@ -80,6 +82,10 @@ export class OnUpdateElementBehavior {
                 { contextId: battleMapId }
               );
               obj.set("layer", parsedJson.layer);
+              // insideLayerIndex (bring-forward/send-backward position) must be applied
+              // alongside layer — otherwise it's silently dropped from remote updates
+              // even when the sender did transmit it (see DTOConverter.ConvertToDTO).
+              obj.set("insideLayerIndex", parsedJson.insideLayerIndex);
               obj.set(
                 "selectable",
                 obj.selectablePermission && obj.layer === selectedLayer
@@ -91,11 +97,7 @@ export class OnUpdateElementBehavior {
                   obj.selectablePermission && obj.layer === selectedLayer
                 );
               }, options);
-              canvas._objects.sort((a, b) =>
-                a.layer > b.layer || a.insideLayerIndex > b.insideLayerIndex
-                  ? 1
-                  : -1
-              );
+              canvas._objects.sort(compareLayers);
               break;
             default:
               obj.set(parsedJson);

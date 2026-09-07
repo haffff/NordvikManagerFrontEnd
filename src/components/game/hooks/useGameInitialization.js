@@ -13,6 +13,12 @@ import { ENTITY_TYPES, PERM } from '../../BattleMap/Helpers/permissionBits';
 // Global flags to prevent duplicate game initialization
 let gameInitializationInProgress = false;
 let gameInitialized = false;
+// Bumped by resetInitialization() (on unmount, and on manual Retry). A loadGame()
+// call captures the generation it started with and checks it before committing
+// any state — otherwise a loadGame() abandoned by a fast exit/rejoin can resolve
+// late and either write into a dead mount's refs, or worse, clear the *new*
+// mount's in-progress flag out from under it via a stale `finally`.
+let gameInitGeneration = 0;
 
 /**
  * Handles one-time game initialization: fetching player/game data, loading
@@ -40,6 +46,7 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
       return;
     }
 
+    const myGeneration = gameInitGeneration;
     gameInitializationInProgress = true;
 
     try {
@@ -47,6 +54,10 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
 
       // ── Fetch core data ────────────────────────────────────────────────────
       const player = await WebHelper.getAsync('battlemap/getplayer');
+      if (myGeneration !== gameInitGeneration) {
+        console.log('useGameInitialization: abandoned after getplayer (component unmounted or reset)');
+        return;
+      }
       if (!player) {
         throw new Error('Failed to load player: server rejected battlemap/getplayer (see console for HTTP status)');
       }
@@ -64,6 +75,10 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
         .catch((e) => console.warn('useGameInitialization: failed to load keyboard bindings', e));
 
       const game = await WebHelper.getAsync('battlemap/getfullgame');
+      if (myGeneration !== gameInitGeneration) {
+        console.log('useGameInitialization: abandoned after getfullgame (component unmounted or reset)');
+        return;
+      }
       // Populate refs so useGameApi's GetGame/GetOwner/GetCurrentPlayer resolve
       gameRef.current = game;
 
@@ -113,16 +128,27 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
       DockableHelper.State = state;
       WebSocketManagerInstance.Send({ command: 'client_loaded' });
 
-      gameInitialized = true;
-      console.log('Game initialization completed successfully');
+      if (myGeneration === gameInitGeneration) {
+        gameInitialized = true;
+        console.log('Game initialization completed successfully');
+      } else {
+        console.log('useGameInitialization: completed after being superseded — discarding result');
+      }
 
     } catch (error) {
       console.error('Game initialization failed:', error);
-      gameInitializationInProgress = false;
-      gameInitialized = false;
-      setInitError(error?.message || 'Game initialization failed');
+      if (myGeneration === gameInitGeneration) {
+        gameInitializationInProgress = false;
+        gameInitialized = false;
+        setInitError(error?.message || 'Game initialization failed');
+      }
     } finally {
-      gameInitializationInProgress = false;
+      // Only clear the in-progress flag if we're still the current generation —
+      // otherwise a late-resolving abandoned call could clear it out from under
+      // a newer loadGame() that's already legitimately in progress.
+      if (myGeneration === gameInitGeneration) {
+        gameInitializationInProgress = false;
+      }
     }
   }, [state, CreateLayoutElement, setCurrentPlayerId, setPlayers, setLayout, setIsGM, currentPlayerRef, gameRef, keyboardEventsManagerRef]);
 
@@ -131,6 +157,7 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
     initError,
     clearInitError: () => setInitError(null),
     resetInitialization: () => {
+      gameInitGeneration++;
       gameInitializationInProgress = false;
       gameInitialized = false;
       setInitError(null);

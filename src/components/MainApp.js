@@ -5,6 +5,7 @@ import WebHelper from '../helpers/WebHelper';
 import TokenStore from '../helpers/TokenStore';
 import { ActiveTransportManager as TransportManager } from '../helpers/transport';
 import FabricTypesInitialize from './FabricTypesInitializer';
+import { resetPersistedMenuItems } from './uiComponents/base/DDItems/DropDownMenu';
 
 export const MainApp = ({ onAuthRequired }) => {
     const [gameID, setGameID] = useState();
@@ -80,9 +81,12 @@ export const MainApp = ({ onAuthRequired }) => {
         console.log('MainApp: Exiting game, stopping session');
 
         try {
-            if (TransportManager.isConnected()) {
-                TransportManager.Close();
-            }
+            // Always close, regardless of isConnected() (== WebSocketReady): after a
+            // PEER_LEFT event, or an exit mid-handshake, WebSocketReady is already false
+            // but WebSocketStarted is still true, which used to make Start() no-op on the
+            // next game join, stranding the player on a dead transport. Close() is safe to
+            // call even when nothing is connected/started.
+            TransportManager.Close();
         } catch (error) {
             console.error('MainApp: Error closing transport:', error);
         }
@@ -96,6 +100,10 @@ export const MainApp = ({ onAuthRequired }) => {
                 headers: { 'Content-Type': 'application/json' },
             }).catch((e) => console.warn('MainApp: session/stop failed:', e));
         }
+
+        // Reset per-session, module-level singleton state so it doesn't leak into
+        // the next game (see resetPersistedMenuItems's own comment for why).
+        resetPersistedMenuItems();
 
         TokenStore.clear();
         setGameID(undefined);

@@ -94,7 +94,7 @@ class GridFactory {
           transform.originY
         );
         let newWidth = Math.abs(localPoint.x / target.scaleX);
-        let calcedWidth = Math.max(newWidth, 0).toFixed(0);
+        let calcedWidth = Number(Math.max(newWidth, 0).toFixed(0));
         if(calcedWidth < 25)
         {
           calcedWidth = 25;

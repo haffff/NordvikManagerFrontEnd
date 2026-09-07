@@ -30,7 +30,11 @@ export const JoinDialog = ({ OnSuccess }) => {
 
     let result = await WebHelper.postAsync("gamelist/join", sendForm);
 
-    if (result.ok) {
+    // WebHelper.postAsync returns undefined (not a rejected promise) on a network
+    // error — `result.ok` unguarded threw here, silently aborting with no error
+    // toast and no setError(true), on both the manual join form and the
+    // auto-join-by-invite-link flow below.
+    if (result?.ok) {
       OnSuccess(sendForm.gameID);
       setOpen(false);
       window.history.pushState(document.title, document.title, window.origin);

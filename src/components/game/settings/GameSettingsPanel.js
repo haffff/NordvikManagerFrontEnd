@@ -145,6 +145,11 @@ export const GameSettingsPanel = () => {
   ];
 
   let gameData = useGame();
+  // useGame() exposes no setter (it's a shared read of the "Game" ClientMediator
+  // client's state), so a live settings_game broadcast can't be applied directly
+  // onto gameData — mutating it in place (the old approach) doesn't trigger a
+  // re-render. Track confirmed updates locally instead and merge them on render.
+  const [gameOverrides, setGameOverrides] = React.useState({});
 
   const ctx = Dockable.useContentContext();
   ctx.setTitle(`Game Settings`);
@@ -168,7 +173,7 @@ export const GameSettingsPanel = () => {
       }
     );
   }, [gameData]);
-  let dto = gameData;
+  let dto = gameData ? { ...gameData, ...gameOverrides } : undefined;
 
   if (dto === undefined) {
     return <></>;
@@ -185,7 +190,9 @@ export const GameSettingsPanel = () => {
   };
 
   const updateSettings = (event) => {
-    gameData.name = event.data.name;
+    // Merge the full broadcast payload, not just .name — a color/image/description
+    // change used to be silently dropped from the visible form too.
+    setGameOverrides((prev) => ({ ...prev, ...event.data }));
     let player = ClientMediator.sendCommand("Game", "GetCurrentPlayer");
     if (event.playerId === player.id) {
       toaster.create({

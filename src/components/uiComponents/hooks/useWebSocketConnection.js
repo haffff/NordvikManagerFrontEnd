@@ -1,5 +1,6 @@
 import { useState, useEffect, useCallback } from 'react';
 import { ActiveTransportManager as WebSocketManagerInstance } from '../../../helpers/transport';
+import useUUID from './useUUID';
 
 /**
  * Custom hook for monitoring WebSocket connection status
@@ -9,6 +10,7 @@ export const useWebSocketConnection = () => {
     const [connectionState, setConnectionState] = useState('DISCONNECTED');
     const [queuedMessages, setQueuedMessages] = useState(0);
     const [isReady, setIsReady] = useState(false);
+    const uuid = useUUID();
 
     const updateStatus = useCallback(() => {
         const state = WebSocketManagerInstance.getConnectionState();
@@ -24,9 +26,12 @@ export const useWebSocketConnection = () => {
         // Initial status update
         updateStatus();
 
-        // Subscribe to WebSocket events to update status
-        const statusSubscription = 'useWebSocketConnection_status';
-        
+        // Subscribe to WebSocket events to update status. Keyed per-instance (like
+        // useClientMediator) — a hardcoded name here would let a second mount of this
+        // hook silently overwrite the first's callback, and either one unmounting
+        // would delete the shared entry out from under the other.
+        const statusSubscription = `useWebSocketConnection_status-${uuid}`;
+
         WebSocketManagerInstance.Subscribe(statusSubscription, () => {
             updateStatus();
         });
@@ -38,7 +43,7 @@ export const useWebSocketConnection = () => {
             WebSocketManagerInstance.Unsubscribe(statusSubscription);
             clearInterval(interval);
         };
-    }, [updateStatus]);
+    }, [updateStatus, uuid]);
 
     const forceReconnect = useCallback(() => {
         WebSocketManagerInstance.forceReconnect();

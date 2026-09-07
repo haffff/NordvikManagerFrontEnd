@@ -4,13 +4,16 @@ import {
   BehaviorDictionaryServer,
 } from "../Behaviors/BehaviorDictionary";
 
+// Note: this used to build a `cleanups` array of {unsubscribe} closures, but its
+// only caller (LoadCanvas.js) never used the return value — canvas.clear() at the
+// top of every LoadCanvas() run already resets canvas state in practice, and the
+// WS subscription below is idempotent by name. Removed rather than wiring up
+// teardown nobody needs.
 const LoadBMSubscriptions = (canvas, references) => {
-  const cleanups = [];
-
   try {
     if (!references) {
       console.warn('LoadBMSubscriptions: references is falsy', { references });
-      return cleanups;
+      return;
     }
 
     // Resolve battleMapObjectRef from several possible shapes
@@ -29,12 +32,12 @@ const LoadBMSubscriptions = (canvas, references) => {
 
     if (!bmRef) {
       console.warn('LoadBMSubscriptions: could not resolve battleMapObjectRef', { references });
-      return cleanups;
+      return;
     }
 
     if (!bmRef.current || !bmRef.current.id) {
       console.warn('LoadBMSubscriptions: battleMapObjectRef.current or id is not available yet; skipping subscriptions', { bmRefCurrent: bmRef.current });
-      return cleanups;
+      return;
     }
 
     const battleMapId = bmRef.current.id;
@@ -62,12 +65,11 @@ const LoadBMSubscriptions = (canvas, references) => {
     };
 
     WebSocketManagerInstance.Subscribe(subscriptionName, wsHandler);
-    cleanups.push({ unsubscribe: () => WebSocketManagerInstance.Unsubscribe(subscriptionName) });
 
     // If canvas is not provided, skip canvas event subscriptions but keep ws subscription
     if (!canvas) {
       console.warn('LoadBMSubscriptions: canvas is not available - skipping client-side behavior subscriptions');
-      return cleanups;
+      return;
     }
 
     // Resolve mapRef if available
@@ -93,9 +95,6 @@ const LoadBMSubscriptions = (canvas, references) => {
       }
     });
 
-    // Add handlers and keep references for cleanup
-    const addedHandlers = [];
-
     Object.keys(BehaviorDictionaryClient).forEach((key) => {
       BehaviorDictionaryClient[key]?.forEach((handler) => {
         const fn = (e) => {
@@ -113,27 +112,13 @@ const LoadBMSubscriptions = (canvas, references) => {
 
         try {
           canvas.on(key, fn);
-          addedHandlers.push({ key, fn });
         } catch (e) {
           console.error('LoadBMSubscriptions: failed to register canvas handler', e);
         }
       });
     });
-
-    cleanups.push({ unsubscribe: () => {
-      addedHandlers.forEach(({ key, fn }) => {
-        try {
-          canvas.off(key, fn);
-        } catch (e) {
-          // ignore
-        }
-      });
-    }});
-
-    return cleanups;
   } catch (e) {
     console.error('LoadBMSubscriptions: unexpected error', e, { references, canvas });
-    return cleanups;
   }
 };
 

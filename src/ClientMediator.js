@@ -21,9 +21,8 @@ export const ClientMediator = {
   // Maps clientId -> panelKey for O(1) unregister
   _clientPanelIndex: {},
   _awaitingRequests: [],
-  // Lightweight dedup: tracks the last token per event name, not a full JSON stringify
-  _lastFiredEvent: { name: null, token: 0, time: 0 },
-  _eventToken: 0,
+  // Lightweight dedup: tracks the last fired event by reference/time, not a full JSON stringify
+  _lastFiredEvent: { name: null, data: null, time: 0 },
 
   // ─── Internal helpers ────────────────────────────────────────────────────────
 

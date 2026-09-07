@@ -196,6 +196,13 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
                   resetInitialization();
                   setConnectionError(null);
                   WebSocketManagerInstance.forceReconnect();
+                  // forceReconnect() flips WebSocketStarted false→true synchronously
+                  // (Close() then Start() in the same tick), so React never observes
+                  // an intermediate value and the init effect below (which depends on
+                  // that mutable field) never re-fires on its own. Call loadGame()
+                  // directly instead of relying on the effect — requests it makes
+                  // queue safely until the new data channel opens.
+                  loadGame().catch((error) => console.error('Retry: failed to reload game:', error));
                 }}
               >
                 Retry
