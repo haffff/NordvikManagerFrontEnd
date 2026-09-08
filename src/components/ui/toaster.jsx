@@ -1,6 +1,7 @@
 'use client'
 
 import {
+  Progress,
   Toaster as ChakraToaster,
   Portal,
   Spinner,
@@ -52,6 +53,25 @@ export const Toaster = () => {
               {toast.description && (
                 <Toast.Description>{toast.description}</Toast.Description>
               )}
+              {toast.meta?.progress && (() => {
+                const { current, total } = toast.meta.progress
+                return (
+                  <Stack gap='0.5'>
+                    <Progress.Root
+                      size='xs'
+                      value={total ? current : null}
+                      max={total || 100}
+                    >
+                      <Progress.Track>
+                        <Progress.Range />
+                      </Progress.Track>
+                    </Progress.Root>
+                    <span style={{ fontSize: '0.75em', opacity: 0.7 }}>
+                      {total ? `${current} / ${total}` : `${current} so far`}
+                    </span>
+                  </Stack>
+                )
+              })()}
             </Stack>
             {toast.action && (
               <Toast.ActionTrigger>{toast.action.label}</Toast.ActionTrigger>

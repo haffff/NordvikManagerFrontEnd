@@ -46,7 +46,7 @@ export const PlaybackManager = () => {
   };
 
   // disposeAudio() flags the element BEFORE pausing it, synchronously — this is checked
-  // by the pending getResourceBlobAsync().then() below so a blob that resolves *after*
+  // by the pending getMaterialAsync().then() below so a blob that resolves *after*
   // teardown/track-change can't set .src and start playback on an element nothing holds
   // a reference to anymore (a real race over the WebRTC tunnel, whose 15KB-chunked
   // transfer + up to 30s timeout leaves a wide window for this to happen).
@@ -69,7 +69,11 @@ export const PlaybackManager = () => {
         }
       });
     }
-    WebHelper.getResourceBlobAsync(trackId)
+    // Deliberately bypasses getResourceBlobAsync()'s session-wide cache — that cache has
+    // no eviction and is sized for repeated canvas image loads, not audio tracks (larger,
+    // and a long session can play through many unique ones). Each track already gets its
+    // own object URL below, released in disposeAudio(), so nothing is gained by caching here.
+    WebHelper.getMaterialAsync(trackId)
       .then((blob) => {
         if (audio.__disposed || !(blob instanceof Blob)) return;
         audio.src = URL.createObjectURL(blob);

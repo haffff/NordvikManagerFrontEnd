@@ -31,6 +31,10 @@ vi.mock('../../../helpers/transport', () => ({
 vi.mock('../../../ClientMediator', () => ({
   default: {
     sendCommandWaitForRegister: vi.fn(() => Promise.resolve(null)),
+    // MaterialChooser pulls in ProgressToastManager, which calls ClientMediator.on(...)
+    // at module load time to wire up its Progress:* listeners.
+    on: vi.fn(() => vi.fn()),
+    off: vi.fn(),
   },
 }));
 

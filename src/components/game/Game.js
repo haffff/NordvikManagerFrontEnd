@@ -157,6 +157,7 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
       <Subscribable onMessage={eventHandlers.HandleAddMenuItem} commandPrefix={"menu_item_add"} />
       <Subscribable onMessage={eventHandlers.HandleAddToolbarButton} commandPrefix={"toolbar_button_add"} />
       <Subscribable onMessage={eventHandlers.HandleFireClientMediator} commandPrefix={"client_mediator_fire"} />
+      <Subscribable onMessage={eventHandlers.HandleOperationProgress} commandPrefix={"operation_"} />
       <PlaybackManager />
       <MainToolbar
         key={gameID}

@@ -354,7 +354,10 @@ export const PlaylistsPanel = () => {
 
   return (
     <BasePanel>
-      <Subscribable commandPrefix="playlist" onMessage={() => loadPlaylists()} />
+      {/* Only playlist_notify (add/update/delete) should trigger a refetch — playback
+          broadcasts (play/pause/stop/track_change) are frequent and already tracked
+          locally via handlePlaybackEvent below, so refetching on those would be wasteful. */}
+      <Subscribable commandPrefix="playlist_notify" onMessage={() => loadPlaylists()} />
       <Subscribable commandPrefix="playlist" onMessage={handlePlaybackEvent} />
       <Flex height="100%" width="100%" overflow="hidden" ref={colContainerRef}>
         {/* ── Left list pane ── */}

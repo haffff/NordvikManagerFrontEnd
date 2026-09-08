@@ -259,6 +259,29 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
     ClientMediator.fireEvent(resp.data.eventName, resp.data.payload);
   }, []);
 
+  /**
+   * Backend → client: progress push for a long-running operation (addon install,
+   * directory linking, ...). Just relays onto the same generic ClientMediator events
+   * ProgressToastManager listens for, so backend-pushed and purely-client-driven
+   * progress toasts go through one code path.
+   * Payload: { id, current?, total?, message?, title?, description? }
+   */
+  const HandleOperationProgress = useCallback((resp) => {
+    switch (resp.command) {
+      case "operation_progress":
+        ClientMediator.fireEvent("Progress:Update", resp.data);
+        break;
+      case "operation_complete":
+        ClientMediator.fireEvent("Progress:Complete", resp.data);
+        break;
+      case "operation_failed":
+        ClientMediator.fireEvent("Progress:Failed", resp.data);
+        break;
+      default:
+        break;
+    }
+  }, []);
+
   return {
     HandleShowLayout,
     HandleSettingsChange,
@@ -271,5 +294,6 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
     HandleAddMenuItem,
     HandleAddToolbarButton,
     HandleFireClientMediator,
+    HandleOperationProgress,
   };
 };

@@ -29,7 +29,7 @@ import { Tooltip } from '../../ui/tooltip';
 import {
     DialogRoot, DialogContent, DialogBody, DialogCloseTrigger, DialogHeader, DialogFooter, DialogTitle,
 } from '../../ui/dialog';
-import { Subscribable } from '../../uiComponents/base/Subscribable';
+import ProgressToastManager from '../../../helpers/ProgressToastManager';
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -115,7 +115,7 @@ const LinkBrowserModal = ({ open, onClose, onLinked }) => {
     const [loading, setLoading] = React.useState(false);
     const [busy, setBusy] = React.useState(false);
     const [linking, setLinking] = React.useState(false);
-    const [linkedCount, setLinkedCount] = React.useState(0);
+    const linkingOperationIdRef = React.useRef(null);
 
     const load = React.useCallback((path) => {
         setLoading(true);
@@ -162,10 +162,10 @@ const LinkBrowserModal = ({ open, onClose, onLinked }) => {
     const linkCurrentFolder = async () => {
         if (!currentPath) return;
         setBusy(true);
-        setLinkedCount(0);
         setLinking(true);
         // Big folders can take a while on the backend, so this just kicks the walk off — the
-        // actual progress/completion arrives over resource_link_progress/complete/failed.
+        // actual progress/completion arrives as a toast, driven by operation_progress/
+        // complete/failed via ProgressToastManager.
         const { status, body } = await WebHelper.postAsync("Materials/LinkDirectory", {
             LocalDirectoryPath: currentPath,
         });
@@ -173,34 +173,34 @@ const LinkBrowserModal = ({ open, onClose, onLinked }) => {
         if (status < 200 || status >= 300 || !body?.started) {
             setLinking(false);
             toaster.create({ title: "Failed to link folder", description: body?.error, type: "error", duration: 5000 });
+            return;
         }
+        linkingOperationIdRef.current = body.operationId;
+        ProgressToastManager.start(body.operationId, { title: "Linking folder…" });
     };
 
-    const handleLinkEvent = React.useCallback((event) => {
-        if (!linking) return;
-        const data = event?.data ?? {};
-        switch (event?.command) {
-            case "resource_link_progress":
-                setLinkedCount(data.linkedCount ?? 0);
-                break;
-            case "resource_link_complete":
-                setLinking(false);
-                toaster.create({ title: `Linked ${data.linkedCount ?? 0} file(s)`, type: "success", duration: 4000 });
-                onLinked();
-                break;
-            case "resource_link_failed":
-                setLinking(false);
-                toaster.create({ title: "Failed to link folder", description: data.error, type: "error", duration: 5000 });
-                break;
-            default:
-                break;
-        }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [linking, onLinked]);
+    // Local UI concerns only (re-enable the button, refresh the file list) — the toast
+    // itself is driven independently by ProgressToastManager's own Progress:* subscriptions.
+    React.useEffect(() => {
+        const onComplete = (data) => {
+            if (data?.id !== linkingOperationIdRef.current) return;
+            setLinking(false);
+            onLinked();
+        };
+        const onFailed = (data) => {
+            if (data?.id !== linkingOperationIdRef.current) return;
+            setLinking(false);
+        };
+        const completeHandle = ClientMediator.on("Progress:Complete", onComplete);
+        const failedHandle = ClientMediator.on("Progress:Failed", onFailed);
+        return () => {
+            ClientMediator.off(completeHandle);
+            ClientMediator.off(failedHandle);
+        };
+    }, [onLinked]);
 
     return (
         <DialogRoot lazyMount size="lg" open={open} onOpenChange={(e) => { if (!e.open) onClose(); }}>
-            <Subscribable commandPrefix="resource_link" onMessage={handleLinkEvent} />
             <DialogContent>
                 <DialogCloseTrigger />
                 <DialogHeader><DialogTitle>Link local files or folders</DialogTitle></DialogHeader>
@@ -215,12 +215,7 @@ const LinkBrowserModal = ({ open, onClose, onLinked }) => {
                         </Button>
                     </Flex>
 
-                    {linking ? (
-                        <Flex align="center" justify="center" gap={2} py={6}>
-                            <Spinner size="sm" color="blue.300" />
-                            <Text fontSize="sm" color="gray.400">Linking… {linkedCount} file(s) so far</Text>
-                        </Flex>
-                    ) : loading ? (
+                    {loading ? (
                         <Flex justify="center" py={4}><Spinner size="sm" /></Flex>
                     ) : (
                         <Box maxH="360px" overflowY="auto">

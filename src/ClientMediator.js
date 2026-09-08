@@ -263,6 +263,24 @@ export const ClientMediator = {
       }, timeout);
     });
   },
+
+  /**
+   * Subscribe to a named event fired via fireEvent(). Returns an unsubscribe function.
+   * Public, stable wrapper over _addEventListener/_removeEventListener for code that
+   * wants a persistent (not one-shot) listener — e.g. ProgressToastManager.
+   */
+  on: function (eventName, handler) {
+    const wrapped = (eName, data) => {
+      if (eName === eventName) handler(data);
+    };
+    ClientMediator._addEventListener(wrapped);
+    return wrapped;
+  },
+
+  /** Removes a listener previously returned by on(). */
+  off: function (wrappedHandler) {
+    ClientMediator._removeEventListener(wrappedHandler);
+  },
 };
 
 export default ClientMediator;
