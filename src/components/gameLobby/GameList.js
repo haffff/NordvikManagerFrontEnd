@@ -19,6 +19,7 @@ import { IoMdLogOut } from "react-icons/io";
 import { UserManagementDialog } from "./UserManagementDialog";
 import { AppSettingsDialog } from "./AppSettingsDialog";
 import { NewVersionDialog } from "./NewVersionDialog";
+import CentralSettings from "../CentralSettings";
 
 const PUBLIC_GAMES_PAGE_SIZE = 10;
 
@@ -136,6 +137,9 @@ export const GameList = ({ OnSuccess, OnLogout }) => {
           }}
         />
 
+        
+        {CentralSettings.publicGamesAllowed && (
+          <>
         <Separator marginTop={4} />
 
         {/* Public Games Section */}
@@ -194,6 +198,8 @@ export const GameList = ({ OnSuccess, OnLogout }) => {
             </HStack>
           )}
         </Box>
+        </>
+        )}
       </Stack>
     </>
   );

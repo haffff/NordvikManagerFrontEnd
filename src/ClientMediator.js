@@ -21,9 +21,8 @@ export const ClientMediator = {
   // Maps clientId -> panelKey for O(1) unregister
   _clientPanelIndex: {},
   _awaitingRequests: [],
-  // Lightweight dedup: tracks the last token per event name, not a full JSON stringify
-  _lastFiredEvent: { name: null, token: 0, time: 0 },
-  _eventToken: 0,
+  // Lightweight dedup: tracks the last fired event by reference/time, not a full JSON stringify
+  _lastFiredEvent: { name: null, data: null, time: 0 },
 
   // ─── Internal helpers ────────────────────────────────────────────────────────
 
@@ -263,6 +262,24 @@ export const ClientMediator = {
         reject(new Error(`waitForEvent: timeout after ${timeout}ms`));
       }, timeout);
     });
+  },
+
+  /**
+   * Subscribe to a named event fired via fireEvent(). Returns an unsubscribe function.
+   * Public, stable wrapper over _addEventListener/_removeEventListener for code that
+   * wants a persistent (not one-shot) listener — e.g. ProgressToastManager.
+   */
+  on: function (eventName, handler) {
+    const wrapped = (eName, data) => {
+      if (eName === eventName) handler(data);
+    };
+    ClientMediator._addEventListener(wrapped);
+    return wrapped;
+  },
+
+  /** Removes a listener previously returned by on(). */
+  off: function (wrappedHandler) {
+    ClientMediator._removeEventListener(wrappedHandler);
   },
 };
 

@@ -3,12 +3,12 @@ import * as React from 'react';
 import { FaArrowLeft } from 'react-icons/fa';
 import { IoIosArrowDropdown, IoIosArrowDropright, IoMdArrowDown, IoMdArrowDropdown } from 'react-icons/io';
 import DropDownButton from './DropDrownButton';
-import { ActiveTransportManager as WebSocketManagerInstance } from '../../../../helpers/transport';
+import ClientMediator from '../../../../ClientMediator';
 
 export const DropDownButtonWithAction = ({ name, icon, dropdown, width, height, actionName }) => {
 
     const onClick = () => {
-        WebSocketManagerInstance.send({command: 'execute_action', data:actionName});
+        ClientMediator.sendCommand("Action", "Run", { name: actionName });
     }
 
     return (

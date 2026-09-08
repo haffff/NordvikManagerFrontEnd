@@ -86,6 +86,27 @@ export const CommandFactory = {
     CreatePropertyAddCommand: (dto) => {
         return { command: "property_add", data:  dto  }
     },
+    CreatePropertyListItemAddCommand: (propertyId, fields) => {
+        return { command: "property_list_item_add", data: { propertyId, fields } }
+    },
+    CreatePropertyListItemRemoveCommand: (propertyId, itemId) => {
+        return { command: "property_list_item_remove", data: { propertyId, itemId } }
+    },
+    CreatePropertyListItemUpdateCommand: (propertyId, itemId, fields) => {
+        return { command: "property_list_item_update", data: { propertyId, itemId, fields } }
+    },
+    CreatePropertyListReorderCommand: (propertyId, orderedItemIds) => {
+        return { command: "property_list_reorder", data: { propertyId, orderedItemIds } }
+    },
+    CreateCustomLayerAddCommand: (name, afterLayerId) => {
+        return { command: "custom_layer_add", data: { name, afterLayerId } }
+    },
+    CreateCustomLayerRemoveCommand: (itemId) => {
+        return { command: "custom_layer_remove", data: { itemId } }
+    },
+    CreateCustomLayerMoveCommand: (itemId, direction) => {
+        return { command: "custom_layer_move", data: { itemId, direction } }
+    },
 }
 
 export default CommandFactory;

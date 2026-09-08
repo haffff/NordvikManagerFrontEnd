@@ -242,7 +242,7 @@ export const ElementSettingsPanel = ({ dto, battlemapId }) => {
 
   return (
     <Subscribable commandPrefix={"element"} onMessage={updateSettings}>
-      <Tabs.Root lazyMount marginTop={3} size="md" variant="enclosed">
+      <Tabs.Root defaultValue={"settings"} lazyMount marginTop={3} size="md" variant="enclosed">
         <Tabs.List>
           <Tabs.Trigger value="settings">Settings</Tabs.Trigger>
           <Tabs.Trigger value="permissions">Permissions</Tabs.Trigger>

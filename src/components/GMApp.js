@@ -6,6 +6,7 @@ import TokenStore from "../helpers/TokenStore";
 import UtilityHelper from "../helpers/UtilityHelper";
 import { RegisterForm } from "./gameLobby/RegisterForm";
 import { toaster } from "./ui/toaster";
+import CentralSettings from "./CentralSettings";
 
 export const GMApp = () => {
   const [loggedIn, setLoggedIn] = useState(false);
@@ -22,6 +23,7 @@ export const GMApp = () => {
     WebHelper.getAsync("meta").then((meta) => {
       if (meta?.isInvitationRequired !== undefined) {
         setIsInvitationRequired(meta.isInvitationRequired);
+        CentralSettings.loadMeta(meta);
       }
     });
 

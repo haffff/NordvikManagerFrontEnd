@@ -9,14 +9,22 @@ class BMQueryService {
   _selectionChangedSubscriptions = [];
 
   Load() {
-    this._canvas.off("selection:created");
-    this._canvas.off("selection:updated");
-    this._canvas.off("selection:cleared");
+    // Targeted removal (own handler reference only) — NOT a bare
+    // this._canvas.off("selection:created") etc. Fabric's off(eventName) with no
+    // handler argument clears EVERY listener for that event, not just this class's
+    // own, which would wipe out BehaviorDictionaryClient's selection handlers
+    // (LoadBMSubscriptions registers those for the same 3 event names) whenever
+    // Load() is called a second time — see LoadCanvas.js for why it is.
+    if (this._onSelChanged) {
+      this._canvas.off("selection:created", this._onSelChanged);
+      this._canvas.off("selection:updated", this._onSelChanged);
+      this._canvas.off("selection:cleared", this._onSelChanged);
+    }
 
-    let onSelChanged = this._onSelectionChanged.bind(this);
-    this._canvas.on("selection:created", (e) => onSelChanged(e));
-    this._canvas.on("selection:updated", (e) => onSelChanged(e));
-    this._canvas.on("selection:cleared", (e) => onSelChanged(e));
+    this._onSelChanged = (e) => this._onSelectionChanged(e);
+    this._canvas.on("selection:created", this._onSelChanged);
+    this._canvas.on("selection:updated", this._onSelChanged);
+    this._canvas.on("selection:cleared", this._onSelChanged);
 
     this.panel = "battlemap";
     this.contextId = this._battleMapModel.id;

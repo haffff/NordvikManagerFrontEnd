@@ -2,9 +2,9 @@ import { screen, fireEvent } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { renderWithProviders } from '../../setupTests';
 
-const sendMock = vi.fn();
-vi.mock('../transport', () => ({
-  ActiveTransportManager: { Send: (...args) => sendMock(...args) },
+const sendCommandMock = vi.fn();
+vi.mock('../../ClientMediator', () => ({
+  default: { sendCommand: (...args) => sendCommandMock(...args) },
 }));
 
 import { RollChatTemplate } from './RollChatTemplate';
@@ -13,7 +13,7 @@ const baseRoll = { result: 17, rolled: '{0}+3', dices: [{ index: 0, diceValue: 2
 
 describe('RollChatTemplate', () => {
   beforeEach(() => {
-    sendMock.mockClear();
+    sendCommandMock.mockClear();
   });
 
   it('renders nothing when object.roll is missing', () => {
@@ -29,7 +29,7 @@ describe('RollChatTemplate', () => {
     expect(screen.queryByRole('button')).not.toBeInTheDocument();
   });
 
-  it('renders a follow-up action button and fires execute_action with its baked-in args on click', () => {
+  it('renders a follow-up action button and fires Action.Run with its baked-in args on click', () => {
     const actions = [
       { label: 'Roll Damage', actionName: 'dnd5e.roll_damage', args: { damage: '1d6+3', damageType: 'Slashing', name: 'Longsword' } },
     ];
@@ -38,9 +38,9 @@ describe('RollChatTemplate', () => {
     const button = screen.getByRole('button', { name: 'Roll Damage' });
     fireEvent.click(button);
 
-    expect(sendMock).toHaveBeenCalledWith({
-      command: 'execute_action',
-      data: { Action: 'dnd5e.roll_damage', Args: { damage: '1d6+3', damageType: 'Slashing', name: 'Longsword' } },
+    expect(sendCommandMock).toHaveBeenCalledWith('Action', 'Run', {
+      name: 'dnd5e.roll_damage',
+      args: { damage: '1d6+3', damageType: 'Slashing', name: 'Longsword' },
     });
   });
 
@@ -51,7 +51,7 @@ describe('RollChatTemplate', () => {
     const button = screen.getByRole('button', { name: 'Roll Damage' });
     fireEvent.click(button);
 
-    expect(sendMock).toHaveBeenCalledTimes(1);
+    expect(sendCommandMock).toHaveBeenCalledTimes(1);
     expect(button).toBeDisabled();
   });
 });

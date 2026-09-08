@@ -16,6 +16,7 @@ import { useGameState } from "./hooks/useGameState";
 import DockableHelper from "../../helpers/DockableHelper";
 import { DragOptimizationProvider } from "../uiComponents/base/DragOptimizationContext";
 import { PermissionsProvider } from "../../contexts/PermissionsContext";
+import PlaybackManager from "./PlaybackManager";
 
 export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
   const gameState = useGameState(gameID, onExit);
@@ -156,6 +157,8 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
       <Subscribable onMessage={eventHandlers.HandleAddMenuItem} commandPrefix={"menu_item_add"} />
       <Subscribable onMessage={eventHandlers.HandleAddToolbarButton} commandPrefix={"toolbar_button_add"} />
       <Subscribable onMessage={eventHandlers.HandleFireClientMediator} commandPrefix={"client_mediator_fire"} />
+      <Subscribable onMessage={eventHandlers.HandleOperationProgress} commandPrefix={"operation_"} />
+      <PlaybackManager />
       <MainToolbar
         key={gameID}
         state={state}
@@ -194,6 +197,13 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
                   resetInitialization();
                   setConnectionError(null);
                   WebSocketManagerInstance.forceReconnect();
+                  // forceReconnect() flips WebSocketStarted false→true synchronously
+                  // (Close() then Start() in the same tick), so React never observes
+                  // an intermediate value and the init effect below (which depends on
+                  // that mutable field) never re-fires on its own. Call loadGame()
+                  // directly instead of relying on the effect — requests it makes
+                  // queue safely until the new data channel opens.
+                  loadGame().catch((error) => console.error('Retry: failed to reload game:', error));
                 }}
               >
                 Retry

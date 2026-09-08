@@ -4,6 +4,8 @@ import { FaFile, FaLink, FaUpload } from "react-icons/fa";
 import { ActiveWebHelper as WebHelper } from "../../../../../helpers/transport";
 import { toaster } from "../../../../ui/toaster";
 import UtilityHelper from "../../../../../helpers/UtilityHelper";
+import ProgressToastManager from "../../../../../helpers/ProgressToastManager";
+import ClientMediator from "../../../../../ClientMediator";
 
 export const InstallFromFileTab = ({ handleReload }) => {
   const [file, setFile] = useState(null);
@@ -26,17 +28,24 @@ export const InstallFromFileTab = ({ handleReload }) => {
   const installFromFile = async () => {
     if (!file) return;
     setInstalling(true);
+    const fileName = file.name;
     try {
       const b64 = await UtilityHelper.ConvertBlobToB64(file);
-      const result = await WebHelper.postAsync("addon/installFromFile", {
-        fileName: file.name,
+      const { status, body } = await WebHelper.postAsync("addon/installFromFile", {
+        fileName,
         data: b64,
         mimeType: file.type || "application/zip",
       });
-      if (result?.status >= 200 && result?.status < 300) {
-        toaster.create({ title: "Addon installed", type: "success", duration: 4000 });
+      if (status >= 200 && status < 300 && body?.operationId) {
+        ProgressToastManager.start(body.operationId, { title: `Installing ${fileName}…` });
         setFile(null);
-        await handleReload();
+        // Reload the addon list once the install finishes — the toast itself tracks progress.
+        const opId = body.operationId;
+        const timeout = 10 * 60 * 1000;
+        Promise.race([
+          ClientMediator.waitForEvent("Progress:Complete", (d) => d?.id === opId, timeout),
+          ClientMediator.waitForEvent("Progress:Failed", (d) => d?.id === opId, timeout).then(() => { throw new Error("install failed"); }),
+        ]).then(() => handleReload()).catch(() => {});
       } else {
         toaster.create({ title: "Installation failed", type: "error", duration: 6000 });
       }

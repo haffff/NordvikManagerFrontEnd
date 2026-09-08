@@ -38,4 +38,4 @@ export const ContextMenuArea = ({ children, target , id , contextMenuItems }) =>
         </div>
     );
 }
-export default ContextMenu;
+export default ContextMenuArea;

@@ -2,7 +2,7 @@ import { screen, act } from '@testing-library/react';
 import { describe, it, expect, beforeEach } from 'vitest';
 import { renderWithProviders } from '../../../../setupTests';
 import ClientMediator from '../../../../ClientMediator';
-import { DropDownMenu } from './DropDownMenu';
+import { DropDownMenu, resetPersistedMenuItems } from './DropDownMenu';
 
 // Regression coverage for giving BattleMapContextMenu.js's "Add" submenu a
 // viewId="battlemap_add" prop — the mechanism that makes it addressable by
@@ -31,5 +31,36 @@ describe('DropDownMenu addon menu injection', () => {
     });
 
     expect(await screen.findByTestId('dnd-item')).toBeInTheDocument();
+  });
+});
+
+// Regression coverage: _persistedItems is module-level and survives a
+// <Game key={gameID}> remount on its own — without resetPersistedMenuItems()
+// (called from MainApp.handleExit on game exit), an addon-added menu item from
+// Game A would still be showing when the player joined a different Game B.
+describe('DropDownMenu.resetPersistedMenuItems', () => {
+  beforeEach(() => {
+    ClientMediator._clientsHashSet = {};
+    ClientMediator._clientPanelIndex = {};
+  });
+
+  it('clears persisted items so a fresh mount (e.g. a new game) does not see a previous game\'s addon menu item', async () => {
+    const { unmount } = renderWithProviders(<DropDownMenu viewId="settings" name="Settings" />);
+
+    act(() => {
+      ClientMediator.sendCommand('DropDownMenu', 'AddMenuItem', {
+        contextId: 'settings',
+        item: <div key="stale-item" data-testid="stale-item">From Game A</div>,
+      });
+    });
+    expect(await screen.findByTestId('stale-item')).toBeInTheDocument();
+
+    // Simulate leaving the game (MainApp.handleExit) and joining a new one —
+    // <Game key={gameID}> remounts everything, including this DropDownMenu.
+    unmount();
+    resetPersistedMenuItems();
+    renderWithProviders(<DropDownMenu viewId="settings" name="Settings" />);
+
+    expect(screen.queryByTestId('stale-item')).not.toBeInTheDocument();
   });
 });

@@ -237,6 +237,14 @@ class WebRTCManager {
       if (peerId === this._gmPeerId) {
         this._log('warn', `GM backend disconnected (peerId=${peerId})`);
         this.WebSocketReady = false;
+        // Actually tear down the channel/connection — otherwise isChannelReady()
+        // (which checks _dataChannel.readyState, not WebSocketReady) can keep
+        // reporting "ready" until the browser notices on its own, and new
+        // requests get dispatched into a void instead of failing fast.
+        this._dataChannel?.close();
+        this._pc?.close();
+        this._dataChannel = null;
+        this._pc = null;
       }
     });
 
@@ -248,6 +256,9 @@ class WebRTCManager {
     this._dataChannel?.close();
     this._pc?.close();
     this._signaling?.disconnect();
+    // Drain any request still queued/in-flight on the REST-over-WebRTC helper —
+    // otherwise it would survive into the next game session (see reset()'s comment).
+    WebRTCWebHelperInstance.reset();
 
     this._dataChannel = null;
     this._pc = null;
@@ -417,12 +428,21 @@ class WebRTCManager {
         if (data?.type === 'chunk') {
           const { chunkId, index, total, data: slice } = data;
           if (!this._chunkBuffer.has(chunkId)) {
-            this._chunkBuffer.set(chunkId, { parts: new Array(total), received: 0, total });
+            // If a chunk is ever lost, this entry would otherwise sit in the map
+            // forever — drop it after a generous timeout so it can't accumulate.
+            const staleTimeout = setTimeout(() => {
+              if (this._chunkBuffer.has(chunkId)) {
+                this._log('warn', `Dropping incomplete chunked message ${chunkId} (timed out)`);
+                this._chunkBuffer.delete(chunkId);
+              }
+            }, 60_000);
+            this._chunkBuffer.set(chunkId, { parts: new Array(total), received: 0, total, staleTimeout });
           }
           const entry = this._chunkBuffer.get(chunkId);
           entry.parts[index] = slice;
           entry.received++;
           if (entry.received < entry.total) return; // wait for remaining chunks
+          clearTimeout(entry.staleTimeout);
           this._chunkBuffer.delete(chunkId);
           const assembled = JSON.parse(entry.parts.join(''));
           if (assembled?.type === 'api-response') {

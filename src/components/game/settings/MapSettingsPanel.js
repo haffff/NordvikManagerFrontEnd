@@ -88,6 +88,17 @@ export const MapSettingsPanel = ({ map }) => {
 
   const ctx = Dockable.useContentContext();
 
+  // Resync when the panel is pointed at a different map — updateSettings below
+  // already keeps mapDto current for the *same* map's own websocket-confirmed
+  // edits; this only covers actually switching maps.
+  React.useEffect(() => {
+    setMapDto(map);
+  // Deliberately keyed on map?.id only, not the whole `map` object — we want to
+  // resync when the panel switches to a different map, not on every re-render
+  // where the parent happens to pass a new `map` object reference for the same map.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map?.id]);
+
   if (!map) {
     ctx.setTitle(`Map Settings - Empty`);
     return <></>;
@@ -98,7 +109,7 @@ export const MapSettingsPanel = ({ map }) => {
   ctx.setPreferredSize(600,800);
   
   const sendSettingsUpdate = (dtoToSend) => {
-    let dtoToSave = structuredClone(map);
+    let dtoToSave = structuredClone(mapDto);
     Object.keys(dtoToSend).forEach((key) => {
       dtoToSave[key] = dtoToSend[key];
     });
@@ -136,16 +147,16 @@ export const MapSettingsPanel = ({ map }) => {
           <Tabs.Content value="settings">
             <SettingsPanelWithPropertySettings
               entityName={"MapModel"}
-              dto={map}
+              dto={mapDto}
               editableKeyLabelDict={editables}
               onSave={sendSettingsUpdate}
             />
           </Tabs.Content>
           <Tabs.Content value="permissions">
-            <SecuritySettingsPanel dto={map} type="MapModel" />
+            <SecuritySettingsPanel dto={mapDto} type="MapModel" />
           </Tabs.Content>
           <Tabs.Content value="props">
-            <PropertiesSettingsPanel dto={map} type="MapModel" />
+            <PropertiesSettingsPanel dto={mapDto} type="MapModel" />
           </Tabs.Content>
         </Tabs.Root>
       </BasePanel>

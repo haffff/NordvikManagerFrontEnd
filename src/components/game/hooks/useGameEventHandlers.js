@@ -2,7 +2,6 @@ import React, { useCallback } from 'react';
 import UtilityHelper from '../../../helpers/UtilityHelper';
 import DockableHelper from '../../../helpers/DockableHelper';
 import ClientMediator from '../../../ClientMediator';
-import { ActiveWebHelper as WebHelper, ActiveTransportManager } from '../../../helpers/transport';
 import { toaster } from '../../ui/toaster';
 import { DropDownItem } from '../../uiComponents/base/DDItems/DropDownItem';
 
@@ -200,7 +199,7 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
           const menuItem = React.createElement(DropDownItem, {
             key: item.name,
             name: item.uiName || item.name,
-            onClick: () => ActiveTransportManager.Send({ command: "execute_action", data: { Action: item.action, Args: item.actionArgs ?? undefined } }),
+            onClick: () => ClientMediator.sendCommand("Action", "Run", { name: item.action, args: item.actionArgs ?? undefined }),
           });
           ClientMediator.sendCommand("DropDownMenu", "AddMenuItem", {
             contextId: item.subMenuId,
@@ -227,7 +226,7 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
             const menuItem = React.createElement(DropDownItem, {
               key: item.name,
               name: item.uiName || item.name,
-              onClick: () => ActiveTransportManager.Send({ command: "execute_action", data: { Action: item.action, Args: item.actionArgs ?? undefined } }),
+              onClick: () => ClientMediator.sendCommand("Action", "Run", { name: item.action, args: item.actionArgs ?? undefined }),
             });
             ClientMediator.sendCommand("DropDownMenu", "AddMenuItem", {
               contextId: targetContextId,
@@ -248,7 +247,7 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
       name: item.uiName || item.name,
       menuId: item.menuId,
       menuName: item.menuName,
-      onClick: () => ActiveTransportManager.Send({ command: "execute_action", data: { Action: item.action, Args: item.actionArgs ?? undefined } }),
+      onClick: () => ClientMediator.sendCommand("Action", "Run", { name: item.action, args: item.actionArgs ?? undefined }),
     });
   }, []);
 
@@ -258,6 +257,29 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
    */
   const HandleFireClientMediator = useCallback((resp) => {
     ClientMediator.fireEvent(resp.data.eventName, resp.data.payload);
+  }, []);
+
+  /**
+   * Backend → client: progress push for a long-running operation (addon install,
+   * directory linking, ...). Just relays onto the same generic ClientMediator events
+   * ProgressToastManager listens for, so backend-pushed and purely-client-driven
+   * progress toasts go through one code path.
+   * Payload: { id, current?, total?, message?, title?, description? }
+   */
+  const HandleOperationProgress = useCallback((resp) => {
+    switch (resp.command) {
+      case "operation_progress":
+        ClientMediator.fireEvent("Progress:Update", resp.data);
+        break;
+      case "operation_complete":
+        ClientMediator.fireEvent("Progress:Complete", resp.data);
+        break;
+      case "operation_failed":
+        ClientMediator.fireEvent("Progress:Failed", resp.data);
+        break;
+      default:
+        break;
+    }
   }, []);
 
   return {
@@ -272,5 +294,6 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
     HandleAddMenuItem,
     HandleAddToolbarButton,
     HandleFireClientMediator,
+    HandleOperationProgress,
   };
 };

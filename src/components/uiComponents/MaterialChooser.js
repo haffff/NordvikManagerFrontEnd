@@ -27,6 +27,8 @@ import DListItemButton from "./base/List/ListItemDetails/DListItemButton";
 import CollectionSyncer from "./base/CollectionSyncer";
 import DTreeViewOnly from "./treeList/DTreeViewOnly";
 import { toaster } from "../ui/toaster";
+import ProgressToastManager from "../../helpers/ProgressToastManager";
+import UtilityHelper from "../../helpers/UtilityHelper";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -222,6 +224,28 @@ export const MaterialChooser = ({
 
     setUploading(true);
     let remaining = allowed.length;
+    let done = 0;
+    let failedCount = 0;
+    const total = allowed.length;
+    const opId = UtilityHelper.GenerateUUID();
+    ProgressToastManager.start(opId, {
+      title: total > 1 ? `Uploading ${total} files…` : `Uploading ${allowed[0].name}…`,
+      total,
+    });
+
+    const finishIfDone = () => {
+      if (remaining > 0) return;
+      setUploading(false);
+      if (failedCount === 0) {
+        ProgressToastManager.complete(opId, {
+          title: total > 1 ? `Uploaded ${total} files` : `Uploaded ${allowed[0].name}`,
+        });
+      } else if (failedCount === total) {
+        ProgressToastManager.fail(opId, { title: "Upload failed" });
+      } else {
+        ProgressToastManager.fail(opId, { title: `${failedCount} of ${total} uploads failed` });
+      }
+    };
 
     allowed.forEach((file) => {
       WebHelper.postMaterial(
@@ -238,13 +262,17 @@ export const MaterialChooser = ({
             }
           }
           remaining -= 1;
-          if (remaining === 0) setUploading(false);
+          done += 1;
+          ProgressToastManager.update(opId, { current: done, total, message: `Uploaded ${file.name}` });
+          finishIfDone();
         },
         (err) => {
           console.error("MaterialChooser: upload error", err);
           remaining -= 1;
-          if (remaining === 0) setUploading(false);
-          toaster.create({ title: "Upload failed", type: "error", duration: 5000 });
+          done += 1;
+          failedCount += 1;
+          ProgressToastManager.update(opId, { current: done, total, message: `Failed: ${file.name}` });
+          finishIfDone();
         }
       );
     });

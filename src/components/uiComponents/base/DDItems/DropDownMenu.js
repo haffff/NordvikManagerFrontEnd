@@ -17,6 +17,15 @@ import { FaAngleDown, FaArrowDown } from "react-icons/fa";
 // Module-level store so addon-added items survive component remounts.
 const _persistedItems = new Map(); // viewId → React element[]
 
+// Not scoped to a game/session on its own — MainApp remounts <Game key={gameID}>
+// on every game switch, but this map survives that remount untouched. Without
+// clearing it on exit, an addon-added menu item from Game A (e.g. one that calls
+// into commands/panels that don't exist for Game B) would silently reappear when
+// the user leaves and joins a different Game B. Call this from MainApp.handleExit.
+export function resetPersistedMenuItems() {
+  _persistedItems.clear();
+}
+
 export const DropDownMenu = ({
   children,
   name,

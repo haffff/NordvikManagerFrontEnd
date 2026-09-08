@@ -45,6 +45,33 @@ class WebRTCWebHelper {
     this._transport = transport;
   }
 
+  // Called by WebRTCManager.Close() when a game session ends. Without this, a
+  // request still sitting in _queue (channel not open yet) or _pending (sent,
+  // awaiting response) at exit time would survive into the next game — queued
+  // requests get flushed onto the next session's data channel on its dc.onopen,
+  // still tagged with the old game's gameid, and pending ones would just hang
+  // until their timeout. Reject everything outstanding and start clean.
+  reset() {
+    for (const { reject, timeoutHandle } of this._pending.values()) {
+      clearTimeout(timeoutHandle);
+      reject(new Error('WebRTC transport reset (game session ended)'));
+    }
+    this._pending.clear();
+
+    for (const { reject, timeoutHandle } of this._queue) {
+      clearTimeout(timeoutHandle);
+      reject(new Error('WebRTC transport reset (game session ended)'));
+    }
+    this._queue = [];
+
+    // Deliberately NOT touching GameId here. Game.js sets it on every render
+    // (`WebHelper.GameId = gameID`) and MainApp's unmount effect already clears it
+    // on logout — but forceReconnect() (Close() → Start(), same tick) and the Retry
+    // handler's loadGame() run before Game.js's next render, so clearing it here
+    // would send/queue every request made in that window with no gameid until the
+    // next render happened to run.
+  }
+
   // Called by WebRTCManager when an api-response arrives on the data channel
   handleApiResponse({ id, status, body }) {
     const entry = this._pending.get(id);
@@ -154,8 +181,8 @@ class WebRTCWebHelper {
       .catch((e) => { if (onException) onException(e); else console.error(e); });
   }
 
-  deleteAsync(path) {
-    return this._sendRequest('DELETE', path).then((r) => r.body);
+  deleteAsync(path, body = null) {
+    return this._sendRequest('DELETE', path, body).then((r) => r.body);
   }
 
   // ── Material / resource helpers ──────────────────────────────────────────
@@ -217,6 +244,9 @@ class WebRTCWebHelper {
         onerror,
         onException
       );
+    }).catch((e) => {
+      if (onException) onException(e);
+      else console.error(e);
     });
   }
 }

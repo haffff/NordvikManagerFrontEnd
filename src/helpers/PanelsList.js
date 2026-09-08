@@ -14,7 +14,9 @@ import LayoutsManagerPanel from "../components/game/panels/LayoutsManagerPanel";
 import MapSelector from "../components/game/panels/MapSelector";
 import PlayersPanel from "../components/game/panels/PlayersPanel";
 import MaterialsPanel from "../components/game/panels/MaterialsPanel";
+import PlaylistsPanel from "../components/game/panels/PlaylistsPanel";
 import PropertiesPanel from "../components/game/panels/PropertiesPanel";
+import SoundboardPanel from "../components/game/panels/SoundboardPanel";
 import ToolsPanel from "../components/game/panels/ToolsPanel/ToolsPanel";
 import CardSettingsPanel from "../components/game/settings/CardSettingsPanel";
 import GameSettingsPanel from "../components/game/settings/GameSettingsPanel";
@@ -47,6 +49,8 @@ export const PanelList = {
     LayoutSettingsPanel: LayoutSettingsPanel,
     CardSettingsPanel: CardSettingsPanel,
     MaterialsPanel: MaterialsPanel,
+    PlaylistsPanel: PlaylistsPanel,
+    SoundboardPanel: SoundboardPanel,
 }
 
 

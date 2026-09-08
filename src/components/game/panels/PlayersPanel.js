@@ -12,7 +12,6 @@ import ClientMediator from "../../../ClientMediator";
 import useClientMediator from "../../uiComponents/hooks/useClientMediator";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
-import PlayerSettingsPanel from "../settings/PlayerSettingsPanel";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
 import { useDimensions } from "../../uiComponents/hooks/useDimensions";
 
@@ -32,16 +31,20 @@ const OnlineDot = ({ isConnected }) => (
 
 // ─── Single player row ────────────────────────────────────────────────────────
 
-const PlayerRow = React.memo(({ entry, isAdmin, isCurrentPlayer, isOwner, horizontal, compact, state }) => {
+const PlayerRow = React.memo(({ entry, isAdmin, isCurrentPlayer, isOwner, horizontal, compact }) => {
   const { player, isConnected } = entry;
   const name = player.name ?? player.Name ?? "Unknown";
+  const isSystem = player.system ?? player.System ?? false;
 
   const handleKick = () => {
     WebSocketManagerInstance.Send(CommandFactory.CreateKickPlayerCommand(player.id ?? player.Id));
   };
 
   const handleSettings = () => {
-    Dockable.spawnFloating(state, <PlayerSettingsPanel player={player} />);
+    ClientMediator.sendCommand("Game", "CreateNewPanel", {
+      type: "PlayerSettingsPanel",
+      props: { player },
+    });
   };
 
   return (
@@ -83,7 +86,7 @@ const PlayerRow = React.memo(({ entry, isAdmin, isCurrentPlayer, isOwner, horizo
             icon={FaCog}
             onClick={handleSettings}
           />
-          {!isCurrentPlayer && (
+          {!isCurrentPlayer && !isSystem && (
             <DListItemButton
               label="Kick"
               icon={FaUserSlash}
@@ -114,7 +117,7 @@ const buildEntries = (allPlayers, connectedPlayers) => {
 
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
-export const PlayersPanel = ({ state, adminMode = false }) => {
+export const PlayersPanel = ({ adminMode = false }) => {
   const [entries, setEntries]           = React.useState([]);
   const [currentPlayerId, setCurrentPlayerId] = React.useState(null);
   const [ownerId, setOwnerId]           = React.useState(null);
@@ -182,7 +185,6 @@ export const PlayersPanel = ({ state, adminMode = false }) => {
               isOwner={(pid === ownerId)}
               horizontal={horizontal}
               compact={compact}
-              state={state}
             />
           );
         })}

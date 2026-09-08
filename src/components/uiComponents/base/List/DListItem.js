@@ -4,7 +4,9 @@ import * as React from "react";
 import "../../../../stylesheets/panel.css";
 
 export const DListItem = (props) => {
-  const { isSelected, children, onClick, width, withHover, flexProps } = props;
+  // Only isSelected/withHover/flexProps are this component's own custom props;
+  // width is a legitimate Card.Root/Chakra prop, so it's left in domProps.
+  const { isSelected, children, onClick, withHover, flexProps, ...domProps } = props;
   let className = "nm_dlistitem_card";
   if(withHover){
     className += " nm_dlistitem_card_hover";
@@ -13,7 +15,7 @@ export const DListItem = (props) => {
   // TODO Make it better
   return (
     <Flex className="nm_dlistitem">
-      <Card.Root {...props}
+      <Card.Root {...domProps}
         onClick={onClick}
         size="sm"
         className={

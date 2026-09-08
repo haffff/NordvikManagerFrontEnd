@@ -292,6 +292,9 @@ export const WebHelper = {
         onerror,
         onException
       );
+    }).catch((e) => {
+      if (onException) onException(e);
+      else console.error(e);
     });
   },
 

@@ -4,6 +4,7 @@ import { FaArrowUp, FaCheck, FaDownload, FaExternalLinkAlt } from "react-icons/f
 import { ActiveWebHelper as WebHelper } from "../../../../../helpers/transport";
 import { toaster } from "../../../../ui/toaster";
 import ClientMediator from "../../../../../ClientMediator";
+import ProgressToastManager from "../../../../../helpers/ProgressToastManager";
 import DList from "../../../../uiComponents/base/List/DList";
 import DListItem from "../../../../uiComponents/base/List/DListItem";
 import DListItemButton from "../../../../uiComponents/base/List/ListItemDetails/DListItemButton";
@@ -27,16 +28,21 @@ export const BrowseAddonsTab = ({ repository, addons, handleReload, loading }) =
   const install = async (addon) => {
     setInstalling(addon.key);
     try {
-      const result = await WebHelper.postAsync("addon/install", { key: addon.key });
-      if (result?.status >= 200 && result?.status < 300) {
-        toaster.create({ title: `"${addon.name}" installed`, type: "success", duration: 4000 });
-        await handleReload();
+      const { status, body } = await WebHelper.postAsync("addon/install", { key: addon.key });
+      if (status >= 200 && status < 300 && body?.operationId) {
+        const opId = body.operationId;
+        ProgressToastManager.start(opId, { title: `Installing "${addon.name}"…` });
+        const timeout = 10 * 60 * 1000;
+        Promise.race([
+          ClientMediator.waitForEvent("Progress:Complete", (d) => d?.id === opId, timeout),
+          ClientMediator.waitForEvent("Progress:Failed", (d) => d?.id === opId, timeout).then(() => { throw new Error("install failed"); }),
+        ]).then(() => handleReload()).catch(() => {});
       } else {
         toaster.create({ title: "Installation failed", type: "error", duration: 6000 });
-        if (result?.body) {
+        if (body) {
           ClientMediator.sendCommand("Game", "CreateNewPanel", {
             type: "LookupPanel",
-            props: { name: "Addon install failed", content: result.body, contentType: "object" },
+            props: { name: "Addon install failed", content: body, contentType: "object" },
           });
         }
       }

@@ -30,8 +30,12 @@ export const BrowseInstalledTab = ({ handleReload, addons, loading }) => {
     [addons, search]
   );
 
+  // selectedKey is set via addon.key ?? addon.id (below) — the lookup here must use
+  // the same fallback, or an addon with an id but no key never matches and never
+  // shows as selected (the uninstall/toggle handlers already use this fallback,
+  // confirming such records exist).
   const currentSelected = useMemo(
-    () => (selectedKey ? (Array.isArray(addons) ? addons : []).find((x) => x.key === selectedKey) ?? null : null),
+    () => (selectedKey ? (Array.isArray(addons) ? addons : []).find((x) => (x.key ?? x.id) === selectedKey) ?? null : null),
     [addons, selectedKey]
   );
 

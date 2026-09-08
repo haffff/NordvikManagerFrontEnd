@@ -2,6 +2,7 @@ import { fabric } from 'fabric';
 import ArrowTypeInit from "./uiComponents/fabricjs/ArrowType";
 import ConeTypeInit from "./uiComponents/fabricjs/ConeType";
 import { ActiveWebHelper } from '../helpers/transport';
+import { SYSTEM_ASSET_DEFAULTS, isKnownMissing, markMissing } from '../helpers/systemAssets';
 
 // ── Helpers ──────────────────────────────────────────────────────────────────
 
@@ -42,9 +43,19 @@ if (fabric.util?.loadImage) {
       return _originalLoadImage(url, callback, context, crossOrigin);
     }
 
+    const bundledDefault = key ? SYSTEM_ASSET_DEFAULTS[key] : undefined;
+
+    if (bundledDefault && isKnownMissing(key)) {
+      return _originalLoadImage(bundledDefault, callback, context, crossOrigin);
+    }
+
     ActiveWebHelper.getResourceBlobAsync(id, key)
       .then((blob) => {
         if (!blob || !(blob instanceof Blob)) {
+          if (bundledDefault) {
+            markMissing(key);
+            return _originalLoadImage(bundledDefault, callback, context, crossOrigin);
+          }
           console.warn(`[FabricLoader] WebRTC fetch returned no blob for id=${id} key=${key} — image will not display`);
           if (callback) callback.call(context, null);
           return;
@@ -63,6 +74,10 @@ if (fabric.util?.loadImage) {
         );
       })
       .catch((err) => {
+        if (bundledDefault) {
+          markMissing(key);
+          return _originalLoadImage(bundledDefault, callback, context, crossOrigin);
+        }
         console.warn(`[FabricLoader] WebRTC fetch failed for id=${id} key=${key} — image will not display`, err);
         if (callback) callback.call(context, null);
       });
@@ -73,13 +88,16 @@ if (fabric.util?.loadImage) {
 //
 // Don't persist src for resource-backed images. DTOConverter.ConvertFromDTO
 // reconstructs src from resourceId / resourceKey on every load, so storing it
-// is redundant and produces stale values (blob:// URLs, gameid=undefined).
+// is redundant and produces stale values (blob:// URLs, gameid=undefined). Tokens
+// with neither set also get an src (the emptyTokenImage placeholder, resolved at
+// load time) that must not be persisted the same way — otherwise a stale/revoked
+// blob: URL could get baked into a saved canvas snapshot.
 //
 if (fabric.Image?.prototype) {
   const _originalImageToObject = fabric.Image.prototype.toObject;
   fabric.Image.prototype.toObject = function (propertiesToInclude) {
     const obj = _originalImageToObject.call(this, propertiesToInclude);
-    if (this.resourceId || this.resourceKey) {
+    if (this.resourceId || this.resourceKey || this.isToken) {
       delete obj.src;
     }
     return obj;

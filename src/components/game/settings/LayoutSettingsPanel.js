@@ -62,6 +62,12 @@ export const LayoutSettingsPanel = ({ layoutId }) => {
   };
 
   const updateSettings = (event) => {
+    // Guard against a different layout's broadcast (the "layout_update" prefix
+    // fires for every layout update system-wide, same as LayoutsMenu's list-sync
+    // listener) — without this, another layout's update would overwrite this
+    // panel's state wholesale, including layout.id, corrupting the wrong layout
+    // on the next Save. Matches the id guard every sibling panel already has.
+    if (event.data?.id !== layout.id) return;
     setLayout({ ...layout, ...event.data });
   };
 

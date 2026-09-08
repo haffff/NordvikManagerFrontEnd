@@ -6,6 +6,7 @@ import ClientMediator from "../../../ClientMediator";
 import { toaster } from "../../ui/toaster";
 import UtilityHelper from "../../../helpers/UtilityHelper";
 import ConeTypeInit from "../../uiComponents/fabricjs/ConeType";
+import { RESERVED_LAYERS } from "../Constants/layers";
 
 class BMService {
   _clipboard = undefined;
@@ -73,6 +74,14 @@ class BMService {
         args: [
           { name: 'editMode', type: 'boolean', required: true },
           { name: 'layer', type: 'number', required: true },
+        ],
+      },
+      ReassignLayer: {
+        description: 'Locally patches canvas objects to new layer ids (used when custom layers are deleted or reordered). Prefer mapping ({oldLayerId: newLayerId}) for multi-layer changes; fromLayerId/toLayerId is sugar for a single-entry mapping.',
+        args: [
+          { name: 'mapping', type: 'object', required: false },
+          { name: 'fromLayerId', type: 'number', required: false },
+          { name: 'toLayerId', type: 'number', required: false },
         ],
       },
       SetTokenSelectMode: {
@@ -263,6 +272,39 @@ class BMService {
     });
   }
 
+  // Purely a local, cosmetic canvas patch — the DB side of a layer deletion's or
+  // reorder's reassignment already happened atomically on the server (see
+  // RemoveCustomLayerCommandHandler / MoveCustomLayerCommandHandler), so this
+  // never sends a WS command itself.
+  //
+  // Accepts either a single {fromLayerId, toLayerId} pair (sugar, kept for
+  // existing callers) or a batch `mapping: {[oldLayerId]: newLayerId}` — the
+  // batch form MUST be used when more than one layer's value changes in the same
+  // operation (a Move can shift several layers in one band at once): applying a
+  // single-pair reassignment per layer, one at a time, can alias — e.g. layer A
+  // going 33->50 and layer B going 50->67 processed in sequence would drag A's
+  // just-reassigned elements into B's destination if B is handled second by
+  // matching on the literal value 50.
+  ReassignLayer({ fromLayerId, toLayerId, mapping, isCommand }) {
+    const effectiveMapping = mapping ?? (fromLayerId !== undefined ? { [fromLayerId]: toLayerId } : {});
+    if (isCommand && Object.keys(effectiveMapping).length === 0) {
+      return "--mapping (or --fromLayerId/--toLayerId) is required.";
+    }
+
+    const canvas = this._canvas;
+    canvas.getObjects().forEach((object) => {
+      if (object.layer in effectiveMapping) object.layer = effectiveMapping[object.layer];
+    });
+
+    if (canvas.selectedLayer in effectiveMapping) {
+      // The locally active layer was reassigned — fall back to its new value so
+      // the next element the user creates doesn't get stamped with a dead layerId.
+      this.SetSelectedLayer({ layerId: effectiveMapping[canvas.selectedLayer], withEditMode: false });
+    } else {
+      this.SortLayers();
+    }
+  }
+
   SetTokenSelectMode({
     minTokens,
     maxTokens,
@@ -285,7 +327,7 @@ class BMService {
     canvas.maxTokens = maxTokens ?? 1;
     canvas.tokens = [];
 
-    this.SetSelectedLayer({ layerId: 100, withEditMode: false });
+    this.SetSelectedLayer({ layerId: RESERVED_LAYERS.TOKEN, withEditMode: false });
     this._addPopupAndOverlay(overlayContent, popupContent);
 
     canvas.getObjects().forEach((object) => {
@@ -366,12 +408,15 @@ class BMService {
       canvas.getObjects().forEach((object) => {
         if (object.layer === layer) {
           if (object.currentlyEdited !== undefined) return;
-          if (object.origOpacity) {
+          // Truthiness check (`if (object.origOpacity)`) fails to restore an object
+          // whose original opacity was exactly 0 — it stayed dimmed forever. Compare
+          // against undefined instead, same fix in both branches below.
+          if (object.origOpacity !== undefined) {
             object.set({ opacity: object.origOpacity, origOpacity: undefined });
           }
         } else {
           if (object.origOpacity === undefined) {
-            object.set({ origOpacity: object.opacity, opacity: object.opacity - 0.5 });
+            object.set({ origOpacity: object.opacity, opacity: Math.max(0, object.opacity - 0.5) });
           }
           object.set("currentlyEdited", undefined);
         }
@@ -382,7 +427,7 @@ class BMService {
       canvas.editLayer = undefined;
       canvas.modeLock = undefined;
       canvas.getObjects().forEach((object) => {
-        if (object.origOpacity) {
+        if (object.origOpacity !== undefined) {
           object.set({ opacity: object.origOpacity, origOpacity: undefined });
         }
         object.set("currentlyEdited", undefined);
@@ -816,7 +861,10 @@ class BMService {
       WebSocketManagerInstance.Send({
         command: "preview_end",
         battleMapId: this.contextId,
-        data: [filteredObjects.map((object) => ({ previewId: object.previewId, playerId: object.playerId }))],
+        // Flat array of {previewId, playerId}, matching every other preview_end
+        // sender (e.g. OnMouseUpMeasureEnds.js) — this used to be wrapped in an
+        // extra [ ], the only preview_end sent for "stay visible" previews.
+        data: filteredObjects.map((object) => ({ previewId: object.previewId, playerId: object.playerId })),
       });
     }
 
