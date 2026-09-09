@@ -82,6 +82,13 @@ export const MainToolbar = ({
     toaster.create(UtilityHelper.GenerateCopiedToast());
   };
 
+  // Whether the player may create/overwrite layouts. GM always can; otherwise the
+  // per-game "disallowPlayerLayouts" toggle decides. Read from the init snapshot,
+  // so a GM changing it mid-session takes effect for players on their next reload.
+  const gameSnapshot = ClientMediator.sendCommand("Game", "GetGame", {});
+  const isGM = ClientMediator.sendCommand("Game", "GetIsGM");
+  const canSaveLayouts = isGM || !gameSnapshot?.disallowPlayerLayouts;
+
   return (
     <ToolBar>
       <DropDownMenu viewId={"game"} name={"Game"} width={100}>
@@ -119,6 +126,7 @@ export const MainToolbar = ({
         gameMethods={gameMethods}
         state={state}
         battlemapsRef={battlemapsRef}
+        canSave={canSaveLayouts}
       />
       <AddonsMenu state={state} />
       {additionalButtons}

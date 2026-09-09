@@ -103,7 +103,7 @@ class BMQueryService {
         args: [],
       },
       GetCurrentMode: {
-        description: 'Returns the name of the active exclusive mode ("TokenSelect", "SimpleCreate", "Draw", "Ruler") or undefined.',
+        description: 'Returns the name of the active exclusive mode ("TokenSelect", "SimpleCreate", "Draw", "Ruler"), or "None" when no exclusive mode is locked.',
         args: [],
       },
       SubscribeBattleMapDestruction: {
@@ -206,7 +206,9 @@ class BMQueryService {
       }
     }
 
-    return undefined;
+    // A representable value rather than bare undefined, so callers that render
+    // the result (Run dialog, chat /c) show an answer instead of nothing.
+    return "None";
   }
 
   _onDestruction = () => {

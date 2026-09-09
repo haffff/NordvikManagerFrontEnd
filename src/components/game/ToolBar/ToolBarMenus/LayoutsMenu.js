@@ -13,8 +13,9 @@ import ClientMediator from "../../../../ClientMediator";
 import CollectionSyncer from "../../../uiComponents/base/CollectionSyncer";
 import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import InputModal from "../../../uiComponents/base/Modals/InputModal";
+import LayoutPersistence from "../../../../helpers/LayoutPersistence";
 
-export const LayoutsMenu = ({ state, battlemapsRef }) => {
+export const LayoutsMenu = ({ state, battlemapsRef, canSave = true }) => {
   const width = 200;
   const [serverLayouts, setServerLayouts] = React.useState(undefined);
 
@@ -28,16 +29,25 @@ export const LayoutsMenu = ({ state, battlemapsRef }) => {
     WebSocketManagerInstance.Send(CommandFactory.CreateLayoutRemoveCommand(id));
   }
 
+  function ResetMyLayout() {
+    const game = ClientMediator.sendCommand("Game", "GetGame");
+    const player = ClientMediator.sendCommand("Game", "GetCurrentPlayer");
+    if (game?.id && player?.id) LayoutPersistence.clear(game.id, player.id);
+    if (game?.defaultLayout?.id) ClientMediator.sendCommand("Game", "SetLayout", game.defaultLayout.id);
+  }
+
   return (
   <>
     <DropDownMenu viewId={"layouts"} width={width} name={"Layouts"}>
-      <DropDownItem
-        width={width}
-        name={"Save current"}
-        onClick={() => {
-          openRef.current({ name: "My new layout" });
-        }}
-      />
+      {canSave && (
+        <DropDownItem
+          width={width}
+          name={"Save current"}
+          onClick={() => {
+            openRef.current({ name: "My new layout" });
+          }}
+        />
+      )}
 
       <DropDownSeparator title="Layouts" />
 
@@ -59,13 +69,18 @@ export const LayoutsMenu = ({ state, battlemapsRef }) => {
       )}
 
       <DropDownSeparator />
+      <DropDownItem
+        width={width}
+        name={"Reset my layout"}
+        onClick={ResetMyLayout}
+      />
       <CreateDropDownButton
         gmOnly
         icon={FaBook}
         width={width}
         name={"Layout Manager"}
         state={state}
-        element={<LayoutsManagerPanel state={state} />}
+        element={<LayoutsManagerPanel state={state} battlemapsRef={battlemapsRef} />}
       />
     </DropDownMenu>
     <CollectionSyncer

@@ -20,6 +20,8 @@ vi.mock('@hlorenzi/react-dockable', () => ({
 vi.mock('./ToolBar/MainToolbar', () => ({ default: () => null }));
 vi.mock('../uiComponents/base/Subscribable', () => ({ default: () => null }));
 vi.mock('./PlaybackManager', () => ({ default: () => null }));
+vi.mock('./RequestInputManager', () => ({ default: () => null }));
+vi.mock('./LayoutAutoSaveManager', () => ({ default: () => null }));
 vi.mock('../QuickCommandDialog', () => ({ default: () => null }));
 vi.mock('../uiComponents/WebSocketStatus', () => ({ default: () => null }));
 vi.mock('../uiComponents/LoadingScreen', () => ({ LoadingScreen: () => <div>Loading</div> }));
@@ -32,7 +34,7 @@ vi.mock('../../contexts/PermissionsContext', () => ({
 vi.mock('../../helpers/DockableHelper', () => ({
   default: { setGlobalState: vi.fn(), getPopOutHandler: vi.fn(() => vi.fn()) },
 }));
-vi.mock('../../helpers/PanelsList', () => ({ default: {} }));
+vi.mock('../../helpers/PanelsList', () => ({ default: {}, getPanelKeyForComponent: () => undefined }));
 
 const { loadGameMock, resetInitializationMock } = vi.hoisted(() => ({
   loadGameMock: vi.fn(() => Promise.resolve()),

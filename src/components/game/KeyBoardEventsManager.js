@@ -1,4 +1,5 @@
 import ClientMediator from "../../ClientMediator";
+import { parseCommandString } from "../../helpers/CommandExecutionHelper";
 import CentralWebHelper from "../../helpers/CentralWebHelper";
 // NOT ActiveWebHelper: this endpoint is account-level, proxied to Central by the
 // Backend — not in-game data. Routing it over the WebRTC tunnel (ActiveWebHelper)
@@ -34,8 +35,28 @@ export const KEY_COMBO_REGEX = /^(Ctrl\+)?(Shift\+)?(Alt\+)?(.|HOME|DELETE|INSER
 // Empty string is a tombstone: it unbinds a default's key without assigning
 // it to a new command (needed when a default action is rebound elsewhere —
 // the default's original key must stop firing it, not just gain a sibling).
-const COMMAND_REGEX = /^[A-Za-z_][\w-]*\.[A-Za-z_][\w-]*$/;
-export const isValidBindingValue = (value) => value === "" || COMMAND_REGEX.test(value);
+//
+// "panel.command" optionally followed by a space and an argument tail, e.g.
+// "Playlist.PlaySound --resourceId=abc-123". Args are parsed by
+// parseCommandString and merged into the dispatched payload by FireKeyboardEvent.
+// Must stay in sync with KeyboardBindingCommandRegex (Backend UserController.cs)
+// and KEYBOARD_BINDING_COMMAND_REGEX (Central routes/user.js).
+const COMMAND_REGEX = /^[A-Za-z_][\w-]*\.[A-Za-z_][\w-]*(\s+\S.*)?$/;
+// Mirrors MaxKeyboardBindingStringLength (Backend) / MAX_KEYBOARD_BINDING_STRING_LENGTH
+// (Central). A binding value longer than this is rejected server-side, failing the
+// whole save — the panel guards against it up front.
+export const MAX_BINDING_VALUE_LENGTH = 256;
+export const isValidBindingValue = (value) =>
+  value === "" || (value.length <= MAX_BINDING_VALUE_LENGTH && COMMAND_REGEX.test(value));
+
+// While a KeyComboRecorder is actively capturing a combo, the game container's
+// onKeyUp still bubbles here (the recorder lives inside that div and the manager
+// is wired via React synthetic events, not a document listener). Without this
+// gate, recording e.g. "Ctrl+C" in the shortcuts panel also fires whatever
+// "Ctrl+C" is bound to. KeyComboRecorder toggles this around its capture window.
+let comboRecordingActive = false;
+export const setComboRecording = (active) => { comboRecordingActive = !!active; };
+export const isComboRecording = () => comboRecordingActive;
 
 // Shared with KeyComboRecorder so the UI records combos in exactly the format
 // the dispatcher matches against.
@@ -79,11 +100,13 @@ class KeyboardEventsManager {
   }
 
   HandleKeyboardEventDown(ev) {
+    if (comboRecordingActive) return;
     if (ev.target.matches("input") || ev.target.matches("textarea")) return;
     this.KeyboardMap[ev.key] = true;
   }
 
   HandleKeyboardEventUp(ev) {
+    if (comboRecordingActive) return;
     if (ev.target.matches("input") || ev.target.matches("textarea")) return;
     let actionName = CreateActionName(ev);
     if (this.ShortCuts[actionName] !== undefined) {
@@ -97,8 +120,10 @@ class KeyboardEventsManager {
     const entry = this.ShortCuts[actionName];
     if (entry === undefined) return;
 
-    const data = {};
-    if (entry.panel.toLowerCase() === "battlemap") {
+    // Args parsed from the saved binding string (e.g. "--resourceId=abc") are the
+    // dispatch payload's base; contextId is layered on top for battlemap commands.
+    const data = { ...(entry.args ?? {}) };
+    if (entry.panel?.toLowerCase() === "battlemap") {
       data.contextId = await ClientMediator.sendCommandWaitForRegisterAsync(
         "Game",
         "GetActiveBattleMapId"
@@ -128,11 +153,12 @@ export async function saveBindings(bindings) {
   return { ok: !!resp?.ok };
 }
 
-// Merges the user's saved key-combo -> "panel.command" overrides onto the
+// Merges the user's saved key-combo -> "panel.command [args]" overrides onto the
 // built-in defaults. Only the deltas live server-side, so un-remapped
 // defaults must keep working. Shared with KeyboardShortcutsPanel so the UI
 // computes "what key is this action on right now" the same way the
-// dispatcher does.
+// dispatcher does. Each merged entry is { panel, command, args } — args is the
+// parsed argument object (empty when the binding has no argument tail).
 export function mergeShortcuts(bindings) {
   const merged = { ...DefaultShortCuts };
   if (!bindings) return merged;
@@ -146,8 +172,8 @@ export function mergeShortcuts(bindings) {
       delete merged[key];
       continue;
     }
-    const [panel, command] = value.split(".");
-    merged[key] = { panel, command };
+    const { panel, command, args } = parseCommandString(value);
+    merged[key] = { panel, command, args };
   }
   return merged;
 }
