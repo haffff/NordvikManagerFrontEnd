@@ -2,17 +2,32 @@ import ClientMediator from "../ClientMediator";
 
 export const LayoutHelper = {
 
+    // Resolves a rendered panel's component type -> its stable PanelsList key.
+    // Injected by Game.js (SetPanelKeyResolver) to avoid a PanelsList <->
+    // LayoutsManagerPanel <-> LayoutCloneHelper import cycle. The default falls
+    // back to the function name, which is mangled in production builds — hence
+    // the injected resolver, which matches by component identity.
+    _resolvePanelKey: (elementType) => elementType?.type?.name ?? elementType?.name,
+    SetPanelKeyResolver(fn) {
+        if (typeof fn === "function") LayoutHelper._resolvePanelKey = fn;
+    },
+
     GetCloneForSaving: (rootPanel, battleMaps) => {
         delete rootPanel["_contents"];
         let elementsDict = [];
         let res = LayoutHelper.ParsePanel(rootPanel, elementsDict);
         res["_contents"] = elementsDict.map(x => {
-            const battlemapObj = Object.values(battleMaps).find(bm => bm.PanelContentID === x.id);
+            const battlemapObj = Object.values(battleMaps ?? {}).find(bm => bm.PanelContentID === x.id);
             let bmId = undefined;
             let mapId = undefined;
             if (battlemapObj !== undefined) {
                 bmId = battlemapObj.id;  // fixed: was .Id (wrong case)
-                mapId = ClientMediator.sendCommand("BattleMap", "GetSelectedMapID", { contextId: bmId });  // fixed: was "Battlemap"
+                try {
+                    // Can throw if the BattleMap context is mid-teardown (e.g. during beforeunload).
+                    mapId = ClientMediator.sendCommand("BattleMap", "GetSelectedMapID", { contextId: bmId });
+                } catch (e) {
+                    console.warn("LayoutHelper.GetCloneForSaving: GetSelectedMapID failed", e);
+                }
             }
 
             // Save serializable props only — skip undefined, functions,
@@ -26,7 +41,7 @@ export const LayoutHelper = {
 
             return {
                 contentId: x.id,
-                type: x.content.element.type.name,
+                type: LayoutHelper._resolvePanelKey(x.content.element.type),
                 syncId: bmId,
                 mapId: mapId,
                 props: propsObject
@@ -34,6 +49,19 @@ export const LayoutHelper = {
         });
 
         return res;
+    },
+
+    // Non-mutating variant for automatic/background saves — never touches the live
+    // state.ref.current.rootPanel, and swallows any failure (returns null).
+    GetCloneForSavingSafe: (rootPanel, battleMaps) => {
+        if (!rootPanel) return null;
+        try {
+            const { _contents, ...copy } = rootPanel;
+            return LayoutHelper.GetCloneForSaving(copy, battleMaps);
+        } catch (e) {
+            console.warn("LayoutHelper.GetCloneForSavingSafe: failed to serialize layout", e);
+            return null;
+        }
     },
 
     ParsePanel: (panel, elementsDict) => {

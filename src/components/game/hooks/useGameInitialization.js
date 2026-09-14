@@ -1,5 +1,7 @@
 import { useCallback, useState } from 'react';
 import LayoutHelper from '../../../helpers/LayoutCloneHelper';
+import LayoutPersistence from '../../../helpers/LayoutPersistence';
+import { toaster } from '../../ui/toaster';
 import ClientMediator from '../../../ClientMediator';
 import { PropertiesManagerInstance } from '../../../CardAPI';
 import ActionService from '../ActionService';
@@ -100,19 +102,45 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
         }
       }
 
-      // ── Load default layout ────────────────────────────────────────────────
-      const gameLayout = game.defaultLayout?.value;
-      console.log('useGameInitialization: received defaultLayout', { defaultLayout: game.defaultLayout });
-      setLayout(game.defaultLayout);
+      // ── Load layout: this player's remembered arrangement (if the GM enabled
+      //    "saveLayoutOnExit" and one is stored) else the game's default. ──────
+      const persisted = game.saveLayoutOnExit ? LayoutPersistence.load(game.id, player.id) : null;
+      const layoutToApply = persisted ?? game.defaultLayout?.value;
+      setLayout(persisted ? { id: null, name: '(your saved layout)', value: persisted } : game.defaultLayout);
 
-      if (gameLayout) {
+      const countContents = (panel) => {
+        if (!panel) return 0;
+        let n = (panel.contentList || []).length;
+        for (const sp of (panel.splitPanels || [])) n += countContents(sp);
+        return n;
+      };
+
+      if (layoutToApply) {
         try {
-          LayoutHelper.LoadLayoutState(state, gameLayout, CreateLayoutElement);
+          LayoutHelper.LoadLayoutState(state, layoutToApply, CreateLayoutElement);
+          // LoadLayoutState swallows its own errors, so a parseable-but-broken blob
+          // yields an empty workspace silently. If a persisted layout produced nothing
+          // usable, drop it and fall back to the game default.
+          if (persisted && countContents(state?.ref?.current?.rootPanel) === 0) {
+            throw new Error('persisted layout restored no panels');
+          }
         } catch (e) {
-          console.error('useGameInitialization: failed to apply layout', e, { gameLayout });
+          console.error('useGameInitialization: failed to apply layout', e, { hadPersisted: !!persisted });
+          if (persisted) {
+            LayoutPersistence.clear(game.id, player.id);
+            setLayout(game.defaultLayout);
+            try {
+              LayoutHelper.LoadLayoutState(state, game.defaultLayout?.value, CreateLayoutElement);
+            } catch (_) { /* default is best-effort */ }
+            toaster.create({
+              description: "Your saved layout couldn't be restored — reset to the game default.",
+              type: 'warning',
+              duration: 6000,
+            });
+          }
         }
       } else {
-        console.warn('useGameInitialization: no default layout value to load');
+        console.warn('useGameInitialization: no layout value to load');
       }
 
       WebSocketManagerInstance.Send({ command: 'client_layout_ready' });

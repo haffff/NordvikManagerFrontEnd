@@ -4,6 +4,13 @@ import { Badge, Box, For, HStack, Stack, Text, createListCollection } from "@cha
 import { SelectContent, SelectItem, SelectItemGroup, SelectRoot, SelectTrigger, SelectValueText } from "../../../ui/select";
 import DListItemButton from "../../../uiComponents/base/List/ListItemDetails/DListItemButton";
 import { FaArrowAltCircleDown, FaArrowAltCircleUp, FaMinusCircle, FaChevronDown, FaChevronRight } from "react-icons/fa";
+import CommandExecutionHelper from "../../../../helpers/CommandExecutionHelper";
+
+// Arg types that resolve to a live list of values via CommandExecutionHelper.GetArgCompletions —
+// rendered as a "combo" field (pick from the list, or still type a raw id / %variable%).
+const PICKER_ARG_TYPES = new Set([
+  "audioresourceid", "resourceid", "playlistid", "mapid", "playerid", "layoutid",
+]);
 
 const BG_CARD   = "rgb(42,42,42)";
 const BG_HEADER = "rgb(52,52,52)";
@@ -18,7 +25,34 @@ export const ActionStep = ({
 }) => {
   const [step,     setStep]     = React.useState(initStep);
   const [expanded, setExpanded] = React.useState(false);
+  const [argOptions, setArgOptions] = React.useState({}); // argName -> [{value,label}] for picker-typed args
   const mountedRef              = React.useRef(false);
+
+  // Load live value lists for any picker-typed args of the current step type
+  // (e.g. audio materials for a Play Sound step). Non-fatal — a failed/empty
+  // fetch just leaves the field as a plain text input.
+  React.useEffect(() => {
+    const def = stepDefinitions.find((x) => x.value === step.Type);
+    const pickerArgs = (def?.arguments ?? []).filter(
+      (a) => PICKER_ARG_TYPES.has(a.type?.toLowerCase())
+    );
+    if (!pickerArgs.length) { setArgOptions({}); return; }
+
+    let cancelled = false;
+    (async () => {
+      const next = {};
+      for (const arg of pickerArgs) {
+        try {
+          const list = await CommandExecutionHelper.GetArgCompletions(arg.type.toLowerCase());
+          if (Array.isArray(list) && list.length) next[arg.name] = list;
+        } catch (e) {
+          console.warn("[ActionStep] arg completion failed for", arg.type, e);
+        }
+      }
+      if (!cancelled) setArgOptions(next);
+    })();
+    return () => { cancelled = true; };
+  }, [step.Type, stepDefinitions]);
 
   const findIdx = (list, id) => list.findIndex((x) => x.id === id);
 
@@ -65,14 +99,19 @@ export const ActionStep = ({
       { key: "Comment", label: "Comment", toolTip: "Comment", type: "string" },
     ];
     const def = stepDefinitions.find((x) => x.value === step.Type);    if (!def?.arguments?.length) return base;
-    return [...base, ...def.arguments.map((arg) => ({
-      key: arg.name, label: arg.name,
-      toolTip: arg.description || arg.name,
-      type: arg.type.toLowerCase() === "jtoken" ? "string" : arg.type.toLowerCase(),
-      conditionField: arg.conditionField ?? null,
-      conditionValue: arg.conditionValue ?? null,
-    }))];
-  }, [step.Type, stepDefinitions]);
+    return [...base, ...def.arguments.map((arg) => {
+      const lcType = arg.type.toLowerCase();
+      const isPicker = PICKER_ARG_TYPES.has(lcType);
+      return {
+        key: arg.name, label: arg.name,
+        toolTip: arg.description || arg.name,
+        type: isPicker ? "combo" : (lcType === "jtoken" ? "string" : lcType),
+        options: isPicker ? (argOptions[arg.name] ?? []) : undefined,
+        conditionField: arg.conditionField ?? null,
+        conditionValue: arg.conditionValue ?? null,
+      };
+    })];
+  }, [step.Type, stepDefinitions, argOptions]);
 
   // Filter fields whose ShowIf condition is not currently satisfied
   const visibleContent = React.useMemo(() => {

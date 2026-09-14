@@ -5,7 +5,8 @@ import MainToolbar from "./ToolBar/MainToolbar";
 import Subscribable from "../uiComponents/base/Subscribable";
 import { Flex, Box, Text, Button } from "@chakra-ui/react";
 import { CloseButton } from "../ui/close-button";
-import PanelList from "../../helpers/PanelsList";
+import PanelList, { getPanelKeyForComponent } from "../../helpers/PanelsList";
+import LayoutHelper from "../../helpers/LayoutCloneHelper";
 import QuickCommandDialog from "../QuickCommandDialog";
 import { LoadingScreen } from "../uiComponents/LoadingScreen";
 import WebSocketStatus from "../uiComponents/WebSocketStatus";
@@ -17,6 +18,8 @@ import DockableHelper from "../../helpers/DockableHelper";
 import { DragOptimizationProvider } from "../uiComponents/base/DragOptimizationContext";
 import { PermissionsProvider } from "../../contexts/PermissionsContext";
 import PlaybackManager from "./PlaybackManager";
+import RequestInputManager from "./RequestInputManager";
+import LayoutAutoSaveManager from "./LayoutAutoSaveManager";
 
 export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
   const gameState = useGameState(gameID, onExit);
@@ -39,6 +42,11 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
   React.useEffect(() => {
     DockableHelper.setGlobalState(state);
   }, [state]);
+
+  // Serialize saved layouts by stable PanelsList key, not the (minified) function name.
+  React.useEffect(() => {
+    LayoutHelper.SetPanelKeyResolver(getPanelKeyForComponent);
+  }, []);
 
   // Layout and element creation - memoized to prevent unnecessary re-renders
   const CreateLayoutElement = React.useCallback((content) => {
@@ -159,6 +167,8 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
       <Subscribable onMessage={eventHandlers.HandleFireClientMediator} commandPrefix={"client_mediator_fire"} />
       <Subscribable onMessage={eventHandlers.HandleOperationProgress} commandPrefix={"operation_"} />
       <PlaybackManager />
+      <RequestInputManager />
+      <LayoutAutoSaveManager state={state} battlemapsRef={battleMapContexts} />
       <MainToolbar
         key={gameID}
         state={state}

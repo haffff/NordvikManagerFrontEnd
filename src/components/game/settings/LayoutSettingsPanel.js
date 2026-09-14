@@ -15,15 +15,9 @@ export const LayoutSettingsPanel = ({ layoutId }) => {
   const editables = [
     { key: "name", label: "Name", toolTip: "Name of layout.", type: "string" },
     {
-      key: "visibleToOnly",
-      label: "Visible to only",
-      toolTip: "If set only selected players can see this layout.",
-      type: "playerArray",
-    },
-    {
       key: "default",
       label: "Is default",
-      toolTip: "Default layout",
+      toolTip: "Default layout for new players. Setting this clears it on other layouts.",
       type: "boolean",
     },
   ];

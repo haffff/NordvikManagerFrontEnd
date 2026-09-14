@@ -293,9 +293,13 @@ export const ToolsPanel = ({ battleMapId }) => {
 
     setDrag(dragMode);
 
-    const currentMode = ClientMediator.sendCommand("BattleMap", "GetCurrentMode", {
+    // GetCurrentMode now returns "None" (not undefined) when no exclusive mode is
+    // locked; keep the historical "undefined_<type>" mode string this panel builds
+    // so its selection checks are unaffected.
+    const currentModeRaw = ClientMediator.sendCommand("BattleMap", "GetCurrentMode", {
       contextId: _battleMapId,
     });
+    const currentMode = currentModeRaw === "None" ? undefined : currentModeRaw;
 
     const modeType = ClientMediator.sendCommand(
       "BattleMap",

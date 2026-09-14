@@ -1,4 +1,58 @@
 import ClientMediator from "../ClientMediator";
+import WebHelperDefault from "./WebHelper";
+import { ActiveWebHelper } from "./transport";
+
+// Coerces a raw string token value the way the Run dialog does: "true"/"false"
+// become booleans, numeric strings become numbers, everything else stays a string.
+const coerceArgValue = (v) => {
+  if (v === "true" || v === "false") return v === "true";
+  if (!isNaN(v) && v !== "") return v.indexOf(".") === -1 ? parseInt(v) : parseFloat(v);
+  return v;
+};
+
+/**
+ * Parses argument tokens (already split on whitespace) into a plain args object.
+ * Supports "--name=value" flags and bare positional tokens; positional tokens are
+ * named from `metaArgs` ($meta arg list) by index, falling back to "value".
+ *
+ * Shared by RunCommand and KeyboardEventsManager so a bound command string like
+ * "Playlist.PlaySound --resourceId=abc" dispatches with identical arg parsing to
+ * the same command typed into the Run dialog.
+ */
+export const parseArgTokens = (tokens, metaArgs = [], startPositionalIndex = 0) => {
+  let positionalIndex = startPositionalIndex;
+  const argsObj = {};
+  for (const token of tokens) {
+    if (!token) continue;
+    let name;
+    let value;
+    if (token.startsWith("--")) {
+      const eq = token.indexOf("=");
+      name = eq === -1 ? token.slice(2) : token.slice(2, eq);
+      value = eq === -1 ? undefined : token.slice(eq + 1);
+    } else {
+      name = metaArgs[positionalIndex]?.name ?? "value";
+      positionalIndex++;
+      value = token;
+    }
+    if (value === undefined || value === "") continue;
+    argsObj[name] = coerceArgValue(value);
+  }
+  return argsObj;
+};
+
+/**
+ * Splits a full command string ("Panel.Command --flag=x positional") into its
+ * panel, command and parsed args object. Used where there is no matched
+ * suggestion to supply $meta (e.g. firing a saved keyboard binding before the
+ * Run dialog has ever populated the suggestion index).
+ */
+export const parseCommandString = (commandString, metaArgs = []) => {
+  const parts = String(commandString ?? "").trim().split(/\s+/).filter(Boolean);
+  const [panel, command] = (parts[0] ?? "").split(".");
+  const args = parseArgTokens(parts.slice(1), metaArgs);
+  return { panel, command, args };
+};
 
 export const CommandExecutionHelper = {
   _aliases: [],
@@ -78,32 +132,11 @@ export const CommandExecutionHelper = {
     // The synthetic 'context' arg is first in suggestion.args when requiresContext,
     // but it was already consumed above — so start the index at 1 to skip it.
     const metaArgs = matchingSuggestion.args ?? [];
-    let positionalIndex = matchingSuggestion.requiresContext ? 1 : 0;
+    // The synthetic 'context' arg occupies positional slot 0 when requiresContext,
+    // but it was already consumed above — start naming real positionals at index 1.
+    const startPositionalIndex = matchingSuggestion.requiresContext ? 1 : 0;
 
-    args = args.map((x) => {
-      if (x.startsWith("--")) {
-        let parts = x.split("=");
-        return { name: parts[0].substring(2), value: parts[1] };
-      } else {
-        // Use the $meta arg name for this position if available, else fall back to "value"
-        const argName = metaArgs[positionalIndex]?.name ?? "value";
-        positionalIndex++;
-        return { name: argName, value: x };
-      }
-    });
-
-    let argsObj = {};
-    args.forEach((x) => {
-      if (x.value !== undefined && x.value !== "") {
-        let v = x.value;
-        if (v === "true" || v === "false") {
-          v = v === "true";
-        } else if (!isNaN(v) && v !== "") {
-          v = v.indexOf(".") === -1 ? parseInt(v) : parseFloat(v);
-        }
-        argsObj[x.name] = v;
-      }
-    });
+    const argsObj = parseArgTokens(args, metaArgs, startPositionalIndex);
 
     return ClientMediator.sendCommandAsync(panel, command, {
       ...argsObj,
@@ -122,6 +155,9 @@ export const CommandExecutionHelper = {
    *   mapid      → all maps from server     { value: id, label: name }
    *   gameid     → current game id          { value: id, label: id }
    *   playerid   → all players              { value: id, label: name }
+   *   resourceid      → all materials       { value: id, label: name }
+   *   audioresourceid → materials whose MIME type is audio/*
+   *   playlistid      → music playlists     { value: id, label: name }
    * Returns [] for unknown / plain types.
    */  GetArgCompletions: async (argType) => {
     switch (argType) {      case 'bmcontext': {
@@ -138,8 +174,7 @@ export const CommandExecutionHelper = {
         return maps.map((m) => ({ value: m.id ?? m.Id, label: m.name ?? m.id }));
       }
       case 'layoutid': {
-        const WebHelper = require('./WebHelper').default;
-        const layouts = await WebHelper.getAsync('Battlemap/GetLayouts') ?? [];
+        const layouts = await WebHelperDefault.getAsync('Battlemap/GetLayouts') ?? [];
         return layouts.map((l) => ({ value: l.id, label: l.name ?? l.id }));
       }
       case 'gameid': {
@@ -149,6 +184,35 @@ export const CommandExecutionHelper = {
       case 'playerid': {
         const players = ClientMediator.sendCommand('Game', 'GetPlayers') ?? [];
         return players.map((p) => ({ value: p.id ?? p.Id, label: p.name ?? p.id }));
+      }
+      case 'resourceid':
+      case 'audioresourceid': {
+        // Materials carry a `mimeType` ("image/png", "audio/mpeg", …), but filesystem-linked
+        // files can come back with mimeType "None" (the backend only classifies a handful of
+        // extensions), so also sniff the file name / path for an audio extension.
+        const resources = await ActiveWebHelper.getAsync('materials/getresources');
+        if (!Array.isArray(resources)) {
+          console.warn('[GetArgCompletions] materials/getresources returned', resources);
+          return [];
+        }
+        const AUDIO_EXT = /\.(mp3|wav|ogg|oga|opus|m4a|m4b|aac|flac|weba|aiff?|wma)$/i;
+        const isAudio = (r) =>
+          (r.mimeType ?? r.MimeType ?? '').toLowerCase().startsWith('audio') ||
+          AUDIO_EXT.test(r.name ?? r.Name ?? '') ||
+          AUDIO_EXT.test(r.path ?? r.Path ?? '');
+        const audioOnly = argType === 'audioresourceid';
+        const out = resources
+          .filter((r) => !audioOnly || isAudio(r))
+          .map((r) => ({ value: r.id ?? r.Id, label: r.name ?? r.id ?? r.Id }));
+        if (out.length === 0 && resources.length > 0) {
+          console.info(`[GetArgCompletions] ${argType}: ${resources.length} material(s), none detected as audio.`,
+            resources.map((r) => ({ name: r.name ?? r.Name, mimeType: r.mimeType ?? r.MimeType, storage: r.storage ?? r.Storage })));
+        }
+        return out;
+      }
+      case 'playlistid': {
+        const playlists = await ClientMediator.sendCommandAsync('Playlist', 'GetPlaylists', { kind: 0 }) ?? [];
+        return playlists.map((p) => ({ value: p.id ?? p.Id, label: p.name ?? p.id ?? p.Id }));
       }
       default:
         return [];

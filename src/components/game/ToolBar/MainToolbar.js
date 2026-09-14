@@ -1,5 +1,5 @@
 import * as React from "react";
-import { FaMailBulk, FaTerminal, FaEye, FaBook, FaQuestion, FaFlask, FaCheck } from "react-icons/fa";
+import { FaMailBulk, FaTerminal } from "react-icons/fa";
 import { DropDownItem } from "../../uiComponents/base/DDItems/DropDownItem";
 import { DropDownMenu } from "../../uiComponents/base/DDItems/DropDownMenu";
 import ToolBar from "./ToolBar";
@@ -22,19 +22,6 @@ export const MainToolbar = ({
   forceRefreshGame,
 }) => {
   const [additionalButtons, setAdditionalButtons] = React.useState([]);
-  const [experimentalEnabled, setExperimentalEnabled] = React.useState(
-    () => localStorage.getItem('nm_experimental_enabled') === 'true'
-  );
-
-  const toggleExperimental = () => {
-    setExperimentalEnabled(prev => {
-      const next = !prev;
-      localStorage.setItem('nm_experimental_enabled', next);
-      return next;
-    });
-    // Force dockable re-render so Panel.js picks up the new localStorage value
-    forceRefreshGame && forceRefreshGame('experimental');
-  };
 
   React.useEffect(() => {
     ClientMediator.register({
@@ -82,6 +69,13 @@ export const MainToolbar = ({
     toaster.create(UtilityHelper.GenerateCopiedToast());
   };
 
+  // Whether the player may create/overwrite layouts. GM always can; otherwise the
+  // per-game "disallowPlayerLayouts" toggle decides. Read from the init snapshot,
+  // so a GM changing it mid-session takes effect for players on their next reload.
+  const gameSnapshot = ClientMediator.sendCommand("Game", "GetGame", {});
+  const isGM = ClientMediator.sendCommand("Game", "GetIsGM");
+  const canSaveLayouts = isGM || !gameSnapshot?.disallowPlayerLayouts;
+
   return (
     <ToolBar>
       <DropDownMenu viewId={"game"} name={"Game"} width={100}>
@@ -119,52 +113,10 @@ export const MainToolbar = ({
         gameMethods={gameMethods}
         state={state}
         battlemapsRef={battlemapsRef}
+        canSave={canSaveLayouts}
       />
       <AddonsMenu state={state} />
       {additionalButtons}
-      <DropDownMenu viewId={"experimental"} name={"Experimental"} width={100}>
-        <DropDownItem
-          key={'exp_toggle'}
-          width={180}
-          name={experimentalEnabled ? '⚡ Experimental: ON' : '○ Experimental: OFF'}
-          onClick={toggleExperimental}
-          icon={experimentalEnabled ? <FaCheck /> : <FaFlask />}
-        />
-        {experimentalEnabled && <>
-        <DropDownItem
-          key={'main_1'}
-          width={180}
-          name={'View'}
-          onClick={() => { forceRefreshGame && forceRefreshGame('views') }}
-          icon={<FaEye />}
-        />
-        <DropDownItem
-          key={'main_2'}
-          width={180}
-          name={'Layouts'}
-          onClick={() => { forceRefreshGame && forceRefreshGame('layouts') }}
-          icon={<FaBook />}
-        />
-        <DropDownItem
-          key={'main_3'}
-          width={180}
-          name={'Help'}
-          onClick={() => { forceRefreshGame && forceRefreshGame('help') }}
-          icon={<FaQuestion />}
-        />
-        <DropDownItem
-          width={150}
-          name={"Chat (Window)"}
-          state={state}
-          onClick={() => {
-            ClientMediator.sendCommand("Game", "CreateNewPanel", {
-              type: "ChatPanel",
-              inWindow: true,
-            });
-          }}
-        />
-        </>}
-      </DropDownMenu>
     </ToolBar>
   );
 };

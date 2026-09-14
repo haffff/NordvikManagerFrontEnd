@@ -54,6 +54,7 @@ export const EditTable = ({
 }) => {
   const [updatedDto, setUpdatedDto] = React.useState({});
   const [validationDict, setValidationDict] = React.useState({});
+  const comboListId = React.useId();
 
   const updateDtoRef = React.useRef(updatedDto);
   updateDtoRef.current = updatedDto;
@@ -186,7 +187,36 @@ export const EditTable = ({
               </Table.Cell>
             </Table.Row>
           );
-          break;        case "number":
+          break;        case "combo": {
+          // A plain text input with a native autocomplete list — start typing to filter
+          // known values (e.g. audio materials by name), or just enter a raw id / %variable%.
+          const listId = `${comboListId}-${editable.key}`.replace(/[^a-zA-Z0-9_-]/g, "");
+          const options = Array.isArray(editable.options) ? editable.options : [];
+          element.value = (
+            <Table.Row key={keyBase + editable.key}>
+              <LabelCell label={editable.label} description={editable.toolTip} />
+              <Table.Cell>
+                <Input
+                  isInvalid={validationDict[key]}
+                  size={"xs"}
+                  list={options.length ? listId : undefined}
+                  placeholder={options.length ? "start typing to pick, or enter an id / %variable%" : "id or %variable%"}
+                  defaultValue={dto[editable.key]}
+                  onChange={(e) => OnChange(editable.key, e.target.value)}
+                />
+                {options.length > 0 && (
+                  <datalist id={listId}>
+                    {options.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </datalist>
+                )}
+              </Table.Cell>
+            </Table.Row>
+          );
+          break;
+        }
+        case "number":
           let infoAboutMinimumMaximum = "";
           if (editable.min || editable.max) {
             infoAboutMinimumMaximum += "(";

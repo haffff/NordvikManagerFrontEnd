@@ -38,23 +38,23 @@ export const PlaylistService = {
     },
     Play: {
       description: 'Plays (or resumes) a music playlist by ID.',
-      args: [{ name: 'playlistId', type: 'string', required: true }],
+      args: [{ name: 'playlistId', type: 'playlistid', required: true }],
     },
     Pause: {
       description: 'Pauses a currently playing music playlist by ID.',
-      args: [{ name: 'playlistId', type: 'string', required: true }],
+      args: [{ name: 'playlistId', type: 'playlistid', required: true }],
     },
     Stop: {
       description: 'Stops a music playlist by ID and tears down its playback state.',
-      args: [{ name: 'playlistId', type: 'string', required: true }],
+      args: [{ name: 'playlistId', type: 'playlistid', required: true }],
     },
     PlaySound: {
       description: 'Plays a one-shot soundboard sound by resource ID.',
-      args: [{ name: 'resourceId', type: 'string', required: true }],
+      args: [{ name: 'resourceId', type: 'audioresourceid', required: true }],
     },
     StopSound: {
       description: 'Stops a currently playing soundboard sound by resource ID.',
-      args: [{ name: 'resourceId', type: 'string', required: true }],
+      args: [{ name: 'resourceId', type: 'audioresourceid', required: true }],
     },
   },
 

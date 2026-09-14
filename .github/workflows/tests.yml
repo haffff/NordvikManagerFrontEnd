@@ -1,0 +1,45 @@
+name: Unit Tests
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: tests-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: vitest
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: 10.7.0
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      # .env is git-ignored (committed only with dev defaults locally); vite.config.js
+      # reads REACT_APP_* from it, so recreate the dev defaults for the test run.
+      - name: Create .env
+        run: |
+          cat > .env <<'EOF'
+          REACT_APP_BASE_URL = "localhost:8214"
+          REACT_APP_PROTOCOL = "https://"
+          REACT_APP_CENTRAL_URL = "http://localhost:3000"
+          EOF
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run tests
+        run: pnpm run test:run

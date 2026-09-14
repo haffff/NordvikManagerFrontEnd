@@ -142,6 +142,22 @@ export const GameSettingsPanel = () => {
       toolTip: "",
       type: "boolean",
     },
+    {
+      key: "disallowPlayerLayouts",
+      property: true,
+      label: "Prevent players from saving their own layouts",
+      toolTip:
+        "When on, only the GM can create or overwrite layouts. Players can still apply layouts you've shared with them.",
+      type: "boolean",
+    },
+    {
+      key: "saveLayoutOnExit",
+      property: true,
+      label: "Remember each player's layout between sessions",
+      toolTip:
+        "Each player's panel arrangement is saved in their browser and restored the next time they join this game.",
+      type: "boolean",
+    },
   ];
 
   let gameData = useGame();

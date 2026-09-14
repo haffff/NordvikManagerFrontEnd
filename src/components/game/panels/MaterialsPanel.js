@@ -9,7 +9,7 @@ import DContainer from '../../uiComponents/base/Containers/DContainer';
 import DListItemButton from '../../uiComponents/base/List/ListItemDetails/DListItemButton';
 import {
     FaArrowLeft, FaCode, FaDatabase, FaExchangeAlt, FaExternalLinkAlt, FaFile, FaFolder,
-    FaHdd, FaLink, FaMinusCircle, FaMusic, FaPen, FaPlus, FaUpload,
+    FaHashtag, FaHdd, FaLink, FaMinusCircle, FaMusic, FaPen, FaPlus, FaUpload,
 } from 'react-icons/fa';
 import UtilityHelper from '../../../helpers/UtilityHelper';
 import DTreeList from '../../uiComponents/treeList/DTreeList';
@@ -357,17 +357,19 @@ export const MaterialsPanel = ({ state }) => {
         treeRefreshRef.current?.();
     }, [loadData]);
 
-    // ── link copy ───────────────────────────────────────────────────────────
+    // ── clipboard ───────────────────────────────────────────────────────────
 
-    const generateLink = React.useCallback((id) => {
-        const url = WebHelper.getResourceString(id);
+    const copyText = React.useCallback((text) => {
         if (navigator.clipboard) {
-            navigator.clipboard.writeText(url);
+            navigator.clipboard.writeText(text);
             toaster.create(UtilityHelper.GenerateCopiedToast());
         } else {
-            window.prompt("Copy to clipboard: Ctrl+C, Enter", url);
+            window.prompt("Copy to clipboard: Ctrl+C, Enter", text);
         }
     }, []);
+
+    const copyId = React.useCallback((id) => copyText(id), [copyText]);
+    const copyLink = React.useCallback((id) => copyText(WebHelper.getResourceString(id)), [copyText]);
 
     // ── item body ───────────────────────────────────────────────────────────
 
@@ -460,7 +462,8 @@ export const MaterialsPanel = ({ state }) => {
                         const isLinked = item.storage === 2;
                         return (
                             <>
-                                <DListItemButton icon={FaLink} label="Copy link" onClick={() => generateLink(item.id)} />
+                                <DListItemButton icon={FaHashtag} label="Copy ID" onClick={() => copyId(item.id)} />
+                                <DListItemButton icon={FaLink} label="Copy link" onClick={() => copyLink(item.id)} />
                                 <DListItemButton icon={FaPen}  label="Rename"    onClick={() => onFolderRenameOpenRef.current({ name: item.name, id: item.id })} />
                                 {isGM && item.storage !== 1 && (
                                     <DListItemButton

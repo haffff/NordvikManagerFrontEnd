@@ -53,5 +53,22 @@ export const PanelList = {
     SoundboardPanel: SoundboardPanel,
 }
 
+// Reverse lookup: rendered component type -> stable PanelList key. Used when
+// serializing a layout so it survives production minification of function names
+// (see LayoutCloneHelper.SetPanelKeyResolver). Handles React.memo / forwardRef
+// wrappers, and falls back to the (possibly mangled) function name.
+const componentToKey = new Map(Object.entries(PanelList).map(([k, v]) => [v, k]));
+
+export const getPanelKeyForComponent = (elementType) => {
+    if (!elementType) return undefined;
+    return (
+        componentToKey.get(elementType) ??
+        componentToKey.get(elementType.type) ??   // React.memo(X)
+        componentToKey.get(elementType.render) ??  // React.forwardRef(X)
+        elementType.type?.name ??
+        elementType.name
+    );
+};
+
 
 export default PanelList;
