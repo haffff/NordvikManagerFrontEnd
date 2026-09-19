@@ -28,6 +28,8 @@ All custom env vars must be prefixed `REACT_APP_` (a holdover from the app's Cre
 - `pnpm build` — production build (`pnpm run buildci_gm` / `buildci_player` for role-specific CI builds)
 - `pnpm test` — Vitest
 
+To run this alongside Central and the Backend in one command instead of juggling three terminals, use `pnpm run dev` from the [main repo](https://github.com/haffff/NordvikManager#development-setup) — it starts Central, both frontend roles, and the Backend together.
+
 ## Architecture
 
 Frontend is a single React SPA that serves **both** the GM and the Player role (`REACT_APP_MODE`), built around React Dockable. One tab in dockable contains a "Panel" — there are several panel types like "Players Panel", "Materials Panel" or "BattleMap". Panels have 3 options to communicate with other places in the application: commands via [ClientMediator](src/ClientMediator.js), REST calls via [ActiveWebHelper](src/helpers/transport.js), and real-time game events via [ActiveTransportManager](src/helpers/transport.js) (wrapped with [Subscribable](src/components/uiComponents/base/Subscribable.js) or [CollectionSyncer](src/components/uiComponents/base/CollectionSyncer.js)). ClientMediator is used purely for in-browser communication between modules; it doesn't leave the client.
@@ -50,3 +52,84 @@ Register method registers provided object with commands to commands index. Requi
 - [Subscribable](src/components/uiComponents/base/Subscribable.js) and [CollectionSyncer](src/components/uiComponents/base/CollectionSyncer.js) — wrapper components heavily used in panels to watch over real-time game commands arriving over the transport above.
 - [CentralWebHelper](src/helpers/CentralWebHelper.js) — plain fetch-based client for the Central server (login, token refresh, session listing) — not used for game data.
 - [WebHelper](src/helpers/WebHelper.js) — the original fetch-based REST client. Now used only for direct-HTTP cases that don't go through the game session, e.g. resource/image URLs (`getResourceString`) and serving the app itself from the Backend's `wwwroot` build.
+
+### Where does my code go? ClientMediator vs. WebRTC transport
+
+The two channels solve different problems and are not interchangeable:
+
+- **ClientMediator** — same-browser-tab only. Use it when one panel needs to call into or hear from another panel/module without going anywhere near the network (e.g. the toolbar telling BattleMap to switch tools). Nothing here ever reaches the Backend.
+- **`ActiveTransportManager` / `ActiveWebHelper`** — leaves the browser. Use `ActiveWebHelper` for a one-off REST call (fetch/save data); use `ActiveTransportManager` (usually via `Subscribable`/`CollectionSyncer`) when you need to react to real-time events broadcast by the Backend or other players (token moves, chat, map switches).
+
+```mermaid
+flowchart TB
+    subgraph UI["Dockable Panels (React components)"]
+        P1["Panel A\ne.g. PlayersPanel"]
+        P2["Panel B\ne.g. BattleMap"]
+    end
+
+    CM["ClientMediator\n(in-browser pub/sub,\nsame tab only)"]
+    Sub["Subscribable / CollectionSyncer\n(base wrappers used by panels)"]
+    ATM["ActiveTransportManager\n= WebRTCManager"]
+    AWH["ActiveWebHelper\n= WebRTCWebHelper"]
+
+    P1 -- "register({panel, id, onEvent})" --> CM
+    P2 -- "register({panel, id, onEvent})" --> CM
+    P1 -- "sendCommand/sendCommandAsync\n(direct call to another panel)" --> CM
+    CM -- "invokes matching client's method" --> P2
+
+    P1 -- "getAsync / postAsync\n(REST-style call)" --> AWH
+    P2 -- "wraps subscriptions via" --> Sub
+    Sub -- "Subscribe(key, callback) /\nUnsubscribe(key)" --> ATM
+
+    AWH == "api-request / api-response" ==> DC(("RTCPeerConnection\ndata channel"))
+    ATM == "Send(command) /\nbroadcast events" ==> DC
+    DC ==> Backend["Backend\n(GM's machine)"]
+
+    Backend -- "broadcast: token move,\nchat, map switch, ..." --> DC
+    DC -- "delivers to" --> ATM
+    ATM -- "notifies" --> Sub
+    Sub -- "updates panel state" --> P2
+```
+
+`ActiveWebHelper` and `ActiveTransportManager` are two different API surfaces (REST-style vs. pub/sub) but share the *same* underlying `RTCPeerConnection` data channel — `WebRTCManager` owns the connection and `WebRTCWebHelper` is injected into it via `setTransport()`.
+
+### Addon communication
+
+There are two distinct addon mechanisms with very different trust boundaries — know which one you're extending:
+
+- **Card addons** (`src/CardAPI.js`, mounted by `CardPanel.js`) — arbitrary addon-authored JS/HTML, fully sandboxed. It runs inside a `blob:` URL iframe (`sandbox="allow-scripts"`, null origin, rendered into a Shadow Root so addon CSS can't leak). The **only** channel in or out is `postMessage` (structured-clone, no object references) to a bridge in the host page, which proxies calls into a `CardAPI` instance scoped to that card. Every inbound call is checked against an explicit allowlist (`ALLOWED_COMMANDS`, `ALLOWED_WS_COMMANDS`) — addons cannot call arbitrary ClientMediator commands or send arbitrary WS/WebRTC commands, and `Properties.*` calls are force-scoped to the card's own `parentId`.
+- **Non-card addons** (`ActionsPanel`, `CustomViewsPanel`, `TemplatesPanel`, `LookupPanel`, `EventLogPanel`) — addon-authored Actions/Views/Templates rendered by ordinary, trusted React panels. These are **not** sandboxed because they're data (Action-step sequences, view/template configs), not arbitrary executable JS — they use `ClientMediator` / `ActiveTransportManager` / `ActiveWebHelper` directly, same as any built-in panel.
+
+```mermaid
+flowchart TB
+    subgraph Sandbox["Card addon — sandboxed"]
+        AddonJS["Addon JS/HTML\n(runs inside a blob: iframe,\nsandbox=allow-scripts, null origin,\nrendered into a Shadow Root)"]
+    end
+
+    subgraph HostPage["Host page — trusted (CardPanel.js)"]
+        Bridge["postMessage bridge\n(structured clone only, no object refs)"]
+        CAPI["CardAPI instance\n(scoped to this card, allowlisted)"]
+    end
+
+    subgraph DeclPanels["Non-card addons — trusted panels"]
+        AP["ActionsPanel / CustomViewsPanel /\nTemplatesPanel / LookupPanel"]
+    end
+
+    CM["ClientMediator"]
+    ATM["ActiveTransportManager"]
+    AWH["ActiveWebHelper"]
+
+    AddonJS <-- "postMessage\n(RPC calls + WS/property events)" --> Bridge
+    Bridge -- "proxies allowlisted\nCardAPI.* calls" --> CAPI
+
+    CAPI -- "Properties.*, Chat.SendMessage\n(ALLOWED_COMMANDS check)" --> CM
+    CAPI -- "chat_push, execute_action,\ncustom_* (ALLOWED_WS_COMMANDS check)" --> ATM
+    CAPI -- "Resources.Create/Read/Update\n(REST)" --> AWH
+
+    AP -- "same channels directly,\nno sandbox\n(addon content is data:\nAction steps / view configs,\nnot arbitrary JS)" --> CM
+    AP --> ATM
+    AP --> AWH
+
+    ATM == "WebRTC data channel" ==> Backend["Backend (GM's machine)"]
+    AWH == "WebRTC data channel" ==> Backend
+```
