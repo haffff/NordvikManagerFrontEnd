@@ -95,41 +95,37 @@ flowchart TB
 
 ### Addon communication
 
-There are two distinct addon mechanisms with very different trust boundaries — know which one you're extending:
+Addon-authored code runs inside a sandboxed `blob:` iframe (`sandbox="allow-scripts"`, null origin) and can *only* talk to the rest of the app through **[CardAPI](src/CardAPI.js)** — call `CardAPI.Properties.*`, `CardAPI.Resources.*`, `CardAPI.ClientMediator.*`, `CardAPI.FireAction(...)`, etc. from inside the sandbox and it takes care of getting the request to the right place (with an allowlist enforced on the host side). A full CardAPI method reference will live on a separate docs site — this README just covers where things fit.
 
-- **Card addons** (`src/CardAPI.js`, mounted by `CardPanel.js`) — arbitrary addon-authored JS/HTML, fully sandboxed. It runs inside a `blob:` URL iframe (`sandbox="allow-scripts"`, null origin, rendered into a Shadow Root so addon CSS can't leak). The **only** channel in or out is `postMessage` (structured-clone, no object references) to a bridge in the host page, which proxies calls into a `CardAPI` instance scoped to that card. Every inbound call is checked against an explicit allowlist (`ALLOWED_COMMANDS`, `ALLOWED_WS_COMMANDS`) — addons cannot call arbitrary ClientMediator commands or send arbitrary WS/WebRTC commands, and `Properties.*` calls are force-scoped to the card's own `parentId`.
-- **Non-card addons** (`ActionsPanel`, `CustomViewsPanel`, `TemplatesPanel`, `LookupPanel`, `EventLogPanel`) — addon-authored Actions/Views/Templates rendered by ordinary, trusted React panels. These are **not** sandboxed because they're data (Action-step sequences, view/template configs), not arbitrary executable JS — they use `ClientMediator` / `ActiveTransportManager` / `ActiveWebHelper` directly, same as any built-in panel.
+Two trusted host panels create a sandbox like this:
+- **`CardPanel`** — a card *instance* created from a Template (see `TemplatesPanel`, where card Templates are authored/managed).
+- **`CustomViewsPanel`** — a standalone sandboxed view with no Template behind it, for addon UI that isn't a "card" (just a custom panel).
+
+Sandboxed JS cannot reach the Backend on its own — for addon logic that needs Frontend↔Backend communication beyond what CardAPI exposes, define an **Action** (authored/edited in `ActionsPanel`) and trigger it from the sandbox via `CardAPI.FireAction(action, args)`; Action steps can run server-side.
+
+`LookupPanel` and `EventLogPanel` are developer-facing debug/log tooling, not an addon extension point.
 
 ```mermaid
 flowchart TB
-    subgraph Sandbox["Card addon — sandboxed"]
-        AddonJS["Addon JS/HTML\n(runs inside a blob: iframe,\nsandbox=allow-scripts, null origin,\nrendered into a Shadow Root)"]
+    subgraph Sandbox["Sandboxed addon code\n(blob: iframe — a CardPanel instance\nor a CustomViewsPanel view)"]
+        AddonJS["Addon JS/HTML"]
     end
 
-    subgraph HostPage["Host page — trusted (CardPanel.js)"]
-        Bridge["postMessage bridge\n(structured clone only, no object refs)"]
-        CAPI["CardAPI instance\n(scoped to this card, allowlisted)"]
-    end
-
-    subgraph DeclPanels["Non-card addons — trusted panels"]
-        AP["ActionsPanel / CustomViewsPanel /\nTemplatesPanel / LookupPanel"]
-    end
-
+    CAPI["CardAPI\n(src/CardAPI.js)"]
     CM["ClientMediator"]
     ATM["ActiveTransportManager"]
     AWH["ActiveWebHelper"]
+    Actions["Actions system\n(authored in ActionsPanel,\nsteps can run server-side)"]
+    Backend["Backend\n(GM's machine)"]
 
-    AddonJS <-- "postMessage\n(RPC calls + WS/property events)" --> Bridge
-    Bridge -- "proxies allowlisted\nCardAPI.* calls" --> CAPI
+    AddonJS -- "CardAPI.Properties.* / .Resources.* /\n.ClientMediator.* / .FireAction(...)" --> CAPI
 
-    CAPI -- "Properties.*, Chat.SendMessage\n(ALLOWED_COMMANDS check)" --> CM
-    CAPI -- "chat_push, execute_action,\ncustom_* (ALLOWED_WS_COMMANDS check)" --> ATM
-    CAPI -- "Resources.Create/Read/Update\n(REST)" --> AWH
+    CAPI --> CM
+    CAPI --> ATM
+    CAPI --> AWH
+    CAPI -- "FireAction(action, args)" --> Actions
 
-    AP -- "same channels directly,\nno sandbox\n(addon content is data:\nAction steps / view configs,\nnot arbitrary JS)" --> CM
-    AP --> ATM
-    AP --> AWH
-
-    ATM == "WebRTC data channel" ==> Backend["Backend (GM's machine)"]
+    ATM == "WebRTC data channel" ==> Backend
     AWH == "WebRTC data channel" ==> Backend
+    Actions == "steps that need\nBackend logic" ==> Backend
 ```
