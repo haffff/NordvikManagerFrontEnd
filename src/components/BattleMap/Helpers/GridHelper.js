@@ -14,7 +14,7 @@ export default function drawGrid(canvas, map) {
     }
 
     if (map.gridVisible) {
-      const grid = GridFactoryInstance.DrawGrid(map.gridSize, [map.width, map.height], map.id);
+      const grid = GridFactoryInstance.DrawGrid(map.gridSize, [map.width, map.height], map.id, map.gridColor);
       // find first indexed layer object (layer >= 0) and insert before it, otherwise push to end
       const found = (canvas._objects || []).findIndex((x) => x.layer >= RESERVED_LAYERS.GRID);
       const insertIndex = found >= 0 ? found : (canvas._objects ? canvas._objects.length : 0);

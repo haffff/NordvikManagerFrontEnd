@@ -266,10 +266,17 @@ function mountBridge(iframe, cardApi, cardId, additionalArguments) {
     }
   };
 
-  window.addEventListener("message", onMessage);
+  // A sandboxed iframe's `parent.postMessage(...)` targets whichever window
+  // directly contains it. For a docked panel that's this main app window, but a
+  // popped-out panel (BrowserWindowPortal) mounts the iframe into a genuinely
+  // separate window.open()'d Window/Document — its "parent" is that window, not
+  // this one. Listening on the global `window` here would never see those
+  // messages, so the bridge must listen on the iframe's actual owner window.
+  const hostWindow = iframe.ownerDocument?.defaultView ?? window;
+  hostWindow.addEventListener("message", onMessage);
 
   return () => {
-    window.removeEventListener("message", onMessage);
+    hostWindow.removeEventListener("message", onMessage);
     WebSocketManagerInstance.Unsubscribe(wsSubKey);
     cardApi.destroy();
   };
@@ -282,6 +289,12 @@ export const CardPanel = ({ id, name }) => {
   const iframeRef = React.useRef(null);
   const cleanupRef = React.useRef(null);
   const sandboxUrlRef = React.useRef(null);
+  // The window whose URL/Blob created sandboxUrlRef.current — a blob: URL is only
+  // resolvable from the window that created it. Panels popped out into a separate
+  // OS window (BrowserWindowPortal) portal this component's iframe into a *different*
+  // Window/Document than the one this effect's code runs in, so `window.URL` (the
+  // main app window) would create a URL the popped-out iframe's window can't load.
+  const ownerWindowRef = React.useRef(null);
 
   const ctx = Dockable.useContentContext();
   ctx.setTitle(name);
@@ -394,10 +407,14 @@ export const CardPanel = ({ id, name }) => {
         : iframeHtml + bodyInjection;      // Revoke the previous blob URL before creating a new one (handles
       // the case where load() runs twice before cleanup, e.g. StrictMode).
       if (sandboxUrlRef.current) {
-        URL.revokeObjectURL(sandboxUrlRef.current);
+        ownerWindowRef.current?.URL.revokeObjectURL(sandboxUrlRef.current);
       }
-      sandboxUrlRef.current = URL.createObjectURL(
-        new Blob([iframeHtml], { type: "text/html" })
+      // Create the blob in whichever window actually owns the iframe (see
+      // ownerWindowRef above) rather than this main window's global URL/Blob.
+      const ownerWindow = iframeRef.current.ownerDocument?.defaultView ?? window;
+      ownerWindowRef.current = ownerWindow;
+      sandboxUrlRef.current = ownerWindow.URL.createObjectURL(
+        new ownerWindow.Blob([iframeHtml], { type: "text/html" })
       );
 
       const iframe = iframeRef.current;      // 6. Mount the bridge BEFORE setting src so the message listener is
@@ -421,7 +438,7 @@ export const CardPanel = ({ id, name }) => {
       cleanupRef.current?.();
       cleanupRef.current = null;
       if (sandboxUrlRef.current) {
-        URL.revokeObjectURL(sandboxUrlRef.current);
+        ownerWindowRef.current?.URL.revokeObjectURL(sandboxUrlRef.current);
         sandboxUrlRef.current = null;
       }
     };

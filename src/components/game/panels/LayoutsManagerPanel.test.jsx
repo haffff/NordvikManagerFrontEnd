@@ -123,6 +123,35 @@ describe('LayoutsManagerPanel', () => {
     });
   });
 
+  it('"Force onto other players" is disabled until the layout is shared', async () => {
+    render();
+    await ready();
+
+    const forceButtons = screen.getAllByLabelText('Force onto other players');
+    expect(forceButtons[0]).toBeDisabled(); // row A, not shared
+    expect(forceButtons[1]).toBeDisabled(); // row B, not shared
+
+    fireEvent.click(forceButtons[1]);
+    expect(Transport.Send).not.toHaveBeenCalledWith(
+      expect.objectContaining({ command: 'layout_forcechange' })
+    );
+  });
+
+  it('"Force onto other players" is enabled once the layout is shared, and sends layout_forcechange', async () => {
+    WebHelper.getAsync.mockImplementation((url) =>
+      Promise.resolve(url.includes('layout-B') ? { [EMPTY]: 1 } : {})
+    );
+    render();
+    await ready();
+
+    const forceButtons = screen.getAllByLabelText('Force onto other players');
+    await waitFor(() => expect(forceButtons[1]).not.toBeDisabled());
+    expect(forceButtons[0]).toBeDisabled(); // row A still unshared
+
+    fireEvent.click(forceButtons[1]);
+    expect(Transport.Send).toHaveBeenCalledWith({ command: 'layout_forcechange', data: 'layout-B' });
+  });
+
   it('an incoming layout_update{default:true} moves the default badge', async () => {
     render();
     await ready();

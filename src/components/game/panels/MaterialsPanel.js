@@ -404,7 +404,7 @@ export const MaterialsPanel = ({ state }) => {
                         }}
                         content={
                             <Flex direction="column" alignItems="center" gap="4px" p="2px">
-                                <ResourceImage id={item.id} height="200px" fallbackSrc={undefined} />
+                                <ResourceImage id={item.id} height="200px" fallbackSrc={undefined} thumbnail />
                                 <Text fontSize="12px" fontWeight="medium">{item.name}</Text>
                             </Flex>
                         }
@@ -418,6 +418,7 @@ export const MaterialsPanel = ({ state }) => {
                                 cursor="pointer"
                                 onClick={openPreview}
                                 fallbackSrc={undefined}
+                                thumbnail
                             />
                         </Box>
                     </Tooltip>

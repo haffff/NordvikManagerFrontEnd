@@ -22,7 +22,15 @@ import RequestInputManager from "./RequestInputManager";
 import LayoutAutoSaveManager from "./LayoutAutoSaveManager";
 
 export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
-  const gameState = useGameState(gameID, onExit);
+  // A player who joined via an invite link only ever learns the Central Server's
+  // session id (GameListItem.js's "?game=" link embeds centralSessionId, and
+  // Central's gamelist/join never returns this backend's own Games.Id) — a
+  // different ID space from this backend's own game entity id. Everything below
+  // uses `resolvedGameId`, corrected in place (no remount) once the WebRTC
+  // channel confirms the real value — see the effect further down.
+  const [resolvedGameId, setResolvedGameId] = React.useState(gameID);
+
+  const gameState = useGameState(resolvedGameId, onExit);
   const {
     battleMapContexts,
     portaledPanels,
@@ -34,7 +42,7 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
     isGM,
   } = gameState;
 
-  WebHelper.GameId = gameID;
+  WebHelper.GameId = resolvedGameId;
   // Setting up dockable. when dockable is loading we start websocketManagerInstance
   const state = Dockable.useDockable();
 
@@ -120,6 +128,27 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [WebSocketManagerInstance.WebSocketStarted]); // Only depend on WebSocket status
 
+  // Confirm the real backend game id once connected (see the comment on
+  // `resolvedGameId` above). No-op for the GM, whose gameID prop is already
+  // correct; corrects it for a player who joined via invite link.
+  React.useEffect(() => {
+    if (!WebSocketManagerInstance.WebSocketStarted) return;
+    let cancelled = false;
+
+    WebHelper.getAsync("session/whoami")
+      .then((resp) => {
+        if (cancelled || !resp?.gameId || resp.gameId === resolvedGameId) return;
+        console.warn(
+          `Game: correcting game id from ${resolvedGameId} (likely a Central Server session id) to the real backend id ${resp.gameId}`
+        );
+        setResolvedGameId(resp.gameId);
+      })
+      .catch((error) => console.warn("Game: failed to confirm the real game id", error));
+
+    return () => { cancelled = true; };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [WebSocketManagerInstance.WebSocketStarted]);
+
   if (!WebSocketManagerInstance.WebSocketStarted) {
     WebSocketManagerInstance.Start(
       centralSessionId,
@@ -170,7 +199,7 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
       <RequestInputManager />
       <LayoutAutoSaveManager state={state} battlemapsRef={battleMapContexts} />
       <MainToolbar
-        key={gameID}
+        key={resolvedGameId}
         state={state}
         gameDataManagerRef={gameDataManagerRef}
         battlemapsRef={battleMapContexts}

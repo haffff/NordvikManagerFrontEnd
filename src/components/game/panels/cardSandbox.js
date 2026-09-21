@@ -175,8 +175,22 @@ export const SANDBOX_BRIDGE_SCRIPT = `<script>
   window.CardAPI = CardAPI;
 
   // ── Inbound message handler ───────────────────────────────────────────────
+  // Trust the sender of the first message (guaranteed to be the host bridge —
+  // nothing else can know this blob: URL) rather than comparing against
+  // \`parent\`. For a docked panel those are the same window, but a panel
+  // popped out to a separate OS window (BrowserWindowPortal) physically embeds
+  // this iframe in that window's document — making it this iframe's DOM
+  // \`parent\` — while the host's JS (and thus every postMessage it sends) still
+  // runs in the main app window's realm. \`event.source\` reflects the caller's
+  // realm, not the DOM tree, so it never equals \`parent\` in that case and every
+  // inbound message was silently dropped.
+  let _trustedSource = null;
   window.addEventListener('message', (event) => {
-    if (event.source !== parent) return;
+    if (_trustedSource === null) {
+      _trustedSource = event.source;
+    } else if (event.source !== _trustedSource) {
+      return;
+    }
     const msg = event.data ?? {};
 
     switch (msg.type) {
