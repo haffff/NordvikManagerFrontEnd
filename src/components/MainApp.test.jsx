@@ -51,6 +51,7 @@ async function selectAGame(user) {
 describe('MainApp — handleExit', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    window.history.replaceState({}, '', '/');
     global.fetch = vi.fn((url) => {
       if (String(url).includes('/start')) {
         return Promise.resolve({
@@ -101,5 +102,93 @@ describe('MainApp — handleExit', () => {
     await user.click(screen.getByText('exit-game'));
 
     expect(await screen.findByText('select-game')).toBeInTheDocument();
+  });
+
+  it('removes the ?game= URL param on exit', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<MainApp onAuthRequired={vi.fn()} />);
+
+    await selectAGame(user);
+    expect(new URLSearchParams(window.location.search).get('game')).toBe('game-1');
+
+    await user.click(screen.getByText('exit-game'));
+    await screen.findByText('select-game');
+
+    expect(new URLSearchParams(window.location.search).has('game')).toBe(false);
+  });
+});
+
+// GM build has no equivalent to the player build's URL-param auto-join
+// (?game=<centralSessionId>) until now — this covers the new deep-link
+// behavior: reading the GM backend's own internal Games.Id (a GUID string,
+// NOT Central's centralSessionId — see MainApp.js's own comment) from
+// `?game=`, driving it through the exact same handleGameSelected flow a
+// manual GameList click already uses, and keeping the URL in sync so a
+// plain reload re-enters the same game.
+describe('MainApp — GM auto-join from ?game= URL param', () => {
+  const GAME_ID = 'aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee';
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    window.history.replaceState({}, '', '/');
+    global.fetch = vi.fn((url) => {
+      if (String(url).includes('/start')) {
+        return Promise.resolve({
+          ok: true,
+          status: 200,
+          json: () => Promise.resolve({ centralSessionId: 'central-1', centralAccessToken: 'token' }),
+        });
+      }
+      return Promise.resolve({ ok: true, status: 200 });
+    });
+  });
+
+  it('renders GameList as before when no ?game= param is present', () => {
+    renderWithProviders(<MainApp onAuthRequired={vi.fn()} />);
+    expect(screen.getByText('select-game')).toBeInTheDocument();
+    expect(global.fetch).not.toHaveBeenCalled();
+  });
+
+  it('auto-joins exactly once when ?game= is present at mount, and writes it back to the URL', async () => {
+    window.history.replaceState({}, '', `/?game=${GAME_ID}`);
+    renderWithProviders(<MainApp onAuthRequired={vi.fn()} />);
+
+    await screen.findByText('exit-game');
+
+    expect(global.fetch).toHaveBeenCalledTimes(1);
+    expect(global.fetch).toHaveBeenCalledWith(
+      expect.stringContaining(`/session/${GAME_ID}/start`),
+      expect.objectContaining({ method: 'POST' })
+    );
+    expect(new URLSearchParams(window.location.search).get('game')).toBe(GAME_ID);
+  });
+
+  it('strips ?game= on a 404 (bad/stale id) so a reload does not retry it', async () => {
+    window.history.replaceState({}, '', `/?game=${GAME_ID}`);
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 404 });
+
+    renderWithProviders(<MainApp onAuthRequired={vi.fn()} />);
+
+    expect(await screen.findByText(/Failed to start session/i)).toBeInTheDocument();
+    expect(new URLSearchParams(window.location.search).has('game')).toBe(false);
+  });
+
+  it('does NOT strip ?game= on a 500/transient failure so a reload can retry', async () => {
+    window.history.replaceState({}, '', `/?game=${GAME_ID}`);
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500 });
+
+    renderWithProviders(<MainApp onAuthRequired={vi.fn()} />);
+
+    expect(await screen.findByText(/Failed to start session/i)).toBeInTheDocument();
+    expect(new URLSearchParams(window.location.search).get('game')).toBe(GAME_ID);
+  });
+
+  it('a manual GameList selection (no auto-join) still syncs ?game= into the URL', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<MainApp onAuthRequired={vi.fn()} />);
+
+    await selectAGame(user);
+
+    expect(new URLSearchParams(window.location.search).get('game')).toBe('game-1');
   });
 });
