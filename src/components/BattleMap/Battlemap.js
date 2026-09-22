@@ -19,6 +19,7 @@ import createHandleDrop from './Handlers/HandleDrop';
 import BasePanel from "../uiComponents/base/BasePanel";
 import { _entityPermissionSetter } from "../../contexts/PermissionsContext";
 import { ENTITY_TYPES, PERM } from "./Helpers/permissionBits";
+import UtilityHelper from "../../helpers/UtilityHelper";
 
 const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
   // Performance monitor: track renders for this component
@@ -141,7 +142,10 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
           const mapPerms = await WebHelper.getAsync(
             `security/permissions?entityId=${mapId}&entityType=${ENTITY_TYPES.MAP}`
           );
-          const bits = mapPerms?.[currentPlayer.id] ?? PERM.NONE;
+          // Fall back to the "everyone" (Guid.Empty) row when this player has no
+          // explicit grant of their own — a map shared with all players otherwise
+          // never actually resolves for anyone but its owner.
+          const bits = mapPerms?.[currentPlayer.id] ?? mapPerms?.[UtilityHelper.EmptyGuid] ?? PERM.NONE;
           _entityPermissionSetter.current?.(ENTITY_TYPES.MAP, mapId, bits);
         }
       }

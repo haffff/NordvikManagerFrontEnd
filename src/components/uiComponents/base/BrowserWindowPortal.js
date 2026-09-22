@@ -8,7 +8,12 @@ import * as Dockable from '@hlorenzi/react-dockable';
 // (e.g. Battlemap) can size themselves correctly.
 const NOOP = () => {};
 
-function makeContentContext(w, h, contentId) {
+// `win` is the popped-out OS window (React state, may still be null on the very
+// first render before window.open() resolves). setTitle updates its actual
+// document.title live — panels like CardPanel call ctx.setTitle() on every
+// render, so leaving this a no-op froze the title at whatever the *first*
+// pop-out click captured, with no way to correct or update it afterward.
+function makeContentContext(w, h, contentId, win) {
     return {
         layoutContent: {
             panel: { floating: true },
@@ -16,7 +21,11 @@ function makeContentContext(w, h, contentId) {
             tabIndex: 0,
             content: contentId ? { contentId } : null,
         },
-        setTitle: NOOP,
+        setTitle: (title) => {
+            if (title && win && !win.closed) {
+                win.document.title = title;
+            }
+        },
         setPreferredSize: NOOP,
     };
 }
@@ -54,10 +63,12 @@ export const BrowserWindowPortal = ({ children, title = 'Panel', contentId, onCl
         }
 
         // Write a minimal HTML skeleton so the document is ready to accept portals.
-        newWin.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title></title></head><body style="margin:0;padding:0;width:100vw;height:100vh;overflow:hidden;background:#1e1e1e;"></body></html>`);
+        // Title is left empty here and set via the `.title` property right after
+        // (not interpolated into this markup), so a title containing `<`/`&` is
+        // always treated as plain text rather than parsed as HTML.
+        newWin.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title></title></head><body style="margin:0;padding:0;width:100vw;height:100vh;overflow:hidden;background:#1e1e1e;"></body></html>`);
         newWin.document.close();
-        newWin.document.title = title;
-
+        newWin.document.title = title;
 
         // ── Copy <html> element attributes (Chakra theme, color-mode class) ───────
         const syncHtmlAttrs = () => {
@@ -166,7 +177,9 @@ export const BrowserWindowPortal = ({ children, title = 'Panel', contentId, onCl
         return () => windowRef.removeEventListener('resize', handleResize);
     }, [windowRef]);
 
-    // Update window title when prop changes
+    // Update window title when the `title` prop changes (e.g. the panel owner
+    // renames it) — separate from ctx.setTitle() above, which lets content
+    // *inside* the portal (e.g. CardPanel) update the title on its own.
     React.useEffect(() => {
         if (windowRef && !windowRef.closed) {
             windowRef.document.title = title;
@@ -176,7 +189,7 @@ export const BrowserWindowPortal = ({ children, title = 'Panel', contentId, onCl
     if (!mountNode) return null;
 
     return ReactDOM.createPortal(
-        React.createElement(Dockable.ContentContext.Provider, { value: makeContentContext(winSize.w, winSize.h, contentId) },
+        React.createElement(Dockable.ContentContext.Provider, { value: makeContentContext(winSize.w, winSize.h, contentId, windowRef) },
             React.createElement('div', {
                 style: { width: '100vw', height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }
             }, children)

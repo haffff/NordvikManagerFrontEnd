@@ -46,6 +46,12 @@ export const MapSettingsPanel = ({ map }) => {
       toolTip: "Toggle the visibility of the grid overlay on the map.",
       type: "boolean",
     },
+    {
+      key: "gridColor",
+      label: "Grid Color",
+      toolTip: "Color of the grid lines overlaid on the map.",
+      type: "color",
+    },
 
     {
       key: "useCustomUnits",

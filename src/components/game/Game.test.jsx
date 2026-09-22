@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../setupTests';
 
 vi.mock('../../helpers/transport', () => ({
-  ActiveWebHelper: { GameId: undefined },
+  ActiveWebHelper: { GameId: undefined, getAsync: vi.fn(() => Promise.resolve(undefined)) },
   ActiveTransportManager: {
     WebSocketStarted: true,
     Start: vi.fn(),

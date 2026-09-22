@@ -5,6 +5,7 @@ import ClientMediator from "../../../ClientMediator";
 import LoadBMSubscriptions from "../Loaders/LoadBMSubscriptions";
 import DTOConverter from "../DTOConverter";
 import GridHelper from '../Helpers/GridHelper';
+import { syncControlsVisibility } from "../Helpers/TokenControlsHelper";
 import { fabric } from "fabric";
 import { RESERVED_LAYERS, compareLayers } from "../Constants/layers";
 
@@ -124,6 +125,14 @@ export default function createLoadCanvas(deps) {
           tokenUiElements: this.tokenUiElements,
           tokenData: this.tokenData,
           isTokenUi: this.isTokenUi,
+          // Not in fabric's own default whitelist — without these, isToken/cardId
+          // survive only in-memory for the client that created the token. After a
+          // send-to-server round trip or a page reload, the reconstructed object
+          // loses them, so anything checking the live object (rather than going
+          // through the separate Properties system, e.g. TokenManager.IsToken)
+          // silently stops recognising it as a token.
+          isToken: this.isToken,
+          cardId: this.cardId,
           parentId: this.parentId,
           originalLeft: this.originalLeft,
           originalTop: this.originalTop,
@@ -189,6 +198,10 @@ export default function createLoadCanvas(deps) {
               if (isToken) {
                 BattleMapServices.TokenManager.CanvasObjectLoadToken({ id: obj.id });
               }
+              // A token saved with scale/rotate locked must come back with its
+              // handles hidden too — otherwise they only disappear after the next
+              // toggle, not on the initial load that restored the lock state.
+              syncControlsVisibility(obj);
               editor.canvas.requestRenderAll();
               return true;
             })

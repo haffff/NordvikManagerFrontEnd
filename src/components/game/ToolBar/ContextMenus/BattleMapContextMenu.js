@@ -11,6 +11,7 @@ import {
   FaEye,
   FaLayerGroup,
   FaLock,
+  FaLockOpen,
   FaMap,
   FaObjectUngroup,
   FaPaste,
@@ -36,6 +37,7 @@ import { usePermissions } from "../../../../contexts/PermissionsContext";
 import { Tooltip } from "../../../ui/tooltip";
 import { RESERVED_LAYERS } from "../../../BattleMap/Constants/layers";
 import { useCustomLayers } from "../../../uiComponents/hooks/useCustomLayers";
+import { syncControlsVisibility } from "../../../BattleMap/Helpers/TokenControlsHelper";
 
 export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) => {
   const selectedObjects = canvas?.getActiveObjects() || [];
@@ -122,6 +124,34 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
   const CopyElements = () => {
     return ClientMediator.sendCommand("BattleMap", "CopyElements", {
       contextId: battleMapId,
+    });
+  };
+
+  // Tokens can opt out of scaling/rotating via their own corner/rotate handles —
+  // fabric.js respects these flags natively, so this is just a toggle + a
+  // minified sync, no server-side changes needed.
+  const isTokenControlsLocked = (obj) =>
+    !!(obj?.lockScalingX || obj?.lockScalingY || obj?.lockRotation);
+
+  const ToggleTokenControlsLock = () => {
+    const obj = selectedObjects[0];
+    if (!obj) return;
+    const locked = !isTokenControlsLocked(obj);
+    obj.set({
+      lockScalingX: locked,
+      lockScalingY: locked,
+      lockRotation: locked,
+    });
+    syncControlsVisibility(obj);
+    canvas.requestRenderAll();
+    const dto = DTOConverter.ConvertToDTOMinified(obj, [
+      "lockScalingX",
+      "lockScalingY",
+      "lockRotation",
+    ]);
+    WebSocketManagerInstance.Send({
+      command: "element_update",
+      data: dto,
     });
   };
 
@@ -249,48 +279,64 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
               icon={FaPaste}
               onClick={PasteElements}
             />
-            <DropDownMenu submenu={true} width={width} name={"More Actions"}>
-              <DropDownItem
-                width={width}
-                name={"Ungroup"}
-                onClick={() => SwitchLayer(RESERVED_LAYERS.MAP)}
-                icon={FaObjectUngroup}
-              />
-              <DropDownItem
-                width={width}
-                name={"Move Up"}
-                onClick={() => MoveUp()}
-                icon={FaArrowAltCircleUp}
-              />
-              <DropDownItem
-                width={width}
-                name={"Move Down"}
-                onClick={() => MoveDown()}
-                icon={FaArrowAltCircleDown}
-              />
-            </DropDownMenu>
-            <DropDownMenu
-              submenu={true}
-              width={width}
-              name={"Move to layer"}
-              icon={FaLayerGroup}
-            >
-              {layers.filter((l) => l.kind !== "reserved-grid").map((l) => (
+            {canEditMap && (
+              <DropDownMenu submenu={true} width={width} name={"More Actions"}>
                 <DropDownItem
-                  key={l.key}
                   width={width}
-                  name={l.name}
-                  onClick={() => SwitchLayer(l.layerId)}
-                  icon={l.kind === "reserved-token" ? FaChess : l.kind === "reserved-map" ? FaMap : FaLayerGroup}
+                  name={"Ungroup"}
+                  onClick={() => SwitchLayer(RESERVED_LAYERS.MAP)}
+                  icon={FaObjectUngroup}
                 />
-              ))}
-            </DropDownMenu>
+                <DropDownItem
+                  width={width}
+                  name={"Move Up"}
+                  onClick={() => MoveUp()}
+                  icon={FaArrowAltCircleUp}
+                />
+                <DropDownItem
+                  width={width}
+                  name={"Move Down"}
+                  onClick={() => MoveDown()}
+                  icon={FaArrowAltCircleDown}
+                />
+              </DropDownMenu>
+            )}
+            {canEditMap && (
+              <DropDownMenu
+                submenu={true}
+                width={width}
+                name={"Move to layer"}
+                icon={FaLayerGroup}
+              >
+                {layers.filter((l) => l.kind !== "reserved-grid").map((l) => (
+                  <DropDownItem
+                    key={l.key}
+                    width={width}
+                    name={l.name}
+                    onClick={() => SwitchLayer(l.layerId)}
+                    icon={l.kind === "reserved-token" ? FaChess : l.kind === "reserved-map" ? FaMap : FaLayerGroup}
+                  />
+                ))}
+              </DropDownMenu>
+            )}
             <DropDownItem
               width={width}
               name={"Properties"}
               onClick={HandleSpawnProperties}
               icon={FaWrench}
             />
+            {selectedObjects[0]?.isToken && (
+              <DropDownItem
+                width={width}
+                name={
+                  isTokenControlsLocked(selectedObjects[0])
+                    ? "Unlock Scale/Rotate"
+                    : "Lock Scale/Rotate"
+                }
+                onClick={ToggleTokenControlsLock}
+                icon={isTokenControlsLocked(selectedObjects[0]) ? FaLock : FaLockOpen}
+              />
+            )}
             <DropDownMenu
               submenu={true}
               width={width}
@@ -327,19 +373,23 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
           </>
         ) : (
           <>
-            <DropDownMenu
-              viewId={"battlemap_add"}
-              submenu={true}
-              width={width}
-              name={"Add"}
-              icon={<FaPlus/>}
-            ></DropDownMenu>
-            <DropDownItem
-              width={width}
-              name={"Paste"}
-              icon={<FaPaste/>}
-              onClick={() => PasteElements()}
-            />
+            {canEditMap && (
+              <DropDownMenu
+                viewId={"battlemap_add"}
+                submenu={true}
+                width={width}
+                name={"Add"}
+                icon={<FaPlus/>}
+              ></DropDownMenu>
+            )}
+            {canEditMap && (
+              <DropDownItem
+                width={width}
+                name={"Paste"}
+                icon={<FaPaste/>}
+                onClick={() => PasteElements()}
+              />
+            )}
             <DropDownMenu
               submenu={true}
               width={width}

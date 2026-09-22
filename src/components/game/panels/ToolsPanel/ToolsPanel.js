@@ -33,6 +33,8 @@ import { MeasureConeOptions } from "./MeasureConeOptions";
 import { Box, For, Separator } from "@chakra-ui/react";
 import { DWrapItem } from "../../../uiComponents/base/DWrapItem";
 import { useCustomLayers } from "../../../uiComponents/hooks/useCustomLayers";
+import { usePermissions } from "../../../../contexts/PermissionsContext";
+import { PERM, ENTITY_TYPES } from "../../../BattleMap/Helpers/permissionBits";
 
 export const ToolsPanel = ({ battleMapId }) => {
   const panelRef = React.useRef(null);
@@ -45,6 +47,12 @@ export const ToolsPanel = ({ battleMapId }) => {
   const [playerColor, setPlayerColor] = React.useState("rgba(0,0,0,1)");
   const gameId = React.useMemo(() => ClientMediator.sendCommand("Game", "GetGameId"), []);
   const { layers } = useCustomLayers(gameId);
+
+  // Layer switching and simple-shape creation both edit the map's own element
+  // tree — hide them for a player who can only see (not edit) the current map.
+  const { hasEntityPermission } = usePermissions();
+  const currentMap = ClientMediator.sendCommand("BattleMap", "GetSelectedMap", { contextId: _battleMapId });
+  const canEditMap = hasEntityPermission(ENTITY_TYPES.MAP, currentMap?.id, PERM.EDIT);
 
   const registrationIdRef = React.useRef(null);
 
@@ -65,45 +73,54 @@ export const ToolsPanel = ({ battleMapId }) => {
       selected: drag,
       enabled: !mode || mode === "_",
     },
-    { type: "label", name: "Layer" },
-    // Grid is never a placeable layer (no button for it) — everything else,
-    // reserved or custom, renders in correct top-to-bottom stacking order.
-    ...layers.filter((l) => l.kind !== "reserved-grid").map((l) => ({
-      type: "option",
-      icon: l.kind === "reserved-token" ? <FaChess /> : l.kind === "reserved-map" ? <FaMap /> : <FaLayerGroup />,
-      name: l.name,
-      onClick: () => handleLayer(l.layerId, l.kind === "reserved-map"),
-      selected: layer === l.layerId,
-    })),
-    { type: "label", name: "Draw" },
-    {
-      type: "option",
-      icon: <FaSquare />,
-      name: "Rectangle",
-      onClick: () => handleRect(),
-      selected: mode === "SimpleCreate_Rectangle",
-    },
-    {
-      type: "option",
-      icon: <FaCircle />,
-      name: "Circle",
-      onClick: () => handleCircle(),
-      selected: mode === "SimpleCreate_Circle",
-    },
-    {
-      type: "option",
-      icon: <MdTextFields />,
-      name: "Text",
-      onClick: () => handleText(),
-      selected: mode === "SimpleCreate_Text",
-    },
-    {
-      type: "option",
-      icon: <FaPaintBrush />,
-      name: "Paint",
-      onClick: () => handleFreeDraw(),
-      selected: mode === "Draw_undefined",
-    },
+    // Layer switching and simple-shape creation both edit the map's element
+    // tree, so both are hidden entirely (not just disabled) for a player who
+    // can only see the current map, not edit it.
+    ...(canEditMap ? [
+      { type: "label", name: "Layer" },
+      // Grid is never a placeable layer (no button for it) — everything else,
+      // reserved or custom, renders in correct top-to-bottom stacking order.
+      ...layers.filter((l) => l.kind !== "reserved-grid").map((l) => ({
+        type: "option",
+        icon: l.kind === "reserved-token" ? <FaChess /> : l.kind === "reserved-map" ? <FaMap /> : <FaLayerGroup />,
+        name: l.name,
+        onClick: () => handleLayer(l.layerId, l.kind === "reserved-map"),
+        selected: layer === l.layerId,
+      })),
+    ] : []),
+    // Freehand drawing edits the map's element tree the same as the shape
+    // tools above, so it's gated (and hidden, label included) the same way.
+    ...(canEditMap ? [
+      { type: "label", name: "Draw" },
+      {
+        type: "option",
+        icon: <FaSquare />,
+        name: "Rectangle",
+        onClick: () => handleRect(),
+        selected: mode === "SimpleCreate_Rectangle",
+      },
+      {
+        type: "option",
+        icon: <FaCircle />,
+        name: "Circle",
+        onClick: () => handleCircle(),
+        selected: mode === "SimpleCreate_Circle",
+      },
+      {
+        type: "option",
+        icon: <MdTextFields />,
+        name: "Text",
+        onClick: () => handleText(),
+        selected: mode === "SimpleCreate_Text",
+      },
+      {
+        type: "option",
+        icon: <FaPaintBrush />,
+        name: "Paint",
+        onClick: () => handleFreeDraw(),
+        selected: mode === "Draw_undefined",
+      },
+    ] : []),
     { type: "label", name: "Measure" },
     {
       type: "option",
@@ -342,6 +359,20 @@ export const ToolsPanel = ({ battleMapId }) => {
           return;
         }
 
+        if (event === "BattleMapsChanged") {
+          // data is the full {contextId: context} dictionary, not a single
+          // battlemap's own event payload — the generic `data.battleMapId`
+          // guard below doesn't apply here. If this panel's own battlemap
+          // context is the one that just got removed (closed), it no longer
+          // has an active battlemap: fall back to undefined so every tool
+          // disables (see resolveEnabled) instead of staying bound to a
+          // context that no longer exists.
+          if (_battleMapId && !data[_battleMapId]) {
+            set_battleMapId(undefined);
+          }
+          return;
+        }
+
         if (
           data.battleMapId === undefined ||
           data.battleMapId !== _battleMapId
@@ -363,9 +394,6 @@ export const ToolsPanel = ({ battleMapId }) => {
         }
         if (event === "BattleMap_AlignChanged") {
           setAlign(data.align);
-        }
-        if (event === "BattleMapsChanged") {
-          set_battleMapId(data.battleMapId);
         }
       },
     });

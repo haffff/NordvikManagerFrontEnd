@@ -229,7 +229,10 @@ export const LayoutsManagerPanel = ({ state, battlemapsRef }) => {
                 <DListItemButton label="Overwrite with current arrangement" icon={FaSave}
                   onClick={() => overwriteWithCurrent(x)} />
                 <DListItemButton label="Force onto other players" icon={FaUserFriends}
+                  disabled={!shared[x.id]}
+                  disabledTooltip="Share this layout with all players first — forcing an unshared layout leaves them unable to load it"
                   onClick={() => {
+                    if (!shared[x.id]) return;
                     WebSocketManagerInstance.Send(CommandFactory.CreateLayoutForceCommand(x.id));
                     toaster.create({ title: "Layout forced onto players", type: "success", duration: 3000 });
                   }} />

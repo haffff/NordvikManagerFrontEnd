@@ -196,9 +196,13 @@ class WebRTCWebHelper {
   // Fetch a material via the data channel. The backend returns
   // { data: base64, mimeType: string }; convert to Blob or text to match
   // what callers of WebHelper.getMaterialAsync expect.
-  async getMaterialAsync(id, mimeType, key) {
+  // `thumbnail` requests a small server-generated/cached resize instead of the
+  // original file — used for previews so a folder of full-res images doesn't
+  // pull every original down just to show a 36px icon.
+  async getMaterialAsync(id, mimeType, key, thumbnail = false) {
     const queryParam = id ? `id=${id}` : `key=${key}`;
-    const result = await this._sendRequest('GET', `materials/resource?${queryParam}`);
+    const thumbParam = thumbnail ? '&thumbnail=true' : '';
+    const result = await this._sendRequest('GET', `materials/resource?${queryParam}${thumbParam}`);
     if (result?.status !== 200 || !result?.body?.data) {
       console.warn(`[WebRTCWebHelper] getMaterialAsync failed for id=${id} key=${key}: status=${result?.status}`, result?.body);
       return undefined;
@@ -209,13 +213,15 @@ class WebRTCWebHelper {
 
   // Fetch a resource as a Blob, with session-level in-memory caching.
   // Used by the fabric.js image loading override so repeated canvas loads
-  // don't re-fetch the same image over the data channel.
-  async getResourceBlobAsync(id, key) {
-    const cacheKey = id || key;
+  // don't re-fetch the same image over the data channel. Thumbnails are cached
+  // under their own key so a full-res fetch and a thumbnail fetch of the same
+  // resource never shadow each other.
+  async getResourceBlobAsync(id, key, thumbnail = false) {
+    const cacheKey = (thumbnail ? 'thumb:' : '') + (id || key);
     if (this._resourceCache.has(cacheKey)) {
       return this._resourceCache.get(cacheKey);
     }
-    const blob = await this.getMaterialAsync(id, null, key);
+    const blob = await this.getMaterialAsync(id, null, key, thumbnail);
     if (blob instanceof Blob) this._resourceCache.set(cacheKey, blob);
     return blob;
   }

@@ -58,10 +58,17 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
     const SetLayout = async (idOrObj) => {
       const id = idOrObj?.id ?? idOrObj;
       const fetched = await WebHelper.getAsync(`battlemap/GetLayout?id=${id}`);
+      if (!fetched?.value) {
+        // Missing/no-permission layout (e.g. GetLayout denied access) — bail out
+        // without touching rootPanel, so the dockable Container keeps rendering
+        // whatever layout is already active instead of crashing on the next render.
+        console.error(`SetLayout: layout ${id} could not be loaded (missing or no permission)`);
+        return;
+      }
       state.ref.current.rootPanel = undefined;
       LayoutHelper.LoadLayoutState(state, fetched.value, CreateLayoutElement);
       setLayout(fetched);
-    };    
+    };
     
     const gameApi = {
       id: 'Game',
@@ -212,6 +219,12 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
         const next = { ...current };
         delete next[id];
         setBattleMapContexts(next);
+        // GetActiveBattleMapId caches this id and returns it unconditionally —
+        // if the closed context was the selected one, clear the cache too, or
+        // every future call keeps handing back a battlemap that no longer exists.
+        if (id === selectedBattleMapId) {
+          setSelectedBattleMapId(undefined);
+        }
         ClientMediator.fireEvent('BattleMapsChanged', next);
       },
 
