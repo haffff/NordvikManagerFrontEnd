@@ -1,7 +1,6 @@
 import * as React from "react";
 import {
   Flex,
-  Icon,
   Input,
   Image,
   Table,
@@ -9,10 +8,9 @@ import {
   createListCollection,
   For,
 } from "@chakra-ui/react";
-import { FaInfoCircle } from "react-icons/fa";
-import { Tooltip } from "../../ui/tooltip";
 import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
+import { HelpIcon } from "../../uiComponents/base/HelpIcon";
 import DButtonHorizontalContainer from "../../uiComponents/base/Containers/DButtonHorizontalContainer";
 import DropDownButton from "../../uiComponents/base/DDItems/DropDrownButton";
 import { NumberInputRoot, NumberInputField } from "../../ui/number-input";
@@ -27,17 +25,12 @@ import {
 import { Switch } from "../../ui/switch";
 
 // ── LabelCell — field name + optional description tooltip ────────────────────
-const LabelCell = ({ label, description }) => (
+const LabelCell = ({ label, description, docUrl }) => (
   <Table.Cell>
     <Flex align="center" gap="5px">
       {label}
       {description && description !== label && (
-        <Tooltip content={description} positioning={{ placement: "top" }} openDelay={200}>
-          <Flex as="span" align="center" cursor="help" color="gray.500"
-            _hover={{ color: "blue.300" }} display="inline-flex">
-            <Icon as={FaInfoCircle} boxSize="11px" />
-          </Flex>
-        </Tooltip>
+        <HelpIcon text={description} docUrl={docUrl} />
       )}
     </Flex>
   </Table.Cell>
@@ -122,7 +115,7 @@ export const EditTable = ({
       switch (editable.type) {        case "string":
           element.value = (
             <Table.Row key={keyBase + editable.key}>
-              <LabelCell label={editable.label} description={editable.toolTip} />
+              <LabelCell label={editable.label} description={editable.toolTip} docUrl={editable.docUrl} />
               <Table.Cell>
                 <Input
                   isInvalid={validationDict[key]}
@@ -136,7 +129,7 @@ export const EditTable = ({
           break;        case "textarea":
           element.value = (
             <Table.Row key={keyBase + editable.key}>
-              <LabelCell label={editable.label} description={editable.toolTip} />
+              <LabelCell label={editable.label} description={editable.toolTip} docUrl={editable.docUrl} />
               <Table.Cell>
                 <Textarea
                   size="xs"
@@ -154,7 +147,7 @@ export const EditTable = ({
           const collection = createListCollection({ items: editable.options });
           element.value = (
             <Table.Row key={keyBase + editable.key}>
-              <LabelCell label={editable.label} description={editable.toolTip} />
+              <LabelCell label={editable.label} description={editable.toolTip} docUrl={editable.docUrl} />
               <Table.Cell>
                 <SelectRoot
                   collection={collection}
@@ -194,7 +187,7 @@ export const EditTable = ({
           const options = Array.isArray(editable.options) ? editable.options : [];
           element.value = (
             <Table.Row key={keyBase + editable.key}>
-              <LabelCell label={editable.label} description={editable.toolTip} />
+              <LabelCell label={editable.label} description={editable.toolTip} docUrl={editable.docUrl} />
               <Table.Cell>
                 <Input
                   isInvalid={validationDict[key]}
@@ -232,6 +225,7 @@ export const EditTable = ({
               <LabelCell
                 label={`${editable.label}${infoAboutMinimumMaximum}`}
                 description={editable.toolTip}
+                docUrl={editable.docUrl}
               />
               <Table.Cell>
                 <NumberInputRoot
@@ -252,7 +246,7 @@ export const EditTable = ({
           break;        case "boolean":
           element.value = (
             <Table.Row key={keyBase + editable.key}>
-              <LabelCell label={editable.label} description={editable.toolTip} />
+              <LabelCell label={editable.label} description={editable.toolTip} docUrl={editable.docUrl} />
               <Table.Cell>
                 <Switch
                   checked={dto[key]}
@@ -266,7 +260,7 @@ export const EditTable = ({
           break;        case "color":
           element.value = (
             <Table.Row key={keyBase + editable.key}>
-              <LabelCell label={editable.label} description={editable.toolTip} />
+              <LabelCell label={editable.label} description={editable.toolTip} docUrl={editable.docUrl} />
               <Table.Cell>
                 <DColorPicker
                   isDisabled={editable.disableOn && editable.disableOn(dto)}
@@ -280,7 +274,7 @@ export const EditTable = ({
           break;        case "image":
           element.value = (
             <Table.Row key={keyBase + editable.key}>
-              <LabelCell label={`${editable.label} (You can drag & drop)`} description={editable.toolTip} />
+              <LabelCell label={`${editable.label} (You can drag & drop)`} description={editable.toolTip} docUrl={editable.docUrl} />
               <Table.Cell onDrop={(e) => HandleDrop(e, key)}>
                 <Image src={dto[key]} boxSize="300px" objectFit={"contain"} />
                 {updatedDto[key] ? (

@@ -1,10 +1,11 @@
-import { Flex } from '@chakra-ui/react';
+import { Flex, Heading } from '@chakra-ui/react';
 import * as React from 'react';
 import { MdOpenWith } from 'react-icons/md';
 import '../../../stylesheets/panel.css';
 import DockableHelper from '../../../helpers/DockableHelper';
 import * as Dockable from "@hlorenzi/react-dockable";
 import { useDragOptimization } from './DragOptimizationContext';
+import { HelpIcon } from './HelpIcon';
 
 // ── Drag overlay ──────────────────────────────────────────────────────────────
 // Consumes the drag context and renders the overlay + visibility wrapper.
@@ -50,7 +51,13 @@ const DragOverlay = React.memo(({ children, currentPanel }) => {
 // ── Base panel ────────────────────────────────────────────────────────────────
 
 const BasePanelComponent = (props) => {
-    const { children, baseRef, ...rest } = props;
+    // title/helpText/docUrl are opt-in panel-level help — pulled out explicitly
+    // so they never leak into `...rest` (title would otherwise collide with
+    // the native HTML `title` attribute, producing a plain browser tooltip on
+    // the whole panel instead of nothing; helpText/docUrl aren't valid DOM
+    // props at all). Omitting `title` renders no header row — every existing
+    // panel is unaffected.
+    const { children, baseRef, title, helpText, docUrl, ...rest } = props;
 
     const ctx = Dockable.useContentContext();
     const currentPanel = ctx?.layoutContent?.panel;
@@ -58,6 +65,12 @@ const BasePanelComponent = (props) => {
     return (
         <Flex ref={baseRef} {...rest} className='nm_basePanel' position="relative">
             <DragOverlay currentPanel={currentPanel}>
+                {title && (
+                    <Flex align="center" gap="6px" padding="6px 8px" flexShrink={0}>
+                        <Heading size="xs">{title}</Heading>
+                        <HelpIcon text={helpText} docUrl={docUrl} />
+                    </Flex>
+                )}
                 {children}
             </DragOverlay>
         </Flex>
