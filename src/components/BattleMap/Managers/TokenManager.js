@@ -563,8 +563,19 @@ class TokenManager {
     // can intercept it and fetch via WebRTC.  A raw UUID (no slashes) needs to be
     // converted, and fabric.Image needs setSrc() — not just set() — to actually
     // reload the displayed image.
+    //
+    // Bug fix: a card's "tokenImage" property can exist as an empty string rather
+    // than being entirely absent (e.g. the CardSettingsPanel field was touched and
+    // saved blank) — `raw === undefined` above doesn't catch that, so this used to
+    // reach here with value === "", _toResourceUrl("") returning "" unchanged, and
+    // setSrc("") wiping out the element entirely. That blanked a token's image
+    // moments after _createTokenAsync/ConvertFromDTO had correctly rendered the
+    // emptyTokenImage placeholder, since this dep re-applies right after a token
+    // is added to canvas (OnAddElementBehavior → CanvasObjectLoadToken →
+    // UpdateTokenBasedOnProperties). Falling back here too keeps this path
+    // consistent with those two.
     if (objectProperty === "src") {
-      const url = _toResourceUrl(value);
+      const url = _toResourceUrl(value || SYSTEM_ASSET_KEYS.EMPTY_TOKEN_IMAGE);
       targetElement.set("src", url);
       if (typeof targetElement.setSrc === "function") {
         targetElement.setSrc(url, () => {});
