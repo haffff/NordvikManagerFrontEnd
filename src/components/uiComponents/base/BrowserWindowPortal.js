@@ -63,8 +63,12 @@ export const BrowserWindowPortal = ({ children, title = 'Panel', contentId, onCl
         }
 
         // Write a minimal HTML skeleton so the document is ready to accept portals.
-        newWin.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title>${title}</title></head><body style="margin:0;padding:0;width:100vw;height:100vh;overflow:hidden;background:#1e1e1e;"></body></html>`);
+        // Title is left empty here and set via the `.title` property right after
+        // (not interpolated into this markup), so a title containing `<`/`&` is
+        // always treated as plain text rather than parsed as HTML.
+        newWin.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title></title></head><body style="margin:0;padding:0;width:100vw;height:100vh;overflow:hidden;background:#1e1e1e;"></body></html>`);
         newWin.document.close();
+        newWin.document.title = title;
 
         // ── Copy <html> element attributes (Chakra theme, color-mode class) ───────
         const syncHtmlAttrs = () => {
@@ -172,6 +176,15 @@ export const BrowserWindowPortal = ({ children, title = 'Panel', contentId, onCl
         windowRef.addEventListener('resize', handleResize);
         return () => windowRef.removeEventListener('resize', handleResize);
     }, [windowRef]);
+
+    // Update window title when the `title` prop changes (e.g. the panel owner
+    // renames it) — separate from ctx.setTitle() above, which lets content
+    // *inside* the portal (e.g. CardPanel) update the title on its own.
+    React.useEffect(() => {
+        if (windowRef && !windowRef.closed) {
+            windowRef.document.title = title;
+        }
+    }, [title, windowRef]);
 
     if (!mountNode) return null;
 
