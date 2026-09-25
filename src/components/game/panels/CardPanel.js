@@ -233,6 +233,11 @@ function mountBridge(iframe, cardApi, cardId, additionalArguments) {
           }
           }
 
+        } else if (panel === "Rolls") {
+          if (command === "Start") result = await cardApi.Rolls.Start(data?.formulas);
+          else if (command === "Finish") result = await cardApi.Rolls.Finish(data);
+          else throw new Error(`Unknown Rolls method: ${command}`);
+
         } else if (panel === "Resources") {
           const resourceTarget = data?.global ? cardApi.Resources.Global : cardApi.Resources;
           const method = resourceTarget[command];
@@ -375,11 +380,15 @@ export const CardPanel = ({ id, name }) => {
 
       
       // Build <link rel="stylesheet"> tags for CSS using data URIs.
+      // Resource bytes are UTF-8, so every data: URI declares charset=utf-8 —
+      // without it the browser decodes with the page's fallback encoding (e.g.
+      // windows-1250 on a Polish system) and every non-ASCII character in an
+      // addon's CSS/JS turns into mojibake.
       // Using data URIs avoids any HTTP request from the null-origin iframe AND
       // avoids the </style> injection risk when CSS is decoded and inlined.
       const cssStyles = additionalMetas
         .filter((m) => m.mimeType === "text/css" && m.data)
-        .map((m) => `<link rel="stylesheet" href="data:text/css;base64,${m.data}">`)
+        .map((m) => `<link rel="stylesheet" href="data:text/css;charset=utf-8;base64,${m.data}">`)
         .join("\n");
 
       // Build <script src="data:..."> tags for JS using data URIs.
@@ -390,7 +399,7 @@ export const CardPanel = ({ id, name }) => {
       // (A-Za-z0-9+/=) can never form </script>, so the HTML parser is always safe.
       const jsScripts = additionalMetas
         .filter((m) => (m.mimeType === "text/javascript" || m.mimeType === "application/javascript") && m.data)
-        .map((m) => `<script src="data:text/javascript;base64,${m.data}"></script>`)
+        .map((m) => `<script src="data:text/javascript;charset=utf-8;base64,${m.data}"></script>`)
         .join("\n");
 
       // Inject inline CSS into <head>

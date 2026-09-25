@@ -73,6 +73,11 @@ export const SANDBOX_BRIDGE_SCRIPT = `<script>
       Init:     (name, val) => _rpc('Properties', 'Init',     { name, value: val }),
       InitMany: (props)     => _rpc('Properties', 'InitMany', { properties: props }),
       Remove:   (name)      => _rpc('Properties', 'Remove',   { name }),
+      // Every property of this card in one call (the host answers from the
+      // cache it warms when the card opens) — CardPanel.js already routed
+      // it; the bridge just never exposed it, so addons fell back to one
+      // request per property.
+      GetProperties: ()     => _rpc('Properties', 'GetProperties', {}),
 
       Subscribe: (name, cb) => {
         if (!_propSubscriptions[name]) _propSubscriptions[name] = [];
@@ -160,6 +165,13 @@ export const SANDBOX_BRIDGE_SCRIPT = `<script>
     SendCustomCommandToServer: (command, data) =>
       parent.postMessage({ type: 'WS_SEND', command, data }, '*'),
 
+    // Roll now, post later — see src/CardAPI.js Rolls. Start resolves to
+    // { rollId, results: [{ key, roll }] }; Finish posts one Html chat message.
+    Rolls: {
+      Start:  (formulas) => _rpc('Rolls', 'Start',  { formulas }),
+      Finish: (payload)  => _rpc('Rolls', 'Finish', payload),
+    },
+
     SubscribeWebSocket: (cb) => { _wsSubscriptions.push(cb); },
     UnsubscribeWebSocket: (cb) => {
       const i = _wsSubscriptions.indexOf(cb);
@@ -169,6 +181,7 @@ export const SANDBOX_BRIDGE_SCRIPT = `<script>
 
   Object.freeze(CardAPI.Properties);
   Object.freeze(CardAPI.Resources);
+  Object.freeze(CardAPI.Rolls);
   Object.freeze(CardAPI.ClientMediator);
   Object.freeze(CardAPI);
 

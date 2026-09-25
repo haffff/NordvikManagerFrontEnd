@@ -849,6 +849,33 @@ class CardAPI {
     this._sendWsCommand("chat_push", message);
   }
 
+  // ── Rolls ───────────────────────────────────────────────────────────────
+  // "Roll now, post later" (backend RollsController). Start evaluates a batch
+  // of formulas server-side WITHOUT posting and resolves to
+  // { rollId, results: [{ key, roll }] } — one request for the whole batch.
+  // Finish posts one "Html" chat message for that rollId; the inline roll
+  // numbers it shows are the server-held ones, filled into the HTML's
+  // [data-roll-key] placeholders by the chat renderer (HtmlChatTemplate.js).
+
+  Rolls = {
+    /** @param {{ key: string, formula: string }[]} formulas */
+    Start: async (formulas) => {
+      const resp = await WebHelper.postAsync("rolls/start", { formulas });
+      if (!resp || resp.status >= 300) throw new Error(resp?.body?.error ?? "Failed to roll.");
+      return resp.body;
+    },
+
+    /**
+     * @param {{ rollId: string, html: string, cssResourceKey?: string, title?: string }} payload
+     *   cssResourceKey names a game resource holding the message's CSS, fetched
+     *   once per client and shared by every message that references it.
+     */
+    Finish: async ({ rollId, html, cssResourceKey, title } = {}) => {
+      const resp = await WebHelper.postAsync("rolls/finish", { rollId, html, cssResourceKey, title });
+      if (!resp || resp.status >= 300) throw new Error(resp?.body?.error ?? "Failed to post roll.");
+    },
+  };
+
   // ── Actions ─────────────────────────────────────────────────────────────
 
   FireAction(action, args) {
