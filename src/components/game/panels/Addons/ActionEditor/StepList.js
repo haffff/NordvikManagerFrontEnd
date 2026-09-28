@@ -108,7 +108,7 @@ const Row = ({ step, index, def, selected, trace, onSelect, onDuplicate, onDelet
 };
 
 export const StepList = ({
-  steps, defsByType, selectedId, traceByStep,
+  steps, defsByType, selectedId, traceFor,
   onSelect, onMove, onInsert, onDuplicate, onDelete, onOpenAction,
 }) => {
   const sensors = useSensors(
@@ -134,7 +134,7 @@ export const StepList = ({
               <Inserter onClick={() => onInsert(i)} />
               <Row
                 step={step} index={i} def={defsByType[step.Type]}
-                selected={step.id === selectedId} trace={traceByStep?.[step.id]}
+                selected={step.id === selectedId} trace={traceFor?.(step, i)}
                 onSelect={onSelect} onDuplicate={onDuplicate} onDelete={onDelete} onOpenAction={onOpenAction}
               />
             </React.Fragment>

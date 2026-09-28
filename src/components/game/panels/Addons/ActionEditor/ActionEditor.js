@@ -46,7 +46,8 @@ const SettingsTab = ({ action, update, hooks, onExport, onDelete }) => {
   // "None" has no HookMeta on the server, so it isn't in the list; add it so an action can go
   // back to being called by name only.
   const hookItems = React.useMemo(
-    () => [{ value: 0, name: "Called by name (no trigger)", category: " " }, ...hooks], [hooks]);
+    () => [{ value: 0, name: "Called by name (no trigger)", category: " " }, ...hooks]
+      .map((h) => ({ ...h, value: String(h.value) })), [hooks]);
   const hookCollection = React.useMemo(() => createListCollection({ items: hookItems }), [hookItems]);
   const permCollection = React.useMemo(() => createListCollection({ items: PERMISSION_ITEMS }), []);
   const hooksByCategory = React.useMemo(() => {
@@ -54,7 +55,7 @@ const SettingsTab = ({ action, update, hooks, onExport, onDelete }) => {
     hookItems.forEach((h) => { (map[h.category || "General"] ??= []).push(h); });
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
   }, [hookItems]);
-  const hook = hooks.find((h) => h.value === action.hook);
+  const hook = hooks.find((h) => Number(h.value) === Number(action.hook));
   const permVal = (v) => (v == null ? "" : String(v));
 
   return (
@@ -77,8 +78,8 @@ const SettingsTab = ({ action, update, hooks, onExport, onDelete }) => {
 
       <Field.Root>
         <Field.Label fontSize="xs" color="gray.400">Trigger</Field.Label>
-        <SelectRoot collection={hookCollection} value={[action.hook ?? 0]} size="sm"
-          onValueChange={(e) => update({ hook: e.value[0] })}>
+        <SelectRoot collection={hookCollection} value={[String(action.hook ?? 0)]} size="sm"
+          onValueChange={(e) => update({ hook: Number(e.value[0]) })}>
           <SelectTrigger><SelectValueText placeholder="Called by name">{(items) => items[0]?.name ?? "Called by name"}</SelectValueText></SelectTrigger>
           <SelectContent>
             {hooksByCategory.map(([category, items]) => (
@@ -137,9 +138,9 @@ export const ActionEditor = ({ draft, stepDefinitions, hooks, actions, onSave, o
 
   const defsByType = React.useMemo(
     () => Object.fromEntries((stepDefinitions ?? []).map((d) => [d.value, d])), [stepDefinitions]);
-  const hook = hooks.find((h) => h.value === action.hook);
+  const hook = hooks.find((h) => Number(h.value) === Number(action.hook ?? 0));
   const hookVariables = hook?.variables ?? [];
-  const calledByName = !action.hook; // 0 / null = no trigger
+  const calledByName = !Number(action.hook ?? 0); // 0 / null = no trigger
   const inputs = React.useMemo(
     () => (calledByName ? computeInputs(steps, defsByType, hookVariables) : []),
     [steps, defsByType, calledByName, hookVariables]);
@@ -147,7 +148,7 @@ export const ActionEditor = ({ draft, stepDefinitions, hooks, actions, onSave, o
   const actionOptions = React.useMemo(() => (actions ?? []).map((a) => ({
     value: fullActionName(a),
     label: fullActionName(a),
-    hint: hooks.find((h) => h.value === a.hook)?.name ?? (a.isEnabled ? "" : "off"),
+    hint: hooks.find((h) => Number(h.value) === Number(a.hook))?.name ?? (a.isEnabled ? "" : "off"),
   })), [actions, hooks]);
 
   const selectedIndex = steps.findIndex((s) => s.id === selectedId);
@@ -158,6 +159,7 @@ export const ActionEditor = ({ draft, stepDefinitions, hooks, actions, onSave, o
   const knownNames = React.useMemo(() => new Set(available.map((v) => v.name)), [available]);
 
   const save = () => { onSave(draft.payload()); draft.markSaved(); };
+  const traceFor = (step, i) => trace.byStep[step.id] ?? trace.byIndex[i];
 
   const onKeyDown = (e) => {
     e.stopPropagation(); // keep editor keys away from game shortcuts (e.g. Delete removes map elements)
@@ -191,7 +193,7 @@ export const ActionEditor = ({ draft, stepDefinitions, hooks, actions, onSave, o
       <RunBar actionId={action.id} inputs={inputs} running={trace.running} result={trace.result} dirty={draft.dirty}
         onRun={(args) => { if (draft.dirty) save(); trace.run(fullActionName(action), args); }} />
       <StepList
-        steps={steps} defsByType={defsByType} selectedId={selectedId} traceByStep={trace.byStep}
+        steps={steps} defsByType={defsByType} selectedId={selectedId} traceFor={traceFor}
         onSelect={setSelectedId}
         onMove={(from, to) => draft.setSteps((s) => stepOps.move(s, from, to))}
         onInsert={(i) => setInsertAt(i)}
@@ -206,7 +208,7 @@ export const ActionEditor = ({ draft, stepDefinitions, hooks, actions, onSave, o
     <StepInspector
       step={selected} index={selectedIndex} def={selected ? defsByType[selected.Type] : null}
       stepDefinitions={stepDefinitions} variables={available} knownNames={knownNames}
-      actionOptions={actionOptions} trace={selected ? trace.byStep[selected.id] : null}
+      actionOptions={actionOptions} trace={selected ? traceFor(selected, selectedIndex) : null}
       onChangeType={(type) => draft.updateStep(selected.id, (s) => ({ ...s, Type: type }))}
       onChangeData={(name, value) =>
         draft.updateStep(selected.id, (s) => ({ ...s, Data: { ...s.Data, [name]: value } }), `${selected.id}.${name}`)}

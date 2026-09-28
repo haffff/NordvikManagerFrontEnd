@@ -65,7 +65,7 @@ const Sidebar = ({ actions, hooks, loading, selectedId, onSelect, onSelectGroup,
   const [search, setSearch] = React.useState("");
   const [closed, setClosed] = React.useState({});
   const [creating, setCreating] = React.useState(false);
-  const hookName = (h) => hooks.find((x) => x.value === h)?.name;
+  const hookName = (h) => hooks.find((x) => Number(x.value) === Number(h))?.name;
 
   const groups = React.useMemo(() => {
     const q = search.trim().toLowerCase();
