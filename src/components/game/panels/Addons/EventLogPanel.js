@@ -15,16 +15,17 @@ import { MdRefresh } from "react-icons/md";
 import { Tooltip } from "../../../ui/tooltip";
 import { BasePanel } from "../../../uiComponents/base/BasePanel";
 import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
+import themeColors from "../../../../helpers/themeColors";
 
 // ── Design tokens (match DebugConsolePanel) ───────────────────────────────────
-const BG_SURFACE = "rgb(28,28,28)";
-const BG_RAISED  = "rgb(38,38,38)";
-const BORDER_CLR = "rgb(65,65,65)";
-const TEXT_MUTED = "rgb(130,130,130)";
-const CLR_RED    = "rgb(220,80,80)";
-const CLR_YELLOW = "rgb(220,180,60)";
-const CLR_GREEN  = "rgb(80,200,120)";
-const CLR_BLUE   = "rgb(100,150,230)";
+const BG_SURFACE = themeColors.surfaceSunken;
+const BG_RAISED  = themeColors.surface;
+const BORDER_CLR = themeColors.border;
+const TEXT_MUTED = themeColors.textSubtle;
+const CLR_RED    = themeColors.accentRed;
+const CLR_YELLOW = themeColors.accentGold;
+const CLR_GREEN  = themeColors.accentGreen;
+const CLR_BLUE   = themeColors.accentBlue;
 
 const JSON_THEME = {
   scheme: "nordvik",

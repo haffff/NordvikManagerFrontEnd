@@ -30,12 +30,13 @@ import {
     DialogRoot, DialogContent, DialogBody, DialogCloseTrigger, DialogHeader, DialogFooter, DialogTitle,
 } from '../../ui/dialog';
 import ProgressToastManager from '../../../helpers/ProgressToastManager';
+import themeColors from "../../../helpers/themeColors";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const BORDER_CLR  = "whiteAlpha.200";
-const BG_DROP     = "rgba(66,153,225,0.06)";
-const BG_DROP_HOV = "rgba(66,153,225,0.16)";
+const BG_DROP     = themeColors.dropZone;
+const BG_DROP_HOV = themeColors.dropZoneHover;
 
 // ─── UploadZone ───────────────────────────────────────────────────────────────
 

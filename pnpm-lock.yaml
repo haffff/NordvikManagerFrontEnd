@@ -47,6 +47,12 @@ importers:
       fabricjs-react:
         specifier: ^1.2.0
         version: 1.2.2
+      jsoneditor:
+        specifier: ^10.4.3
+        version: 10.4.3
+      jsoneditor-react:
+        specifier: ^3.1.2
+        version: 3.1.2(jsoneditor@10.4.3)(react@18.3.1)
       mathjs:
         specifier: ^14.0.0
         version: 14.9.1
@@ -1478,6 +1484,9 @@ packages:
   '@socket.io/component-emitter@3.1.2':
     resolution: {integrity: sha512-9BCxFwvbGg/RsZK9tjXd8s4UcwR0MWeFQ1XEKIQVVvAGJyINdrqKMcTRyLoK8Rse1GjzLV9cwjWV1olXRWEXVA==}
 
+  '@sphinxxxx/color-conversion@2.2.2':
+    resolution: {integrity: sha512-XExJS3cLqgrmNBIP3bBw6+1oQ1ksGjFh0+oClDKFYpCCqx/hlqwWO5KO/S63fzUo67SxI9dMrF0y5T/Ey7h8Zw==}
+
   '@swc/helpers@0.5.20':
     resolution: {integrity: sha512-2egEBHUMasdypIzrprsu8g+OEVd7Vp2MM3a2eVlM/cyFYto0nGz5BX5BTgh/ShZZI9ed+ozEq+Ngt+rgmUs8tw==}
 
@@ -1897,6 +1906,9 @@ packages:
 
   abbrev@1.1.1:
     resolution: {integrity: sha512-nne9/IiQ/hzIhY6pdDnbBtz7DjPTKrY00P/zvPSm5pOFkl6xuGrGnXn/VtTNNfNtAfZ9/1RtehkszU9qcTii0Q==}
+
+  ace-builds@1.44.0:
+    resolution: {integrity: sha512-PFNMSYqFdEUkul2Ntud0HvA09AgY+F1ag0UYdpMH60wNI/qOA8cB8tlTgoALMEwIdUPJK2CjrIQ7OnbiSS/ugQ==}
 
   acorn-globals@6.0.0:
     resolution: {integrity: sha512-ZQl7LOWaF5ePqqcX4hLuv/bLXYQNfNWw2c0/yX/TsPRKamzHcTGQnlCjHT3TsmkOUVEPS3crCxiPfdzE/Trlhg==}
@@ -3045,6 +3057,10 @@ packages:
   javascript-natural-sort@0.7.1:
     resolution: {integrity: sha512-nO6jcEfZWQXDhOiBtG2KvKyEptz7RVbpGP4vTD2hLBdmNQSsCiicO2Ioinv6UI4y9ukqnBpy+XZ9H6uLNgJTlw==}
 
+  jmespath@0.16.0:
+    resolution: {integrity: sha512-9FzQjJ7MATs1tSpnco1K6ayiYE3figslrXA72G2HQ/n76RzvYlofyi5QM+iX4YRs/pu3yzxlVQSST23+dMDknw==}
+    engines: {node: '>= 0.6.0'}
+
   js-tokens@3.0.2:
     resolution: {integrity: sha512-RjTcuD4xjtthQkaWH7dFlH85L+QaVtSoOyGdZ3g6HFhS9dFNDfLyqgm2NFe2X6cQpeFmt0452FJjFG5UameExg==}
 
@@ -3103,6 +3119,9 @@ packages:
   json-schema-traverse@1.0.0:
     resolution: {integrity: sha512-NM8/P9n3XjXhIZn1lLhkFaACTOURQXjWhV4BA/RnOv8xvgqtqpAX9IO4mRQxSx1Rlo4tqzeqb0sOlruaOy3dug==}
 
+  json-source-map@0.6.1:
+    resolution: {integrity: sha512-1QoztHPsMQqhDq0hlXY5ZqcEdUzxQEIxgFkKl4WUp2pgShObl+9ovi4kRh2TfvAfxAoHOJ9vIMEqk3k4iex7tg==}
+
   json-stable-stringify-without-jsonify@1.0.1:
     resolution: {integrity: sha512-Bdboy+l7tA3OGW6FjyFHWkP5LuByj1Tk33Ljyq0axyzdk9//JSi2u3fP1QSmd1KNwq6VOKYGlAu87CisVir6Pw==}
 
@@ -3117,6 +3136,19 @@ packages:
   json5@2.2.3:
     resolution: {integrity: sha512-XmOWe7eyHYH14cLdVPoyg+GOH3rYX++KpzrylJwSW98t3Nk+U8XOl8FWKOgwtzdb8lXGf6zYwDUzeHMWfxasyg==}
     engines: {node: '>=6'}
+    hasBin: true
+
+  jsoneditor-react@3.1.2:
+    resolution: {integrity: sha512-XqU8BMdIhrlS5HUnn7rGhgZw315bdJGQrf6NG5UH40FSw2xNirQrxnM05aeAplHkp8FNkzN2WX0tfvEWdl2UUA==}
+    peerDependencies:
+      jsoneditor: ^7.0.0 || ^8.0.0 || ^9.0.0
+      react: 16 || 17
+
+  jsoneditor@10.4.3:
+    resolution: {integrity: sha512-XBVYLkhgiHySC0PkGlac/Mbk738EpNnqBnxCJD4ttKKJ1JRIRngV8bf2zgw/J025jp4AqxOf2G3uDs/27cWHTQ==}
+
+  jsonrepair@3.15.0:
+    resolution: {integrity: sha512-wy8OTjwsJwQRnQJkKnMJJ9vcytRdBPAgIF/Hy6+s1dAj42BHMKiyL8JzEieIl3JY7idt8eyHwBWTO8mh/+mtwA==}
     hasBin: true
 
   jsx-ast-utils@3.3.5:
@@ -3416,6 +3448,9 @@ packages:
   picomatch@2.3.2:
     resolution: {integrity: sha512-V7+vQEJ06Z+c5tSye8S+nHUfI51xoXIXjHQ99cQtKUkQqqO1kO/KCJUfZXuB47h/YBlDhah2H3hdUGXn8ie0oA==}
     engines: {node: '>=8.6'}
+
+  picomodal@3.0.0:
+    resolution: {integrity: sha512-FoR3TDfuLlqUvcEeK5ifpKSVVns6B4BQvc8SDF6THVMuadya6LLtji0QgUDSStw0ZR2J7I6UGi5V2V23rnPWTw==}
 
   polished@4.2.2:
     resolution: {integrity: sha512-Sz2Lkdxz6F2Pgnpi9U5Ng/WdWAUZxmHrNPoVlm3aAemxoy2Qy7LGjQg4uf8qKelDAUW94F4np3iH2YPf2qefcQ==}
@@ -4034,6 +4069,9 @@ packages:
 
   vanilla-colorful@0.7.2:
     resolution: {integrity: sha512-z2YZusTFC6KnLERx1cgoIRX2CjPRP0W75N+3CC6gbvdX5Ch47rZkEMGO2Xnf+IEmi3RiFLxS18gayMA27iU7Kg==}
+
+  vanilla-picker@2.12.3:
+    resolution: {integrity: sha512-qVkT1E7yMbUsB2mmJNFmaXMWE2hF8ffqzMMwe9zdAikd8u2VfnsVY2HQcOUi2F38bgbxzlJBEdS1UUhOXdF9GQ==}
 
   vite-node@2.1.9:
     resolution: {integrity: sha512-AM9aQ/IPrW/6ENLQg3AGY4K1N2TGZdR5e4gu/MmmR2xR3Ll1+dib+nook92g4TV3PXVyeyxdWwtaCAiUL0hMxA==}
@@ -5616,6 +5654,10 @@ snapshots:
       - supports-color
       - utf-8-validate
 
+  '@ckeditor/ckeditor5-font@41.4.2':
+    dependencies:
+      ckeditor5: 41.4.2
+
   '@ckeditor/ckeditor5-font@41.4.2(canvas@2.11.2)':
     dependencies:
       ckeditor5: 41.4.2(canvas@2.11.2)
@@ -5651,10 +5693,6 @@ snapshots:
       - canvas
       - supports-color
       - utf-8-validate
-
-  '@ckeditor/ckeditor5-html-embed@41.4.2':
-    dependencies:
-      ckeditor5: 41.4.2
 
   '@ckeditor/ckeditor5-html-embed@41.4.2(canvas@2.11.2)':
     dependencies:
@@ -6355,6 +6393,8 @@ snapshots:
   '@rushstack/eslint-patch@1.16.1': {}
 
   '@socket.io/component-emitter@3.1.2': {}
+
+  '@sphinxxxx/color-conversion@2.2.2': {}
 
   '@swc/helpers@0.5.20':
     dependencies:
@@ -7149,6 +7189,8 @@ snapshots:
   abbrev@1.1.1:
     optional: true
 
+  ace-builds@1.44.0: {}
+
   acorn-globals@6.0.0:
     dependencies:
       acorn: 7.4.1
@@ -7594,11 +7636,11 @@ snapshots:
       '@ckeditor/ckeditor5-enter': 41.4.2
       '@ckeditor/ckeditor5-essentials': 41.4.2(canvas@2.11.2)
       '@ckeditor/ckeditor5-find-and-replace': 41.4.2(canvas@2.11.2)
-      '@ckeditor/ckeditor5-font': 41.4.2(canvas@2.11.2)
+      '@ckeditor/ckeditor5-font': 41.4.2
       '@ckeditor/ckeditor5-heading': 41.4.2(canvas@2.11.2)
       '@ckeditor/ckeditor5-highlight': 41.4.2(canvas@2.11.2)
       '@ckeditor/ckeditor5-horizontal-line': 41.4.2(canvas@2.11.2)
-      '@ckeditor/ckeditor5-html-embed': 41.4.2
+      '@ckeditor/ckeditor5-html-embed': 41.4.2(canvas@2.11.2)
       '@ckeditor/ckeditor5-html-support': 41.4.2
       '@ckeditor/ckeditor5-image': 41.4.2(canvas@2.11.2)
       '@ckeditor/ckeditor5-indent': 41.4.2(canvas@2.11.2)
@@ -8780,6 +8822,8 @@ snapshots:
 
   javascript-natural-sort@0.7.1: {}
 
+  jmespath@0.16.0: {}
+
   js-tokens@3.0.2: {}
 
   js-tokens@4.0.0: {}
@@ -8903,6 +8947,8 @@ snapshots:
 
   json-schema-traverse@1.0.0: {}
 
+  json-source-map@0.6.1: {}
+
   json-stable-stringify-without-jsonify@1.0.1: {}
 
   json5@0.5.1: {}
@@ -8912,6 +8958,25 @@ snapshots:
       minimist: 1.2.8
 
   json5@2.2.3: {}
+
+  jsoneditor-react@3.1.2(jsoneditor@10.4.3)(react@18.3.1):
+    dependencies:
+      jsoneditor: 10.4.3
+      prop-types: 15.8.1
+      react: 18.3.1
+
+  jsoneditor@10.4.3:
+    dependencies:
+      ace-builds: 1.44.0
+      ajv: 6.15.0
+      javascript-natural-sort: 0.7.1
+      jmespath: 0.16.0
+      json-source-map: 0.6.1
+      jsonrepair: 3.15.0
+      picomodal: 3.0.0
+      vanilla-picker: 2.12.3
+
+  jsonrepair@3.15.0: {}
 
   jsx-ast-utils@3.3.5:
     dependencies:
@@ -9195,6 +9260,8 @@ snapshots:
   picocolors@1.1.1: {}
 
   picomatch@2.3.2: {}
+
+  picomodal@3.0.0: {}
 
   polished@4.2.2:
     dependencies:
@@ -9925,6 +9992,10 @@ snapshots:
     optional: true
 
   vanilla-colorful@0.7.2: {}
+
+  vanilla-picker@2.12.3:
+    dependencies:
+      '@sphinxxxx/color-conversion': 2.2.2
 
   vite-node@2.1.9:
     dependencies:

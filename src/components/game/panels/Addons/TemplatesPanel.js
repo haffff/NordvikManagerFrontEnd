@@ -25,6 +25,7 @@ import { ActiveTransportManager as WebSocketManagerInstance } from "../../../../
 import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import ClientMediator from "../../../../ClientMediator";
 import { ResizeDivider, useDragResize } from "../../../uiComponents/ResizeDivider";
+import themeColors from "../../../../helpers/themeColors";
 
 // ── Module-level constants ────────────────────────────────────────────────────
 
@@ -123,7 +124,7 @@ const RightPaneHeader = ({
     px="12px"
     py="8px"
     borderBottomWidth="1px"
-    borderColor="rgb(70,70,70)"
+    borderColor={themeColors.divider}
     gap="10px"
     flexShrink={0}
   >
@@ -323,7 +324,7 @@ export const TemplatesPanel = ({ gameDataRef }) => {
           gap={0}
         >
           {/* Search */}
-          <Box px="8px" py="6px" borderBottomWidth="1px" borderColor="rgb(70,70,70)">
+          <Box px="8px" py="6px" borderBottomWidth="1px" borderColor={themeColors.divider}>
             <Input
               size="xs"
               placeholder="Search templates…"
@@ -348,7 +349,7 @@ export const TemplatesPanel = ({ gameDataRef }) => {
           </Box>
 
           {/* Pinned add button */}
-          <Box px="6px" py="6px" borderTopWidth="1px" borderColor="rgb(70,70,70)">
+          <Box px="6px" py="6px" borderTopWidth="1px" borderColor={themeColors.divider}>
             <Button variant="outline" size="sm" width="100%" onClick={handleAdd}>
               <HStack gap="6px">
                 <Icon as={FaPlus} />
@@ -390,7 +391,7 @@ export const TemplatesPanel = ({ gameDataRef }) => {
                   mb="8px"
                   p="12px"
                   borderWidth="1px"
-                  borderColor="rgb(70,70,70)"
+                  borderColor={themeColors.divider}
                   borderRadius="md"
                 >
                   <Text fontSize="sm" fontWeight="medium" color="gray.200" mb="6px">

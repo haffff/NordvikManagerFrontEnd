@@ -9,7 +9,7 @@ import DText from '../../../uiComponents/base/Text/DText';
 import DListItemButton from '../../../uiComponents/base/List/ListItemDetails/DListItemButton';
 import { FaEye } from 'react-icons/fa';
 import DLabel from '../../../uiComponents/base/Text/DLabel';
-import { JSONTree } from 'react-json-tree';
+import { JsonEditor } from '../../../uiComponents/JsonEditor';
 import { BasePanel } from '../../../uiComponents/base/BasePanel';
 import { ActiveWebHelper as WebHelper } from '../../../../helpers/transport';
 
@@ -33,14 +33,14 @@ export const LookupPanel = ({ name, content, contentType }) => {
         case 9:
             try {
                 let newContent = JSON.parse(content);
-                elementToShow = <JSONTree data={newContent} />;
+                elementToShow = <JsonEditor value={newContent} readOnly />;
             }
             catch (e) {
                 elementToShow = <>{content}</>;
             }
             break;
         case "object":
-            elementToShow = <JSONTree data={content} />;
+            elementToShow = <JsonEditor value={content} readOnly />;
             break;
         case "text/plain":
         case "text/css":

@@ -6,6 +6,8 @@ import { ActiveTransportManager as WebSocketManagerInstance } from "../../../hel
 import Subscribable from "../../uiComponents/base/Subscribable";
 import ClientMediator from "../../../ClientMediator";
 import { toaster } from "../../ui/toaster";
+import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
+import { PersonalStylesheetSettings } from "../theme/StylesheetSettings";
 
 export const PlayerSettingsPanel = ({ player }) => {
   const [playerData, setPlayerData] = React.useState();
@@ -28,6 +30,9 @@ export const PlayerSettingsPanel = ({ player }) => {
       type: "color",
     },
   ];
+
+  // Personal stylesheets live in this browser, so only your own player has them.
+  const isCurrentPlayer = ClientMediator.sendCommand("Game", "GetCurrentPlayer")?.id === player?.id;
 
   const ctx = Dockable.useContentContext();
   ctx.setTitle(`Player settings`);
@@ -78,6 +83,7 @@ export const PlayerSettingsPanel = ({ player }) => {
         onSave={sendSettingsUpdate}
         normalize={true}
       />
+      {isCurrentPlayer && <PersonalStylesheetSettings gameId={WebHelper.GameId} />}
     </Subscribable>
   );
 };

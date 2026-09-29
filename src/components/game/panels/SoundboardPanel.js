@@ -14,6 +14,7 @@ import SettingsPanel from "../settings/SettingsPanel";
 import ClientMediator from "../../../ClientMediator";
 import { usePermissions } from "../../../contexts/PermissionsContext";
 import { useDragResize } from "../../uiComponents/ResizeDivider";
+import themeColors from "../../../helpers/themeColors";
 
 // ── Module-level constants ────────────────────────────────────────────────────
 
@@ -84,8 +85,8 @@ const CollapsibleDivider = ({ isCollapsed, onToggle, onMouseDown }) => (
         position="absolute"
         inset={0}
         cursor="col-resize"
-        bg="rgb(65,65,65)"
-        _hover={{ bg: "rgb(100,150,230)" }}
+        bg={themeColors.controlStrong}
+        _hover={{ bg: themeColors.accentBlue }}
         onMouseDown={onMouseDown}
       />
     )}
@@ -100,10 +101,10 @@ const CollapsibleDivider = ({ isCollapsed, onToggle, onMouseDown }) => (
       height="32px"
       px={0}
       borderRadius="sm"
-      bg="rgb(45,45,45)"
+      bg={themeColors.control}
       borderWidth="1px"
-      borderColor="rgb(90,90,90)"
-      _hover={{ bg: "rgb(70,70,70)" }}
+      borderColor={themeColors.controlBorder}
+      _hover={{ bg: themeColors.controlHover }}
       onClick={onToggle}
       zIndex={1}
     >
@@ -113,7 +114,7 @@ const CollapsibleDivider = ({ isCollapsed, onToggle, onMouseDown }) => (
 );
 
 const RightPaneHeader = ({ board, viewMode, onToggleView, confirmDelete, onDelete, onConfirmDelete, onCancelDelete }) => (
-  <Flex align="center" px="12px" py="8px" borderBottomWidth="1px" borderColor="rgb(70,70,70)" gap="10px" flexShrink={0}>
+  <Flex align="center" px="12px" py="8px" borderBottomWidth="1px" borderColor={themeColors.divider} gap="10px" flexShrink={0}>
     <DLabel>{board.name}</DLabel>
     <Flex grow={1} />
     <DListItemButton
@@ -276,7 +277,7 @@ export const SoundboardPanel = () => {
           gap={0}
           display={isListCollapsed ? "none" : "flex"}
         >
-          <Box px="8px" py="6px" borderBottomWidth="1px" borderColor="rgb(70,70,70)">
+          <Box px="8px" py="6px" borderBottomWidth="1px" borderColor={themeColors.divider}>
             <Input
               size="xs"
               placeholder="Search soundboards…"
@@ -299,7 +300,7 @@ export const SoundboardPanel = () => {
             </DList>
           </Box>
 
-          <Box px="6px" py="6px" borderTopWidth="1px" borderColor="rgb(70,70,70)">
+          <Box px="6px" py="6px" borderTopWidth="1px" borderColor={themeColors.divider}>
             <Button variant="outline" size="sm" width="100%" onClick={handleAdd}>
               <HStack gap="6px">
                 <Icon as={FaPlus} />

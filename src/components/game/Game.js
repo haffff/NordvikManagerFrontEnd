@@ -20,6 +20,8 @@ import { PermissionsProvider } from "../../contexts/PermissionsContext";
 import PlaybackManager from "./PlaybackManager";
 import RequestInputManager from "./RequestInputManager";
 import LayoutAutoSaveManager from "./LayoutAutoSaveManager";
+import GameStylesheets from "./theme/GameStylesheets";
+import themeColors from "../../helpers/themeColors";
 
 export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
   // A player who joined via an invite link only ever learns the Central Server's
@@ -194,7 +196,9 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
       <Subscribable onMessage={eventHandlers.HandleAddMenuItem} commandPrefix={"menu_item_add"} />
       <Subscribable onMessage={eventHandlers.HandleAddToolbarButton} commandPrefix={"toolbar_button_add"} />
       <Subscribable onMessage={eventHandlers.HandleFireClientMediator} commandPrefix={"client_mediator_fire"} />
+      <Subscribable onMessage={eventHandlers.HandleRunClientCommand} commandPrefix={"run_client_command"} />
       <Subscribable onMessage={eventHandlers.HandleOperationProgress} commandPrefix={"operation_"} />
+      <GameStylesheets gameId={resolvedGameId} />
       <PlaybackManager />
       <RequestInputManager />
       <LayoutAutoSaveManager state={state} battlemapsRef={battleMapContexts} />
@@ -212,10 +216,11 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
       
       {/* WebSocket Status Bar */}
       <Box
-        bg={connectionError || initError ? "red.950" : "rgba(26, 32, 44, 0.95)"}
+        className="nm_statusBar"
+        bg={connectionError || initError ? "red.950" : themeColors.statusBar}
         backdropFilter="blur(12px)"
         borderTop="1px solid"
-        borderColor={connectionError || initError ? "red.700" : "rgba(255, 255, 255, 0.08)"}
+        borderColor={connectionError || initError ? "red.700" : themeColors.statusBarBorder}
         px={4}
         py={2}
         zIndex={9999}

@@ -6,6 +6,7 @@ import DockableHelper from '../../../helpers/DockableHelper';
 import * as Dockable from "@hlorenzi/react-dockable";
 import { useDragOptimization } from './DragOptimizationContext';
 import { HelpIcon } from './HelpIcon';
+import LayoutHelper from "../../../helpers/LayoutCloneHelper";
 
 // ── Drag overlay ──────────────────────────────────────────────────────────────
 // Consumes the drag context and renders the overlay + visibility wrapper.
@@ -61,9 +62,13 @@ const BasePanelComponent = (props) => {
 
     const ctx = Dockable.useContentContext();
     const currentPanel = ctx?.layoutContent?.panel;
+    // Which panel this is (ChatPanel, SoundboardPanel, ...), so a custom
+    // stylesheet can target one: .nm_basePanel[data-panel="ChatPanel"].
+    const panelType = ctx?.layoutContent?.content?.element?.type;
+    const panelKey = panelType ? LayoutHelper._resolvePanelKey(panelType) : undefined;
 
     return (
-        <Flex ref={baseRef} {...rest} className='nm_basePanel' position="relative">
+        <Flex ref={baseRef} {...rest} className='nm_basePanel' data-panel={panelKey} position="relative">
             <DragOverlay currentPanel={currentPanel}>
                 {title && (
                     <Flex align="center" gap="6px" padding="6px 8px" flexShrink={0}>

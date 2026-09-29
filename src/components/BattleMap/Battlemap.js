@@ -11,6 +11,8 @@ import { Flex } from "@chakra-ui/react";
 import BattleMapContextMenu from "../game/ToolBar/ContextMenus/BattleMapContextMenu";
 import { PopupBMOverlay } from "./Overlays/PopupBMOverlay";
 import { InfoBMOverlay } from "./Overlays/InfoBMOverlay";
+import { TokenQuickEditOverlay } from "./Overlays/TokenQuickEditOverlay";
+import { TokenIconPickerOverlay } from "./Overlays/TokenIconPickerOverlay";
 import "../../stylesheets/battlemap.css";
 import { LoadingScreen } from "../uiComponents/LoadingScreen";
 import { PerformanceMonitor } from "../../helpers/PerformanceMonitor";
@@ -251,7 +253,10 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
         <FabricJSCanvas onReady={onReady} />{" "}
       </BattleMapContextMenu>
       <PopupBMOverlay key={uuid + "popup"} battleMapId={uuid} />
-      <InfoBMOverlay battleMapId={uuid} />    </Flex>
+      <InfoBMOverlay battleMapId={uuid} />
+      <TokenQuickEditOverlay battleMapId={uuid} canvas={editor?.canvas} />
+      <TokenIconPickerOverlay battleMapId={uuid} canvas={editor?.canvas} />
+    </Flex>
   );
 };
 

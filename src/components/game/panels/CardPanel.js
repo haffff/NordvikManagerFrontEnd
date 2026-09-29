@@ -6,6 +6,7 @@ import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import { SANDBOX_BRIDGE_SCRIPT } from "./cardSandbox";
 import CardAPIFactory from "../../../CardAPI";
+import DockableHelper from "../../../helpers/DockableHelper";
 
 // ─── postMessage bridge ───────────────────────────────────────────────────────
 
@@ -31,8 +32,9 @@ import CardAPIFactory from "../../../CardAPI";
  *   SANDBOX_READY   {}
  *   CMD             { reqId, panel, command, data }
  *   WS_SEND         { command, data }
+ *   CLOSE_PANEL     {}
  */
-function mountBridge(iframe, cardApi, cardId, additionalArguments) {
+function mountBridge(iframe, cardApi, cardId, additionalArguments, onClosePanel) {
   let ready = false;
   const queue = [];
 
@@ -108,6 +110,12 @@ function mountBridge(iframe, cardApi, cardId, additionalArguments) {
       ready = true;
       sendToFrame({ type: "INIT", cardId, additionalArguments });
       flush();
+      return;
+    }
+
+    // ── Card asks to close its own panel ────────────────────────────────────
+    if (type === "CLOSE_PANEL") {
+      onClosePanel?.();
       return;
     }
 
@@ -289,7 +297,7 @@ function mountBridge(iframe, cardApi, cardId, additionalArguments) {
 
 // ─── CardPanel ────────────────────────────────────────────────────────────────
 
-export const CardPanel = ({ id, name }) => {
+export const CardPanel = ({ id, name, data }) => {
   const panelId = useUUID();
   const iframeRef = React.useRef(null);
   const cleanupRef = React.useRef(null);
@@ -318,7 +326,13 @@ export const CardPanel = ({ id, name }) => {
 
       if (cancelled || !iframeRef.current) return;
 
-      const additionalArguments = properties?.[0]?.value ?? null;
+      // `data` is a per-panel-instance value passed in via props (e.g. HandleViewShow
+      // threading a ShowView step's Data payload through) — takes priority since it's
+      // scoped to THIS open, unlike the "additionalArguments" property below, which is
+      // stored on the card itself and would be shared/racy across concurrent opens of
+      // the same shared view-card (e.g. two players opening the same addon-installed
+      // "item_creator" view at once with different context).
+      const additionalArguments = data ?? (properties?.[0]?.value ?? null);
 
       // 2. Fetch main resource metadata.
       //    The main resource is ALWAYS text/html.
@@ -431,7 +445,22 @@ export const CardPanel = ({ id, name }) => {
       //    SANDBOX_READY is sent by the iframe after window 'load' (i.e. after
       //    all defer scripts have run and registered their cardapi:ready
       //    listeners), so INIT → cardapi:ready fires at the right time.
-      cleanupRef.current = mountBridge(iframe, cardApi, id, additionalArguments);
+      //
+      //    closePanel: ctx.layoutContent (from Dockable.useContentContext() above)
+      //    already carries both the Panel and the Content for THIS open — exactly
+      //    what Dockable.removeContent needs — so no new dockable-level API is
+      //    needed to let a card dismiss its own panel.
+      const closePanel = () => {
+        const globalState = DockableHelper.getGlobalState();
+        if (!globalState?.ref?.current || !ctx?.layoutContent) return;
+        Dockable.removeContent(
+          globalState.ref.current,
+          ctx.layoutContent.panel,
+          ctx.layoutContent.content.contentId
+        );
+        globalState.commit();
+      };
+      cleanupRef.current = mountBridge(iframe, cardApi, id, additionalArguments, closePanel);
 
       // Do NOT revoke the blob URL in onload — when the dockable panel is
       // moved in the DOM the browser resets the iframe and re-navigates to

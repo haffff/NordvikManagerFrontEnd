@@ -1,0 +1,179 @@
+/* jsoneditor ships no dark theme at all (confirmed — no separate dark CSS file
+   in its dist folder). Its default stylesheet uses compound `element.class`
+   selectors for most of the light-theme colors (e.g. `div.jsoneditor-tree`,
+   `div.jsoneditor-field`), which are AT LEAST as specific as any override
+   written here — a first attempt at these overrides used plain class
+   selectors and silently lost the specificity fight (or tied on specificity
+   and lost on import order), which is why the tree stayed white. `!important`
+   is used throughout on purpose: this is exactly the "override a third-party
+   library's own styles" case it exists for, and matching jsoneditor's exact
+   compound selectors well enough to win on specificity alone turned out to be
+   too fragile to rely on for every single rule.
+   Colors reuse this app's own dark palette vars from src/index.css where a
+   direct match exists; the semantic value-type colors below (string/number/
+   boolean/null) are jsoneditor's own defaults brightened just enough to stay
+   readable on a dark background — dark green/dark blue on white was fine,
+   the same values on a dark background are nearly invisible. */
+
+.jsoneditor {
+  border-color: var(--nordvik-item-color, #464646) !important;
+  background-color: var(--nordvik-background-color, #1e1e1e) !important;
+  color: #e0e0e0 !important;
+  flex: 1;
+  min-height: 0;
+}
+
+.jsoneditor-menu {
+  background-color: var(--nordvik-selection-color, #bd1818) !important;
+  border-bottom-color: var(--nordvik-selection-color, #bd1818) !important;
+}
+
+.jsoneditor-navigation-bar,
+.jsoneditor-statusbar {
+  background-color: rgb(40, 40, 40) !important;
+  color: #cfcfcf !important;
+  border-color: var(--nordvik-item-color, #464646) !important;
+}
+
+.jsoneditor-statusbar > .jsoneditor-curserinfo-val,
+.jsoneditor-statusbar > .jsoneditor-curserinfo-count {
+  color: #cfcfcf !important;
+}
+
+.jsoneditor-search input,
+.jsoneditor-frame {
+  background-color: rgb(50, 50, 50) !important;
+  color: #e0e0e0 !important;
+}
+
+/* ── Tree view — the main surface, and the one a plain `.jsoneditor-tree`
+   rule failed to theme (jsoneditor's own rule is `div.jsoneditor-tree`). ── */
+div.jsoneditor-outer,
+div.jsoneditor-tree {
+  background: var(--nordvik-background-color, #1e1e1e) !important;
+}
+
+div.jsoneditor-field,
+div.jsoneditor-value,
+div.jsoneditor-readonly,
+div.jsoneditor-default,
+div.jsoneditor td,
+div.jsoneditor th,
+div.jsoneditor textarea {
+  color: #e0e0e0 !important;
+}
+
+div.jsoneditor-value.jsoneditor-string,
+a.jsoneditor-value.jsoneditor-url {
+  color: #7fd17f !important;
+}
+
+div.jsoneditor-value.jsoneditor-number {
+  color: #ff8a7a !important;
+}
+
+div.jsoneditor-value.jsoneditor-boolean {
+  color: #ffb84d !important;
+}
+
+div.jsoneditor-value.jsoneditor-null,
+div.jsoneditor-value.jsoneditor-color-value,
+div.jsoneditor-value.jsoneditor-invalid {
+  color: #7fa8ff !important;
+}
+
+div.jsoneditor-value.jsoneditor-empty::after {
+  color: #6f6f6f !important;
+}
+
+/* The actual "highlight on hover" the user meant — hovering/focusing an
+   editable field or value name (contenteditable spans) shows this, plus the
+   equivalent "actively editing" state below. Not the same rule as the row
+   hover/selected above; jsoneditor's default is a bright yellow `#ffffab`
+   here. Same muted-crimson treatment as the row highlight, for consistency. */
+div.jsoneditor-field[contenteditable=true]:focus,
+div.jsoneditor-field[contenteditable=true]:hover,
+div.jsoneditor-value[contenteditable=true]:focus,
+div.jsoneditor-value[contenteditable=true]:hover,
+div.jsoneditor-field.jsoneditor-highlight,
+div.jsoneditor-value.jsoneditor-highlight {
+  background-color: rgba(189, 24, 24, 0.25) !important;
+  border: 1px solid var(--nordvik-selection-color, rgb(189, 24, 24)) !important;
+}
+
+div.jsoneditor-field.jsoneditor-highlight-active,
+div.jsoneditor-field.jsoneditor-highlight-active:focus,
+div.jsoneditor-field.jsoneditor-highlight-active:hover,
+div.jsoneditor-value.jsoneditor-highlight-active,
+div.jsoneditor-value.jsoneditor-highlight-active:focus,
+div.jsoneditor-value.jsoneditor-highlight-active:hover {
+  background-color: rgba(189, 24, 24, 0.4) !important;
+  border: 1px solid var(--nordvik-selection-color, rgb(189, 24, 24)) !important;
+}
+
+/* Muted crimson (the app's own --nordvik-selection-color, used for selection
+   highlighting elsewhere) instead of a plain white overlay — more consistent
+   with the rest of the app, and less glaring on a dark background than white. */
+.jsoneditor tr.jsoneditor-highlight,
+.jsoneditor tr.jsoneditor-selected {
+  background-color: rgba(189, 24, 24, 0.35) !important;
+}
+
+/* --nordvik-item-color (rgb(70,70,70)) is this app's own existing "hovered
+   item" shade elsewhere (see src/stylesheets/panel.css) — used solid here
+   rather than a white/opacity overlay, which read as too bright. */
+.jsoneditor tr:hover > td {
+  background-color: var(--nordvik-item-color, rgb(70, 70, 70)) !important;
+}
+
+/* ── Text mode ── */
+textarea.jsoneditor-text {
+  background-color: var(--nordvik-background-color, #1e1e1e) !important;
+  color: #e0e0e0 !important;
+}
+
+/* ── Search autocomplete dropdown ── */
+.jsoneditor .autocomplete.dropdown {
+  background: rgb(45, 45, 45) !important;
+  border-color: var(--nordvik-item-color, #464646) !important;
+}
+
+.jsoneditor .autocomplete.dropdown .item {
+  color: #e0e0e0 !important;
+}
+
+.jsoneditor .autocomplete.dropdown .item.hover {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+}
+
+/* ── Right-click context menu (rendered outside .jsoneditor, at document
+   body level, so these can't be scoped under a .jsoneditor ancestor —
+   matched against jsoneditor's own plain-class selectors instead). ── */
+.jsoneditor-contextmenu .jsoneditor-menu {
+  background: rgb(45, 45, 45) !important;
+}
+
+.jsoneditor-contextmenu .jsoneditor-menu button {
+  color: #e0e0e0 !important;
+}
+
+.jsoneditor-contextmenu .jsoneditor-menu button:hover,
+.jsoneditor-contextmenu .jsoneditor-menu button:focus {
+  background-color: rgba(255, 255, 255, 0.1) !important;
+  color: #e0e0e0 !important;
+}
+
+/* ── Sizing ──────────────────────────────────────────────────────────────────
+   jsoneditor's own CSS gives .jsoneditor no height at all — it measures/fills
+   whatever height its container has AT THE TIME IT MOUNTS. The two call sites
+   (LookupPanel's DContainer, ElementSettingsPanel's Tabs.Content) don't
+   reliably provide a real (non-content-based) height through their own
+   ancestor chain, which is what left "text" mode's textarea sized to a small
+   default with its own inner scrollbar instead of filling the panel. A fixed
+   viewport-relative height sidesteps needing to fix that ancestor chain. */
+.nm_json_editor_wrapper {
+  height: 65vh;
+  min-height: 300px;
+  display: flex;
+  flex-direction: column;
+}
