@@ -9,9 +9,65 @@ import { BasePanel } from "../../uiComponents/base/BasePanel";
 import PropertiesSettingsPanel from "./PropertiesSettingsPanel";
 import { SettingsPanelWithPropertySettings } from "./SettingsPanelWithPropertySettings";
 import { toaster } from "../../ui/toaster";
+import ClientMediator from "../../../ClientMediator";
+
+// A Map (MapModel) can be loaded into zero or more currently-open BattleMap panel
+// instances (TokenManager is per-panel, keyed by the panel's own contextId, not
+// by the map's id) — resolve which open battle map, if any, currently has THIS
+// map loaded, since that's the only place `GetAvailableMaskGroups` can scan live
+// tokens from.
+const _findOpenBattleMapContextIdForMap = (mapId) => {
+  const opened = ClientMediator.sendCommand("Game", "GetOpenedBattleMaps") ?? [];
+  for (const ctx of opened) {
+    const loadedMap = ClientMediator.sendCommand("BattleMap", "GetSelectedMap", { contextId: ctx.id });
+    if (loadedMap?.id === mapId) return ctx.id;
+  }
+  return undefined;
+};
 
 export const MapSettingsPanel = ({ map }) => {
   const [mapDto, setMapDto] = React.useState(map);
+  // null = not resolved yet (gates rendering below), [] = resolved, none found
+  const [maskGroups, setMaskGroups] = React.useState(null);
+
+  React.useEffect(() => {
+    setMaskGroups(null);
+    if (!map?.id) return;
+    const battleMapId = _findOpenBattleMapContextIdForMap(map.id);
+    if (!battleMapId) {
+      // Map isn't currently open on any battle map panel — no live canvas to
+      // scan tokens from, so there's nothing to list (not an error).
+      setMaskGroups([]);
+      return;
+    }
+    ClientMediator.sendCommandAsync("BattleMap_token", "GetAvailableMaskGroups", { contextId: battleMapId })
+      .then((groups) => setMaskGroups(groups ?? []))
+      .catch(() => setMaskGroups([]));
+  }, [map?.id]);
+
+  // One Enabled + one GM Only boolean field per distinct maskGroup found among
+  // tokens actually on the map — zero hardcoded knowledge of what any addon's
+  // tokens declare; a different addon's tokens would surface entirely different
+  // rows here.
+  const maskEditables = React.useMemo(() => (maskGroups ?? []).flatMap((g) => [
+    {
+      key: `mask_${g.maskGroup}_enabled`,
+      property: true,
+      label: `${g.label} — Enabled`,
+      toolTip: `Show or hide "${g.label}" on every token on this map. A specific token's own settings can override this.`,
+      type: "boolean",
+      category: "Token Elements",
+    },
+    {
+      key: `mask_${g.maskGroup}_gmonly`,
+      property: true,
+      label: `${g.label} — GM Only`,
+      toolTip: `When enabled, "${g.label}" is only visible to the GM, even when shown above.`,
+      type: "boolean",
+      category: "Token Elements",
+    },
+  ]), [maskGroups]);
+
   const editables = [
     {
       key: "name",
@@ -45,6 +101,12 @@ export const MapSettingsPanel = ({ map }) => {
       label: "Show Grid",
       toolTip: "Toggle the visibility of the grid overlay on the map.",
       type: "boolean",
+    },
+    {
+      key: "gridColor",
+      label: "Grid Color",
+      toolTip: "Color of the grid lines overlaid on the map.",
+      type: "color",
     },
 
     {
@@ -145,12 +207,18 @@ export const MapSettingsPanel = ({ map }) => {
             <Tabs.Trigger value="props">Properties</Tabs.Trigger>
           </Tabs.List>
           <Tabs.Content value="settings">
-            <SettingsPanelWithPropertySettings
-              entityName={"MapModel"}
-              dto={mapDto}
-              editableKeyLabelDict={editables}
-              onSave={sendSettingsUpdate}
-            />
+            {/* Gated on maskGroups being resolved (not just `map`) — mask rows must
+                already be present in editableKeyLabelDict the FIRST time this mounts,
+                since SettingsPanelWithPropertySettings only fetches property values
+                once, keyed on dto.id, not on the dict changing later. */}
+            {maskGroups !== null && (
+              <SettingsPanelWithPropertySettings
+                entityName={"MapModel"}
+                dto={mapDto}
+                editableKeyLabelDict={[...editables, ...maskEditables]}
+                onSave={sendSettingsUpdate}
+              />
+            )}
           </Tabs.Content>
           <Tabs.Content value="permissions">
             <SecuritySettingsPanel dto={mapDto} type="MapModel" />

@@ -1,5 +1,6 @@
 import * as React from "react";
 import {
+  Heading,
   Tabs,
 } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
@@ -16,6 +17,7 @@ import useGame from "../../uiComponents/hooks/useGameHook";
 import ClientMediator from "../../../ClientMediator";
 import { toaster } from "../../ui/toaster";
 import LayerListEditor from "./LayerListEditor";
+import { GameStylesheetSettings } from "../theme/StylesheetSettings";
 
 export const GameSettingsPanel = () => {
   const [templates, setTemplates] = React.useState([]);
@@ -234,7 +236,7 @@ export const GameSettingsPanel = () => {
             <Tabs.Trigger value="character">Character Sheets</Tabs.Trigger>
             <Tabs.Trigger value="permissions">Permissions</Tabs.Trigger>
             <Tabs.Trigger value="props">Properties</Tabs.Trigger>
-            <Tabs.Trigger value="assets">Sounds & Images</Tabs.Trigger>
+            <Tabs.Trigger value="appearance">Appearance</Tabs.Trigger>
             <Tabs.Trigger value="adv">Advanced</Tabs.Trigger>
           </Tabs.List>
           <Tabs.Content value="general">
@@ -269,7 +271,9 @@ export const GameSettingsPanel = () => {
               type="GameModel"
             />
           </Tabs.Content>
-          <Tabs.Content value="assets">
+          <Tabs.Content value="appearance">
+            <GameStylesheetSettings gameId={gameData.id} />
+            <Heading size="sm" px={2} mt={4} mb={2}>Sounds & images</Heading>
             <SystemAssetsSettingsPanel />
           </Tabs.Content>
           <Tabs.Content value="adv">

@@ -3,6 +3,7 @@ import { Box, Button, Heading, Input, Stack, Text } from '@chakra-ui/react';
 import CentralWebHelper from '../../helpers/CentralWebHelper';
 import TokenStore from '../../helpers/TokenStore';
 import { toaster } from '../ui/toaster';
+import { removeUrlParam } from '../../helpers/UrlParamHelper';
 
 // code       — pre-filled invite code from URL (optional)
 // requiresCode — whether the server demands an invite code
@@ -53,7 +54,10 @@ export const PlayerRegisterForm = ({ code, requiresCode, onBack, OnSuccess }) =>
         type: 'success',
         duration: 5000,
       });
-      window.history.replaceState({}, document.title, window.location.pathname);
+      // Remove only the "code" parameter — preserve "game"/"rp" (or any other
+      // param) so a manual reload right after registering doesn't lose the
+      // pending auto-join.
+      removeUrlParam('code');
       OnSuccess();
     } finally {
       setLoading(false);

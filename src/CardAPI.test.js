@@ -173,3 +173,46 @@ describe('PropertiesManager — GetByNames / GetByPrefix cache lookups by parent
     expect(result[0].id).toBe('p1');
   });
 });
+
+describe('CardAPI — Rolls (roll now, post later)', () => {
+  beforeEach(() => {
+    ActiveTransportManager.Subscribe.mockClear();
+    ActiveWebHelper.getAsync.mockReset().mockResolvedValue([]);
+    ActiveWebHelper.postAsync.mockReset();
+  });
+
+  it('Start sends the whole batch in one request and resolves to the server-held results', async () => {
+    const api = await CardAPIFactory('card-rolls');
+    const body = { rollId: 'r1', results: [{ key: 'result', roll: { result: 58 } }] };
+    ActiveWebHelper.postAsync.mockResolvedValue({ status: 200, body });
+
+    const formulas = [{ key: 'result', formula: '1d100' }, { key: 'sl', formula: '0' }];
+    await expect(api.Rolls.Start(formulas)).resolves.toEqual(body);
+    expect(ActiveWebHelper.postAsync).toHaveBeenCalledTimes(1);
+    expect(ActiveWebHelper.postAsync).toHaveBeenCalledWith('rolls/start', { formulas });
+  });
+
+  it('Start rejects with the server error message for an invalid formula', async () => {
+    const api = await CardAPIFactory('card-rolls');
+    ActiveWebHelper.postAsync.mockResolvedValue({ status: 400, body: { error: "Invalid roll formula for 'result': 1d" } });
+
+    await expect(api.Rolls.Start([{ key: 'result', formula: '1d' }])).rejects.toThrow("Invalid roll formula for 'result': 1d");
+  });
+
+  it('Finish posts only the roll id, html, css key and title — never roll numbers', async () => {
+    const api = await CardAPIFactory('card-rolls');
+    ActiveWebHelper.postAsync.mockResolvedValue({ status: 200, body: null });
+
+    await api.Rolls.Finish({ rollId: 'r1', html: '<b data-roll-key="result"></b>', cssResourceKey: 'css', title: 'Test', results: [{ key: 'result', roll: { result: 1 } }] });
+    expect(ActiveWebHelper.postAsync).toHaveBeenCalledWith('rolls/finish', {
+      rollId: 'r1', html: '<b data-roll-key="result"></b>', cssResourceKey: 'css', title: 'Test',
+    });
+  });
+
+  it('Finish rejects for an unknown or expired roll', async () => {
+    const api = await CardAPIFactory('card-rolls');
+    ActiveWebHelper.postAsync.mockResolvedValue({ status: 404, body: { error: 'Unknown or expired roll.' } });
+
+    await expect(api.Rolls.Finish({ rollId: 'gone', html: '<p></p>' })).rejects.toThrow('Unknown or expired roll.');
+  });
+});

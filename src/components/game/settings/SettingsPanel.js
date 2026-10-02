@@ -27,6 +27,7 @@ import { Switch } from "../../ui/switch";
 import { NumberInputField, NumberInputRoot } from "../../ui/number-input";
 import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
+import { HelpIcon } from "../../uiComponents/base/HelpIcon";
 import DynamicIconChooser from "../../uiComponents/icons/DynamicIconChooser";
 import { MaterialChooser } from "../../uiComponents/MaterialChooser";
 import { PlayerChooser } from "../../uiComponents/PlayerChooser";
@@ -54,12 +55,8 @@ const SettingFieldCard = ({ fieldKey, editable, disabled, validationError, child
       <Field.Label fontWeight="medium" fontSize="sm" color="gray.200">
         {editable.label}
         <Field.RequiredIndicator />
+        <HelpIcon text={editable.toolTip} docUrl={editable.docUrl} />
       </Field.Label>
-      {editable.toolTip && (
-        <Text fontSize="xs" color="gray.400" mb={1}>
-          {editable.toolTip}
-        </Text>
-      )}
       {validationError && (
         <FieldErrorText fontSize="xs">
           <Field.ErrorIcon boxSize="14px" />

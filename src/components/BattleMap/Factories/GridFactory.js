@@ -4,14 +4,14 @@ import ClientMediator from "../../../ClientMediator";
 import { RESERVED_LAYERS } from "../Constants/layers";
 
 class GridFactory {
-  DrawGrid = (gridSize, size, mapId) => {
+  DrawGrid = (gridSize, size, mapId, gridColor = "#aaaaaa") => {
     let gridArr = [];
 
     for (var i = 0; i < size[0] / gridSize; i++) {
       let line = new fabric.Line([i * gridSize, 0, i * gridSize, size[1]], {
         name: ".line",
         type: "line",
-        stroke: "#aaa",
+        stroke: gridColor,
         selectable: false,
         layer: RESERVED_LAYERS.GRID,
       });
@@ -22,7 +22,7 @@ class GridFactory {
       let line = new fabric.Line([0, i * gridSize, size[0], i * gridSize], {
         name: ".line",
         type: "line",
-        stroke: "#aaa",
+        stroke: gridColor,
         selectable: false,
         layer: RESERVED_LAYERS.GRID,
       });
@@ -32,7 +32,7 @@ class GridFactory {
     let line = new fabric.Line([size[0], 0, size[0], size[1]], {
       name: ".line",
       type: "line",
-      stroke: "#aaa",
+      stroke: gridColor,
       selectable: false,
       layer: RESERVED_LAYERS.GRID,
     });
@@ -41,7 +41,7 @@ class GridFactory {
     line = new fabric.Line([0, size[1], size[0], size[1]], {
       name: ".line",
       type: "line",
-      stroke: "#aaa",
+      stroke: gridColor,
       selectable: false,
       layer: RESERVED_LAYERS.GRID,
     });

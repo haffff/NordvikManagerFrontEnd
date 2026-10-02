@@ -14,6 +14,7 @@ import CollectionSyncer from "../../../uiComponents/base/CollectionSyncer";
 import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import InputModal from "../../../uiComponents/base/Modals/InputModal";
 import LayoutPersistence from "../../../../helpers/LayoutPersistence";
+import Subscribable from "../../../uiComponents/base/Subscribable";
 
 export const LayoutsMenu = ({ state, battlemapsRef, canSave = true }) => {
   const width = 200;
@@ -21,9 +22,22 @@ export const LayoutsMenu = ({ state, battlemapsRef, canSave = true }) => {
 
   const openRef = React.useRef();
 
-  React.useEffect(() => {
+  const refreshLayouts = React.useCallback(() => {
     WebHelper.get("Battlemap/GetLayouts", setServerLayouts);
   }, []);
+
+  React.useEffect(() => {
+    refreshLayouts();
+  }, [refreshLayouts]);
+
+  // The server-side layout list is filtered by permission — a share/unshare
+  // doesn't touch the layout entity itself, so the "layout" CollectionSyncer
+  // below never fires for it. Re-fetch on any LayoutModel permission change
+  // so a newly-shared (or un-shared) layout appears/disappears live.
+  const onPermissionUpdate = (event) => {
+    if (event?.data?.entityType !== "LayoutModel") return;
+    refreshLayouts();
+  };
 
   function DeleteServerLayout({ id }) {
     WebSocketManagerInstance.Send(CommandFactory.CreateLayoutRemoveCommand(id));
@@ -89,6 +103,7 @@ export const LayoutsMenu = ({ state, battlemapsRef, canSave = true }) => {
       setCollection={setServerLayouts}
       commandPrefix={"layout"}
     />
+    <Subscribable commandPrefix="permission_update" onMessage={onPermissionUpdate} />
     <InputModal
       openRef={openRef}
       title={"Save current layout"}

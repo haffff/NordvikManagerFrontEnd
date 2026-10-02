@@ -11,11 +11,13 @@ import {
   FaEye,
   FaLayerGroup,
   FaLock,
+  FaLockOpen,
   FaMap,
   FaObjectUngroup,
   FaPaste,
   FaPlus,
   FaShieldAlt,
+  FaTags,
   FaTrash,
   FaWrench,
   FaRegCheckCircle,
@@ -36,6 +38,8 @@ import { usePermissions } from "../../../../contexts/PermissionsContext";
 import { Tooltip } from "../../../ui/tooltip";
 import { RESERVED_LAYERS } from "../../../BattleMap/Constants/layers";
 import { useCustomLayers } from "../../../uiComponents/hooks/useCustomLayers";
+import { syncControlsVisibility } from "../../../BattleMap/Helpers/TokenControlsHelper";
+import { SearchInput } from "../../../uiComponents/SearchInput";
 
 export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) => {
   const selectedObjects = canvas?.getActiveObjects() || [];
@@ -63,6 +67,77 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
   React.useEffect(() => {
     WebHelper.getAsync('map/GetAllFlat').then(m => setMaps(m || [])).catch(() => {});
   }, []);
+
+  // Base-platform "Token" shortcut (Add submenu) — spawns a token from an
+  // EXISTING card, no card creation involved. Generic/game-system-agnostic
+  // (any card with a "token" property qualifies, addon or not), unlike the
+  // "Item"/"Monster" entries next to it which are addon-contributed and
+  // create a new card first. See BattleMapContextMenu's own PasteElements
+  // for the same canvas.lastAbsolutePointer usage this reuses for position.
+  const [allCards, setAllCards] = React.useState([]);
+  const [tokenCardIds, setTokenCardIds] = React.useState(() => new Set());
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const cards = await WebHelper.getAsync('materials/getcards').catch(() => null);
+      if (!cards?.length) { if (!cancelled) { setAllCards([]); setTokenCardIds(new Set()); } return; }
+      const ids = cards.map(c => c.id).join(',');
+      const props = await WebHelper
+        .getAsync(`properties/QueryProperties?parentIds=${ids}&names=token`)
+        .catch(() => null);
+      const withToken = new Set((props ?? []).filter(p => p.value).map(p => p.parentId));
+      if (!cancelled) { setAllCards(cards); setTokenCardIds(withToken); }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Bug fix: the batch load above only ever ran once on mount, so a card
+  // created while this context menu was already open never got its "token"
+  // property checked and could never appear in the picker until a reload.
+  // CardsPanel.js's own CollectionSyncer usage is the established pattern for
+  // keeping a card list live — extended here to also check each newly added
+  // card's token property individually as it arrives.
+  const handleCardAdded = (card) => {
+    WebHelper.getAsync(`properties/QueryProperties?parentIds=${card.id}&names=token`)
+      .then((props) => {
+        if ((props ?? []).some(p => p.value)) {
+          setTokenCardIds(prev => new Set(prev).add(card.id));
+        }
+      })
+      .catch(() => {});
+  };
+
+  const handleCardDeleted = (cardId) => {
+    setTokenCardIds(prev => {
+      if (!prev.has(cardId)) return prev;
+      const next = new Set(prev);
+      next.delete(cardId);
+      return next;
+    });
+  };
+
+  const tokenizableCards = React.useMemo(
+    () => allCards.filter(c => tokenCardIds.has(c.id)),
+    [allCards, tokenCardIds]
+  );
+
+  // A GM/player can easily have 50+ cards — filter client-side rather than
+  // rendering every tokenizable card as a flat menu row.
+  const [tokenSearch, setTokenSearch] = React.useState("");
+  const filteredTokenizableCards = React.useMemo(() => {
+    const q = tokenSearch.trim().toLowerCase();
+    if (!q) return tokenizableCards;
+    return tokenizableCards.filter(c => c.name?.toLowerCase().includes(q));
+  }, [tokenizableCards, tokenSearch]);
+
+  const SpawnTokenFromCard = (cardId) => {
+    ClientMediator.sendCommand('BattleMap_token', 'CreateToken', {
+      contextId: battleMapId,
+      cardId,
+      position: canvas.lastAbsolutePointer,
+    });
+  };
 
   const HandleDelete = () => {
     ClientMediator.sendCommand("BattleMap", "RemoveSelected", {
@@ -122,6 +197,34 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
   const CopyElements = () => {
     return ClientMediator.sendCommand("BattleMap", "CopyElements", {
       contextId: battleMapId,
+    });
+  };
+
+  // Tokens can opt out of scaling/rotating via their own corner/rotate handles —
+  // fabric.js respects these flags natively, so this is just a toggle + a
+  // minified sync, no server-side changes needed.
+  const isTokenControlsLocked = (obj) =>
+    !!(obj?.lockScalingX || obj?.lockScalingY || obj?.lockRotation);
+
+  const ToggleTokenControlsLock = () => {
+    const obj = selectedObjects[0];
+    if (!obj) return;
+    const locked = !isTokenControlsLocked(obj);
+    obj.set({
+      lockScalingX: locked,
+      lockScalingY: locked,
+      lockRotation: locked,
+    });
+    syncControlsVisibility(obj);
+    canvas.requestRenderAll();
+    const dto = DTOConverter.ConvertToDTOMinified(obj, [
+      "lockScalingX",
+      "lockScalingY",
+      "lockRotation",
+    ]);
+    WebSocketManagerInstance.Send({
+      command: "element_update",
+      data: dto,
     });
   };
 
@@ -217,6 +320,13 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
         setElementPermissions(msg.data.permissions ?? {});
       }} />
       <CollectionSyncer collection={maps} setCollection={setMaps} commandPrefix="map" />
+      <CollectionSyncer
+        collection={allCards}
+        setCollection={setAllCards}
+        commandPrefix="card"
+        onAdd={handleCardAdded}
+        onDelete={handleCardDeleted}
+      />
       <MenuContextTrigger >{children}</MenuContextTrigger>
       <MenuContent>
         {selectedObjects && selectedObjects.length === 1 ? (
@@ -249,48 +359,75 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
               icon={FaPaste}
               onClick={PasteElements}
             />
-            <DropDownMenu submenu={true} width={width} name={"More Actions"}>
-              <DropDownItem
-                width={width}
-                name={"Ungroup"}
-                onClick={() => SwitchLayer(RESERVED_LAYERS.MAP)}
-                icon={FaObjectUngroup}
-              />
-              <DropDownItem
-                width={width}
-                name={"Move Up"}
-                onClick={() => MoveUp()}
-                icon={FaArrowAltCircleUp}
-              />
-              <DropDownItem
-                width={width}
-                name={"Move Down"}
-                onClick={() => MoveDown()}
-                icon={FaArrowAltCircleDown}
-              />
-            </DropDownMenu>
-            <DropDownMenu
-              submenu={true}
-              width={width}
-              name={"Move to layer"}
-              icon={FaLayerGroup}
-            >
-              {layers.filter((l) => l.kind !== "reserved-grid").map((l) => (
+            {canEditMap && (
+              <DropDownMenu submenu={true} width={width} name={"More Actions"}>
                 <DropDownItem
-                  key={l.key}
                   width={width}
-                  name={l.name}
-                  onClick={() => SwitchLayer(l.layerId)}
-                  icon={l.kind === "reserved-token" ? FaChess : l.kind === "reserved-map" ? FaMap : FaLayerGroup}
+                  name={"Ungroup"}
+                  onClick={() => SwitchLayer(RESERVED_LAYERS.MAP)}
+                  icon={FaObjectUngroup}
                 />
-              ))}
-            </DropDownMenu>
+                <DropDownItem
+                  width={width}
+                  name={"Move Up"}
+                  onClick={() => MoveUp()}
+                  icon={FaArrowAltCircleUp}
+                />
+                <DropDownItem
+                  width={width}
+                  name={"Move Down"}
+                  onClick={() => MoveDown()}
+                  icon={FaArrowAltCircleDown}
+                />
+              </DropDownMenu>
+            )}
+            {canEditMap && (
+              <DropDownMenu
+                submenu={true}
+                width={width}
+                name={"Move to layer"}
+                icon={FaLayerGroup}
+              >
+                {layers.filter((l) => l.kind !== "reserved-grid").map((l) => (
+                  <DropDownItem
+                    key={l.key}
+                    width={width}
+                    name={l.name}
+                    onClick={() => SwitchLayer(l.layerId)}
+                    icon={l.kind === "reserved-token" ? FaChess : l.kind === "reserved-map" ? FaMap : FaLayerGroup}
+                  />
+                ))}
+              </DropDownMenu>
+            )}
             <DropDownItem
               width={width}
               name={"Properties"}
               onClick={HandleSpawnProperties}
               icon={FaWrench}
             />
+            {selectedObjects[0]?.isToken && selectedObjects[0]?.tokenData?.assignableIcons?.length > 0 && (
+              <DropDownItem
+                width={width}
+                name={"Manage Icons"}
+                onClick={() => ClientMediator.sendCommand("BattleMap", "ShowIconPicker", {
+                  contextId: battleMapId,
+                  tokenId: selectedObjects[0].id,
+                })}
+                icon={FaTags}
+              />
+            )}
+            {selectedObjects[0]?.isToken && (
+              <DropDownItem
+                width={width}
+                name={
+                  isTokenControlsLocked(selectedObjects[0])
+                    ? "Unlock Scale/Rotate"
+                    : "Lock Scale/Rotate"
+                }
+                onClick={ToggleTokenControlsLock}
+                icon={isTokenControlsLocked(selectedObjects[0]) ? FaLock : FaLockOpen}
+              />
+            )}
             <DropDownMenu
               submenu={true}
               width={width}
@@ -327,19 +464,46 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
           </>
         ) : (
           <>
-            <DropDownMenu
-              viewId={"battlemap_add"}
-              submenu={true}
-              width={width}
-              name={"Add"}
-              icon={<FaPlus/>}
-            ></DropDownMenu>
-            <DropDownItem
-              width={width}
-              name={"Paste"}
-              icon={<FaPaste/>}
-              onClick={() => PasteElements()}
-            />
+            {canEditMap && (
+              <DropDownMenu
+                viewId={"battlemap_add"}
+                submenu={true}
+                width={width}
+                name={"Add"}
+                icon={<FaPlus/>}
+              >
+                {tokenizableCards.length > 0 && (
+                  <DropDownMenu submenu={true} width={width} name={"Token"} icon={<FaChess/>}>
+                    {/* A GM/player can easily have 50+ tokenizable cards — stopPropagation
+                        keeps typing/clicking from being swallowed as menu item navigation
+                        (arrow-key/typeahead selection) or triggering the menu's closeOnSelect. */}
+                    <div
+                      style={{ padding: "4px 6px" }}
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      <SearchInput value={tokenSearch} onChange={setTokenSearch} />
+                    </div>
+                    {filteredTokenizableCards.map((card) => (
+                      <DropDownItem
+                        key={card.id}
+                        width={width}
+                        name={card.name}
+                        onClick={() => SpawnTokenFromCard(card.id)}
+                      />
+                    ))}
+                  </DropDownMenu>
+                )}
+              </DropDownMenu>
+            )}
+            {canEditMap && (
+              <DropDownItem
+                width={width}
+                name={"Paste"}
+                icon={<FaPaste/>}
+                onClick={() => PasteElements()}
+              />
+            )}
             <DropDownMenu
               submenu={true}
               width={width}

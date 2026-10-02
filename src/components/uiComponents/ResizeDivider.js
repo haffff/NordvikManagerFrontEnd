@@ -1,9 +1,10 @@
 import * as React from "react";
 import { Box } from "@chakra-ui/react";
+import themeColors from "../../helpers/themeColors";
 
 // ── Design tokens (kept local so the component is self-contained) ─────────────
-const BORDER_CLR = "rgb(65,65,65)";
-const CLR_BLUE   = "rgb(100,150,230)";
+const BORDER_CLR = themeColors.border;
+const CLR_BLUE   = themeColors.accentBlue;
 const MIN_COL    = 80; // px — minimum width any column may shrink to
 
 // ── useDragResize ─────────────────────────────────────────────────────────────

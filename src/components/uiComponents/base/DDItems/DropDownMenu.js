@@ -51,7 +51,13 @@ export const DropDownMenu = ({
         contextId: viewId,
         AddMenuItem: (data) => {
           const element = (data && data.item !== undefined) ? data.item : data;
+          // The sender (HandleAddMenuItem) sets key to the item's stable Name, not a
+          // per-broadcast id — without checking it here, the same addon action
+          // re-firing (e.g. on a reconnect, or any Hook it's wired to running more
+          // than once) re-broadcasts menu_item_add and this appended a duplicate
+          // every time, unlike AddSubMenu right below, which already guards this.
           setAdditionalItems(prev => {
+            if (element?.key != null && prev.some(el => el.key === element.key)) return prev;
             const next = [...prev, element];
             _persistedItems.set(viewId, next);
             return next;

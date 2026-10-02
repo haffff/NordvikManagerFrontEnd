@@ -15,6 +15,8 @@ import DListItem from '../base/List/DListItem';
 import DynamicIcon from '../icons/DynamicIcon';
 import UtilityHelper from '../../../helpers/UtilityHelper';
 import { SearchInput } from '../SearchInput';
+import { MenuContent, MenuContextTrigger, MenuRoot } from '../../ui/menu';
+import DropDownItem from '../base/DDItems/DropDownItem';
 
 // ─── module-level constants ───────────────────────────────────────────────────
 
@@ -23,6 +25,14 @@ const FOLDER_CONFIG = [
     { key: "color", label: "Color",       toolTip: "Color of folder.", type: "color"     },
     { key: "icon",  label: "Icon",        toolTip: "Icon of folder.",  type: "iconSelect" },
 ];
+
+// The underlying tree list has no virtualization — an expanded folder mounts a
+// real row (and, for e.g. images, a preview fetch) for every single child at
+// once. A folder with hundreds of items would mount hundreds of rows/previews
+// simultaneously, so each parent's children are capped and revealed in batches.
+const DEFAULT_VISIBLE_ITEMS = 50;
+const REVEAL_STEP = 50;
+const ROOT_KEY = "__root__";
 
 // ─── pure helpers (no React) ──────────────────────────────────────────────────
 
@@ -106,22 +116,86 @@ function collectDescendants(folderId, treeItems) {
 
 // ─── sub-components ───────────────────────────────────────────────────────────
 
-const FolderLabel = React.memo(({ id, name, icon, color, treeId }) => (
-    <DListItem id={`${treeId}/f-${id}`}>
-        <Flex align="center" gap="8px" width="100%" px="4px">
-            {color && (
-                <Box
-                    width="8px" height="8px" borderRadius="full" flexShrink={0}
-                    style={{ backgroundColor: color }}
-                />
-            )}
-            {icon ? <DynamicIcon iconName={icon} /> : <Icon as={FaFolder} opacity={0.6} />}
-            <Text fontSize="sm" flex={1} overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
-                {name}
-            </Text>
-        </Flex>
-    </DListItem>
-));
+const FolderLabel = React.memo(({ id, name, icon, color, treeId, node, actions }) => {
+    const content = (
+        <DListItem id={`${treeId}/f-${id}`}>
+            <Flex align="center" gap="8px" width="100%" px="4px">
+                {color && (
+                    <Box
+                        width="8px" height="8px" borderRadius="full" flexShrink={0}
+                        style={{ backgroundColor: color }}
+                    />
+                )}
+                {icon ? <DynamicIcon iconName={icon} /> : <Icon as={FaFolder} opacity={0.6} />}
+                <Text fontSize="sm" flex={1} overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
+                    {name}
+                </Text>
+            </Flex>
+        </DListItem>
+    );
+
+    // Right-click gives access to the same folder actions as the top toolbar —
+    // gated by the same canEditFolders permission the toolbar uses.
+    if (!actions?.canEditFolders()) return content;
+
+    return (
+        <MenuRoot onOpenChange={(d) => { if (d.open) actions.onSelect(node); }}>
+            <MenuContextTrigger>{content}</MenuContextTrigger>
+            <MenuContent>
+                <DropDownItem name="Edit Folder" icon={FaEdit} onClick={() => actions.onEditFolder(node)} />
+                <DropDownItem name="Delete Folder" icon={FaMinusCircle} onClick={() => actions.onDeleteFolder(node)} />
+                <DropDownItem name="Delete All" icon={FaTrashAlt} onClick={() => actions.onDeleteAllFolder(node)} />
+            </MenuContent>
+        </MenuRoot>
+    );
+});
+
+// onGenerateEditButtons hands back toolbar buttons (<DListItemButton icon label
+// onClick />, wrapped in a top-level <>...</> fragment plus conditionals) —
+// reused here as plain data (icon + label + onClick), not rendered as-is, so
+// the context menu reads like a normal menu (icon on the left, name of action)
+// instead of a strip of icon buttons. Every current caller (CardsPanel,
+// MaterialsPanel) already follows this label/icon/onClick shape.
+//
+// React.Children.toArray does NOT unwrap a *top-level* Fragment — it treats it
+// as one opaque element — so a caller's `<>{a}{b}</>` return value comes back
+// as a single item with no icon/label/onClick of its own. Recurse through
+// fragments (and arrays, from conditionals like {cond && <A/>}) ourselves.
+const flattenButtons = (node) => {
+    if (node == null || typeof node === "boolean") return [];
+    if (Array.isArray(node)) return node.flatMap(flattenButtons);
+    if (React.isValidElement(node)) {
+        return node.type === React.Fragment
+            ? flattenButtons(node.props.children)
+            : [node];
+    }
+    return [];
+};
+
+const buttonsToMenuItems = (buttons) =>
+    flattenButtons(buttons).map((child, i) => (
+        <DropDownItem
+            key={child.key ?? i}
+            name={child.props.label ?? child.props.name}
+            icon={child.props.icon}
+            onClick={child.props.onClick}
+        />
+    ));
+
+/** Wraps a leaf row's label so right-click shows the same edit actions the
+ * toolbar renders via onGenerateEditButtons for the currently selected item. */
+const LeafLabelContextMenu = React.memo(({ node, entity, actions, children }) => {
+    const buttons = actions?.getEditButtons(entity);
+    const items = buttons ? buttonsToMenuItems(buttons) : [];
+    if (!items.length) return children;
+
+    return (
+        <MenuRoot onOpenChange={(d) => { if (d.open) actions.onSelect(node); }}>
+            <MenuContextTrigger>{children}</MenuContextTrigger>
+            <MenuContent>{items}</MenuContent>
+        </MenuRoot>
+    );
+});
 
 const EmptyState = () => (
     <Flex direction="column" align="center" justify="center" gap="8px" py="32px"
@@ -130,6 +204,19 @@ const EmptyState = () => (
         <Text fontSize="sm">No items</Text>
     </Flex>
 );
+
+/** Pseudo-row appended when a folder has more children than the current reveal
+ * limit — reveals the next batch instead of mounting everything at once. */
+const ShowMoreRow = React.memo(({ count, onReveal }) => (
+    <Flex
+        align="center" gap="8px" width="100%" px="4px" py="2px"
+        color="gray.400" fontSize="sm" fontStyle="italic" cursor="pointer"
+        _hover={{ color: "gray.200" }}
+        onClick={(e) => { e.stopPropagation(); onReveal(); }}
+    >
+        Show {count} more…
+    </Flex>
+));
 
 /** Toolbar — memoised so it never re-renders during tree redraws. */
 const Toolbar = React.memo(({
@@ -213,6 +300,11 @@ export const DTreeList = ({
     const indexRef      = React.useRef({ byId: new Map(), roots: [] });
     const selectedRef   = React.useRef(selected);
     const entityTypeRef = React.useRef(entityType);
+    // How many children of each folder (keyed by parentId, ROOT_KEY for the
+    // top level) are currently revealed. "Show N more" bumps a folder's own
+    // entry by REVEAL_STEP and re-renders — doesn't need to be React state
+    // since renderTree is called directly right after mutating it.
+    const expandedLimitsRef = React.useRef(new Map());
 
     itemsRef.current     = items ?? [];
     treeItemsRef.current = treeItems;
@@ -225,13 +317,42 @@ export const DTreeList = ({
     const onDeleteItemRef = React.useRef(onDeleteItem);
     onDeleteItemRef.current = onDeleteItem;
 
+    const onGenerateEditButtonsRef = React.useRef(onGenerateEditButtons);
+    onGenerateEditButtonsRef.current = onGenerateEditButtons;
+    const canEditFoldersRef = React.useRef(canEditFolders);
+    canEditFoldersRef.current = canEditFolders;
+
     // modal open-fn refs
     const openCreateRef = React.useRef();
     const openEditRef   = React.useRef();
+    // Tracks which folder an in-flight "Edit Folder" modal is for — set explicitly
+    // by handleEditFolder rather than read from `selected`, since a right-click
+    // targets a specific node regardless of what's currently selected.
+    const editTargetRef = React.useRef(null);
 
     // delete-all confirmation dialog state
     const [deleteAllOpen,   setDeleteAllOpen]   = React.useState(false);
-    const [deleteAllTarget, setDeleteAllTarget] = React.useState(null); // { name, count }
+    const [deleteAllTarget, setDeleteAllTarget] = React.useState(null); // { id, name, count }
+
+    // Handler refs so the tree's row-rendering closures (built in renderTree,
+    // which does NOT depend on these) always call the latest implementation —
+    // same pattern as onDeleteItemRef above. Populated once each handler is
+    // defined further down.
+    const handleSelectRef        = React.useRef(() => {});
+    const handleEditFolderRef    = React.useRef(() => {});
+    const handleDeleteFolderRef  = React.useRef(() => {});
+    const handleOpenDeleteAllRef = React.useRef(() => {});
+
+    // Stable object passed into row context menus — never changes identity, so
+    // it's safe to hand to React.memo'd row components without breaking memoization.
+    const contextMenuActions = React.useRef({
+        onSelect:        (node) => handleSelectRef.current(node),
+        onEditFolder:    (node) => handleEditFolderRef.current(node),
+        onDeleteFolder:  (node) => handleDeleteFolderRef.current(node),
+        onDeleteAllFolder: (node) => handleOpenDeleteAllRef.current(node),
+        getEditButtons:  (entity) => onGenerateEditButtonsRef.current?.(entity),
+        canEditFolders:  () => canEditFoldersRef.current,
+    }).current;
 
     // ── open-state preservation ────────────────────────────────────────────────
     const collectOpenStates = React.useCallback(() => {
@@ -264,8 +385,14 @@ export const DTreeList = ({
         };
 
         const buildNodes = (firstItem) => {
+            const fullChain   = walkChain(firstItem);
+            const parentKey   = firstItem.parentId ?? ROOT_KEY;
+            const limit       = expandedLimitsRef.current.get(parentKey) ?? DEFAULT_VISIBLE_ITEMS;
+            const visibleChain = fullChain.slice(0, limit);
+            const hiddenCount  = fullChain.length - visibleChain.length;
+
             const nodes = [];
-            for (const item of walkChain(firstItem)) {
+            for (const item of visibleChain) {
                 const childHead  = headChildOf(item.id);
                 const childNodes = childHead ? buildNodes(childHead) : [];
 
@@ -280,6 +407,8 @@ export const DTreeList = ({
                                 id={item.id} name={item.name}
                                 icon={item.icon} color={item.color}
                                 treeId={treeId}
+                                node={item}
+                                actions={contextMenuActions}
                             />
                         ),
                     });
@@ -299,12 +428,33 @@ export const DTreeList = ({
                                 <div className="representsElement"
                                     id={`${treeId}/${entity.id}`}
                                     style={{ display: "none" }} />
-                                {_generateItem(entity, item)}
+                                <LeafLabelContextMenu node={item} entity={entity} actions={contextMenuActions}>
+                                    {_generateItem(entity, item)}
+                                </LeafLabelContextMenu>
                             </>
                         ),
                     });
                 }
             }
+
+            if (hiddenCount > 0) {
+                nodes.push({
+                    id: `__more__${parentKey}`,
+                    children: [],
+                    open: false,
+                    arrow: null,
+                    label: (
+                        <ShowMoreRow
+                            count={hiddenCount}
+                            onReveal={() => {
+                                expandedLimitsRef.current.set(parentKey, limit + REVEAL_STEP);
+                                renderTree(treeItemsRef.current, itemsRef.current);
+                            }}
+                        />
+                    ),
+                });
+            }
+
             return nodes;
         };
 
@@ -471,27 +621,45 @@ export const DTreeList = ({
         });
     }, [entityType]);
 
-    const handleDeleteFolder = React.useCallback(() => {
-        if (!selectedRef.current?.id) return;
-        WebSocketManagerInstance.Send({ command: "tree_remove", data: selectedRef.current.id });
-        onFolderDelete?.(selectedRef.current.id);
+    // `folder` is required (not defaulted to selectedRef.current) — the context
+    // menu passes the right-clicked node explicitly, which may differ from
+    // whatever is currently `selected`. Wire the toolbar's onClick as
+    // `() => handleDeleteFolder(selected)` rather than passing this directly,
+    // since a raw onClick={handleDeleteFolder} would hand it the click event.
+    const handleDeleteFolder = React.useCallback((folder) => {
+        if (!folder?.id) return;
+        WebSocketManagerInstance.Send({ command: "tree_remove", data: folder.id });
+        onFolderDelete?.(folder.id);
     }, [onFolderDelete]);
 
-    // Opens the confirmation dialog for "Delete All" on the selected folder.
-    const handleOpenDeleteAll = React.useCallback(() => {
-        const folder = selectedRef.current;
+    // Opens the confirmation dialog for "Delete All" on the given folder.
+    const handleOpenDeleteAll = React.useCallback((folder) => {
         if (!folder?.id || !folder.isFolder) return;
         const count = collectDescendants(folder.id, treeItemsRef.current).length;
-        setDeleteAllTarget({ name: folder.name ?? "folder", count });
+        setDeleteAllTarget({ id: folder.id, name: folder.name ?? "folder", count });
         setDeleteAllOpen(true);
     }, []);
 
-    // Runs the actual recursive deletion after the user confirms.
+    // Opens the "Edit Folder" modal for the given folder. Remembers the target
+    // in a ref (rather than relying on `selected`) so onCloseModal below saves
+    // to the right folder even if selection changes while the modal is open.
+    const handleEditFolder = React.useCallback((folder) => {
+        if (!folder?.id) return;
+        editTargetRef.current = folder;
+        // Support both the raw tree item (icon holds the real value, from a
+        // right-click) and the processed treeData node (icon is blanked out in
+        // favor of itemIcon, from normal selection) — same folder, two shapes.
+        openEditRef.current?.({ ...folder, icon: folder.icon ?? folder.itemIcon });
+    }, []);
+
+    // Runs the actual recursive deletion after the user confirms. Reads the
+    // explicit target captured when the dialog was opened (deleteAllTarget),
+    // not selectedRef — selection may have moved on by confirm time.
     // Sends commands in post-order so leaves are deleted before their parent folders.
     // The backend rejects tree_remove on a non-empty folder, so if any item fails
     // (e.g. permission denied) the containing folders survive with remaining items.
     const executeDeleteAll = React.useCallback(() => {
-        const folder = selectedRef.current;
+        const folder = deleteAllTarget;
         if (!folder?.id) return;
 
         const descendants = collectDescendants(folder.id, treeItemsRef.current);
@@ -513,7 +681,13 @@ export const DTreeList = ({
         // Delete the root folder last
         WebSocketManagerInstance.Send({ command: "tree_remove", data: folder.id });
         onFolderDelete?.(folder.id);
-    }, [onFolderDelete]);
+    }, [onFolderDelete, deleteAllTarget]);
+
+    // Keep the row-context-menu action refs current now that the real
+    // implementations exist (contextMenuActions itself never changes identity).
+    handleDeleteFolderRef.current  = handleDeleteFolder;
+    handleOpenDeleteAllRef.current = handleOpenDeleteAll;
+    handleEditFolderRef.current    = handleEditFolder;
 
     // Build path-prefixed labels for the "add after" dropdown in the create modal
     const getFolderOptions = () =>
@@ -531,6 +705,7 @@ export const DTreeList = ({
         setSelected(node);
         onSelect?.(node);
     }, [onSelect]);
+    handleSelectRef.current = handleSelect;
 
     // ── render ─────────────────────────────────────────────────────────────────
     return (
@@ -555,10 +730,10 @@ export const DTreeList = ({
                 getConfigDict={() => FOLDER_CONFIG}
                 openRef={openEditRef}
                 onCloseModal={({ name, color, icon }, success) => {
-                    if (success && selectedRef.current) {
+                    if (success && editTargetRef.current) {
                         WebSocketManagerInstance.Send({
                             command: "tree_update",
-                            data: { id: selectedRef.current.id, name, color, icon },
+                            data: { id: editTargetRef.current.id, name, color, icon },
                         });
                     }
                 }}
@@ -572,9 +747,9 @@ export const DTreeList = ({
                 canEditFolders={canEditFolders}
                 onAddItem={onAddItem}
                 onCreateFolder={() => openCreateRef.current?.({ name: "", parent: selected?.id })}
-                onEditFolder={() => openEditRef.current?.({ ...selected, icon: selected?.itemIcon })}
-                onDeleteFolder={handleDeleteFolder}
-                onDeleteAll={handleOpenDeleteAll}
+                onEditFolder={() => handleEditFolder(selected)}
+                onDeleteFolder={() => handleDeleteFolder(selected)}
+                onDeleteAll={() => handleOpenDeleteAll(selected)}
                 onGenerateEditButtons={onGenerateEditButtons}
                 onRefresh={onRefresh ? () => { fetchTree(); onRefresh(); } : undefined}
                 refreshing={loading}

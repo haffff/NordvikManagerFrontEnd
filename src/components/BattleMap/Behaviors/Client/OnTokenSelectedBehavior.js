@@ -34,7 +34,13 @@ export class OnTokenSelectedClientBehavior {
             return;
         }
 
-        let objects = token.additionalObjects?.filter(x => x?.tokenData?.showOnTokenControl) || [];
+        // _maskVisible is computed by TokenManager.UpdateTokenBasedOnProperties from
+        // this element's maskGroup (map-wide toggle, with an optional per-token
+        // override) — a showOnTokenControl element that's currently masked off must
+        // stay hidden even on selection, not just when deselected.
+        let objects = token.additionalObjects?.filter(
+            x => x?.tokenData?.showOnTokenControl && x._maskVisible !== false
+        ) || [];
 
         objects.forEach(element => {
             element.set({ visible: true });

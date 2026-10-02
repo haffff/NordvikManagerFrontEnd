@@ -34,11 +34,12 @@ import {  SelectContent,
 import { SearchInput } from "../../../uiComponents/SearchInput";
 import DListItemButton from "../../../uiComponents/base/List/ListItemDetails/DListItemButton";
 import { ResizeDivider, useDragResize } from "../../../uiComponents/ResizeDivider";
+import themeColors from "../../../../helpers/themeColors";
 
 // ─── design tokens (matches index.css variables) ──────────────────────────────
-const BG_SURFACE  = "rgb(38,38,38)";
-const BG_RAISED   = "rgb(48,48,48)";
-const BORDER_CLR  = "rgb(65,65,65)";
+const BG_SURFACE  = themeColors.surface;
+const BG_RAISED   = themeColors.surfaceRaised;
+const BORDER_CLR  = themeColors.border;
 
 // ─── permission options (mirrors Permission enum on the backend) ──────────────
 const PERMISSION_ITEMS = [

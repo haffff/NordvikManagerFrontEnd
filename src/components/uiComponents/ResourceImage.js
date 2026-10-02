@@ -8,7 +8,11 @@ import { ActiveWebHelper } from '../../helpers/transport';
  * Use this instead of <Image src={WebHelper.getResourceString(id)}> anywhere players
  * need to see resource images (players have no HTTP session cookie for the GM backend).
  */
-const ResourceImage = ({ id, resourceKey, fallbackSrc, ...props }) => {
+// `thumbnail`: fetch the small server-generated/cached resize instead of the
+// original file. Use this for any preview/icon-sized rendering (tree rows,
+// pickers) — pulling the full original just to shrink it with CSS is what lets
+// a folder of 4K images spike memory and WebRTC bandwidth.
+const ResourceImage = ({ id, resourceKey, fallbackSrc, thumbnail = false, ...props }) => {
   const [blobSrc, setBlobSrc] = useState(null);
 
   useEffect(() => {
@@ -17,7 +21,7 @@ const ResourceImage = ({ id, resourceKey, fallbackSrc, ...props }) => {
     let mounted = true;
     let objectUrl = null;
 
-    ActiveWebHelper.getResourceBlobAsync(id, resourceKey)
+    ActiveWebHelper.getResourceBlobAsync(id, resourceKey, thumbnail)
       .then((blob) => {
         if (!mounted || !(blob instanceof Blob)) return;
         objectUrl = URL.createObjectURL(blob);
@@ -31,7 +35,7 @@ const ResourceImage = ({ id, resourceKey, fallbackSrc, ...props }) => {
       mounted = false;
       if (objectUrl) URL.revokeObjectURL(objectUrl);
     };
-  }, [id, resourceKey]);
+  }, [id, resourceKey, thumbnail]);
 
   const src = blobSrc || fallbackSrc;
   if (!src) return null;

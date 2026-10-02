@@ -283,22 +283,35 @@ export const MaterialChooser = ({
   const handleDrop = React.useCallback((e) => {
     e.preventDefault();
     if (!e.dataTransfer.items) return;
-    [...e.dataTransfer.items].forEach((item) => {
-      if (item.kind === "string") {
-        try {
-          const dragObj = JSON.parse(sessionStorage.getItem("draggable"));
-          if (dragObj?.entityType === "ResourceModel") {
-            const mat = materialsRef.current?.find((x) => x.id === dragObj.id);
-            if (!mat) return;
+    const items = [...e.dataTransfer.items];
+
+    // A tree-drag carries one shared payload in sessionStorage, not one per
+    // DataTransferItem — but a drop can report more than one 'string'-kind item
+    // for the same drag (react-tree-list's own internal "itemId" data among
+    // others). Handling it once per matching item re-added the same material
+    // multiple times in multi-select mode (see HandleDrop.js for the battlemap
+    // counterpart of this bug). Handle it exactly once here.
+    if (items.some((item) => item.kind === "string")) {
+      const raw = sessionStorage.getItem("draggable");
+      sessionStorage.removeItem("draggable");
+      try {
+        const dragObj = raw ? JSON.parse(raw) : null;
+        if (dragObj?.entityType === "ResourceModel") {
+          const mat = materialsRef.current?.find((x) => x.id === dragObj.id);
+          if (mat) {
             if (multipleSelection) {
-              if (selectedRef.current.find((x) => x.id === mat.id)) return;
-              commitSelection([...selectedRef.current, mat]);
+              if (!selectedRef.current.find((x) => x.id === mat.id)) {
+                commitSelection([...selectedRef.current, mat]);
+              }
             } else {
               commitSelection([mat]);
             }
           }
-        } catch { /* ignore */ }
-      }
+        }
+      } catch { /* ignore */ }
+    }
+
+    items.forEach((item) => {
       if (item.kind === "file") {
         handleFilesDropped([item.getAsFile()].filter(Boolean));
       }

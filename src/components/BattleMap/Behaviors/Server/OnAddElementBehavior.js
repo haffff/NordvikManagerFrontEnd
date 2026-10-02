@@ -46,7 +46,19 @@ export class OnAddElementBehavior {
           }
 
           canvas.requestRenderAll();
-          const isToken = await ClientMediator.sendCommandAsync("BattleMap_Token", "IsToken", { contextId: battleMapId, id: response.data.id });
+          // Plain sendCommandAsync has no retry/queue — an element_add broadcast
+          // can arrive (and this behavior fire) before TokenManager.Load() has
+          // registered for this battle map yet, which would otherwise throw an
+          // uncaught "Command not found" here instead of just loading late.
+          // sendCommandWaitForRegisterAsync queues until it registers, matching
+          // the established pattern elsewhere in this codebase (PropertiesPanel.js,
+          // TokenQuickEditOverlay.js) for exactly this race.
+          const isToken = await ClientMediator.sendCommandWaitForRegisterAsync(
+            "battlemap_token",
+            "IsToken",
+            { contextId: battleMapId, id: response.data.id },
+            true
+          );
           if (isToken) {
             ClientMediator.sendCommand(
               "battlemap_token",

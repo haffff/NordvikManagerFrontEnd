@@ -5,6 +5,7 @@ import { SelectContent, SelectItem, SelectItemGroup, SelectRoot, SelectTrigger, 
 import DListItemButton from "../../../uiComponents/base/List/ListItemDetails/DListItemButton";
 import { FaArrowAltCircleDown, FaArrowAltCircleUp, FaMinusCircle, FaChevronDown, FaChevronRight } from "react-icons/fa";
 import CommandExecutionHelper from "../../../../helpers/CommandExecutionHelper";
+import themeColors from "../../../../helpers/themeColors";
 
 // Arg types that resolve to a live list of values via CommandExecutionHelper.GetArgCompletions —
 // rendered as a "combo" field (pick from the list, or still type a raw id / %variable%).
@@ -12,9 +13,9 @@ const PICKER_ARG_TYPES = new Set([
   "audioresourceid", "resourceid", "playlistid", "mapid", "playerid", "layoutid",
 ]);
 
-const BG_CARD   = "rgb(42,42,42)";
-const BG_HEADER = "rgb(52,52,52)";
-const BORDER    = "rgb(65,65,65)";
+const BG_CARD   = themeColors.surfaceCard;
+const BG_HEADER = themeColors.surfaceHover;
+const BORDER    = themeColors.border;
 
 export const ActionStep = ({
   actionId,

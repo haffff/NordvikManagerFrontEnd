@@ -2,6 +2,7 @@ import ClientMediator from "../../../../ClientMediator";
 import UtilityHelper from "../../../../helpers/UtilityHelper";
 import DTOConverter from "../../DTOConverter";
 import { compareLayers } from "../../Constants/layers";
+import { syncControlsVisibility } from "../../Helpers/TokenControlsHelper";
 
 export class OnUpdateElementBehavior {
   async Handle(response, canvas, battleMapId) {
@@ -34,7 +35,13 @@ export class OnUpdateElementBehavior {
           return;
         }
         let parsedJson = DTOConverter.ConvertFromDTO(response.data);
-        const isToken = (parsedJson.additionalObjects ? true : false);
+        // Drag/scale/rotate updates carry a minified DTO (only the changed fields,
+        // e.g. left/top) which never includes additionalObjects — checking the
+        // parsed payload here always says "not a token" for those actions, so the
+        // token image moves but its attached UI (name tag, HP bar, status icons)
+        // never gets repositioned and is left behind on every other client.
+        // The live canvas object always has this set correctly, so check that instead.
+        const isToken = !!obj.additionalObjects?.length;
         //parsedJson.selectable = (response.data.permission & 4 === 4) && parsedJson.data.layer === battleMapObject.SelectedLayer;
 
         obj?.additionalObjects?.forEach((element) => {
@@ -101,6 +108,7 @@ export class OnUpdateElementBehavior {
               break;
             default:
               obj.set(parsedJson);
+              syncControlsVisibility(obj);
               if (isToken) {
                 await ClientMediator.sendCommandAsync(
                   "BattleMap_Token",
@@ -121,6 +129,7 @@ export class OnUpdateElementBehavior {
           }
         } else {
           obj.set(parsedJson);
+          syncControlsVisibility(obj);
           if (isToken) {
             await ClientMediator.sendCommandAsync(
               "BattleMap_Token",

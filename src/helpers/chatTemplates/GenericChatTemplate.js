@@ -1,11 +1,12 @@
 import * as React from "react";
 import { Box, Text } from "@chakra-ui/react";
+import themeColors from "../themeColors";
 
 // ── Design tokens (kept local so the file is self-contained) ──────────────────
-const BG_CARD    = "rgb(48,48,48)";
-const BORDER_CLR = "rgb(65,65,65)";
-const CLR_TITLE  = "rgb(220,220,220)";
-const CLR_MUTED  = "rgb(140,140,140)";
+const BG_CARD    = themeColors.surfaceRaised;
+const BORDER_CLR = themeColors.border;
+const CLR_TITLE  = themeColors.text;
+const CLR_MUTED  = themeColors.textMuted;
 
 // Renders the backend's default/"Generic" chat template (SendChat with Template
 // "Text", or any Template value it doesn't recognise) — a plain title + message

@@ -11,6 +11,8 @@ import { Flex } from "@chakra-ui/react";
 import BattleMapContextMenu from "../game/ToolBar/ContextMenus/BattleMapContextMenu";
 import { PopupBMOverlay } from "./Overlays/PopupBMOverlay";
 import { InfoBMOverlay } from "./Overlays/InfoBMOverlay";
+import { TokenQuickEditOverlay } from "./Overlays/TokenQuickEditOverlay";
+import { TokenIconPickerOverlay } from "./Overlays/TokenIconPickerOverlay";
 import "../../stylesheets/battlemap.css";
 import { LoadingScreen } from "../uiComponents/LoadingScreen";
 import { PerformanceMonitor } from "../../helpers/PerformanceMonitor";
@@ -19,6 +21,7 @@ import createHandleDrop from './Handlers/HandleDrop';
 import BasePanel from "../uiComponents/base/BasePanel";
 import { _entityPermissionSetter } from "../../contexts/PermissionsContext";
 import { ENTITY_TYPES, PERM } from "./Helpers/permissionBits";
+import UtilityHelper from "../../helpers/UtilityHelper";
 
 const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
   // Performance monitor: track renders for this component
@@ -141,7 +144,10 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
           const mapPerms = await WebHelper.getAsync(
             `security/permissions?entityId=${mapId}&entityType=${ENTITY_TYPES.MAP}`
           );
-          const bits = mapPerms?.[currentPlayer.id] ?? PERM.NONE;
+          // Fall back to the "everyone" (Guid.Empty) row when this player has no
+          // explicit grant of their own — a map shared with all players otherwise
+          // never actually resolves for anyone but its owner.
+          const bits = mapPerms?.[currentPlayer.id] ?? mapPerms?.[UtilityHelper.EmptyGuid] ?? PERM.NONE;
           _entityPermissionSetter.current?.(ENTITY_TYPES.MAP, mapId, bits);
         }
       }
@@ -247,7 +253,10 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
         <FabricJSCanvas onReady={onReady} />{" "}
       </BattleMapContextMenu>
       <PopupBMOverlay key={uuid + "popup"} battleMapId={uuid} />
-      <InfoBMOverlay battleMapId={uuid} />    </Flex>
+      <InfoBMOverlay battleMapId={uuid} />
+      <TokenQuickEditOverlay battleMapId={uuid} canvas={editor?.canvas} />
+      <TokenIconPickerOverlay battleMapId={uuid} canvas={editor?.canvas} />
+    </Flex>
   );
 };
 

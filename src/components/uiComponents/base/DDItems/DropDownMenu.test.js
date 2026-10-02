@@ -32,6 +32,26 @@ describe('DropDownMenu addon menu injection', () => {
 
     expect(await screen.findByTestId('dnd-item')).toBeInTheDocument();
   });
+
+  // Regression coverage: the same addon action re-firing (a reconnect, or any Hook
+  // it's wired to running more than once — e.g. before RunPendingAddonInstallHooksAsync's
+  // own idempotency guard existed) re-broadcast menu_item_add for the same item every
+  // time, and this handler appended a duplicate on each broadcast with no check —
+  // unlike AddSubMenu, which already guarded against the equivalent case.
+  it('ignores a re-broadcast AddMenuItem for the same key instead of duplicating it', async () => {
+    renderWithProviders(<DropDownMenu viewId="battlemap_add" name="Add" />);
+
+    const send = () => ClientMediator.sendCommand('DropDownMenu', 'AddMenuItem', {
+      contextId: 'battlemap_add',
+      item: <div key="create-item-card" data-testid="create-item-card">Create Item Card</div>,
+    });
+
+    act(() => { send(); });
+    expect(await screen.findAllByTestId('create-item-card')).toHaveLength(1);
+
+    act(() => { send(); });
+    expect(await screen.findAllByTestId('create-item-card')).toHaveLength(1);
+  });
 });
 
 // Regression coverage: _persistedItems is module-level and survives a

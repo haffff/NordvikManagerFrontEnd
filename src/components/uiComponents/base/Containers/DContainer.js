@@ -3,6 +3,7 @@ import * as React from 'react';
 import DListItemButton from '../List/ListItemDetails/DListItemButton';
 import { FaMinus } from 'react-icons/fa';
 import DLabel from '../Text/DLabel';
+import themeColors from "../../../../helpers/themeColors";
 
 export const DContainer = ({ children, maxHeight, maxWidth, height, width, backgroundColor, title, withVisibilityToggle, collapsed }) => {
     const [visible, setVisible] = React.useState(!collapsed);
@@ -13,7 +14,7 @@ export const DContainer = ({ children, maxHeight, maxWidth, height, width, backg
     }
 
     return (
-        <Stack height={height} maxHeight={maxHeight} width={width} overflowY={'auto'} maxWidth={maxWidth} backgroundColor={backgroundColor} paddingTop={'5px'} borderWidth={'1px'} borderColor={'rgb(70,70,70)'} borderRadius={'5px'}>
+        <Stack height={height} maxHeight={maxHeight} width={width} overflowY={'auto'} maxWidth={maxWidth} backgroundColor={backgroundColor} paddingTop={'5px'} borderWidth={'1px'} borderColor={themeColors.divider} borderRadius={'5px'} className="nm_container">
             {title && !visibilityToggle ? <DLabel>{title}</DLabel> : <></>}
             {visibilityToggle ?
                 <Flex onClick={() => setVisible(!visible)} direction={'row-reverse'}>

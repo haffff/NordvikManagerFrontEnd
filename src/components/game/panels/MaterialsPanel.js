@@ -30,12 +30,13 @@ import {
     DialogRoot, DialogContent, DialogBody, DialogCloseTrigger, DialogHeader, DialogFooter, DialogTitle,
 } from '../../ui/dialog';
 import ProgressToastManager from '../../../helpers/ProgressToastManager';
+import themeColors from "../../../helpers/themeColors";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
 const BORDER_CLR  = "whiteAlpha.200";
-const BG_DROP     = "rgba(66,153,225,0.06)";
-const BG_DROP_HOV = "rgba(66,153,225,0.16)";
+const BG_DROP     = themeColors.dropZone;
+const BG_DROP_HOV = themeColors.dropZoneHover;
 
 // ─── UploadZone ───────────────────────────────────────────────────────────────
 
@@ -404,7 +405,7 @@ export const MaterialsPanel = ({ state }) => {
                         }}
                         content={
                             <Flex direction="column" alignItems="center" gap="4px" p="2px">
-                                <ResourceImage id={item.id} height="200px" fallbackSrc={undefined} />
+                                <ResourceImage id={item.id} height="200px" fallbackSrc={undefined} thumbnail />
                                 <Text fontSize="12px" fontWeight="medium">{item.name}</Text>
                             </Flex>
                         }
@@ -418,6 +419,7 @@ export const MaterialsPanel = ({ state }) => {
                                 cursor="pointer"
                                 onClick={openPreview}
                                 fallbackSrc={undefined}
+                                thumbnail
                             />
                         </Box>
                     </Tooltip>
@@ -464,7 +466,7 @@ export const MaterialsPanel = ({ state }) => {
                             <>
                                 <DListItemButton icon={FaHashtag} label="Copy ID" onClick={() => copyId(item.id)} />
                                 <DListItemButton icon={FaLink} label="Copy link" onClick={() => copyLink(item.id)} />
-                                <DListItemButton icon={FaPen}  label="Rename"    onClick={() => onFolderRenameOpenRef.current({ name: item.name, id: item.id })} />
+                                <DListItemButton icon={FaPen}  label="Edit"    onClick={() => onFolderRenameOpenRef.current({ name: item.name, key: item.key, id: item.id })} />
                                 {isGM && item.storage !== 1 && (
                                     <DListItemButton
                                         icon={FaExchangeAlt}
@@ -507,11 +509,14 @@ export const MaterialsPanel = ({ state }) => {
     return (
         <BasePanel onDragOver={(e) => e.preventDefault()} onDrop={handlePanelDrop}>
             <InputModal
-                title="Rename Resource"
-                getConfigDict={() => [{ key: "name", label: "Resource Name", toolTip: "Name of Resource.", type: "string", required: true }]}
+                title="Edit Resource"
+                getConfigDict={() => [
+                    { key: "name", label: "Resource Name", toolTip: "Name of Resource.", type: "string", required: true },
+                    { key: "key", label: "Key", toolTip: "Optional short identifier for looking this resource up directly from actions/queries (e.g. \"Apple\") instead of by its ID. Must be unique within this game — leave blank to clear it.", type: "string" },
+                ]}
                 openRef={onFolderRenameOpenRef}
-                onCloseModal={({ name, id }, success) => {
-                    if (success) WebSocketManagerInstance.Send({ command: "resource_update", data: { id, name } });
+                onCloseModal={({ name, key, id }, success) => {
+                    if (success) WebSocketManagerInstance.Send({ command: "resource_update", data: { id, name, key } });
                 }}
             />
 

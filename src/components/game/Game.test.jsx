@@ -4,7 +4,7 @@ import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../setupTests';
 
 vi.mock('../../helpers/transport', () => ({
-  ActiveWebHelper: { GameId: undefined },
+  ActiveWebHelper: { GameId: undefined, getAsync: vi.fn(() => Promise.resolve(undefined)) },
   ActiveTransportManager: {
     WebSocketStarted: true,
     Start: vi.fn(),
@@ -22,6 +22,7 @@ vi.mock('../uiComponents/base/Subscribable', () => ({ default: () => null }));
 vi.mock('./PlaybackManager', () => ({ default: () => null }));
 vi.mock('./RequestInputManager', () => ({ default: () => null }));
 vi.mock('./LayoutAutoSaveManager', () => ({ default: () => null }));
+vi.mock('./theme/GameStylesheets', () => ({ default: () => null }));
 vi.mock('../QuickCommandDialog', () => ({ default: () => null }));
 vi.mock('../uiComponents/WebSocketStatus', () => ({ default: () => null }));
 vi.mock('../uiComponents/LoadingScreen', () => ({ LoadingScreen: () => <div>Loading</div> }));

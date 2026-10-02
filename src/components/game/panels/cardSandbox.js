@@ -31,6 +31,7 @@
  *   { type: "SANDBOX_READY" }
  *   { type: "CMD",     reqId, panel, command, data }
  *   { type: "WS_SEND", command, data }
+ *   { type: "CLOSE_PANEL" }
  */
 
 /**
@@ -73,6 +74,11 @@ export const SANDBOX_BRIDGE_SCRIPT = `<script>
       Init:     (name, val) => _rpc('Properties', 'Init',     { name, value: val }),
       InitMany: (props)     => _rpc('Properties', 'InitMany', { properties: props }),
       Remove:   (name)      => _rpc('Properties', 'Remove',   { name }),
+      // Every property of this card in one call (the host answers from the
+      // cache it warms when the card opens) — CardPanel.js already routed
+      // it; the bridge just never exposed it, so addons fell back to one
+      // request per property.
+      GetProperties: ()     => _rpc('Properties', 'GetProperties', {}),
 
       Subscribe: (name, cb) => {
         if (!_propSubscriptions[name]) _propSubscriptions[name] = [];
@@ -160,6 +166,17 @@ export const SANDBOX_BRIDGE_SCRIPT = `<script>
     SendCustomCommandToServer: (command, data) =>
       parent.postMessage({ type: 'WS_SEND', command, data }, '*'),
 
+    // Closes the dockable panel this card is hosted in — e.g. a creator/wizard
+    // card that should dismiss itself once its job (create X) is done.
+    Close: () => parent.postMessage({ type: 'CLOSE_PANEL' }, '*'),
+
+    // Roll now, post later — see src/CardAPI.js Rolls. Start resolves to
+    // { rollId, results: [{ key, roll }] }; Finish posts one Html chat message.
+    Rolls: {
+      Start:  (formulas) => _rpc('Rolls', 'Start',  { formulas }),
+      Finish: (payload)  => _rpc('Rolls', 'Finish', payload),
+    },
+
     SubscribeWebSocket: (cb) => { _wsSubscriptions.push(cb); },
     UnsubscribeWebSocket: (cb) => {
       const i = _wsSubscriptions.indexOf(cb);
@@ -169,14 +186,29 @@ export const SANDBOX_BRIDGE_SCRIPT = `<script>
 
   Object.freeze(CardAPI.Properties);
   Object.freeze(CardAPI.Resources);
+  Object.freeze(CardAPI.Rolls);
   Object.freeze(CardAPI.ClientMediator);
   Object.freeze(CardAPI);
 
   window.CardAPI = CardAPI;
 
   // ── Inbound message handler ───────────────────────────────────────────────
+  // Trust the sender of the first message (guaranteed to be the host bridge —
+  // nothing else can know this blob: URL) rather than comparing against
+  // \`parent\`. For a docked panel those are the same window, but a panel
+  // popped out to a separate OS window (BrowserWindowPortal) physically embeds
+  // this iframe in that window's document — making it this iframe's DOM
+  // \`parent\` — while the host's JS (and thus every postMessage it sends) still
+  // runs in the main app window's realm. \`event.source\` reflects the caller's
+  // realm, not the DOM tree, so it never equals \`parent\` in that case and every
+  // inbound message was silently dropped.
+  let _trustedSource = null;
   window.addEventListener('message', (event) => {
-    if (event.source !== parent) return;
+    if (_trustedSource === null) {
+      _trustedSource = event.source;
+    } else if (event.source !== _trustedSource) {
+      return;
+    }
     const msg = event.data ?? {};
 
     switch (msg.type) {

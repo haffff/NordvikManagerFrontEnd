@@ -15,16 +15,19 @@ export const DListItemButton = ({
   margin,
   variant,
   hidden,
+  disabled,
+  disabledTooltip,
 }) => {
   let setMargin = margin ? margin : "2px";
   return (
-    <Tooltip openDelay={300} content={label} variant="outline" fontSize="md">
+    <Tooltip openDelay={300} content={disabled && disabledTooltip ? disabledTooltip : label} variant="outline" fontSize="md">
       <IconButton
         aria-label={label}
         visibility={hidden ? "hidden" : "visible"}
         backgroundColor={bgColor}
         margin={setMargin}
         onClick={onClick}
+        disabled={disabled}
         style={style}
         colorScheme="alpha"
         variant={variant || "outline"}

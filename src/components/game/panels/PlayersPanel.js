@@ -172,7 +172,12 @@ export const PlayersPanel = ({ adminMode = false }) => {
   const compact    = width  <  160;   // very narrow → avatars only
 
   return (
-    <BasePanel direction={horizontal ? "column" : "row"} baseRef={panelRef}>
+    <BasePanel 
+      title={isAdmin ? "Admin players management panel" : undefined}
+      helpText={isAdmin ? "You can manage players here, change settings of them or kick them out of your game" : undefined}
+      docUrl="/documentation/managingPlayers" 
+      direction={horizontal ? "column" : "row"} 
+      baseRef={panelRef}>
       <DList>
         {entries.map((entry) => {
           const pid = entry.player.id ?? entry.player.Id;

@@ -30,16 +30,17 @@ import { ActiveTransportManager as WebSocketManagerInstance } from "../../../../
 import { ResizeDivider, useDragResize } from "../../../uiComponents/ResizeDivider";
 import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import ClientMediator from "../../../../ClientMediator";
+import themeColors from "../../../../helpers/themeColors";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
-const BG_SURFACE  = "rgb(28,28,28)";
-const BG_RAISED   = "rgb(38,38,38)";
-const BORDER_CLR  = "rgb(65,65,65)";
-const TEXT_MUTED  = "rgb(130,130,130)";
-const CLR_GOLD    = "rgb(220,180,60)";
-const CLR_BLUE    = "rgb(100,150,230)";
-const CLR_RED     = "rgb(220,80,80)";
-const CLR_GREEN   = "rgb(80,200,120)";
+const BG_SURFACE  = themeColors.surfaceSunken;
+const BG_RAISED   = themeColors.surface;
+const BORDER_CLR  = themeColors.border;
+const TEXT_MUTED  = themeColors.textSubtle;
+const CLR_GOLD    = themeColors.accentGold;
+const CLR_BLUE    = themeColors.accentBlue;
+const CLR_RED     = themeColors.accentRed;
+const CLR_GREEN   = themeColors.accentGreen;
 
 // ── JSON theme (matches dark surface) ────────────────────────────────────────
 const JSON_THEME = {
