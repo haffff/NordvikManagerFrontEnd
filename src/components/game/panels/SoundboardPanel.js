@@ -1,11 +1,11 @@
 import * as React from "react";
-import { Box, Button, Flex, HStack, Icon, Input, SimpleGrid, Stack, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, HStack, Icon, SimpleGrid, Stack, Text } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import { FaChevronLeft, FaChevronRight, FaEdit, FaMinus, FaMusic, FaPlus, FaStop, FaVolumeUp } from "react-icons/fa";
 import { toaster } from "../../ui/toaster";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
 import Subscribable from "../../uiComponents/base/Subscribable";
-import DList from "../../uiComponents/base/List/DList";
+import DTreeList from "../../uiComponents/treeList/DTreeList";
 import DListItem from "../../uiComponents/base/List/DListItem";
 import DLabel from "../../uiComponents/base/Text/DLabel";
 import DListItemButton from "../../uiComponents/base/List/ListItemDetails/DListItemButton";
@@ -145,7 +145,7 @@ export const SoundboardPanel = () => {
   const { isGM } = usePermissions();
   const [boards, setBoards] = React.useState([]);
   const [selectedId, setSelectedId] = React.useState(null);
-  const [search, setSearch] = React.useState("");
+  const treeRefreshRef = React.useRef(null);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [viewMode, setViewMode] = React.useState("play"); // "play" | "edit"
   const [isListCollapsed, setIsListCollapsed] = React.useState(false);
@@ -160,6 +160,13 @@ export const SoundboardPanel = () => {
     const data = await ClientMediator.sendCommandAsync("Playlist", "GetPlaylists", { kind: 1 });
     if (data) setBoards(data);
   }, []);
+
+  // After something changed: reload boards and the folder tree (the server files a new
+  // board in the tree on its next load).
+  const reloadAll = React.useCallback(async () => {
+    await loadBoards();
+    treeRefreshRef.current?.();
+  }, [loadBoards]);
 
   React.useEffect(() => {
     loadBoards();
@@ -199,7 +206,7 @@ export const SoundboardPanel = () => {
       toaster.create({ title: "Failed to create soundboard", description: body?.error, type: "error", duration: 5000 });
       return;
     }
-    await loadBoards();
+    await reloadAll();
     if (body?.id) setSelectedId(body.id);
   };
 
@@ -212,7 +219,7 @@ export const SoundboardPanel = () => {
       return;
     }
     if (selectedId === board.id) setSelectedId(null);
-    await loadBoards();
+    await reloadAll();
   };
 
   const handleSave = async (changes) => {
@@ -232,7 +239,7 @@ export const SoundboardPanel = () => {
       toaster.create({ title: "Failed to save soundboard", description: body?.error, type: "error", duration: 5000 });
       return;
     }
-    await loadBoards();
+    await reloadAll();
   };
 
   // Do not optimistically play locally — wait for the resulting sound_play broadcast,
@@ -246,11 +253,6 @@ export const SoundboardPanel = () => {
   };
 
   // ── Derived state ────────────────────────────────────────────────────────────
-
-  const filtered = React.useMemo(
-    () => (search.trim() ? boards.filter((b) => b.name?.toLowerCase().includes(search.toLowerCase())) : boards),
-    [boards, search]
-  );
 
   const sounds = selectedBoard?.resources ?? [];
 
@@ -266,7 +268,11 @@ export const SoundboardPanel = () => {
 
   return (
     <BasePanel>
-      <Subscribable commandPrefix="playlist" onMessage={() => loadBoards()} />
+      {/* Sound play/stop events are frequent: only real changes (playlist_notify) refresh the tree. */}
+      <Subscribable
+        commandPrefix="playlist"
+        onMessage={(m) => (m?.command === "playlist_notify" ? reloadAll() : loadBoards())}
+      />
       <Flex height="100%" width="100%" overflow="hidden" ref={colContainerRef}>
         {/* ── Left list pane ── */}
         <Stack
@@ -277,28 +283,25 @@ export const SoundboardPanel = () => {
           gap={0}
           display={isListCollapsed ? "none" : "flex"}
         >
-          <Box px="8px" py="6px" borderBottomWidth="1px" borderColor={themeColors.divider}>
-            <Input
-              size="xs"
-              placeholder="Search soundboards…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </Box>
-
-          <Box flex={1} overflowY="auto" px="4px" py="4px">
-            <DList mainComponent={true}>
-              {filtered.map((b) => (
+          {/* Folder tree (with its own search) */}
+          <Flex flex={1} minH={0} direction="column" px="4px" pt="4px">
+            <DTreeList
+              entityType="Soundboard"
+              items={boards}
+              canEditFolders={isGM}
+              refreshRef={treeRefreshRef}
+              estimatedRowHeight={44}
+              onSelect={(sel) => { if (sel?.itemRef) setSelectedId(sel.itemRef.id); }}
+              generateItem={(b) => (
                 <BoardCard
-                  key={b.id}
                   board={b}
                   isSelected={selectedId === b.id}
                   onSelect={(board) => setSelectedId(board.id)}
                   onDelete={handleDelete}
                 />
-              ))}
-            </DList>
-          </Box>
+              )}
+            />
+          </Flex>
 
           <Box px="6px" py="6px" borderTopWidth="1px" borderColor={themeColors.divider}>
             <Button variant="outline" size="sm" width="100%" onClick={handleAdd}>
