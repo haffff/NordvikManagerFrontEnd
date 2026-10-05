@@ -1,15 +1,16 @@
 import * as React from "react";
 import { Box, Button, Flex, Text } from "@chakra-ui/react";
 import ClientMediator from "../../ClientMediator";
+import themeColors from "../themeColors";
 
 // ── Design tokens (kept local so the file is self-contained) ──────────────────
-const BG_CARD    = "rgb(48,48,48)";
-const BG_DIE     = "rgb(38,38,38)";
-const BORDER_CLR = "rgb(65,65,65)";
-const CLR_CRIT   = "rgb(72,199,116)";   // green
-const CLR_FAIL   = "rgb(240,80,80)";    // red
-const CLR_NORMAL = "rgb(200,200,200)";  // light-grey
-const CLR_MUTED  = "rgb(140,140,140)";
+const BG_CARD    = themeColors.surfaceRaised;
+const BG_DIE     = themeColors.surface;
+const BORDER_CLR = themeColors.border;
+const CLR_CRIT   = themeColors.rollCrit;   // green
+const CLR_FAIL   = themeColors.rollFail;    // red
+const CLR_NORMAL = themeColors.rollNormal;  // light-grey
+const CLR_MUTED  = themeColors.textMuted;
 
 // ── DieChip ───────────────────────────────────────────────────────────────────
 // kept/exploded/success default to the dice engine's "plain NdM roll" defaults

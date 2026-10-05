@@ -78,6 +78,10 @@ class BMQueryService {
         description: 'Returns the full map object currently loaded in this BattleMap.',
         args: [],
       },
+      GetLastClickPos: {
+        description: 'Returns the last absolute canvas pointer position ({x, y}), e.g. for spawning something at the point a context menu was opened from.',
+        args: [],
+      },
       GetDragMode: {
         description: 'Returns true when canvas pan/drag mode is active, otherwise null.',
         args: [],
@@ -160,6 +164,10 @@ class BMQueryService {
 
   GetSelectedMap() {
     return this._map;
+  }
+
+  GetLastClickPos() {
+    return this._canvas.lastAbsolutePointer;
   }
 
   GetDragMode() {

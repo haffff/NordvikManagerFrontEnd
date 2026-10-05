@@ -124,7 +124,7 @@ export default function createLoadCanvas(deps) {
           radius: this.radius,
           tokenUiElements: this.tokenUiElements,
           tokenData: this.tokenData,
-          isTokenUi: this.isTokenUi,
+          isTokenUI: this.isTokenUI,
           // Not in fabric's own default whitelist — without these, isToken/cardId
           // survive only in-memory for the client that created the token. After a
           // send-to-server round trip or a page reload, the reconstructed object

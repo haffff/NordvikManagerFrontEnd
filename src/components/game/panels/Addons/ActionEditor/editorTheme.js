@@ -1,17 +1,19 @@
-// Colours for the action editor, kept in one place so they can be swapped for the app's
-// shared theme tokens later.
+// Colours for the action editor, taken from the app theme (helpers/themeColors.js) so
+// custom stylesheets restyle the editor too.
+import { themeColors } from "../../../../../helpers/themeColors";
+
 export const T = {
-  surface: "rgb(30,30,30)",
-  raised: "rgb(42,42,42)",
-  hover: "rgb(52,52,52)",
-  selected: "rgba(66,153,225,0.16)",
-  border: "rgb(65,65,65)",
-  text: "gray.200",
-  muted: "gray.500",
-  faint: "gray.600",
-  token: "#f6c177",       // %variables% in summaries
-  missing: "#e07a7a",     // required argument not filled in
-  accent: "blue.300",
+  surface: themeColors.background,
+  raised: themeColors.surfaceCard,
+  hover: themeColors.surfaceHover,
+  selected: "rgba(66,153,225,0.16)", // no theme token for a selected row yet
+  border: themeColors.border,
+  text: themeColors.text,
+  muted: themeColors.textMuted,
+  faint: themeColors.textSubtle,
+  token: themeColors.accentGold,     // %variables% in summaries
+  missing: themeColors.accentRed,    // required argument not filled in
+  accent: themeColors.accentBlue,
 };
 
 // Type chip colour per step category (anything else falls back to gray).

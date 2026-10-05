@@ -23,6 +23,7 @@ import { SettingsPanelWithPropertySettings } from "../../settings/SettingsPanelW
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../../helpers/transport";
 import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import { ResizeDivider, useDragResize } from "../../../uiComponents/ResizeDivider";
+import themeColors from "../../../../helpers/themeColors";
 
 // ── Module-level constants ────────────────────────────────────────────────────
 
@@ -117,7 +118,7 @@ const RightPaneHeader = ({
     px="12px"
     py="8px"
     borderBottomWidth="1px"
-    borderColor="rgb(70,70,70)"
+    borderColor={themeColors.divider}
     gap="10px"
     flexShrink={0}
   >
@@ -230,7 +231,7 @@ export const CustomViewsPanel = ({ gameDataRef, state }) => {
           gap={0}
         >
           {/* Search */}
-          <Box px="8px" py="6px" borderBottomWidth="1px" borderColor="rgb(70,70,70)">
+          <Box px="8px" py="6px" borderBottomWidth="1px" borderColor={themeColors.divider}>
             <Input
               size="xs"
               placeholder="Search views…"
@@ -255,7 +256,7 @@ export const CustomViewsPanel = ({ gameDataRef, state }) => {
           </Box>
 
           {/* Pinned add button */}
-          <Box px="6px" py="6px" borderTopWidth="1px" borderColor="rgb(70,70,70)">
+          <Box px="6px" py="6px" borderTopWidth="1px" borderColor={themeColors.divider}>
             <Button variant="outline" size="sm" width="100%" onClick={handleAdd}>
               <HStack gap="6px">
                 <Icon as={FaPlus} />

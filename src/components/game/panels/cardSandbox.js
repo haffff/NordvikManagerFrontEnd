@@ -31,6 +31,7 @@
  *   { type: "SANDBOX_READY" }
  *   { type: "CMD",     reqId, panel, command, data }
  *   { type: "WS_SEND", command, data }
+ *   { type: "CLOSE_PANEL" }
  */
 
 /**
@@ -164,6 +165,10 @@ export const SANDBOX_BRIDGE_SCRIPT = `<script>
 
     SendCustomCommandToServer: (command, data) =>
       parent.postMessage({ type: 'WS_SEND', command, data }, '*'),
+
+    // Closes the dockable panel this card is hosted in — e.g. a creator/wizard
+    // card that should dismiss itself once its job (create X) is done.
+    Close: () => parent.postMessage({ type: 'CLOSE_PANEL' }, '*'),
 
     // Roll now, post later — see src/CardAPI.js Rolls. Start resolves to
     // { rollId, results: [{ key, roll }] }; Finish posts one Html chat message.

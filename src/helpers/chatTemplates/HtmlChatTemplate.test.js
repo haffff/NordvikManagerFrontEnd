@@ -3,8 +3,9 @@ import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { renderWithProviders } from '../../setupTests';
 import { HtmlChatTemplate, buildMessageDocument } from './HtmlChatTemplate';
 
+const getMaterialAsync = vi.fn(() => Promise.resolve(new Blob(['.sheet-rolltemplate-x{color:blue}'], { type: 'application/octet-stream' })));
 vi.mock('../transport', () => ({
-  ActiveWebHelper: { getResourceString: (id, key) => `https://example.test/resource?key=${key}` },
+  ActiveWebHelper: { getMaterialAsync: (...args) => getMaterialAsync(...args) },
 }));
 
 const d20 = (result) => ({ result, rolled: '{0}', dices: [{ index: 0, diceValue: 20, times: 1, result, kept: true }] });
@@ -81,7 +82,7 @@ describe('HtmlChatTemplate', () => {
       disconnect() { this.disconnected = true; }
       reveal() { this.cb([{ isIntersecting: true }]); }
     };
-    global.fetch = vi.fn(() => Promise.resolve({ ok: true, text: () => Promise.resolve('.sheet-rolltemplate-x{color:blue}') }));
+    getMaterialAsync.mockClear();
   });
 
   afterEach(() => {
@@ -113,8 +114,8 @@ describe('HtmlChatTemplate', () => {
     act(() => observers.forEach((o) => o.reveal()));
 
     await waitFor(() => expect(container.querySelectorAll('iframe')).toHaveLength(3));
-    expect(global.fetch).toHaveBeenCalledTimes(1);
-    expect(global.fetch.mock.calls[0][0]).toContain('key=css-shared');
+    expect(getMaterialAsync).toHaveBeenCalledTimes(1);
+    expect(getMaterialAsync.mock.calls[0][2]).toBe('css-shared');
   });
 
   it('renders nothing without html', () => {

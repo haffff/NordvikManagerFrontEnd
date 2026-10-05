@@ -10,44 +10,7 @@ import { SYSTEM_ASSET_KEYS } from "../../../helpers/systemAssets";
 import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { RESERVED_LAYERS } from "../Constants/layers";
-
-// ─── React-icons dynamic pack loader ─────────────────────────────────────────
-// Vite requires statically-analyzable import() paths. A fully dynamic template
-// literal like `import(\`react-icons/${pack}\`)` is invisible to the bundler and
-// will fail at runtime. Each entry here is a static string that Vite can resolve.
-const ICON_PACK_LOADERS = {
-  ai:  () => import('react-icons/ai'),
-  bi:  () => import('react-icons/bi'),
-  bs:  () => import('react-icons/bs'),
-  cg:  () => import('react-icons/cg'),
-  ci:  () => import('react-icons/ci'),
-  di:  () => import('react-icons/di'),
-  fa:  () => import('react-icons/fa'),
-  fa6: () => import('react-icons/fa6'),
-  fc:  () => import('react-icons/fc'),
-  fi:  () => import('react-icons/fi'),
-  gi:  () => import('react-icons/gi'),
-  go:  () => import('react-icons/go'),
-  gr:  () => import('react-icons/gr'),
-  hi:  () => import('react-icons/hi'),
-  hi2: () => import('react-icons/hi2'),
-  im:  () => import('react-icons/im'),
-  io:  () => import('react-icons/io'),
-  io5: () => import('react-icons/io5'),
-  lia: () => import('react-icons/lia'),
-  lu:  () => import('react-icons/lu'),
-  md:  () => import('react-icons/md'),
-  pi:  () => import('react-icons/pi'),
-  ri:  () => import('react-icons/ri'),
-  rx:  () => import('react-icons/rx'),
-  si:  () => import('react-icons/si'),
-  sl:  () => import('react-icons/sl'),
-  tb:  () => import('react-icons/tb'),
-  tfi: () => import('react-icons/tfi'),
-  ti:  () => import('react-icons/ti'),
-  vsc: () => import('react-icons/vsc'),
-  wi:  () => import('react-icons/wi'),
-};
+import { ICON_PACK_LOADERS } from "../../../helpers/ReactIconPackLoaders";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -259,6 +222,11 @@ class TokenManager {
           "Recalculates and repositions all additional UI objects anchored to a token.",
         args: [{ name: "objectId", type: "string", required: true }],
       },
+      GetAvailableMaskGroups: {
+        description:
+          "Scans every token currently on the map and returns the distinct {maskGroup, label} pairs found among their maskable UI elements, for a generic map-wide mask-toggle settings UI.",
+        args: [],
+      },
     };
   }
 
@@ -432,9 +400,20 @@ class TokenManager {
 
   /** Return all canvas objects that are tokens. */
   _allTokens() {
+    // Bug fix: a token's own UI sub-elements (label, icons, ...) also carry a
+    // small tokenData object of their own (anchor/propDeps, no cardId — see
+    // CanvasObjectLoadToken/token_character.json) and were being matched here
+    // too, alongside their actual parent token. UpdateTokensPropertySpecific's
+    // per-token loop already re-checks each token's OWN additionalObjects for
+    // matching deps — including sub-elements here as well meant they got
+    // checked a SECOND time, but as "objects" with no id/cardId of their own,
+    // so _resolveParentId("card", subElement) came back undefined and the
+    // parentId guard failed open — any card's property change matched every
+    // OTHER token's label sub-element indiscriminately. Only the real
+    // top-level token has isToken === true; sub-elements are isTokenUI.
     return this._getCanvas()
       .getObjects()
-      .filter((o) => o.tokenData != null);
+      .filter((o) => o.tokenData != null && o.isToken === true);
   }
 
   // ── Map / game context shortcuts ──────────────────────────────────────────
@@ -465,6 +444,87 @@ class TokenManager {
         console.warn(`TokenManager: unknown property source "${source}"`);
         return null;
     }
+  }
+
+  // ── Generic element masking (on/off + GM-only, map-wide with per-token override) ──
+
+  /**
+   * A token UI element opts into the generic masking system by declaring
+   * `tokenData.maskGroup` (a plain string key, e.g. "hp" — grouping e.g.
+   * hp_bar_bg + hp_bar_fill under one togglable unit) and, optionally,
+   * `tokenData.label` for display. Core never hardcodes what a mask group
+   * IS — it only derives two property names from whatever key the addon's
+   * own JSON declares, at two scopes:
+   *   - map-scoped  (MapModel, parentId = current map)   — the shared default
+   *   - element-scoped (ElementModel, parentId = token.id) — optional per-token override
+   * Element-scoped wins when explicitly set; otherwise the map-scoped value
+   * applies; otherwise the group defaults to enabled / not-GM-only.
+   */
+  _maskPropertyNames(group) {
+    return [`mask_${group}_enabled`, `mask_${group}_gmonly`];
+  }
+
+  /**
+   * Resolves the effective {enabled, gmOnly}-derived visibility for every
+   * distinct maskGroup declared among a token's additionalObjects, as a
+   * Map<maskGroup, boolean> of final visibility (gmOnly already folded in
+   * against the viewer's own GM status).
+   */
+  async _resolveMaskStates(token) {
+    const groups = [...new Set(
+      (token.additionalObjects ?? [])
+        .map((e) => e.tokenData?.maskGroup)
+        .filter(Boolean)
+    )];
+    if (!groups.length) return new Map();
+
+    const names = [...new Set(groups.flatMap((g) => this._maskPropertyNames(g)))];
+    const mapId = this._getSelectedMap()?.id;
+
+    const [mapProps, elementProps] = await Promise.all([
+      mapId
+        ? ClientMediator.sendCommandAsync("Properties", "GetByNames", { parentId: mapId, names }).catch(() => [])
+        : Promise.resolve([]),
+      ClientMediator.sendCommandAsync("Properties", "GetByNames", { parentId: token.id, names }).catch(() => []),
+    ]);
+
+    const isGM = ClientMediator.sendCommand("Game", "GetIsGM");
+
+    const result = new Map();
+    for (const group of groups) {
+      const [enabledKey, gmOnlyKey] = this._maskPropertyNames(group);
+      const elEnabled = elementProps.find((p) => p.name === enabledKey)?.value;
+      const mapEnabled = mapProps.find((p) => p.name === enabledKey)?.value;
+      const elGmOnly = elementProps.find((p) => p.name === gmOnlyKey)?.value;
+      const mapGmOnly = mapProps.find((p) => p.name === gmOnlyKey)?.value;
+
+      const enabled = elEnabled !== undefined
+        ? UtilityHelper.ParseBool(elEnabled)
+        : mapEnabled !== undefined ? UtilityHelper.ParseBool(mapEnabled) : true;
+      const gmOnly = elGmOnly !== undefined
+        ? UtilityHelper.ParseBool(elGmOnly)
+        : mapGmOnly !== undefined ? UtilityHelper.ParseBool(mapGmOnly) : false;
+
+      result.set(group, enabled && (!gmOnly || isGM));
+    }
+    return result;
+  }
+
+  /**
+   * Scans every token currently on the map for distinct {maskGroup, label}
+   * pairs — used by a generic, data-driven map-wide mask-toggle settings UI
+   * that has no hardcoded knowledge of what any addon's tokens declare.
+   */
+  GetAvailableMaskGroups() {
+    const found = new Map();
+    for (const token of this._allTokens()) {
+      for (const element of token.additionalObjects ?? []) {
+        const group = element.tokenData?.maskGroup;
+        if (!group || found.has(group)) continue;
+        found.set(group, element.tokenData?.label ?? group);
+      }
+    }
+    return Array.from(found, ([maskGroup, label]) => ({ maskGroup, label }));
   }
 
   // ── Core: apply a single property dependency ─────────────────────────────
@@ -673,7 +733,30 @@ class TokenManager {
    * are fetched in one batch per source before applying.
    */
   async _applySinglePropertyToToken(object, property) {
-    const canvas = this._getCanvas();
+    // Mask settings (mask_{group}_enabled / mask_{group}_gmonly) are never propDeps
+    // declared in addon JSON — they're derived generically from whatever maskGroup
+    // keys this token's own additionalObjects declare — so they can't be matched by
+    // the propDeps-based `work` collection below. Recognize them here instead and
+    // trigger a full mask-aware visibility recompute for this one token.
+    const maskMatch = /^mask_(.+)_(enabled|gmonly)$/.exec(property.name ?? "");
+    if (maskMatch) {
+      const group = maskMatch[1];
+      const declaresGroup = (object.additionalObjects ?? []).some(
+        (e) => e.tokenData?.maskGroup === group
+      );
+      const isMapScoped = property.entityName?.toLowerCase().startsWith("map")
+        && property.parentId === this._getSelectedMap()?.id;
+      const isElementScoped = property.entityName?.toLowerCase().startsWith("element")
+        && property.parentId === object.id;
+
+      if (declaresGroup && (isMapScoped || isElementScoped)) {
+        this.UpdateTokenBasedOnProperties({ tokenId: object.id }).catch((err) =>
+          console.error("TokenManager: mask visibility refresh failed", err)
+        );
+      }
+      return;
+    }
+
     let mutated = false;
 
     // Collect every (target element, dep) pair that matches the changed property
@@ -681,6 +764,18 @@ class TokenManager {
 
     const matchesDep = (d) => {
       if (property.entityName && !property.entityName.toLowerCase().startsWith(d.source)) return false;
+      // Bug fix: this used to only check the property's TYPE (entityName) and
+      // NAME (dtoProperty) — never that it actually belongs to THIS token's
+      // own card/element. Any property named e.g. "character_name" changing
+      // on ANY card matched every token's "character_name" propDep, so
+      // renaming one card's token relabeled every OTHER card's tokens too.
+      // _resolveParentId("map"/"game", object) is intentionally global (every
+      // token IS on the same map/game), so only "card"/"element" sources are
+      // actually narrowed by this check.
+      if (property.parentId) {
+        const expectedParentId = this._resolveParentId(d.source, object);
+        if (expectedParentId && property.parentId !== expectedParentId) return false;
+      }
       if (isExpressionDep(d)) return extractPropNames(d.expression).includes(property.name);
       return d.dtoProperty === property.name;
     };
@@ -726,8 +821,11 @@ class TokenManager {
       if (this._applyDep(dep, object, target, properties)) mutated = true;
     }
 
+    // Reposition after a live property change, not just re-render — a "right-top"
+    // status icon toggled mid-session needs its stacked siblings re-packed too
+    // (see UpdateTokenUIPositions), not just its own visibility flipped.
     if (mutated) {
-      canvas.requestRenderAll();
+      this.UpdateTokenUIPositions({ object });
     }
   }
 
@@ -1050,7 +1148,6 @@ class TokenManager {
       return "--tokenId is required";
     }
 
-    const canvas = this._getCanvas();
     const object = this._findObject(tokenId);
 
     if (!object) {
@@ -1071,6 +1168,8 @@ class TokenManager {
 
     // Additional UI elements
     if (object.additionalObjects) {
+      const maskStates = await this._resolveMaskStates(object);
+
       for (const element of object.additionalObjects) {
         // Elements that control their own visibility via a propDep start hidden
         // so the dep (not the reset below) is the source of truth.
@@ -1078,11 +1177,22 @@ class TokenManager {
           (d) => d.objectProperty === "visible"
         );
 
-        // Restore visibility: hidden if disabled, control-only, or prop-driven
+        // Generic on/off + GM-only masking (see _resolveMaskStates) — undeclared
+        // (no maskGroup) always resolves to visible, so this is a no-op for any
+        // element that hasn't opted in.
+        const maskGroup = element.tokenData?.maskGroup;
+        const maskVisible = maskGroup ? (maskStates.get(maskGroup) ?? true) : true;
+        // Exposed on the element itself so OnTokenSelectedBehavior (which sets
+        // showOnTokenControl elements visible synchronously on selection, with no
+        // access to this async resolution) can respect a masked-off state too.
+        element._maskVisible = maskVisible;
+
+        // Restore visibility: hidden if disabled, control-only, prop-driven, or masked off
         element.visible =
           element.enabled !== false &&
           !element.tokenData?.showOnTokenControl &&
-          !hasPropVisibility;
+          !hasPropVisibility &&
+          maskVisible;
 
         // Skip dep evaluation entirely for permanently-hidden elements;
         // prop-driven elements must still run so their visibility dep fires.
@@ -1097,12 +1207,23 @@ class TokenManager {
         ) {
           mutated = true;
         }
+
+        // A visible-propDep element's own dep is authoritative over the initial
+        // reset above (that's the whole point of hasPropVisibility) — but masking
+        // off must still win over it, so re-apply the AND once more afterward.
+        if (hasPropVisibility && !maskVisible) {
+          element.visible = false;
+        }
       }
     }
 
-    // Single render call after all deps are resolved
+    // Reposition after visibility/deps settle, not just once at load — without
+    // this, toggling a "right-top" status icon on/off (or any other propDep-
+    // driven visibility change) would correctly show/hide it but the auto-stack
+    // above would never re-pack the row, leaving stale positions. This also
+    // performs the render call UpdateTokenUIPositions itself does.
     if (mutated) {
-      canvas.requestRenderAll();
+      this.UpdateTokenUIPositions({ object });
     }
   }
 
@@ -1204,6 +1325,18 @@ class TokenManager {
         tokenData: {
           ...token?.tokenData,
           cardId,
+          // Token-root declarative config (sibling to per-addition propDeps) for
+          // the on-select quick-edit overlay (TokenQuickEditOverlay) — an array
+          // of {name, dtoProperty, label, source} the addon's own token JSON
+          // declares; core only enumerates them, no hardcoded field knowledge.
+          editableProps: token.editableProps ?? [],
+          // Same spirit, for TokenIconPickerOverlay — an array of
+          // {id, label, iconPack, iconName, dtoProperty, source} manifest
+          // entries. Each needs a matching `additions[]` icon (own visible
+          // propDep on the same dtoProperty) to actually render on the token;
+          // this manifest just tells the picker what exists and how to preview
+          // and toggle it.
+          assignableIcons: token.assignableIcons ?? [],
           propDeps: [
             ...(token?.tokenData?.propDeps ?? []),
             IMAGE_PROP_DEP,
@@ -1300,6 +1433,27 @@ class TokenManager {
       y: center.y - halfSize,
     };
 
+    // Auto-stacking for "right-top" only (status icons — see TokenIconPickerOverlay):
+    // multiple simultaneously-visible icons pack together left-to-right from the
+    // token's corner instead of each sitting at its own static authored offsetX,
+    // which would leave a gap where a currently-hidden icon's fixed slot used to
+    // be. Scoped to this one anchor value — nothing else uses "right-top" today,
+    // and every other anchor keeps its existing static-offset behavior unchanged.
+    // getScaledWidth() is reliable here: _loadSVGElement scales SVG/reactIcon
+    // groups to their declared width synchronously before pushing them into
+    // additionalObjects, so it's already correct by the time this runs.
+    const RIGHT_TOP_GAP = 2;
+    const rightTopStackOffset = new Map();
+    {
+      let running = 0;
+      for (const element of token.additionalObjects) {
+        if (element?.tokenData?.anchor !== "right-top") continue;
+        if (element.visible === false) continue;
+        rightTopStackOffset.set(element, running);
+        running += (element.getScaledWidth?.() ?? element.width ?? 0) + RIGHT_TOP_GAP;
+      }
+    }
+
     for (const element of token.additionalObjects) {
       if (element?.tokenData?.ignoreRelativePosition) continue;
 
@@ -1324,7 +1478,7 @@ class TokenManager {
           element.top = zero.y + halfSize + oY;
           break;
         case "right-top":
-          element.left = zero.x + expectedSize + oX;
+          element.left = zero.x + expectedSize + (rightTopStackOffset.get(element) ?? oX);
           element.top = zero.y + oY;
           break;
         case "left-bottom":

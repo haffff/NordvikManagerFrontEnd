@@ -7,6 +7,7 @@ export const DList = (props) => {
     return (
         <Stack 
         {...props}
+        className={props.className ? `nm_list ${props.className}` : "nm_list"}
         width={mainComponent ? "100%" : undefined} 
         overflowY={mainComponent ? "auto" : undefined}>
             {children}

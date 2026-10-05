@@ -10,6 +10,7 @@ vi.mock('../../uiComponents/base/Subscribable', () => ({
   },
 }));
 
+vi.mock('../theme/StylesheetSettings', () => ({ GameStylesheetSettings: () => null }));
 vi.mock('@hlorenzi/react-dockable', () => ({
   useContentContext: () => ({ setTitle: vi.fn(), setPreferredSize: vi.fn() }),
 }));

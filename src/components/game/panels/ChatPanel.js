@@ -31,12 +31,13 @@ import ClientMediator from "../../../ClientMediator";
 import UtilityHelper from "../../../helpers/UtilityHelper";
 import CommandExecutionHelper from "../../../helpers/CommandExecutionHelper";
 import ChatMessageParser from "../../../helpers/ChatMessageParser";
+import themeColors from "../../../helpers/themeColors";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
-const BG_SURFACE = "rgb(38,38,38)";
-const BG_RAISED  = "rgb(48,48,48)";
-const BORDER_CLR = "rgb(65,65,65)";
-const TEXT_MUTED = "rgb(140,140,140)";
+const BG_SURFACE = themeColors.surface;
+const BG_RAISED  = themeColors.surfaceRaised;
+const BORDER_CLR = themeColors.border;
+const TEXT_MUTED = themeColors.textMuted;
 
 const ChatParser = new ChatMessageParser();
 
@@ -85,7 +86,7 @@ const CommandSuggestionList = React.memo(
         borderRadius="6px"
         borderWidth="1px"
         borderColor={BORDER_CLR}
-        bg="rgb(30,30,30)"
+        bg={themeColors.background}
         boxShadow="0 -4px 16px rgba(0,0,0,0.5)"
         zIndex={100}
         maxH="220px"
@@ -294,13 +295,14 @@ const ChatBubble = React.memo(({ item, nextItem, players, currentPlayerId }) => 
     <Flex direction="column" gap="4px">
       {/* Bubble */}
       <Box
+        className={isSelf ? "nm_chatMessage nm_chatMessage_own" : "nm_chatMessage"}
         px="10px"
         py="7px"
         mx="8px"
         borderRadius="6px"
-        bg={isSelf ? "rgb(55,65,85)" : BG_RAISED}
+        bg={isSelf ? themeColors.chatOwn : BG_RAISED}
         borderWidth="1px"
-        borderColor={isSelf ? "rgb(80,100,140)" : BORDER_CLR}
+        borderColor={isSelf ? themeColors.chatOwnBorder : BORDER_CLR}
         fontSize="13px"
         color="var(--nordvik-text-color)"
         wordBreak="break-word"
@@ -728,11 +730,12 @@ export const ChatPanel = () => {
             maxH="120px"
             overflowY="auto"
             size="sm"
+            className="nm_chatInput"
             bg={BG_SURFACE}
             borderColor={BORDER_CLR}
             color="var(--nordvik-text-color)"
             _placeholder={{ color: TEXT_MUTED }}
-            _focus={{ borderColor: "rgb(100,120,180)", boxShadow: "none" }}
+            _focus={{ borderColor: themeColors.inputFocus, boxShadow: "none" }}
             borderRadius="6px"
           />
 

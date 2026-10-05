@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Box, Text } from "@chakra-ui/react";
-import { ActiveWebHelper as WebHelper } from "../transport";
+import { loadCssMaterial } from "../customStyles";
+import themeColors from "../themeColors";
 
 // Renders the backend's "Html" chat template (HtmlChatTemplate.cs, posted via
 // RollsController.Finish): sender-supplied HTML — e.g. an imported Roll20
@@ -22,25 +23,14 @@ import { ActiveWebHelper as WebHelper } from "../transport";
 //   - CSS is referenced by resource key and fetched once per key per client,
 //     shared by every message that uses it — never carried per message.
 
-const BG_CARD = "rgb(48,48,48)";
-const BORDER_CLR = "rgb(65,65,65)";
-const CLR_TITLE = "rgb(220,220,220)";
+const BG_CARD = themeColors.surfaceRaised;
+const BORDER_CLR = themeColors.border;
+const CLR_TITLE = themeColors.text;
 const PLACEHOLDER_HEIGHT = 48;
 
-const cssCache = new Map(); // resource key -> Promise<string>
-function loadCss(key) {
-  if (!key) return Promise.resolve("");
-  if (!cssCache.has(key)) {
-    const url = WebHelper.getResourceString(undefined, key);
-    cssCache.set(
-      key,
-      fetch(url, { credentials: "include" })
-        .then((r) => (r.ok ? r.text() : ""))
-        .catch(() => "")
-    );
-  }
-  return cssCache.get(key);
-}
+// Fetched over the game connection once per key per client (shared with the
+// game's custom stylesheets, see helpers/customStyles.js).
+const loadCss = (key) => loadCssMaterial({ key });
 
 // Crit/fumble detection works on kept dice only: a die that rolled its max is
 // a crit, a 1 is a fumble. Which CSS classes those map to is the sender's
