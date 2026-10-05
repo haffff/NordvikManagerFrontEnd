@@ -1,666 +1,321 @@
 import * as React from "react";
-import {
-  Badge,
-  Box,
-  Button,
-  createListCollection,
-  Field,
-  Flex,
-  For,
-  Heading,
-  HStack,
-  Input,
-  Separator,
-  Spinner,
-  Text,
-} from "@chakra-ui/react";
+import { Badge, Box, Button, Flex, HStack, Input, Spinner, Text } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
+import { FaBolt, FaChevronDown, FaChevronRight, FaPlay, FaPlus, FaSearch } from "react-icons/fa";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../../helpers/transport";
 import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import ClientMediator from "../../../../ClientMediator";
 import CollectionSyncer from "../../../uiComponents/base/CollectionSyncer";
-import { ActionStep } from "./ActionStep";
-import UtilityHelper from "../../../../helpers/UtilityHelper";
-import { ReactTreeList } from "@bartaxyz/react-tree-list";
-import { FaBolt, FaCheck, FaMinus, FaPlay, FaPlus, FaSave, FaTrash, FaFileExport, FaSearch, FaChevronDown, FaChevronRight } from "react-icons/fa";
-import { Switch } from "../../../ui/switch";
-import {  SelectContent,
-  SelectItem,
-  SelectItemGroup,
-  SelectRoot,
-  SelectTrigger,
-  SelectValueText,
-} from "../../../ui/select";
 import { SearchInput } from "../../../uiComponents/SearchInput";
 import DListItemButton from "../../../uiComponents/base/List/ListItemDetails/DListItemButton";
 import { ResizeDivider, useDragResize } from "../../../uiComponents/ResizeDivider";
-import themeColors from "../../../../helpers/themeColors";
+import { DialogRoot, DialogContent, DialogBody, DialogFooter, DialogHeader, DialogTitle } from "../../../ui/dialog";
+import { ActionEditor, fullActionName } from "./ActionEditor/ActionEditor";
+import { useActionDraft } from "./ActionEditor/useActionDraft";
+import { T } from "./ActionEditor/editorTheme";
+import { QueryResolver } from "./ActionEditor/QueryResolver";
 
-// ─── design tokens (matches index.css variables) ──────────────────────────────
-const BG_SURFACE  = themeColors.surface;
-const BG_RAISED   = themeColors.surfaceRaised;
-const BORDER_CLR  = themeColors.border;
+// Actions panel: the list of actions (grouped by prefix) on the left, the editor on the right.
+// Unsaved edits are protected: switching action asks first, and if the panel closes or the
+// page reloads with unsaved edits, the draft is kept and offered back next time.
 
-// ─── permission options (mirrors Permission enum on the backend) ──────────────
-const PERMISSION_ITEMS = [
-  { name: "Not set",         value: "" },
-  { name: "None",            value: "0" },
-  { name: "Read",            value: "1" },
-  { name: "Execute",         value: "2" },
-  { name: "Read + Execute",  value: "3" },
-  { name: "Edit",            value: "8" },
-  { name: "All",             value: "31" },
-];
+// ─── unsaved-draft storage ────────────────────────────────────────────────────
+const DRAFT_KEY = (id) => `nm.actionEditor.draft.${id}`;
+const storeDraft = (payload) => {
+  try { localStorage.setItem(DRAFT_KEY(payload.id), JSON.stringify({ at: Date.now(), payload })); } catch { /* optional */ }
+};
+const readDraft = (id) => {
+  try { return JSON.parse(localStorage.getItem(DRAFT_KEY(id)) ?? "null"); } catch { return null; }
+};
+const dropDraft = (id) => { try { localStorage.removeItem(DRAFT_KEY(id)); } catch { /* optional */ } };
 
-// ─── FieldRow — label + control pair ─────────────────────────────────────────
-const FieldRow = ({ label, children }) => (
-  <Field.Root>
-    <Field.Label fontSize="xs" color="gray.400" mb="2px">{label}</Field.Label>
-    {children}
-  </Field.Root>
-);
-
-// ─── SectionHeader — thin separator with title ───────────────────────────────
-const SectionHeader = ({ children }) => (
-  <HStack gap={2} mt={1}>
-    <Text fontSize="xs" fontWeight="semibold" color="gray.500" whiteSpace="nowrap" textTransform="uppercase" letterSpacing="wider">
-      {children}
-    </Text>
-    <Separator flex={1} borderColor={BORDER_CLR} />
+// ─── sidebar ──────────────────────────────────────────────────────────────────
+const ActionRow = ({ action, hookName, selected, onClick }) => (
+  <HStack
+    px={2} py="3px" gap={2} borderRadius="sm" cursor="pointer" onClick={onClick}
+    bg={selected ? T.selected : undefined} _hover={{ bg: selected ? T.selected : T.hover }}
+  >
+    <Box w="6px" h="6px" borderRadius="full" flexShrink={0}
+      bg={action.isEnabled ? "green.400" : "gray.600"} title={action.isEnabled ? "Enabled" : "Disabled"} />
+    <Text fontSize="sm" color={selected ? "white" : "gray.300"} flex={1} truncate>{action.name || "Unnamed"}</Text>
+    {hookName && <Box color="purple.300" title={`Trigger: ${hookName}`} flexShrink={0}><FaBolt size={9} /></Box>}
   </HStack>
 );
 
-// ─── GroupPane ────────────────────────────────────────────────────────────────
-const GroupPane = React.memo(({ group, actions }) => {
-  const [confirmRun, setConfirmRun] = React.useState(false);
-  const groupActions = actions.filter((x) => x.prefix === group);
-
-  const runAll = () => {
-    groupActions.forEach((a) =>
-      ClientMediator.sendCommand("Action", "Run", { name: a.prefix ? `${a.prefix}/${a.name}` : a.name })
-    );
-    setConfirmRun(false);
-  };
-
+const NewActionForm = ({ onCreate, onCancel }) => {
+  const [prefix, setPrefix] = React.useState("");
+  const [name, setName] = React.useState("");
+  const submit = () => { if (name.trim()) onCreate(prefix.trim(), name.trim()); };
   return (
-    <Flex direction="column" flex={1} p={5} gap={4} overflowY="auto">
-      <Box>
-        <Heading size="md" color="white">{group}</Heading>
-        <Text fontSize="sm" color="gray.400" mt={1}>
-          {groupActions.length} action{groupActions.length !== 1 ? "s" : ""} in this group
-        </Text>
-      </Box>
-
-      <Separator borderColor={BORDER_CLR} />
-
-      {/* Actions list preview */}
-      <Flex direction="column" gap={1}>
-        {groupActions.map((a) => (
-          <HStack key={a.id} px={3} py={2}
-            bg={BG_RAISED} borderRadius="md" borderWidth="1px" borderColor={BORDER_CLR}>
-            <Badge size="sm" colorPalette={a.isEnabled ? "green" : "gray"} variant="subtle" flexShrink={0}>
-              {a.isEnabled ? "On" : "Off"}
-            </Badge>
-            <Text fontSize="sm" flex={1} color="white">{a.name}</Text>
-          </HStack>
-        ))}
-      </Flex>
-
-      {/* Run all — two-step */}
-      <Box>
-        {confirmRun ? (
-          <HStack gap={2}>
-            <Text fontSize="sm" color="orange.300">Run all {groupActions.length} actions?</Text>
-            <Button size="sm" colorPalette="orange" variant="outline" onClick={runAll}>Confirm</Button>
-            <Button size="sm" variant="ghost" onClick={() => setConfirmRun(false)}>Cancel</Button>
-          </HStack>
-        ) : (
-          <Button size="sm" variant="outline" onClick={() => setConfirmRun(true)}>
-            <FaPlay /> Run all
-          </Button>
-        )}
-      </Box>
-    </Flex>
-  );
-});
-
-// ─── ActionPane ───────────────────────────────────────────────────────────────
-const ActionPane = React.memo(({
-  selectedAction, setSelectedAction,
-  steps, stepsRef, setSteps,
-  stepDefinitions, hooksCollection,
-}) => {
-  const [confirmDelete,    setConfirmDelete   ] = React.useState(false);
-  const [inputArguments,   setInputArguments  ] = React.useState("");
-
-  const permissionCollection = React.useMemo(
-    () => createListCollection({ items: PERMISSION_ITEMS }),
-    []
-  );
-
-  const hooksByCategory = React.useMemo(() => {
-    const map = {};
-    hooksCollection.items.forEach((h) => {
-      const cat = h.category || "General";
-      if (!map[cat]) map[cat] = [];
-      map[cat].push(h);
-    });
-    return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
-  }, [hooksCollection]);
-
-  // Convert numeric/null permission to the string key used by the Select
-  const permVal = (v) => (v == null ? "" : String(v));
-  // Convert Select string back to integer/null for state
-  const permFromSelect = (s) => (s === "" ? null : parseInt(s, 10));
-
-  const handleUpdate = () => {
-    const payload = { ...selectedAction, content: JSON.stringify(stepsRef.current) };
-    WebSocketManagerInstance.Send({ command: "action_update", data: payload });
-  };
-
-  const handleSaveAndEnable = () => {
-    const payload = { ...selectedAction, content: JSON.stringify(stepsRef.current), isEnabled: true };
-    WebSocketManagerInstance.Send({ command: "action_update", data: payload });
-    setSelectedAction({ ...selectedAction, isEnabled: true });
-  };
-
-  const handleDelete = () => {
-    WebSocketManagerInstance.Send({ command: "action_delete", data: selectedAction.id });
-    setConfirmDelete(false);
-  };
-
-  const handleExport = () => {
-    const payload = { ...selectedAction, hook: parseInt(selectedAction.hook, 10) };
-
-    //prepare content property to be an object not string
-    try {
-      payload.content = JSON.parse(payload.content);
-    } catch {
-      payload.content = {};
-    }
-
-    const blob = new Blob([JSON.stringify(payload, null, 2)], { type: "text/plain" });
-    const a = document.createElement("a");
-    a.href = URL.createObjectURL(blob);
-    a.download = (selectedAction.name ?? "action").replaceAll(" ", "_") + ".json";
-    document.body.appendChild(a); a.click(); document.body.removeChild(a);
-    URL.revokeObjectURL(a.href);
-  };
-  const handleRun = () => {
-    let args;
-    if (inputArguments.trim()) {
-      try { args = JSON.parse(inputArguments); } catch { args = inputArguments; }
-    }    ClientMediator.sendCommand("Action", "Run", {
-      name: selectedAction.prefix ? `${selectedAction.prefix}/${selectedAction.name}` : selectedAction.name,
-      args,
-    });
-  };
-
-  const set = (patch) => setSelectedAction({ ...selectedAction, ...patch });
-
-  return (
-    <Flex direction="column" flex={1} overflow="hidden">
-      {/* ── sticky header ── */}
-      <HStack
-        px={4} py={3} flexShrink={0} gap={3} flexWrap="wrap"
-        borderBottomWidth="1px" borderColor={BORDER_CLR} bg={BG_SURFACE}
-      >
-        <Switch
-          checked={selectedAction.isEnabled}
-          onCheckedChange={(e) => set({ isEnabled: e.checked })}
-        />
-        <Badge
-          colorPalette={selectedAction.isEnabled ? "green" : "gray"}
-          variant="subtle" fontSize="xs"
-        >
-          {selectedAction.isEnabled ? "Active" : "Disabled"}
-        </Badge>        <Text fontSize="sm" color="gray.300" flex={1} fontWeight="medium" noOfLines={1}>
-          {selectedAction.prefix && <Text as="span" color="gray.500">{selectedAction.prefix} / </Text>}
-          {selectedAction.name || <Text as="span" color="gray.600" fontStyle="italic">Unnamed</Text>}
-        </Text>
-        <Input
-          size="xs"
-          w="160px"
-          placeholder='Args (JSON…)'
-          value={inputArguments}
-          onChange={(e) => setInputArguments(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") handleRun(); }}
-          fontFamily="mono"
-          borderColor={BORDER_CLR}
-          _placeholder={{ color: "gray.600", fontSize: "10px" }}
-        />
-        <Button size="xs" variant="ghost" onClick={handleRun} color="green.300">
-          <FaPlay /> Run
-        </Button>
+    <Box p={2} borderBottomWidth="1px" borderColor={T.border} bg={T.raised}>
+      <HStack gap={1}>
+        <Input size="xs" w="40%" placeholder="prefix" value={prefix} onChange={(e) => setPrefix(e.target.value)} />
+        <Input size="xs" autoFocus placeholder="action name" value={name} onChange={(e) => setName(e.target.value)}
+          onKeyDown={(e) => { if (e.key === "Enter") submit(); if (e.key === "Escape") onCancel(); }} />
       </HStack>
-
-      {/* ── scrollable body ── */}
-      <Flex direction="column" flex={1} overflowY="auto" p={4} gap={5}>
-
-        {/* Identity */}
-        <Box>
-          <SectionHeader>Identity</SectionHeader>
-          <Flex gap={3} mt={2} direction="column">
-            <HStack gap={3} align="flex-end">
-              <FieldRow label="Prefix">
-                <Input
-                  size="sm" width="150px"
-                  value={selectedAction.prefix ?? ""}
-                  onChange={(e) => set({ prefix: e.target.value })}
-                />
-              </FieldRow>
-              <FieldRow label="Name">
-                <Input
-                  size="sm"
-                  value={selectedAction.name ?? ""}
-                  onChange={(e) => set({ name: e.target.value })}
-                />
-              </FieldRow>
-            </HStack>
-            <FieldRow label="Description">
-              <Input
-                size="sm"
-                placeholder="Optional description…"
-                value={selectedAction.description ?? ""}
-                onChange={(e) => set({ description: e.target.value })}
-              />
-            </FieldRow>
-          </Flex>
-        </Box>
-
-        {/* Permissions */}
-        <Box>
-          <SectionHeader>Permissions</SectionHeader>
-          <Box mt={2}>
-            <FieldRow label="Generic (all players)">
-              <SelectRoot
-                collection={permissionCollection}
-                value={[permVal(selectedAction.genericPermission)]}
-                onValueChange={(e) => set({ genericPermission: permFromSelect(e.value[0]) })}
-                size="sm"
-              >
-                <SelectTrigger>
-                  <SelectValueText placeholder="Not set…">
-                    {(items) => items[0]?.name ?? "Not set…"}
-                  </SelectValueText>
-                </SelectTrigger>
-                <SelectContent>
-                  <For each={permissionCollection.items}>
-                    {(option, index) => (
-                      <SelectItem key={index} item={option} value={option.value}
-                        selected={permVal(selectedAction.genericPermission) === option.value}>
-                        {option.name}
-                      </SelectItem>
-                    )}
-                  </For>
-                </SelectContent>
-              </SelectRoot>
-            </FieldRow>
-          </Box>
-        </Box>
-
-        {/* Trigger */}
-        <Box>
-          <SectionHeader>Trigger</SectionHeader>
-          <Box mt={2}>
-            <SelectRoot
-              multiple={false}
-              collection={hooksCollection}
-              value={[selectedAction.hook]}
-              onValueChange={(e) => set({ hook: e.value[0] })}
-              size="sm"
-            >
-              <SelectTrigger>
-                <SelectValueText placeholder="Select trigger…">
-                  {(items) => <>{items[0]?.name ?? "Select trigger…"}</>}
-                </SelectValueText>
-              </SelectTrigger>
-              <SelectContent>
-                {hooksByCategory.map(([category, items]) => (
-                  <SelectItemGroup key={category} label={category}>
-                    {items.map((option) => (
-                      <SelectItem key={option.value} item={option} value={option.value}
-                        selected={selectedAction.hook === option.value}>
-                        {option.name}
-                      </SelectItem>
-                    ))}
-                  </SelectItemGroup>
-                ))}
-              </SelectContent>
-            </SelectRoot>
-          </Box>
-        </Box>
-
-        {/* Steps */}
-        <Box>
-          <HStack gap={2} mt={1}>
-            <Text fontSize="xs" fontWeight="semibold" color="gray.500"
-              textTransform="uppercase" letterSpacing="wider">
-              Steps
-            </Text>
-            <Badge variant="subtle" colorPalette="blue" fontSize="2xs">{steps.length}</Badge>
-            <Separator flex={1} borderColor={BORDER_CLR} />
-            <Button size="xs" variant="ghost" color="blue.300"
-              onClick={() => setSteps([
-                ...stepsRef.current,
-                { id: UtilityHelper.GenerateUUID(), Data: { Label: "New Step" }, Type: "SetVariable" },
-              ])}
-            >
-              <FaPlus /> Add step
-            </Button>
-          </HStack>
-
-          <Flex direction="column" gap={2} mt={2}>
-            {steps.length === 0 ? (
-              <Text fontSize="sm" color="gray.600" fontStyle="italic" py={2}>
-                No steps yet. Add one above.
-              </Text>
-            ) : steps.map((x, i) => (
-              <ActionStep
-                key={x.id}
-                stepIndex={i}
-                initStep={x}
-                stepDefinitions={stepDefinitions}
-                stepsRef={stepsRef}
-                setSteps={setSteps}
-                actionId={selectedAction.id}
-              />
-            ))}
-          </Flex>
-        </Box>
-      </Flex>
-
-      {/* ── pinned footer ── */}
-      <HStack
-        px={4} py={3} gap={2} flexShrink={0} flexWrap="wrap"
-        borderTopWidth="1px" borderColor={BORDER_CLR} bg={BG_SURFACE}
-      >
-        <Button size="sm" colorPalette="blue" variant="outline" onClick={handleUpdate}>
-          <FaSave /> Save
-        </Button>
-        <Button size="sm" colorPalette="green" variant="outline" onClick={handleSaveAndEnable}>
-          <FaBolt /> Save & Enable
-        </Button>
-        <Button size="sm" variant="ghost" onClick={handleExport} color="gray.300">
-          <FaFileExport /> Export
-        </Button>
-        <Box flex={1} />
-        {confirmDelete ? (
-          <HStack gap={2}>
-            <Text fontSize="sm" color="red.300">Delete this action?</Text>
-            <Button size="sm" colorPalette="red" variant="outline" onClick={handleDelete}>Confirm</Button>
-            <Button size="sm" variant="ghost" onClick={() => setConfirmDelete(false)}>Cancel</Button>
-          </HStack>
-        ) : (
-          <Button size="sm" colorPalette="red" variant="ghost"
-            onClick={() => setConfirmDelete(true)}>
-            <FaTrash /> Delete
-          </Button>
-        )}
+      <HStack mt={1} justify="flex-end" gap={1}>
+        <Button size="2xs" variant="ghost" onClick={onCancel}>Cancel</Button>
+        <Button size="2xs" colorPalette="blue" variant="outline" onClick={submit} disabled={!name.trim()}>Create</Button>
       </HStack>
-    </Flex>
-  );
-});
-
-// ─── QueryResolver ────────────────────────────────────────────────────────────
-const QueryResolver = () => {
-  const [open,       setOpen]       = React.useState(false);
-  const [expression, setExpression] = React.useState("");
-  const [variables,  setVariables]  = React.useState("");
-  const [result,     setResult]     = React.useState(null);
-  const [error,      setError]      = React.useState(null);
-  const [loading,    setLoading]    = React.useState(false);
-
-  const resolve = async () => {
-    if (!expression.trim()) return;
-    setLoading(true);
-    setResult(null);
-    setError(null);
-    try {
-      let vars;
-      if (variables.trim()) {
-        try { vars = JSON.parse(variables); } catch { setError("Variables must be valid JSON"); setLoading(false); return; }
-      }
-      const resp = await WebHelper.postAsync("addon/resolveQuery", { expression, variables: vars });
-      if (!resp || resp.status < 200 || resp.status >= 300) { setError(`HTTP ${resp?.status ?? "error"}`); return; }
-      setResult(resp.body?.result ?? "(empty)");
-    } catch (e) {
-      setError(e?.message ?? "Request failed");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <Box borderTopWidth="1px" borderColor={BORDER_CLR} flexShrink={0}>
-      <HStack
-        px={3} py={2} cursor="pointer" userSelect="none"
-        onClick={() => setOpen(o => !o)}
-        _hover={{ bg: BG_RAISED }}
-      >
-        {open ? <FaChevronDown size={10} color="#718096" /> : <FaChevronRight size={10} color="#718096" />}
-        <FaSearch size={10} color="#718096" />
-        <Text fontSize="xs" color="gray.500" fontWeight="semibold" textTransform="uppercase" letterSpacing="wider">
-          Query Resolver
-        </Text>
-      </HStack>
-      {open && (
-        <Flex direction="column" px={3} pb={3} gap={2}>
-          <Input
-            size="xs" placeholder="%q:{gameId}.name% or %qn:player-&quot;John&quot;.hp%"
-            value={expression} onChange={e => setExpression(e.target.value)}
-            onKeyDown={e => { if (e.key === "Enter") resolve(); }}
-            fontFamily="mono" borderColor={BORDER_CLR}
-            _placeholder={{ color: "gray.600", fontSize: "10px" }}
-          />
-          <Input
-            size="xs" placeholder='Variables JSON (optional) {"myVar":"value"}'
-            value={variables} onChange={e => setVariables(e.target.value)}
-            fontFamily="mono" borderColor={BORDER_CLR}
-            _placeholder={{ color: "gray.600", fontSize: "10px" }}
-          />
-          <Button size="xs" variant="outline" onClick={resolve} loading={loading} colorPalette="blue" alignSelf="flex-end">
-            <FaSearch /> Resolve
-          </Button>
-          {result !== null && (
-            <Box bg={BG_RAISED} borderRadius="md" borderWidth="1px" borderColor={BORDER_CLR} px={2} py={1}>
-              <Text fontSize="xs" color="gray.400" mb="2px">Result</Text>
-              <Text fontSize="xs" fontFamily="mono" color="green.300" wordBreak="break-all">{result}</Text>
-            </Box>
-          )}
-          {error && (
-            <Text fontSize="xs" color="red.400" fontFamily="mono">{error}</Text>
-          )}
-        </Flex>
-      )}
     </Box>
   );
 };
 
-// ─── EmptyPane ────────────────────────────────────────────────────────────────
-const EmptyPane = () => (
-  <Flex direction="column" flex={1} align="center" justify="center" gap={3} color="gray.600">
-    <FaPlay size={28} opacity={0.2} />
-    <Text fontSize="sm">Select an action or group</Text>
-  </Flex>
-);
+const Sidebar = ({ actions, hooks, loading, selectedId, onSelect, onSelectGroup, onCreate }) => {
+  const [search, setSearch] = React.useState("");
+  const [closed, setClosed] = React.useState({});
+  const [creating, setCreating] = React.useState(false);
+  const hookName = (h) => hooks.find((x) => Number(x.value) === Number(h))?.name;
 
-// ─── main component ───────────────────────────────────────────────────────────
-export const ActionsPanel = ({ state, gameDataRef }) => {
-  const [actions,         setActions]         = React.useState([]);
-  const [hooks,           setHooks]           = React.useState([]);
-  const [stepDefinitions, setStepDefinitions] = React.useState([]);
-  const [search,          setSearch]          = React.useState("");
-  const [loading,         setLoading]         = React.useState(true);
-  const [selection,       setSelection]       = React.useState(null);
+  const groups = React.useMemo(() => {
+    const q = search.trim().toLowerCase();
+    const filtered = actions.filter((a) => !q || fullActionName(a).toLowerCase().includes(q));
+    const map = {};
+    filtered.forEach((a) => { (map[a.prefix || "(no prefix)"] ??= []).push(a); });
+    return Object.entries(map)
+      .sort(([a], [b]) => a.localeCompare(b))
+      .map(([prefix, list]) => [prefix, [...list].sort((x, y) => (x.name ?? "").localeCompare(y.name ?? ""))]);
+  }, [actions, search]);
 
-  const [steps,  setSteps]  = React.useState([]);
-  const stepsRef            = React.useRef(steps);
-  stepsRef.current          = steps;
-
-  const [treeData, setTreeData] = React.useState([]);
-
-  // Resizable sidebar
-  const colContainerRef = React.useRef(null);
-  const { fracs, onDividerMouseDown } = useDragResize(colContainerRef, [0.3]);
-
-  const hooksCollection = React.useMemo(
-    () => createListCollection({ items: hooks }),
-    [hooks]
+  return (
+    <Flex direction="column" h="100%" bg={T.surface} overflow="hidden">
+      <HStack px={3} py={2} gap={2} flexShrink={0} borderBottomWidth="1px" borderColor={T.border}>
+        <Text fontSize="xs" fontWeight="semibold" color="gray.400" textTransform="uppercase" letterSpacing="wider" flex={1}>Actions</Text>
+        {!loading && <Badge variant="subtle" colorPalette="gray" fontSize="2xs">{actions.length}</Badge>}
+        <DListItemButton label="New action" icon={FaPlus} onClick={() => setCreating(true)} />
+      </HStack>
+      {creating && (
+        <NewActionForm onCancel={() => setCreating(false)} onCreate={(p, n) => { onCreate(p, n); setCreating(false); }} />
+      )}
+      <Box px={2} pt={2} pb={1} flexShrink={0}><SearchInput value={search} onChange={setSearch} /></Box>
+      <Box flex={1} overflowY="auto" px={1} pb={2}>
+        {loading ? (
+          <Flex align="center" justify="center" gap={2} py={6} color="gray.600"><Spinner size="sm" /> <Text fontSize="sm">Loading…</Text></Flex>
+        ) : groups.length === 0 ? (
+          <Text fontSize="sm" color="gray.600" textAlign="center" py={6} fontStyle="italic">No actions found</Text>
+        ) : groups.map(([prefix, list]) => {
+          const isClosed = closed[prefix] && !search;
+          return (
+            <Box key={prefix} mb={1}>
+              <HStack px={1} py="3px" gap={1} cursor="pointer" color="gray.400" _hover={{ color: "white" }}>
+                <Box onClick={() => setClosed((c) => ({ ...c, [prefix]: !c[prefix] }))} p="2px">
+                  {isClosed ? <FaChevronRight size={9} /> : <FaChevronDown size={9} />}
+                </Box>
+                <Text fontSize="xs" fontWeight="semibold" flex={1} truncate onClick={() => onSelectGroup(prefix)}>{prefix}</Text>
+                <Text fontSize="2xs" color={T.faint}>{list.length}</Text>
+              </HStack>
+              {!isClosed && list.map((a) => (
+                <Box key={a.id} pl={3}>
+                  <ActionRow action={a} hookName={hookName(a.hook)} selected={a.id === selectedId} onClick={() => onSelect(a.id)} />
+                </Box>
+              ))}
+            </Box>
+          );
+        })}
+      </Box>
+      <QueryResolver />
+    </Flex>
   );
+};
 
-  // ── initial load ─────────────────────────────────────────────────────────────
+// ─── group pane: the group's actions + "Run all" ─────────────────────────────
+const GroupPane = ({ group, actions, onSelect }) => {
+  const [confirmRun, setConfirmRun] = React.useState(false);
+  const list = actions.filter((a) => (a.prefix || "(no prefix)") === group);
+  const runAll = () => {
+    list.forEach((a) => ClientMediator.sendCommand("Action", "Run", { name: fullActionName(a) }));
+    setConfirmRun(false);
+  };
+  return (
+    <Flex direction="column" flex={1} p={5} gap={3} overflowY="auto">
+      <Box>
+        <Text fontSize="lg" color="white" fontWeight="semibold">{group}</Text>
+        <Text fontSize="sm" color="gray.400">{list.length} action{list.length !== 1 ? "s" : ""}</Text>
+      </Box>
+      <Flex direction="column" gap={1}>
+        {list.map((a) => (
+          <HStack key={a.id} px={3} py={2} bg={T.raised} borderRadius="md" borderWidth="1px" borderColor={T.border}
+            cursor="pointer" _hover={{ borderColor: "gray.500" }} onClick={() => onSelect(a.id)}>
+            <Badge size="sm" colorPalette={a.isEnabled ? "green" : "gray"} variant="subtle">{a.isEnabled ? "On" : "Off"}</Badge>
+            <Text fontSize="sm" flex={1} color="white">{a.name}</Text>
+          </HStack>
+        ))}
+      </Flex>
+      <Box>
+        {confirmRun ? (
+          <HStack gap={2}>
+            <Text fontSize="sm" color="orange.300">Run all {list.length} actions?</Text>
+            <Button size="sm" colorPalette="orange" variant="outline" onClick={runAll}>Confirm</Button>
+            <Button size="sm" variant="ghost" onClick={() => setConfirmRun(false)}>Cancel</Button>
+          </HStack>
+        ) : (
+          <Button size="sm" variant="outline" onClick={() => setConfirmRun(true)}><FaPlay /> Run all</Button>
+        )}
+      </Box>
+    </Flex>
+  );
+};
+
+// ─── main component ──────────────────────────────────────────────────────────
+export const ActionsPanel = () => {
+  const [actions, setActions] = React.useState([]);
+  const [hooks, setHooks] = React.useState([]);
+  const [stepDefinitions, setStepDefinitions] = React.useState([]);
+  const [loading, setLoading] = React.useState(true);
+  const [group, setGroup] = React.useState(null);
+  const [pending, setPending] = React.useState(null);       // navigation waiting on the unsaved-changes dialog
+  const [restorable, setRestorable] = React.useState(null);  // a kept draft for the opened action
+  const draft = useActionDraft();
+  const draftRef = React.useRef(draft);
+  draftRef.current = draft;
+  const createdRef = React.useRef(null); // "prefix/name" just created here, to open it when it arrives
+
+  const colRef = React.useRef(null);
+  const { fracs, onDividerMouseDown } = useDragResize(colRef, [0.26]);
+
+  const ctx = Dockable.useContentContext();
+  ctx.setTitle("Actions");
+
   React.useEffect(() => {
     let cancelled = false;
-    const load = async () => {
+    (async () => {
       try {
-        const [actionsData, stepDefsWrapped, hooksData] = await Promise.all([
+        const [list, defs, hookList] = await Promise.all([
           WebHelper.getAsync("addon/actions"),
           WebHelper.getAsync("addon/stepdefinitions"),
           WebHelper.getAsync("addon/hooks"),
         ]);
         if (cancelled) return;
-        setActions(Array.isArray(actionsData) ? actionsData : []);
-        setStepDefinitions(Array.isArray(stepDefsWrapped?.stepDefinitions) ? stepDefsWrapped.stepDefinitions : []);
-        setHooks(Array.isArray(hooksData) ? hooksData : []);
+        setActions(Array.isArray(list) ? list : []);
+        setStepDefinitions(Array.isArray(defs?.stepDefinitions) ? defs.stepDefinitions : []);
+        setHooks(Array.isArray(hookList) ? hookList : []);
       } catch (err) {
         console.warn("[ActionsPanel] load failed:", err);
       } finally {
         if (!cancelled) setLoading(false);
       }
-    };
-    load();
+    })();
     return () => { cancelled = true; };
   }, []);
 
-  // ── tree generation ───────────────────────────────────────────────────────────
-  const generateActionsTree = React.useCallback((actionList, currentSearch, currentTreeData) => {
-    const filtered = actionList.filter((x) =>
-      x?.name?.toLowerCase().includes(currentSearch.toLowerCase())
-    );
-    const grouped = Object.groupBy(filtered, (x) => x.prefix);
-    return Object.keys(grouped).map((prefix) => ({
-      id: prefix, label: prefix, isGroup: true,
-      open: currentTreeData.find((y) => y.id === prefix)?.open ?? false,
-      children: grouped[prefix].map((y) => ({
-        id: y.id, label: y.name,
-        icon: y.isEnabled ? <FaCheck color="#48BB78" /> : <FaMinus color="#718096" />,
-      })),
-    }));
+  // Keep unsaved edits if the panel closes or the page unloads.
+  React.useEffect(() => {
+    const keep = () => { const d = draftRef.current; if (d.dirty && d.action?.id) storeDraft(d.payload()); };
+    window.addEventListener("beforeunload", keep);
+    return () => { window.removeEventListener("beforeunload", keep); keep(); };
   }, []);
 
-  React.useEffect(() => {
-    setTreeData((prev) => generateActionsTree(actions, search, prev));
-  }, [actions, search, generateActionsTree]);
-
-  // ── selection ─────────────────────────────────────────────────────────────────
-  const selectItem = React.useCallback(async ({ id, isGroup, label }) => {
-    if (isGroup) {
-      setSelection({ type: "group", label });
-      setSteps([]);
-      return;
-    }
+  const openAction = async (id) => {
     try {
       const response = await WebHelper.getAsync("addon/action?id=" + id);
-      if (!response) {
-        console.warn("[ActionsPanel] action not found:", id);
-        return;
-      }
-      setSelection({ type: "action", action: response });
-      setSteps(JSON.parse(response.content ?? "[]"));
+      if (!response) return;
+      setGroup(null);
+      draft.load(response);
+      const stored = readDraft(id);
+      setRestorable(stored && stored.payload?.content !== response.content ? stored : null);
     } catch (err) {
       console.warn("[ActionsPanel] failed to load action:", err);
     }
-  }, []);
+  };
 
-  const selectedAction = selection?.type === "action" ? selection.action : null;
-  const setSelectedAction = React.useCallback(
-    (next) => setSelection((s) => ({
-      type: "action",
-      action: typeof next === "function" ? next(s?.action) : next,
-    })),
-    []
-  );
+  const go = (target) => {
+    if (target.type === "action") openAction(target.id);
+    else { draft.load(null); setRestorable(null); setGroup(target.prefix); }
+  };
 
-  const ctx = Dockable.useContentContext();
-  ctx.setTitle("Actions");
+  // Every navigation goes through here so unsaved edits are never dropped silently.
+  const navigate = (target) => {
+    if (target.type === "action" && target.id === draft.action?.id) return;
+    if (draft.dirty) { setPending(target); return; }
+    go(target);
+  };
+
+  const save = (payload) => {
+    WebSocketManagerInstance.Send({ command: "action_update", data: payload });
+    setActions((list) => list.map((a) => (a.id === payload.id ? { ...a, ...payload } : a)));
+    dropDraft(payload.id);
+    setRestorable(null);
+  };
+
+  const restore = () => {
+    const { payload } = restorable;
+    const { content, ...fields } = payload;
+    draft.updateAction(fields);
+    let steps = [];
+    try { steps = JSON.parse(content ?? "[]"); } catch { /* keep empty */ }
+    draft.setSteps(() => steps);
+    setRestorable(null); // stays "unsaved" until the user saves
+  };
+
+  const openByName = (name) => {
+    const target = actions.find((a) => fullActionName(a) === name) ?? actions.find((a) => a.name === name);
+    if (target) navigate({ type: "action", id: target.id });
+  };
+
+  const create = (prefix, name) => {
+    createdRef.current = prefix ? `${prefix}/${name}` : name;
+    WebSocketManagerInstance.Send({ command: "action_add", data: { prefix, name, hook: 0, content: "[]" } });
+  };
+
+  const remove = () => {
+    WebSocketManagerInstance.Send({ command: "action_delete", data: draft.action.id });
+    dropDraft(draft.action.id);
+    draft.load(null);
+  };
 
   return (
     <>
-      <CollectionSyncer commandPrefix="action" collection={actions} setCollection={setActions} />      <Flex height="100%" overflow="hidden" ref={colContainerRef}>
-        {/* ── left sidebar ── */}
-        <Flex
-          direction="column" width={`${fracs[0] * 100}%`} flexShrink={0}
-          bg={BG_SURFACE} overflow="hidden"
-        >
-          {/* Sidebar header */}
-          <HStack
-            px={3} py={2} flexShrink={0} gap={2}
-            borderBottomWidth="1px" borderColor={BORDER_CLR}
-          >
-            <Text fontSize="xs" fontWeight="semibold" color="gray.400"
-              textTransform="uppercase" letterSpacing="wider" flex={1}>
-              Actions
-            </Text>
-            {!loading && (
-              <Badge variant="subtle" colorPalette="gray" fontSize="2xs">{actions.length}</Badge>
-            )}
-            <DListItemButton
-              label="New action" icon={FaPlus}
-              onClick={() => WebSocketManagerInstance.Send({
-                command: "action_add",
-                data: { prefix: "MyPrefix", name: "Name", hook: 0, content: "[]" },
-              })}
-            />
-          </HStack>
-
-          {/* Search */}
-          <Box px={2} pt={2} pb={1} flexShrink={0}>
-            <SearchInput value={search} onChange={setSearch} />
-          </Box>
-
-          {/* Tree */}
-          <Box flex={1} overflowY="auto" px={1} pb={2}>
-            {loading ? (
-              <Flex align="center" justify="center" gap={2} py={6} color="gray.600">
-                <Spinner size="sm" /> <Text fontSize="sm">Loading…</Text>
-              </Flex>
-            ) : treeData.length === 0 ? (
-              <Text fontSize="sm" color="gray.600" textAlign="center" py={6} fontStyle="italic">
-                No actions found
-              </Text>
-            ) : (
-              <ReactTreeList
-                onChange={setTreeData}
-                onSelected={({ id, isGroup, label }) => selectItem({ id, isGroup, label })}
-                data={treeData}
-                draggable={false}
-                itemDefaults={{ open: false, arrow: "▸" }}
-              />
-            )}          </Box>
-
-          <QueryResolver />
-        </Flex>
-
+      <CollectionSyncer
+        commandPrefix="action" collection={actions} setCollection={setActions}
+        onAdd={(a) => {
+          if (a?.id && fullActionName(a) === createdRef.current) { createdRef.current = null; navigate({ type: "action", id: a.id }); }
+        }}
+      />
+      <Flex height="100%" overflow="hidden" ref={colRef}>
+        <Box width={`${fracs[0] * 100}%`} flexShrink={0} overflow="hidden">
+          <Sidebar actions={actions} hooks={hooks} loading={loading} selectedId={draft.action?.id}
+            onSelect={(id) => navigate({ type: "action", id })}
+            onSelectGroup={(prefix) => navigate({ type: "group", prefix })}
+            onCreate={create} />
+        </Box>
         <ResizeDivider onMouseDown={(e) => onDividerMouseDown(0, e)} />
-
-        {/* ── right pane ── */}
-        {selection?.type === "group" && (
-          <GroupPane group={selection.label} actions={actions} />
-        )}
-        {selection?.type === "action" && selectedAction && (
-          <ActionPane
-            selectedAction={selectedAction}
-            setSelectedAction={setSelectedAction}
-            steps={steps}
-            stepsRef={stepsRef}
-            setSteps={setSteps}
-            stepDefinitions={stepDefinitions}
-            hooksCollection={hooksCollection}
-          />
-        )}
-        {!selection && <EmptyPane />}
+        <Flex flex={1} direction="column" overflow="hidden" minW={0}>
+          {restorable && draft.action && (
+            <HStack px={3} py={2} gap={2} bg="rgba(236,201,75,0.12)" borderBottomWidth="1px" borderColor="yellow.700" flexShrink={0}>
+              <Text fontSize="xs" color="yellow.200" flex={1}>
+                Unsaved changes to this action were kept from {new Date(restorable.at).toLocaleString()}.
+              </Text>
+              <Button size="2xs" variant="outline" onClick={restore}>Restore</Button>
+              <Button size="2xs" variant="ghost" onClick={() => { dropDraft(draft.action.id); setRestorable(null); }}>Discard</Button>
+            </HStack>
+          )}
+          {draft.action ? (
+            <ActionEditor draft={draft} stepDefinitions={stepDefinitions} hooks={hooks} actions={actions}
+              onSave={save} onDelete={remove} onOpenAction={openByName} />
+          ) : group ? (
+            <GroupPane group={group} actions={actions} onSelect={(id) => navigate({ type: "action", id })} />
+          ) : (
+            <Flex flex={1} direction="column" align="center" justify="center" gap={3} color="gray.600">
+              <FaSearch size={24} opacity={0.3} />
+              <Text fontSize="sm">Select an action, or create one with +</Text>
+            </Flex>
+          )}
+        </Flex>
       </Flex>
+
+      <DialogRoot open={!!pending} size="sm" onOpenChange={(e) => { if (!e.open) setPending(null); }}>
+        <DialogContent>
+          <DialogHeader><DialogTitle>Unsaved changes</DialogTitle></DialogHeader>
+          <DialogBody>
+            <Text fontSize="sm">“{fullActionName(draft.action)}” has changes that aren't saved yet.</Text>
+          </DialogBody>
+          <DialogFooter>
+            <Button size="sm" variant="ghost" onClick={() => setPending(null)}>Cancel</Button>
+            <Button size="sm" variant="outline" colorPalette="red" onClick={() => { const t = pending; setPending(null); go(t); }}>Discard</Button>
+            <Button size="sm" colorPalette="blue" onClick={() => { save(draft.payload()); draft.markSaved(); const t = pending; setPending(null); go(t); }}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </DialogRoot>
     </>
   );
 };
