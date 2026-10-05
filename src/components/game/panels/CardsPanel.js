@@ -103,6 +103,7 @@ export const CardsPanel = ({ state }) => {
       <DTreeList
         withAddItem={true}
         entityType={"CardModel"}
+        estimatedRowHeight={52}
         items={panels}
         refreshRef={treeRefreshRef}
         onRefresh={loadData}

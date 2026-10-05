@@ -4,7 +4,6 @@
   "private": true,
   "packageManager": "pnpm@10.7.0",
   "dependencies": {
-    "@bartaxyz/react-tree-list": "^0.6.0",
     "@chakra-ui/react": "^3.5.1",
     "@ckeditor/ckeditor5-build-classic": "^41.4.2",
     "@ckeditor/ckeditor5-react": "^7.0.0",

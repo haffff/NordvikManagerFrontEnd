@@ -454,8 +454,9 @@ export const MaterialsPanel = ({ state }) => {
     // ── shared resource list renderer ───────────────────────────────────────
 
     const renderResourceList = (items, { readOnly = false } = {}) => (
-        <Box flex="1" overflowY="auto">
-            <DList>
+        // The tree scrolls itself (virtualized), so this only passes the height down.
+        <Flex flex="1" minH={0} direction="column">
+            <DList flex="1" minH={0}>
                 <DTreeList
                     items={items}
                     canEditFolders={canEditFolders && !readOnly}
@@ -501,7 +502,7 @@ export const MaterialsPanel = ({ state }) => {
                     onRefresh={loadData}
                 />
             </DList>
-        </Box>
+        </Flex>
     );
 
     // ── render ──────────────────────────────────────────────────────────────
