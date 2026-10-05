@@ -17,8 +17,23 @@ const INDENT_PX = 14;
 const AUTO_OPEN_MS = 600;
 const EDGE_SCROLL_PX = 36;
 const DRAG_TYPE = "application/x-nordvik-tree";
+const GUARDED_KEYS = new Set(["ArrowUp", "ArrowDown", "ArrowLeft", "ArrowRight", "Home", "End", "Enter", " ", "Delete", "Backspace"]);
 
 const selectedBg = "rgba(66,153,225,0.18)";
+const MIN_ROW_HEIGHT = 24;
+
+// A positioned row that registers with the shared size observer while it's mounted
+// (rows scrolled out of view unmount, and must stop being observed).
+const MeasuredRow = React.forwardRef(function MeasuredRow({ observer, ...props }, _ref) {
+  const elRef = React.useRef(null);
+  React.useLayoutEffect(() => {
+    const el = elRef.current;
+    if (!el || !observer) return undefined;
+    observer.observe(el);
+    return () => observer.unobserve(el);
+  }, [observer]);
+  return <Box ref={elRef} {...props} />;
+});
 const focusRing = `inset 0 0 0 1px ${themeColors.accentBlue}`;
 
 // Where in a row the pointer is → drop position. Folders take "inside" in the middle half.
@@ -133,7 +148,6 @@ export const TreeView = ({
   }, [estimatedRowHeight]);
   React.useEffect(() => () => rowObserver?.disconnect(), [rowObserver]);
 
-  const measureRef = React.useCallback((el) => { if (el && rowObserver) rowObserver.observe(el); }, [rowObserver]);
 
   // Visible window.
   const height = viewport || FALLBACK_VIEWPORT;
@@ -142,6 +156,13 @@ export const TreeView = ({
   while (end < rows.length && offsets[end] < scrollTop + height + OVERSCAN_PX) end++;
 
   const onScroll = (e) => setScrollTop(e.currentTarget.scrollTop);
+
+  // When the content shrinks (search, folders closing) the browser clamps scrollTop,
+  // sometimes without a scroll event; re-read it so the visible window stays right.
+  React.useLayoutEffect(() => {
+    const el = containerRef.current;
+    if (el && el.scrollTop !== scrollTop) setScrollTop(el.scrollTop);
+  }, [total]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // ── keyboard ────────────────────────────────────────────────────────────
   const activeId = focusedId && indexById.has(focusedId) ? focusedId : selectedId;
@@ -285,14 +306,6 @@ export const TreeView = ({
   // ── render ──────────────────────────────────────────────────────────────
   const rowDomId = (id) => `${treeKey}-row-${id}`;
 
-  if (!rows.length) {
-    return (
-      <Box ref={containerRef} flex={1} overflowY="auto" h="100%">
-        {emptyState}
-      </Box>
-    );
-  }
-
   return (
     <Box
       ref={containerRef}
@@ -307,10 +320,15 @@ export const TreeView = ({
       outline="none"
       onScroll={onScroll}
       onKeyDown={onKeyDown}
+      onKeyUp={(e) => {
+        // Game shortcuts fire on keyup (Delete = remove selected map elements, Ctrl+C/V…).
+        if (GUARDED_KEYS.has(e.key) || e.ctrlKey || e.metaKey) e.stopPropagation();
+      }}
       onDragOver={onContainerDragOver}
       onDrop={onContainerDrop}
       onDragLeave={(e) => { if (e.currentTarget === e.target) setDrop(null); }}
     >
+      {!rows.length && emptyState}
       <div style={{ position: "relative", height: total, boxShadow: drop?.end ? `inset 0 -2px 0 ${themeColors.accentBlue}` : undefined }}>
         {rows.slice(start, end).map((row, k) => {
           const i = start + k;
@@ -318,10 +336,10 @@ export const TreeView = ({
           const isSelected = node.id === selectedId;
           const isFocused = keyboardNav && node.id === activeId && focusedId != null;
           return (
-            <Box
+            <MeasuredRow
               key={node.id}
+              observer={rowObserver}
               id={rowDomId(node.id)}
-              ref={measureRef}
               data-row-id={node.id}
               data-row-top={offsets[i]}
               role="treeitem"
@@ -344,7 +362,7 @@ export const TreeView = ({
                 ...(drop?.id === node.id ? dropStyle(drop.position) : null),
               }}
             >
-              <Flex align="center" pr="2px" style={{ minHeight: estimatedRowHeight, paddingLeft: row.depth * INDENT_PX + 2 }}>
+              <Flex align="center" pr="2px" style={{ minHeight: MIN_ROW_HEIGHT, paddingLeft: row.depth * INDENT_PX + 2 }}>
                 <Box
                   w="16px" flexShrink={0} color={themeColors.textMuted} display="flex" justifyContent="center"
                   onClick={(e) => {
@@ -360,7 +378,7 @@ export const TreeView = ({
                 </Box>
                 <Box flex={1} minW={0}>{renderLabel ? renderLabel(node, { query }) : node.name}</Box>
               </Flex>
-            </Box>
+            </MeasuredRow>
           );
         })}
       </div>

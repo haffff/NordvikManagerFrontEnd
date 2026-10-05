@@ -132,6 +132,47 @@ describe("TreeView", () => {
     vi.unstubAllGlobals();
   });
 
+  it("keeps one scroll container when going empty and back (rows render from the top)", () => {
+    const empty = <Host nodes={[]} emptyState={<p>No items</p>} />;
+    const { rerender } = renderWithProviders(empty);
+    const tree = screen.getByRole("tree");
+    expect(screen.getByText("No items")).toBeInTheDocument();
+    rerender(<Host nodes={nodes} />);
+    expect(screen.getByRole("tree")).toBe(tree);
+    expect(rowNames()).toEqual(["Maps", "Goblin"]);
+    rerender(<Host nodes={nodes} query="zzz" emptyState={<p>No match</p>} />);
+    expect(screen.getByText("No match")).toBeInTheDocument();
+    rerender(<Host nodes={nodes} />);
+    expect(screen.getByRole("tree")).toBe(tree);
+    expect(rowNames()).toEqual(["Maps", "Goblin"]);
+  });
+
+  it("keeps Delete / Ctrl+C away from game shortcuts", () => {
+    const onKeyUp = vi.fn();
+    renderWithProviders(<div onKeyUp={onKeyUp}><Host nodes={nodes} /></div>);
+    const tree = screen.getByRole("tree");
+    fireEvent.keyUp(tree, { key: "Delete" });
+    fireEvent.keyUp(tree, { key: "c", ctrlKey: true });
+    expect(onKeyUp).not.toHaveBeenCalled();
+    fireEvent.keyUp(tree, { key: "p", shiftKey: true }); // other shortcuts still work
+    expect(onKeyUp).toHaveBeenCalledTimes(1);
+  });
+
+  it("stops observing rows that are no longer rendered", () => {
+    const observed = new Set();
+    vi.stubGlobal("ResizeObserver", class {
+      observe(el) { observed.add(el); }
+      unobserve(el) { observed.delete(el); }
+      disconnect() {}
+    });
+    const { rerender } = renderWithProviders(<Host nodes={nodes} initialOpen={["maps"]} />);
+    const rows = () => [...observed].filter((el) => el.getAttribute?.("data-row-id")).length;
+    expect(rows()).toBe(4);
+    rerender(<Host nodes={nodes} query="goblin" />);
+    expect(rows()).toBe(1);
+    vi.unstubAllGlobals();
+  });
+
   describe("drag & drop", () => {
     const setup = (extra = {}) => {
       const onMove = vi.fn();
