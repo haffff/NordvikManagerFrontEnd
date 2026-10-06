@@ -17,6 +17,8 @@ import {
   FaStickyNote,
   FaChevronDown,
   FaChevronUp,
+  FaArrowUp,
+  FaArrowDown,
   FaSync,
   FaUpload,
 } from "react-icons/fa";
@@ -27,8 +29,7 @@ import DListItemButton from "./base/List/ListItemDetails/DListItemButton";
 import CollectionSyncer from "./base/CollectionSyncer";
 import DTreeViewOnly from "./treeList/DTreeViewOnly";
 import { toaster } from "../ui/toaster";
-import ProgressToastManager from "../../helpers/ProgressToastManager";
-import UtilityHelper from "../../helpers/UtilityHelper";
+import uploadMaterials from "../../helpers/uploadMaterials";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -48,9 +49,14 @@ const getIconByMimeType = (mimeType) => {
   return FaFile;
 };
 
+// The selected materials in the order of the given ids (the order matters when
+// orderable, e.g. stylesheets where later ones win).
+const inOrder = (materials, ids) =>
+  ids.map((id) => materials.find((x) => x.id === id)).filter(Boolean);
+
 // ─── SelectedChip — one chosen material ───────────────────────────────────────
 
-const SelectedChip = React.memo(({ material, isDisabled, onRemove }) => {
+const SelectedChip = React.memo(({ material, isDisabled, onRemove, onMove, isFirst, isLast }) => {
   const IconComp = getIconByMimeType(material.mimeType);
   return (
     <DListItem withHover width="100%">
@@ -59,6 +65,12 @@ const SelectedChip = React.memo(({ material, isDisabled, onRemove }) => {
         <Text fontSize="xs" noOfLines={1} flex="1" minW={0}>{material.name}</Text>
       </Flex>
       <DListItemsButtonContainer>
+        {onMove && (
+          <>
+            <DListItemButton disabled={isDisabled || isFirst} icon={FaArrowUp} label="Move up" onClick={() => onMove(material.id, -1)} />
+            <DListItemButton disabled={isDisabled || isLast} icon={FaArrowDown} label="Move down" onClick={() => onMove(material.id, 1)} />
+          </>
+        )}
         <DListItemButton
           isDisabled={isDisabled}
           icon={FaMinus}
@@ -139,6 +151,7 @@ export const MaterialChooser = ({
   additionalFilter,
   materialsSelected,   // array of IDs
   isDisabled,
+  orderable,           // multi-select: show move up/down; the order is kept and reported
 }) => {
   const [materials, setMaterials]               = React.useState(null);   // null = loading
   const [selectedMaterials, setSelectedMaterials] = React.useState([]);  const [showPicker, setShowPicker]             = React.useState(false);
@@ -164,8 +177,7 @@ export const MaterialChooser = ({
     const data = await WebHelper.getAsync("materials/getresources");
     if (!data) return;
     setMaterials(data);
-    const ids = selectedIdsRef.current;
-    setSelectedMaterials(data.filter((x) => ids.includes(x.id)));
+    setSelectedMaterials(inOrder(data, selectedIdsRef.current));
   }, []);
 
   React.useEffect(() => { loadData(); }, [loadData]);
@@ -180,7 +192,7 @@ export const MaterialChooser = ({
   // Covers: initial load, parent prop updates, and CollectionSyncer removals.
   React.useEffect(() => {
     if (!materials) return;
-    setSelectedMaterials(materials.filter((x) => selectedIds.includes(x.id)));
+    setSelectedMaterials(inOrder(materials, selectedIds));
   // selectedIds is derived from materialsSelected; listing both would be redundant.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [materials, selectedIds]);
@@ -195,6 +207,14 @@ export const MaterialChooser = ({
       onSelect?.(next[0]?.id ?? null);
     }
   }, [multipleSelection, onSelect]);
+  const handleMove = React.useCallback((id, delta) => {
+    const next = [...selectedRef.current];
+    const index = next.findIndex((x) => x.id === id);
+    const [item] = next.splice(index, 1);
+    next.splice(index + delta, 0, item);
+    commitSelection(next);
+  }, [commitSelection]);
+
   const handleRemove = React.useCallback((id) => {
     const next = selectedRef.current.filter((x) => x.id !== id);
     commitSelection(next);
@@ -223,58 +243,16 @@ export const MaterialChooser = ({
     if (!allowed.length) return;
 
     setUploading(true);
-    let remaining = allowed.length;
-    let done = 0;
-    let failedCount = 0;
-    const total = allowed.length;
-    const opId = UtilityHelper.GenerateUUID();
-    ProgressToastManager.start(opId, {
-      title: total > 1 ? `Uploading ${total} files…` : `Uploading ${allowed[0].name}…`,
-      total,
-    });
-
-    const finishIfDone = () => {
-      if (remaining > 0) return;
-      setUploading(false);
-      if (failedCount === 0) {
-        ProgressToastManager.complete(opId, {
-          title: total > 1 ? `Uploaded ${total} files` : `Uploaded ${allowed[0].name}`,
-        });
-      } else if (failedCount === total) {
-        ProgressToastManager.fail(opId, { title: "Upload failed" });
-      } else {
-        ProgressToastManager.fail(opId, { title: `${failedCount} of ${total} uploads failed` });
+    uploadMaterials(allowed).then(async ({ uploaded }) => {
+      // Reload once so the tree is fresh, then auto-select the upload if single-select.
+      const data = await WebHelper.getAsync("materials/getresources");
+      if (data) {
+        setMaterials(data);
+        const last = uploaded[uploaded.length - 1];
+        const match = !multipleSelection && last && data.find((x) => x.id === last.id);
+        if (match) commitSelection([match]);
       }
-    };
-
-    allowed.forEach((file) => {
-      WebHelper.postMaterial(
-        file,
-        async (result) => {
-          // Reload all materials so the tree is fresh
-          const data = await WebHelper.getAsync("materials/getresources");
-          if (data) {
-            setMaterials(data);
-            // Auto-select the newly uploaded file if single-select
-            if (!multipleSelection && result?.id) {
-              const uploaded = data.find((x) => x.id === result.id);
-              if (uploaded) commitSelection([uploaded]);
-            }
-          }
-          remaining -= 1;
-          done += 1;
-          ProgressToastManager.update(opId, { current: done, total, message: `Uploaded ${file.name}` });
-          finishIfDone();
-        },
-        (err) => {
-          console.error("MaterialChooser: upload error", err);
-          remaining -= 1;
-          done += 1;
-          failedCount += 1;
-          ProgressToastManager.update(opId, { current: done, total, message: `Failed: ${file.name}` });
-          finishIfDone();
-        }
-      );
+      setUploading(false);
     });
   }, [additionalFilter, multipleSelection, commitSelection]);
 
@@ -351,12 +329,15 @@ export const MaterialChooser = ({
       {/* Selected items */}
       {selectedMaterials.length > 0 && (
         <Box mb={2}>
-          {selectedMaterials.map((mat) => (
+          {selectedMaterials.map((mat, index) => (
             <SelectedChip
               key={mat.id}
               material={mat}
               isDisabled={isDisabled}
               onRemove={handleRemove}
+              onMove={orderable ? handleMove : undefined}
+              isFirst={index === 0}
+              isLast={index === selectedMaterials.length - 1}
             />
           ))}
         </Box>

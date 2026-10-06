@@ -30,6 +30,7 @@ import {
     DialogRoot, DialogContent, DialogBody, DialogCloseTrigger, DialogHeader, DialogFooter, DialogTitle,
 } from '../../ui/dialog';
 import ProgressToastManager from '../../../helpers/ProgressToastManager';
+import uploadMaterials from '../../../helpers/uploadMaterials';
 import themeColors from "../../../helpers/themeColors";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -305,23 +306,11 @@ export const MaterialsPanel = ({ state }) => {
         setIgnoreRefresh(true);
         setUploading(true);
 
-        let remaining = files.length;
-        const done = () => {
-            remaining -= 1;
-            if (remaining === 0) {
-                setUploading(false);
-                setIgnoreRefresh(false);
-                loadData();
-                treeRefreshRef.current?.();
-            }
-        };
-
-        files.forEach((file) => {
-            WebHelper.postMaterial(file, done, (err) => {
-                console.error("MaterialsPanel: upload error", err);
-                toaster.create({ title: "Upload failed", description: file.name, type: "error", duration: 5000 });
-                done();
-            });
+        uploadMaterials(files).then(() => {
+            setUploading(false);
+            setIgnoreRefresh(false);
+            loadData();
+            treeRefreshRef.current?.();
         });
     }, [loadData]);
 

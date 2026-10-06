@@ -1,4 +1,4 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 // WebHelper.getResourceString is only used by getResourceString()/getMaterialAsync
 // fallback paths, not touched by these tests — mock it out so importing the real
@@ -96,5 +96,66 @@ describe('WebRTCWebHelper.postMaterial', () => {
 
     expect(consoleSpy).toHaveBeenCalledWith(error);
     consoleSpy.mockRestore();
+  });
+});
+
+// Uploads are now fed into the data channel as it drains, so sending a big
+// request can take a while: the response timeout starts once it's all sent.
+describe('WebRTCWebHelper sending', () => {
+  let finishSend;
+  let failSend;
+  let transport;
+
+  beforeEach(() => {
+    vi.useFakeTimers();
+    WebRTCWebHelperInstance._pending = new Map();
+    WebRTCWebHelperInstance._queue = [];
+    transport = {
+      isChannelReady: () => true,
+      sendRaw: vi.fn((message, opts) => new Promise((resolve, reject) => {
+        transport.lastOpts = opts;
+        finishSend = resolve;
+        failSend = reject;
+      })),
+    };
+    WebRTCWebHelperInstance._transport = transport;
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+    WebRTCWebHelperInstance._transport = null;
+  });
+
+  it('a slow send does not time out; the wait for the response does', async () => {
+    const result = WebRTCWebHelperInstance.postAsync('materials/addresource', { data: 'x' });
+    let error;
+    result.catch((e) => { error = e; });
+
+    await vi.advanceTimersByTimeAsync(5 * 60_000); // still sending after 5 minutes
+    expect(error).toBeUndefined();
+
+    finishSend();
+    await vi.advanceTimersByTimeAsync(31_000);
+    expect(error?.message).toMatch(/timeout/i);
+  });
+
+  it('a failed send rejects the request and forgets it', async () => {
+    const result = WebRTCWebHelperInstance.postAsync('materials/addresource', { data: 'x' });
+
+    failSend(new Error('Data channel closed'));
+
+    await expect(result).rejects.toThrow('Data channel closed');
+    expect(WebRTCWebHelperInstance._pending.size).toBe(0);
+  });
+
+  it('postMaterial reports upload progress as a fraction', async () => {
+    convertBlobToB64.mockResolvedValue('b64');
+    const onProgress = vi.fn();
+
+    WebRTCWebHelperInstance.postMaterial({ name: 'a.png', type: 'image/png' }, vi.fn(), vi.fn(), vi.fn(), onProgress);
+    await vi.advanceTimersByTimeAsync(0);
+    transport.lastOpts.onProgress(250, 1000);
+
+    expect(onProgress).toHaveBeenCalledWith(0.25);
   });
 });

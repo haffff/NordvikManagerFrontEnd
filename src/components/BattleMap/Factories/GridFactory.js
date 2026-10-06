@@ -3,8 +3,12 @@ import { ActiveTransportManager as WebSocketManagerInstance } from "../../../hel
 import ClientMediator from "../../../ClientMediator";
 import { RESERVED_LAYERS } from "../Constants/layers";
 
+// Matches the backend's default for new maps: subtle over battle map images.
+export const DEFAULT_GRID_COLOR = "rgba(170, 170, 170, 0.35)";
+
 class GridFactory {
-  DrawGrid = (gridSize, size, mapId, gridColor = "#aaaaaa") => {
+  DrawGrid = (gridSize, size, mapId, gridColor) => {
+    gridColor = gridColor || DEFAULT_GRID_COLOR; // also when the map has null
     let gridArr = [];
 
     for (var i = 0; i < size[0] / gridSize; i++) {

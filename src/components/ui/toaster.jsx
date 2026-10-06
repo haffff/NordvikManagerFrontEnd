@@ -67,7 +67,8 @@ export const Toaster = () => {
                       </Progress.Track>
                     </Progress.Root>
                     <span style={{ fontSize: '0.75em', opacity: 0.7 }}>
-                      {total ? `${current} / ${total}` : `${current} so far`}
+                      {/* current can be fractional (an upload part-sent): the bar shows it, the count doesn't */}
+                      {total ? `${Math.floor(current)} / ${total}` : `${current} so far`}
                     </span>
                   </Stack>
                 )

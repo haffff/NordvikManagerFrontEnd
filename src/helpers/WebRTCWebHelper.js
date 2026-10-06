@@ -86,14 +86,41 @@ class WebRTCWebHelper {
     const channelReady = this._transport?.isChannelReady() ?? false;
     console.log(`[WebRTCWebHelper] flushQueue: ${this._queue.length} queued, transport=${!!this._transport}, channelReady=${channelReady}`);
     const items = this._queue.splice(0);
-    for (const { message, resolve, reject, timeoutHandle } of items) {
-      this._pending.set(message.id, { resolve, reject, timeoutHandle });
-      const sent = this._transport?.sendRaw(message);
-      console.log(`[WebRTCWebHelper] flushed ${message.method} ${message.path}, sent=${sent}`);
+    for (const item of items) {
+      console.log(`[WebRTCWebHelper] flushing ${item.message.method} ${item.message.path}`);
+      this._dispatch(item);
     }
   }
 
-  _sendRequest(method, path, body = null) {
+  // Hands a request to the transport. The response timeout starts once it's all
+  // sent: a large upload is fed into the channel as it drains, which can take longer
+  // than the timeout on its own.
+  _dispatch({ message, resolve, reject, timeoutHandle, onProgress }) {
+    clearTimeout(timeoutHandle); // the wait for the channel (if queued) is over
+    const id = message.id;
+    this._pending.set(id, { resolve, reject, timeoutHandle: null });
+    let sending;
+    try {
+      sending = this._transport.sendRaw(message, { onProgress });
+    } catch (e) {
+      sending = Promise.reject(e);
+    }
+    Promise.resolve(sending).then(
+      () => {
+        const entry = this._pending.get(id);
+        if (!entry) return; // already answered or reset
+        entry.timeoutHandle = setTimeout(() => {
+          this._pending.delete(id);
+          reject(new Error(`WebRTC API timeout: ${message.method} ${message.path}`));
+        }, REQUEST_TIMEOUT_MS);
+      },
+      (err) => {
+        if (this._pending.delete(id)) reject(err);
+      }
+    );
+  }
+
+  _sendRequest(method, path, body = null, { onProgress } = {}) {
     const id = crypto.randomUUID();
 
     // Separate inline query params from path, then add gameid
@@ -118,12 +145,11 @@ class WebRTCWebHelper {
 
       if (this._transport?.isChannelReady()) {
         console.log(`[WebRTCWebHelper] send immediate: ${method} ${normalizedPath}`);
-        this._pending.set(id, { resolve, reject, timeoutHandle });
-        this._transport.sendRaw(message);
+        this._dispatch({ message, resolve, reject, timeoutHandle, onProgress });
       } else {
         console.log(`[WebRTCWebHelper] queued: ${method} ${normalizedPath} (transport=${!!this._transport}, channelReady=${this._transport?.isChannelReady() ?? false})`);
         // Queue until channel opens; transport will call flushQueue()
-        this._queue.push({ message, resolve, reject, timeoutHandle });
+        this._queue.push({ message, resolve, reject, timeoutHandle, onProgress });
         // Safety net: channel may have opened between the isChannelReady() check above and
         // this push (race condition where dc.onopen fires before React effects run loadGame).
         if (this._transport?.isChannelReady()) {
@@ -172,8 +198,9 @@ class WebRTCWebHelper {
     return this._sendRequest('PUT', path, body);
   }
 
-  post(path, body, onok, onerror, onException) {
-    this._sendRequest('POST', path, body)
+  // onProgress(sentBytes, totalBytes) while the request is being sent.
+  post(path, body, onok, onerror, onException, onProgress) {
+    this._sendRequest('POST', path, body, { onProgress })
       .then((r) => {
         if (r.status >= 200 && r.status < 300) { if (onok) onok(r.body); }
         else { if (onerror) onerror(r); }
@@ -241,14 +268,16 @@ class WebRTCWebHelper {
 
   // Upload a material file via the data channel. Converts to base64 first,
   // then sends as a tunneled POST, matching the Materials/AddResource body schema.
-  postMaterial(file, onok, onerror, onException) {
+  // onProgress(fraction 0..1) follows the upload.
+  postMaterial(file, onok, onerror, onException, onProgress) {
     UtilityHelper.ConvertBlobToB64(file).then((b64) => {
       this.post(
         'Materials/AddResource',
         { Name: file.name, Data: b64, MimeType: file.type.toString() },
         onok,
         onerror,
-        onException
+        onException,
+        onProgress && ((sent, total) => onProgress(total ? sent / total : 1))
       );
     }).catch((e) => {
       if (onException) onException(e);

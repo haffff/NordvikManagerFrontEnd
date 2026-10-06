@@ -1,5 +1,6 @@
 import { fabric } from 'fabric';
 import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
+import uploadMaterials from '../../../helpers/uploadMaterials';
 import CommandFactory from '../Factories/CommandFactory';
 import { ActiveTransportManager as WebSocketManagerInstance } from '../../../helpers/transport';
 import ClientMediator from '../../../ClientMediator';
@@ -63,22 +64,24 @@ export default function createHandleDrop({ editor, mapRef, battleMapObjectRef, b
         }
       }
 
-      [...items].forEach((item, i) => {
-        if (item.kind === 'file') {
-          const file = item.getAsFile();
-          if (!file) return;
-          WebHelper.postMaterial(file, (result) => {
-            fabric.Image.fromURL(WebHelper.getResourceString(result.id), (img) => {
-              const obj = img;
-              obj.left = coords.x + 10 * i;
-              obj.top = coords.y + 10 * i;
-              obj.resourceId = result.id;
-              obj.resourceKey = result.key;
-              const cmd = CommandFactory.CreateAddCommand({ object: JSON.stringify(obj), properties: [], mapId: map?.id, layer: editor.canvas.selectedLayer });
-              WebSocketManagerInstance.Send(cmd);
-            });
-          }, (error) => { console.error('Battlemap HandleDrop: upload failed', error); });
-        }
+      const files = [...items]
+        .filter((item) => item.kind === 'file')
+        .map((item) => item.getAsFile())
+        .filter(Boolean);
+      // Each upload lands as an image at the drop point, offset a little per file.
+      uploadMaterials(files, {
+        onUploaded: (result, file) => {
+          const i = files.indexOf(file);
+          fabric.Image.fromURL(WebHelper.getResourceString(result.id), (img) => {
+            const obj = img;
+            obj.left = coords.x + 10 * i;
+            obj.top = coords.y + 10 * i;
+            obj.resourceId = result.id;
+            obj.resourceKey = result.key;
+            const cmd = CommandFactory.CreateAddCommand({ object: JSON.stringify(obj), properties: [], mapId: map?.id, layer: editor.canvas.selectedLayer });
+            WebSocketManagerInstance.Send(cmd);
+          });
+        },
       });
     } catch (e) {
       console.error('Battlemap HandleDrop error', e);
