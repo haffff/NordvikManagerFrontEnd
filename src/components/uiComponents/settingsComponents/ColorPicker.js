@@ -1,4 +1,4 @@
-import { HStack, parseColor } from "@chakra-ui/react";
+import { HStack, Text, parseColor } from "@chakra-ui/react";
 import {
   ColorPickerArea,
   ColorPickerContent,
@@ -22,12 +22,18 @@ export function withVisibleAlpha(previous, next) {
   return next;
 }
 
+// Where an unset colour field opens: opaque, so picking a colour just works.
+export const DEFAULT_COLOR = "rgba(0,0,0,1)";
+
 export const DColorPicker = ({ initColor, onValueChange, minimal }) => {
-  const [color, setColor] = useState(initColor || "rgba(0,0,0,0)");
+  const [color, setColor] = useState(initColor || DEFAULT_COLOR);
+  // Unset until a colour is given or picked — shown as "Not set", not as the default.
+  const [isSet, setIsSet] = useState(!!initColor);
 
   React.useEffect(() => {
     if (initColor) {
-      setColor(initColor || "rgba(0,0,0,0)"); // Default to transparent if no color is provided
+      setColor(initColor);
+      setIsSet(true);
     }
   }, [initColor]);
 
@@ -37,6 +43,7 @@ export const DColorPicker = ({ initColor, onValueChange, minimal }) => {
       onValueChange={({ value }) => {
         const valueAsString = withVisibleAlpha(parseColor(color), value).toString("rgba");
         setColor(valueAsString);
+        setIsSet(true);
         if (onValueChange) {
           onValueChange(valueAsString);
         }
@@ -46,7 +53,9 @@ export const DColorPicker = ({ initColor, onValueChange, minimal }) => {
       <ColorPickerControl>
         <ColorPickerTrigger px="2">
           <ColorPickerValueSwatch boxSize="6" />
-          {!minimal && <ColorPickerValueText minW="160px" />}
+          {!minimal && (isSet
+            ? <ColorPickerValueText minW="160px" />
+            : <Text minW="160px" color="fg.muted">Not set</Text>)}
         </ColorPickerTrigger>
       </ColorPickerControl>
       <ColorPickerContent zIndex={9999}>
