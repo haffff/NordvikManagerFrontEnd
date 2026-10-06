@@ -13,6 +13,15 @@ import {
 } from "../../ui/color-picker";
 import React, { useState } from "react";
 
+// An unset colour shows as fully transparent. Picking a colour from there kept alpha at
+// 0, so the pick stayed invisible: make it opaque unless the alpha itself is being set.
+export function withVisibleAlpha(previous, next) {
+  if (previous.getChannelValue("alpha") === 0 && next.getChannelValue("alpha") === 0) {
+    return next.withChannelValue("alpha", 1);
+  }
+  return next;
+}
+
 export const DColorPicker = ({ initColor, onValueChange, minimal }) => {
   const [color, setColor] = useState(initColor || "rgba(0,0,0,0)");
 
@@ -25,7 +34,8 @@ export const DColorPicker = ({ initColor, onValueChange, minimal }) => {
   return (
     <ColorPickerRoot
       value={parseColor(color)}
-      onValueChange={({ valueAsString }) => {
+      onValueChange={({ value }) => {
+        const valueAsString = withVisibleAlpha(parseColor(color), value).toString("rgba");
         setColor(valueAsString);
         if (onValueChange) {
           onValueChange(valueAsString);
