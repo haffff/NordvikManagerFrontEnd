@@ -184,7 +184,7 @@ const buildInput = (editable, key, value, validationError, disabled, OnChange) =
     case "textarea":
       return (
         <Textarea
-          isDisabled={disabled}
+          disabled={disabled}
           isInvalid={!!validationError}
           defaultValue={value}
           onChange={(e) => OnChange(key, e.target.value)}

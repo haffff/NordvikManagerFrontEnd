@@ -72,7 +72,8 @@ const SelectedChip = React.memo(({ material, isDisabled, onRemove, onMove, isFir
           </>
         )}
         <DListItemButton
-          isDisabled={isDisabled}
+          disabled={isDisabled}
+          label={`Remove ${material.name}`}
           icon={FaMinus}
           color="red"
           onClick={() => onRemove(material.id)}
