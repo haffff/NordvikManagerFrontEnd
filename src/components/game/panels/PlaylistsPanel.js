@@ -1,11 +1,11 @@
 import * as React from "react";
-import { Box, Button, Flex, HStack, Icon, Input, Stack, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, HStack, Icon, Stack, Text } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import { FaChevronLeft, FaChevronRight, FaMinus, FaMusic, FaPause, FaPlay, FaPlus, FaStop } from "react-icons/fa";
 import { toaster } from "../../ui/toaster";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
 import Subscribable from "../../uiComponents/base/Subscribable";
-import DList from "../../uiComponents/base/List/DList";
+import DTreeList from "../../uiComponents/treeList/DTreeList";
 import DListItem from "../../uiComponents/base/List/DListItem";
 import DLabel from "../../uiComponents/base/Text/DLabel";
 import DListItemButton from "../../uiComponents/base/List/ListItemDetails/DListItemButton";
@@ -175,7 +175,7 @@ export const PlaylistsPanel = () => {
   const { isGM } = usePermissions();
   const [playlists, setPlaylists] = React.useState([]);
   const [selectedId, setSelectedId] = React.useState(null);
-  const [search, setSearch] = React.useState("");
+  const treeRefreshRef = React.useRef(null);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   // { [playlistId]: "playing" | "paused" } — display-only, fed by playback broadcasts.
   // PlaybackManager (Game.js) owns the actual audio; this panel only reflects status.
@@ -192,6 +192,13 @@ export const PlaylistsPanel = () => {
     const data = await ClientMediator.sendCommandAsync("Playlist", "GetPlaylists", { kind: 0 });
     if (data) setPlaylists(data);
   }, []);
+
+  // After something changed: reload playlists and the folder tree (the server files a new
+  // playlist in the tree on its next load).
+  const reloadAll = React.useCallback(async () => {
+    await loadPlaylists();
+    treeRefreshRef.current?.();
+  }, [loadPlaylists]);
 
   React.useEffect(() => {
     loadPlaylists();
@@ -268,7 +275,7 @@ export const PlaylistsPanel = () => {
       toaster.create({ title: "Failed to create playlist", description: body?.error, type: "error", duration: 5000 });
       return;
     }
-    await loadPlaylists();
+    await reloadAll();
     if (body?.id) setSelectedId(body.id);
   };
 
@@ -308,7 +315,7 @@ export const PlaylistsPanel = () => {
       delete next[playlist.id];
       return next;
     });
-    await loadPlaylists();
+    await reloadAll();
   };
 
   const handleSave = async (changes) => {
@@ -330,18 +337,10 @@ export const PlaylistsPanel = () => {
       toaster.create({ title: "Failed to save playlist", description: body?.error, type: "error", duration: 5000 });
       return;
     }
-    await loadPlaylists();
+    await reloadAll();
   };
 
   // ── Derived state ────────────────────────────────────────────────────────────
-
-  const filtered = React.useMemo(
-    () =>
-      search.trim()
-        ? playlists.filter((p) => p.name?.toLowerCase().includes(search.toLowerCase()))
-        : playlists,
-    [playlists, search]
-  );
 
   if (!isGM) {
     return (
@@ -358,7 +357,7 @@ export const PlaylistsPanel = () => {
       {/* Only playlist_notify (add/update/delete) should trigger a refetch — playback
           broadcasts (play/pause/stop/track_change) are frequent and already tracked
           locally via handlePlaybackEvent below, so refetching on those would be wasteful. */}
-      <Subscribable commandPrefix="playlist_notify" onMessage={() => loadPlaylists()} />
+      <Subscribable commandPrefix="playlist_notify" onMessage={() => reloadAll()} />
       <Subscribable commandPrefix="playlist" onMessage={handlePlaybackEvent} />
       <Flex height="100%" width="100%" overflow="hidden" ref={colContainerRef}>
         {/* ── Left list pane ── */}
@@ -370,20 +369,17 @@ export const PlaylistsPanel = () => {
           overflow="hidden"
           gap={0}
         >
-          <Box px="8px" py="6px" borderBottomWidth="1px" borderColor={themeColors.divider}>
-            <Input
-              size="xs"
-              placeholder="Search playlists…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </Box>
-
-          <Box flex={1} overflowY="auto" px="4px" py="4px">
-            <DList mainComponent={true}>
-              {filtered.map((p) => (
+          {/* Folder tree (with its own search) */}
+          <Flex flex={1} minH={0} direction="column" px="4px" pt="4px">
+            <DTreeList
+              entityType="Playlist"
+              items={playlists}
+              canEditFolders={isGM}
+              refreshRef={treeRefreshRef}
+              estimatedRowHeight={44}
+              onSelect={(sel) => { if (sel?.itemRef) setSelectedId(sel.itemRef.id); }}
+              generateItem={(p) => (
                 <PlaylistCard
-                  key={p.id}
                   playlist={p}
                   isSelected={selectedId === p.id}
                   playbackStatus={playbackStatus[p.id]}
@@ -393,9 +389,9 @@ export const PlaylistsPanel = () => {
                   onStop={handleStopPlayback}
                   onDelete={handleDelete}
                 />
-              ))}
-            </DList>
-          </Box>
+              )}
+            />
+          </Flex>
 
           <Box px="6px" py="6px" borderTopWidth="1px" borderColor={themeColors.divider}>
             <Button variant="outline" size="sm" width="100%" onClick={handleAdd}>

@@ -6,7 +6,6 @@ import {
   Flex,
   HStack,
   Icon,
-  Input,
   Stack,
   Text,
 } from "@chakra-ui/react";
@@ -14,7 +13,7 @@ import * as Dockable from "@hlorenzi/react-dockable";
 import { FaCode, FaMinus, FaPlus } from "react-icons/fa";
 import { BasePanel } from "../../../uiComponents/base/BasePanel";
 import CollectionSyncer from "../../../uiComponents/base/CollectionSyncer";
-import DList from "../../../uiComponents/base/List/DList";
+import DTreeList from "../../../uiComponents/treeList/DTreeList";
 import DListItem from "../../../uiComponents/base/List/DListItem";
 import DLabel from "../../../uiComponents/base/Text/DLabel";
 import DListItemButton from "../../../uiComponents/base/List/ListItemDetails/DListItemButton";
@@ -151,7 +150,7 @@ const RightPaneHeader = ({
 export const CustomViewsPanel = ({ gameDataRef, state }) => {
   const [views, setViews] = React.useState([]);
   const [selectedView, setSelectedView] = React.useState(null);
-  const [search, setSearch] = React.useState("");
+  const treeRefreshRef = React.useRef(null);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
 
   // Resizable sidebar
@@ -195,18 +194,6 @@ export const CustomViewsPanel = ({ gameDataRef, state }) => {
     });
   };
 
-  // ── Derived state ────────────────────────────────────────────────────────────
-
-  const filtered = React.useMemo(
-    () =>
-      search.trim()
-        ? views.filter((v) =>
-            v.name?.toLowerCase().includes(search.toLowerCase())
-          )
-        : views,
-    [views, search]
-  );
-
   // ── Render ───────────────────────────────────────────────────────────────────
 
   return (
@@ -215,7 +202,11 @@ export const CustomViewsPanel = ({ gameDataRef, state }) => {
         collection={views}
         setCollection={setViews}
         commandPrefix="custom_panel"
-        onAdd={(newView) => setSelectedView(newView)}
+        onAdd={(newView) => {
+          setSelectedView(newView);
+          // The server files the new view in the folder tree on the next load.
+          treeRefreshRef.current?.();
+        }}
         onDelete={(deletedId) => {
           if (selectedView?.id === deletedId) setSelectedView(null);
         }}
@@ -230,30 +221,25 @@ export const CustomViewsPanel = ({ gameDataRef, state }) => {
           overflow="hidden"
           gap={0}
         >
-          {/* Search */}
-          <Box px="8px" py="6px" borderBottomWidth="1px" borderColor={themeColors.divider}>
-            <Input
-              size="xs"
-              placeholder="Search views…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </Box>
-
-          {/* Scrollable list */}
-          <Box flex={1} overflowY="auto" px="4px" py="4px">
-            <DList mainComponent={true}>
-              {filtered.map((v) => (
+          {/* Folder tree (with its own search) */}
+          <Flex flex={1} minH={0} direction="column" px="4px" pt="4px">
+            <DTreeList
+              entityType="CustomView"
+              items={views}
+              canEditFolders
+              refreshRef={treeRefreshRef}
+              estimatedRowHeight={44}
+              onSelect={(sel) => { if (sel?.itemRef) setSelectedView(sel.itemRef); }}
+              generateItem={(v) => (
                 <ViewCard
-                  key={v.id}
                   view={v}
                   isSelected={selectedView?.id === v.id}
                   onSelect={setSelectedView}
                   onDelete={handleDelete}
                 />
-              ))}
-            </DList>
-          </Box>
+              )}
+            />
+          </Flex>
 
           {/* Pinned add button */}
           <Box px="6px" py="6px" borderTopWidth="1px" borderColor={themeColors.divider}>

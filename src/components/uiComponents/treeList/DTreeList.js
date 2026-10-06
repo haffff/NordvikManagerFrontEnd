@@ -1,7 +1,6 @@
 import { Box, Button, Flex, HStack, Icon, IconButton, Spinner, Text } from '@chakra-ui/react';
 import * as React from 'react';
 import Subscribable from '../base/Subscribable';
-import { ReactTreeList } from '@bartaxyz/react-tree-list';
 import { ActiveTransportManager as WebSocketManagerInstance } from '../../../helpers/transport';
 import InputModal from '../base/Modals/InputModal';
 import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
@@ -13,10 +12,17 @@ import {
 import DListItemButton from '../base/List/ListItemDetails/DListItemButton';
 import DListItem from '../base/List/DListItem';
 import DynamicIcon from '../icons/DynamicIcon';
-import UtilityHelper from '../../../helpers/UtilityHelper';
 import { SearchInput } from '../SearchInput';
 import { MenuContent, MenuContextTrigger, MenuRoot } from '../../ui/menu';
 import DropDownItem from '../base/DDItems/DropDownItem';
+import themeColors from '../../../helpers/themeColors';
+import { TreeView } from '../tree/TreeView';
+import { buildTree, collectDescendants, computeMove, entryPath, splitMatch } from '../tree/treeModel';
+import { useRememberedOpenFolders } from '../tree/useRememberedOpenFolders';
+
+// Folder tree for a game's materials, cards, … backed by the server's tree entries.
+// Rows are drawn by TreeView; moves are sent to the server and the tree re-renders from
+// its answer (tree_update), so what you see always matches what's stored.
 
 // ─── module-level constants ───────────────────────────────────────────────────
 
@@ -26,97 +32,22 @@ const FOLDER_CONFIG = [
     { key: "icon",  label: "Icon",        toolTip: "Icon of folder.",  type: "iconSelect" },
 ];
 
-// The underlying tree list has no virtualization — an expanded folder mounts a
-// real row (and, for e.g. images, a preview fetch) for every single child at
-// once. A folder with hundreds of items would mount hundreds of rows/previews
-// simultaneously, so each parent's children are capped and revealed in batches.
-const DEFAULT_VISIBLE_ITEMS = 50;
-const REVEAL_STEP = 50;
-const ROOT_KEY = "__root__";
-
-// ─── pure helpers (no React) ──────────────────────────────────────────────────
-
-/**
- * Build an O(n) id→item Map and resolve _next / _parent back-references.
- * Returns { byId, childrenOf, roots } where:
- *   - byId      : Map<id, item>
- *   - childrenOf: Map<parentId, item[]>  — pre-grouped for O(1) child lookup
- *   - roots     : item[]                 — chain heads with no parent / not pointed-as-next
- */
-function buildIndex(treeItems) {
-    const byId = new Map();
-    for (const item of treeItems) byId.set(item.id, { ...item, _next: null, _parent: null });
-
-    for (const item of byId.values()) {
-        if (item.next)     item._next   = byId.get(item.next)     ?? null;
-        if (item.parentId) item._parent = byId.get(item.parentId) ?? null;
-    }
-
-    // Pre-group children by parentId so headChildOf() is O(1) instead of O(n).
-    const childrenOf = new Map();
-    for (const item of byId.values()) {
-        if (!item._parent) continue;
-        const pid = item._parent.id;
-        if (!childrenOf.has(pid)) childrenOf.set(pid, []);
-        childrenOf.get(pid).push(item);
-    }
-
-    const pointedAsNext = new Set();
-    for (const item of byId.values()) if (item.next) pointedAsNext.add(item.next);
-
-    const roots = [...byId.values()].filter(x => !x._parent && !pointedAsNext.has(x.id));
-    return { byId, childrenOf, roots };
-}
-
-/** Walk a linked-list chain (via _next), returning items in order. */
-function walkChain(first) {
-    const out = [];
-    const seen = new Set();
-    let cur = first;
-    while (cur && !seen.has(cur.id)) { seen.add(cur.id); out.push(cur); cur = cur._next; }
-    return out;
-}
-
-/** Build a breadcrumb path string for an item using its _parent chain. */
-function buildPath(item) {
-    let path = "";
-    let p = item._parent;
-    while (p) { path = p.name + "/" + path; p = p._parent; }
-    return path;
-}
-
-/**
- * Collect all descendants of a folder in safe deletion order:
- * leaf items first, then their parent sub-folders (depth-first post-order).
- * The root folder itself is NOT included — caller handles it separately.
- */
-function collectDescendants(folderId, treeItems) {
-    // Build a parentId→children map once (O(n)) to avoid O(n²) repeated filtering
-    const childrenOf = new Map();
-    for (const item of treeItems) {
-        if (!item.parentId) continue;
-        if (!childrenOf.has(item.parentId)) childrenOf.set(item.parentId, []);
-        childrenOf.get(item.parentId).push(item);
-    }
-
-    const result = [];
-    const recurse = (parentId) => {
-        for (const child of childrenOf.get(parentId) ?? []) {
-            if (child.isFolder) {
-                recurse(child.id);
-                result.push(child);
-            } else {
-                result.push(child);
-            }
-        }
-    };
-    recurse(folderId);
-    return result;
-}
+// The selection handed to the toolbar and to onSelect: the tree entry's fields plus the
+// entity it points at (itemRef), same shape as before.
+const toSelection = (node) =>
+    node ? { ...node.entry, itemIcon: node.entry.icon, itemRef: node.entity ?? undefined } : null;
 
 // ─── sub-components ───────────────────────────────────────────────────────────
 
-const FolderLabel = React.memo(({ id, name, icon, color, treeId, node, actions }) => {
+const Highlighted = ({ text, query }) => (
+    <>
+        {splitMatch(text, query).map((p, i) => p.match
+            ? <Box as="mark" key={i} bg="rgba(236,201,75,0.35)" color="inherit" borderRadius="2px">{p.text}</Box>
+            : <React.Fragment key={i}>{p.text}</React.Fragment>)}
+    </>
+);
+
+const FolderLabel = React.memo(({ id, name, icon, color, treeId, node, actions, query }) => {
     const content = (
         <DListItem id={`${treeId}/f-${id}`}>
             <Flex align="center" gap="8px" width="100%" px="4px">
@@ -128,7 +59,7 @@ const FolderLabel = React.memo(({ id, name, icon, color, treeId, node, actions }
                 )}
                 {icon ? <DynamicIcon iconName={icon} /> : <Icon as={FaFolder} opacity={0.6} />}
                 <Text fontSize="sm" flex={1} overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
-                    {name}
+                    <Highlighted text={name} query={query} />
                 </Text>
             </Flex>
         </DListItem>
@@ -197,26 +128,13 @@ const LeafLabelContextMenu = React.memo(({ node, entity, actions, children }) =>
     );
 });
 
-const EmptyState = () => (
+const EmptyState = ({ searching }) => (
     <Flex direction="column" align="center" justify="center" gap="8px" py="32px"
         color="gray.500" userSelect="none">
         <Icon as={FaFolder} boxSize={8} opacity={0.25} />
-        <Text fontSize="sm">No items</Text>
+        <Text fontSize="sm">{searching ? "Nothing matches the search" : "No items"}</Text>
     </Flex>
 );
-
-/** Pseudo-row appended when a folder has more children than the current reveal
- * limit — reveals the next batch instead of mounting everything at once. */
-const ShowMoreRow = React.memo(({ count, onReveal }) => (
-    <Flex
-        align="center" gap="8px" width="100%" px="4px" py="2px"
-        color="gray.400" fontSize="sm" fontStyle="italic" cursor="pointer"
-        _hover={{ color: "gray.200" }}
-        onClick={(e) => { e.stopPropagation(); onReveal(); }}
-    >
-        Show {count} more…
-    </Flex>
-));
 
 /** Toolbar — memoised so it never re-renders during tree redraws. */
 const Toolbar = React.memo(({
@@ -231,7 +149,7 @@ const Toolbar = React.memo(({
 
     return (
         <HStack gap="2px" px="4px" py="4px" flexWrap="wrap" flexShrink={0}
-            borderBottomWidth="1px" borderColor="rgb(60,60,60)">
+            borderBottomWidth="1px" borderColor={themeColors.border}>
             {withAddItem && (
                 <DListItemButton label="Add Item" icon={FaPlus}
                     onClick={() => onAddItem?.(selectedItem)} />
@@ -278,6 +196,7 @@ export const DTreeList = ({
     refreshRef,
     onRefresh,
     canEditFolders,
+    estimatedRowHeight,
 }) => {
     const _generateItem = React.useMemo(
         () => generateItem ?? ((x) => x?.name ?? ""),
@@ -285,38 +204,23 @@ export const DTreeList = ({
     );
 
     // ── state ──────────────────────────────────────────────────────────────────
-    const [treeItems,  setTreeItems]  = React.useState([]);
-    const [treeData,   setTreeData]   = React.useState([]);
-    const [selected,   setSelected]   = React.useState(null);
-    const [filter,     setFilter]     = React.useState("");
-    const [loading,    setLoading]    = React.useState(false);
+    const [treeItems, setTreeItems] = React.useState([]);
+    const [selected,  setSelected]  = React.useState(null);
+    const [filter,    setFilter]    = React.useState("");
+    const [loading,   setLoading]   = React.useState(false);
+    const [openIds, setOpen, pruneOpen] = useRememberedOpenFolders(entityType);
 
     // ── stable refs ────────────────────────────────────────────────────────────
-    const treeId        = React.useRef(UtilityHelper.GenerateUUID()).current;
+    const treeId        = React.useId().replace(/:/g, "");
     const itemsRef      = React.useRef(items ?? []);
     const treeItemsRef  = React.useRef([]);
-    const treeDataRef   = React.useRef([]);
-    const filterRef     = React.useRef(filter);
-    const indexRef      = React.useRef({ byId: new Map(), roots: [] });
-    const selectedRef   = React.useRef(selected);
     const entityTypeRef = React.useRef(entityType);
-    // How many children of each folder (keyed by parentId, ROOT_KEY for the
-    // top level) are currently revealed. "Show N more" bumps a folder's own
-    // entry by REVEAL_STEP and re-renders — doesn't need to be React state
-    // since renderTree is called directly right after mutating it.
-    const expandedLimitsRef = React.useRef(new Map());
-
-    itemsRef.current     = items ?? [];
-    treeItemsRef.current = treeItems;
-    treeDataRef.current  = treeData;
-    filterRef.current    = filter;
-    selectedRef.current  = selected;
+    itemsRef.current      = items ?? [];
+    treeItemsRef.current  = treeItems;
     entityTypeRef.current = entityType;
 
-    // Keep onDeleteItem in a ref so callbacks don't go stale
     const onDeleteItemRef = React.useRef(onDeleteItem);
     onDeleteItemRef.current = onDeleteItem;
-
     const onGenerateEditButtonsRef = React.useRef(onGenerateEditButtons);
     onGenerateEditButtonsRef.current = onGenerateEditButtons;
     const canEditFoldersRef = React.useRef(canEditFolders);
@@ -334,140 +238,38 @@ export const DTreeList = ({
     const [deleteAllOpen,   setDeleteAllOpen]   = React.useState(false);
     const [deleteAllTarget, setDeleteAllTarget] = React.useState(null); // { id, name, count }
 
-    // Handler refs so the tree's row-rendering closures (built in renderTree,
-    // which does NOT depend on these) always call the latest implementation —
-    // same pattern as onDeleteItemRef above. Populated once each handler is
-    // defined further down.
+    // Handler refs so row labels (memoised) always call the latest implementation.
     const handleSelectRef        = React.useRef(() => {});
     const handleEditFolderRef    = React.useRef(() => {});
     const handleDeleteFolderRef  = React.useRef(() => {});
     const handleOpenDeleteAllRef = React.useRef(() => {});
 
-    // Stable object passed into row context menus — never changes identity, so
-    // it's safe to hand to React.memo'd row components without breaking memoization.
+    // Stable object passed into row context menus — never changes identity.
     const contextMenuActions = React.useRef({
-        onSelect:        (node) => handleSelectRef.current(node),
-        onEditFolder:    (node) => handleEditFolderRef.current(node),
-        onDeleteFolder:  (node) => handleDeleteFolderRef.current(node),
+        onSelect:          (node) => handleSelectRef.current(node),
+        onEditFolder:      (node) => handleEditFolderRef.current(node),
+        onDeleteFolder:    (node) => handleDeleteFolderRef.current(node),
         onDeleteAllFolder: (node) => handleOpenDeleteAllRef.current(node),
-        getEditButtons:  (entity) => onGenerateEditButtonsRef.current?.(entity),
-        canEditFolders:  () => canEditFoldersRef.current,
+        getEditButtons:    (entity) => onGenerateEditButtonsRef.current?.(entity),
+        canEditFolders:    () => canEditFoldersRef.current,
     }).current;
 
-    // ── open-state preservation ────────────────────────────────────────────────
-    const collectOpenStates = React.useCallback(() => {
-        const map = new Map();
-        const walk = (nodes) => {
-            for (const n of nodes) {
-                if (n.open) map.set(n.id, true);
-                if (n.children?.length) walk(n.children);
-            }
-        };        walk(treeDataRef.current);
-        return map;
-    }, []);
+    // ── tree ───────────────────────────────────────────────────────────────────
+    const nodes = React.useMemo(() => buildTree(treeItems, items ?? []), [treeItems, items]);
 
-    // ── tree rendering ─────────────────────────────────────────────────────────
-    const renderTree = React.useCallback((rawTree, rawItems) => {
-        if (!rawTree?.length) { setTreeData([]); return; }
+    // Drop remembered open folders that no longer exist.
+    React.useEffect(() => {
+        if (!treeItems.length) return;
+        pruneOpen(new Set(treeItems.filter(x => x.isFolder).map(x => x.id)));
+    }, [treeItems, pruneOpen]);
 
-        const { byId, childrenOf, roots } = buildIndex(rawTree);
-        indexRef.current = { byId, roots };
-
-        const openStates  = collectOpenStates();
-        const lowerFilter = filterRef.current.toLowerCase();
-
-        // O(1) lookup: find the head of the child-chain for a given parent id.
-        const headChildOf = (parentId) => {
-            const children = childrenOf.get(parentId);
-            if (!children?.length) return null;
-            const pointedAsNext = new Set(children.map(x => x.next).filter(Boolean));
-            return children.find(x => !pointedAsNext.has(x.id)) ?? null;
-        };
-
-        const buildNodes = (firstItem) => {
-            const fullChain   = walkChain(firstItem);
-            const parentKey   = firstItem.parentId ?? ROOT_KEY;
-            const limit       = expandedLimitsRef.current.get(parentKey) ?? DEFAULT_VISIBLE_ITEMS;
-            const visibleChain = fullChain.slice(0, limit);
-            const hiddenCount  = fullChain.length - visibleChain.length;
-
-            const nodes = [];
-            for (const item of visibleChain) {
-                const childHead  = headChildOf(item.id);
-                const childNodes = childHead ? buildNodes(childHead) : [];
-
-                if (item.isFolder) {
-                    nodes.push({
-                        ...item,
-                        icon: undefined, itemIcon: item.icon,
-                        children: childNodes,
-                        open: openStates.get(item.id) ?? false,
-                        label: (
-                            <FolderLabel
-                                id={item.id} name={item.name}
-                                icon={item.icon} color={item.color}
-                                treeId={treeId}
-                                node={item}
-                                actions={contextMenuActions}
-                            />
-                        ),
-                    });
-                } else {
-                    const entity = rawItems.find(x => x.id === item.targetId);
-                    if (!entity) continue;
-                    if (lowerFilter && !entity.name?.toLowerCase().includes(lowerFilter)) continue;
-
-                    nodes.push({
-                        ...item,
-                        icon: undefined, itemIcon: item.icon,
-                        children: childNodes,
-                        open: openStates.get(item.id) ?? false,
-                        itemRef: entity,
-                        label: (
-                            <>
-                                <div className="representsElement"
-                                    id={`${treeId}/${entity.id}`}
-                                    style={{ display: "none" }} />
-                                <LeafLabelContextMenu node={item} entity={entity} actions={contextMenuActions}>
-                                    {_generateItem(entity, item)}
-                                </LeafLabelContextMenu>
-                            </>
-                        ),
-                    });
-                }
-            }
-
-            if (hiddenCount > 0) {
-                nodes.push({
-                    id: `__more__${parentKey}`,
-                    children: [],
-                    open: false,
-                    arrow: null,
-                    label: (
-                        <ShowMoreRow
-                            count={hiddenCount}
-                            onReveal={() => {
-                                expandedLimitsRef.current.set(parentKey, limit + REVEAL_STEP);
-                                renderTree(treeItemsRef.current, itemsRef.current);
-                            }}
-                        />
-                    ),
-                });
-            }
-
-            return nodes;
-        };
-
-        const data = [];
-        for (const root of roots) data.push(...buildNodes(root));
-        setTreeData(data);
-    }, [_generateItem, treeId, collectOpenStates]);    // ── selectedItemOverwrite — let parent drive selection ─────────────────────
+    // ── selectedItemOverwrite — let parent drive selection ─────────────────────
     React.useEffect(() => {
         if (selectedItemOverwrite === undefined) return;
         setSelected(selectedItemOverwrite ?? null);
     }, [selectedItemOverwrite]);
 
-    // ── initial load ───────────────────────────────────────────────────────────
+    // ── loading ────────────────────────────────────────────────────────────────
     const fetchTree = React.useCallback(() => {
         if (!entityTypeRef.current) return;
         setLoading(true);
@@ -475,14 +277,11 @@ export const DTreeList = ({
             `battlemap/getTree?entityType=${entityTypeRef.current}`,
             (response) => {
                 setLoading(false);
-                setTreeItems(response);
-                renderTree(response, itemsRef.current);
+                setTreeItems(Array.isArray(response) ? response : []);
             },
             () => setLoading(false),
         );
-    // renderTree is stable (useCallback with no changing deps)
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [renderTree]);
+    }, []);
 
     React.useEffect(() => {
         if (refreshRef) refreshRef.current = fetchTree;
@@ -491,108 +290,29 @@ export const DTreeList = ({
     React.useEffect(() => {
         if (!entityType) return;
         fetchTree();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [entityType]);
+    }, [entityType, fetchTree]);
 
-    // Re-render when items list reference changes (entities loaded/updated by parent)
-    const prevItemsRef = React.useRef(null);
-    React.useEffect(() => {
-        if (prevItemsRef.current === items) return;
-        prevItemsRef.current = items;
-        renderTree(treeItemsRef.current, items ?? []);
-    }, [items, renderTree]);
-
-    // Re-render on filter change — only if tree data already exists
-    React.useEffect(() => {
-        if (!treeItemsRef.current.length) return;
-        renderTree(treeItemsRef.current, itemsRef.current);    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [filter]);
-
-    // ── drag & drop ────────────────────────────────────────────────────────────
-    // Attach a SINGLE delegated listener once on mount — entityType read from ref.
-    React.useEffect(() => {
-        const container = document.getElementById(treeId);
-        if (!container) return;
-        const handler = (e) => {
-            // The .representsElement hidden div is a sibling of the generated item
-            // inside the ReactTreeList label — not an ancestor or descendant of the
-            // actual dragged element. Walk up to the draggable row first, then search
-            // down into it to find the hidden div.
-            const row = e.target?.closest('[draggable="true"]');
-            const id = row?.querySelector(".representsElement")?.id?.split("/")?.[1];
-            if (!id || id.startsWith("f-")) return;
-            sessionStorage.setItem("draggable", JSON.stringify({ entityType: entityTypeRef.current, id }));
-        };
-        container.addEventListener("dragstart", handler);
-        return () => container.removeEventListener("dragstart", handler);
-    // treeId is stable (UUID generated once); container only mounts once.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [treeId]);
-
-    const onDrop = React.useCallback((draggingNode, dragNode, dragType) => {
-        const parentId = dragNode._parent?.id ?? null;
-        switch (dragType) {
-            case "inner":
-                if (!dragNode.isFolder) { renderTree(treeItemsRef.current, itemsRef.current); return; }
-                WebSocketManagerInstance.Send({ command: "tree_update",
-                    data: { id: draggingNode.id, parentId: dragNode.id, next: null } });
-                break;
-            case "after":
-                if (dragNode?._next?.id === draggingNode.id) {
-                    renderTree(treeItemsRef.current, itemsRef.current); return;
-                }
-                WebSocketManagerInstance.Send({ command: "tree_update",
-                    data: { id: draggingNode.id, parentId, next: dragNode?._next?.id ?? null } });
-                break;
-            case "before":
-                WebSocketManagerInstance.Send({ command: "tree_update",
-                    data: { id: draggingNode.id, parentId, next: dragNode.id } });
-                break;
-            default: break;
-        }
-    }, [renderTree]);
-
-    // ── WS handler ─────────────────────────────────────────────────────────────
-    // renderTree must NOT be called inside a setState updater (React anti-pattern).
-    // Instead we store the updated list in a ref and trigger a re-render via a
-    // dedicated counter; a useEffect watches that counter and calls renderTree.
-    const pendingTreeRef  = React.useRef(null);
-    const [renderTick, setRenderTick] = React.useState(0);
-
-    React.useEffect(() => {
-        if (pendingTreeRef.current === null) return;
-        renderTree(pendingTreeRef.current, itemsRef.current);
-        pendingTreeRef.current = null;
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-    }, [renderTick]);
-
+    // ── server sync ────────────────────────────────────────────────────────────
     const handleMessage = React.useCallback((response) => {
         const { command, data } = response;
 
         if (command === "tree_add" || command === "tree_update") {
-            const incoming = Array.isArray(data) ? data : [data];
-            // Ignore messages for a different entity type
-            if (incoming.some(x => x && x.entryType && x.entryType !== entityTypeRef.current)) return;
+            const incoming = (Array.isArray(data) ? data : [data]).filter(Boolean);
+            if (incoming.some(x => x.entryType && x.entryType !== entityTypeRef.current)) return;
 
-            // Check synchronously (via ref) if any incoming item is a brand-new node
-            // that the server created without autoConnect — those can't be directly inserted
-            // because their position in the linked list is server-determined. A full tree
-            // refetch is the only reliable way to get them.
-            const currentTree = treeItemsRef.current;
-            const needsFullRefresh = command === "tree_add" && incoming.some(
-                el => el && !el.autoConnect && !currentTree.find(x => x.id === el.id)
-            );
+            // A brand-new entry the server placed itself (no autoConnect) can't be inserted
+            // locally — its place in the sibling chain is decided server-side — so reload.
+            const current = treeItemsRef.current;
+            const needsFullRefresh = command === "tree_add" &&
+                incoming.some(el => !el.autoConnect && !current.find(x => x.id === el.id));
 
             setTreeItems(prev => {
                 const next = [...prev];
                 for (const el of incoming) {
-                    if (!el) continue;
                     const idx = next.findIndex(x => x.id === el.id);
                     if (idx !== -1) next[idx] = el;
                     else if (el.autoConnect) next.push(el);
                 }
-                pendingTreeRef.current = next;
-                setRenderTick(t => t + 1);
                 return next;
             });
 
@@ -601,16 +321,22 @@ export const DTreeList = ({
         }
 
         if (command === "tree_remove") {
-            setTreeItems(prev => {
-                const next = prev.filter(x => x.id !== data);
-                pendingTreeRef.current = next;                setRenderTick(t => t + 1);
-                return next;
-            });
-            // Clear selection if the removed item was selected
+            setTreeItems(prev => prev.filter(x => x.id !== data));
             setSelected(sel => sel?.id === data ? null : sel);
         }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [fetchTree]);
+
+    // ── moving ─────────────────────────────────────────────────────────────────
+    const handleMove = React.useCallback((dragId, targetId, position) => {
+        const payload = computeMove(treeItemsRef.current, dragId, targetId, position);
+        if (payload) WebSocketManagerInstance.Send({ command: "tree_update", data: payload });
+    }, []);
+
+    // Dragging a leaf onto the battle map: HandleDrop reads this payload.
+    const handleRowDragStart = React.useCallback((node) => {
+        if (node.isFolder || !node.entity) return;
+        sessionStorage.setItem("draggable", JSON.stringify({ entityType: entityTypeRef.current, id: node.entity.id }));
+    }, []);
 
     // ── folder operations ──────────────────────────────────────────────────────
     const handleCreateFolder = React.useCallback(({ name, parent, color, icon }) => {
@@ -621,18 +347,14 @@ export const DTreeList = ({
         });
     }, [entityType]);
 
-    // `folder` is required (not defaulted to selectedRef.current) — the context
-    // menu passes the right-clicked node explicitly, which may differ from
-    // whatever is currently `selected`. Wire the toolbar's onClick as
-    // `() => handleDeleteFolder(selected)` rather than passing this directly,
-    // since a raw onClick={handleDeleteFolder} would hand it the click event.
+    // `folder` is required (not defaulted to selected) — the context menu passes the
+    // right-clicked node explicitly, which may differ from whatever is selected.
     const handleDeleteFolder = React.useCallback((folder) => {
         if (!folder?.id) return;
         WebSocketManagerInstance.Send({ command: "tree_remove", data: folder.id });
         onFolderDelete?.(folder.id);
     }, [onFolderDelete]);
 
-    // Opens the confirmation dialog for "Delete All" on the given folder.
     const handleOpenDeleteAll = React.useCallback((folder) => {
         if (!folder?.id || !folder.isFolder) return;
         const count = collectDescendants(folder.id, treeItemsRef.current).length;
@@ -640,76 +362,77 @@ export const DTreeList = ({
         setDeleteAllOpen(true);
     }, []);
 
-    // Opens the "Edit Folder" modal for the given folder. Remembers the target
-    // in a ref (rather than relying on `selected`) so onCloseModal below saves
-    // to the right folder even if selection changes while the modal is open.
+    // Remembers the target in a ref (rather than relying on `selected`) so the modal
+    // saves to the right folder even if selection changes while it's open.
     const handleEditFolder = React.useCallback((folder) => {
         if (!folder?.id) return;
         editTargetRef.current = folder;
-        // Support both the raw tree item (icon holds the real value, from a
-        // right-click) and the processed treeData node (icon is blanked out in
-        // favor of itemIcon, from normal selection) — same folder, two shapes.
         openEditRef.current?.({ ...folder, icon: folder.icon ?? folder.itemIcon });
     }, []);
 
-    // Runs the actual recursive deletion after the user confirms. Reads the
-    // explicit target captured when the dialog was opened (deleteAllTarget),
-    // not selectedRef — selection may have moved on by confirm time.
-    // Sends commands in post-order so leaves are deleted before their parent folders.
-    // The backend rejects tree_remove on a non-empty folder, so if any item fails
-    // (e.g. permission denied) the containing folders survive with remaining items.
+    // Deletes leaves first, then their folders (the server refuses non-empty folders, so
+    // anything that fails to delete — e.g. no permission — keeps its folder alive).
     const executeDeleteAll = React.useCallback(() => {
         const folder = deleteAllTarget;
         if (!folder?.id) return;
 
-        const descendants = collectDescendants(folder.id, treeItemsRef.current);
-
-        for (const item of descendants) {
+        for (const item of collectDescendants(folder.id, treeItemsRef.current)) {
             if (item.isFolder) {
                 WebSocketManagerInstance.Send({ command: "tree_remove", data: item.id });
             } else {
                 const entity = itemsRef.current.find(x => x.id === item.targetId);
-                if (entity && onDeleteItemRef.current) {
-                    onDeleteItemRef.current(entity, item);
-                } else {
-                    // Fallback: remove only the tree entry if no entity-specific handler
-                    WebSocketManagerInstance.Send({ command: "tree_remove", data: item.id });
-                }
+                if (entity && onDeleteItemRef.current) onDeleteItemRef.current(entity, item);
+                else WebSocketManagerInstance.Send({ command: "tree_remove", data: item.id });
             }
         }
 
-        // Delete the root folder last
         WebSocketManagerInstance.Send({ command: "tree_remove", data: folder.id });
         onFolderDelete?.(folder.id);
     }, [onFolderDelete, deleteAllTarget]);
 
-    // Keep the row-context-menu action refs current now that the real
-    // implementations exist (contextMenuActions itself never changes identity).
+    // ── selection ──────────────────────────────────────────────────────────────
+    // Accepts a tree node (from TreeView) or an already-shaped selection (context menus).
+    const handleSelect = React.useCallback((nodeOrSelection) => {
+        const sel = nodeOrSelection?.entry ? toSelection(nodeOrSelection) : nodeOrSelection;
+        setSelected(sel);
+        onSelect?.(sel);
+    }, [onSelect]);
+
+    handleSelectRef.current        = handleSelect;
     handleDeleteFolderRef.current  = handleDeleteFolder;
     handleOpenDeleteAllRef.current = handleOpenDeleteAll;
     handleEditFolderRef.current    = handleEditFolder;
 
-    // Build path-prefixed labels for the "add after" dropdown in the create modal
+    // "Add after" choices in the create-folder modal, with folder paths.
     const getFolderOptions = () =>
         treeItemsRef.current.map(x => {
-            const indexed = indexRef.current.byId.get(x.id);
-            const path = indexed ? buildPath(indexed) : "";
             const name = x.isFolder
                 ? x.name
                 : (itemsRef.current.find(e => e.id === x.targetId)?.name ?? "");
-            return { value: x.id, label: path + name };
+            return { value: x.id, label: entryPath(x.id, treeItemsRef.current) + name };
         });
 
-    // ── selection ──────────────────────────────────────────────────────────────
-    const handleSelect = React.useCallback((node) => {
-        setSelected(node);
-        onSelect?.(node);
-    }, [onSelect]);
-    handleSelectRef.current = handleSelect;
+    // ── labels ─────────────────────────────────────────────────────────────────
+    const renderLabel = React.useCallback((node, { query }) => {
+        const sel = toSelection(node);
+        if (node.isFolder) {
+            return (
+                <FolderLabel
+                    id={node.id} name={node.name} icon={node.entry.icon} color={node.entry.color}
+                    treeId={treeId} node={sel} actions={contextMenuActions} query={query}
+                />
+            );
+        }
+        return (
+            <LeafLabelContextMenu node={sel} entity={node.entity} actions={contextMenuActions}>
+                {_generateItem(node.entity, node.entry)}
+            </LeafLabelContextMenu>
+        );
+    }, [_generateItem, treeId, contextMenuActions]);
 
     // ── render ─────────────────────────────────────────────────────────────────
     return (
-        <Flex direction="column" height="100%" overflow="hidden" gap={0}>
+        <Flex direction="column" height="100%" flex={1} minH={0} overflow="hidden" gap={0}>
             <Subscribable commandPrefix="tree_" onMessage={handleMessage} />
 
             {/* Create folder */}
@@ -739,7 +462,6 @@ export const DTreeList = ({
                 }}
             />
 
-            {/* Toolbar */}
             <Toolbar
                 withAddItem={withAddItem}
                 selectedItem={selected}
@@ -755,31 +477,34 @@ export const DTreeList = ({
                 refreshing={loading}
             />
 
-            {/* Search */}
             <Box px="4px" py="4px" flexShrink={0}>
                 <SearchInput value={filter} onChange={v => setFilter(v)} />
             </Box>
 
-            {/* Tree body — id={treeId} must be on this always-rendered Box so the
-                dragstart delegated listener (attached once on mount) can find it. */}
-            <Box id={treeId} flex={1} overflowY="auto">
-                {loading ? (
+            <Flex id={treeId} flex={1} minH={0} direction="column">
+                {loading && !treeItems.length ? (
                     <Flex align="center" justify="center" gap="8px" py="24px" color="gray.500">
                         <Spinner size="sm" />
                         <Text fontSize="sm">Loading…</Text>
                     </Flex>
-                ) : treeData.length === 0 ? (
-                    <EmptyState />
                 ) : (
-                    <ReactTreeList
-                        itemDefaults={{ arrow: "▸" }}
-                        data={treeData}
-                        onSelected={handleSelect}
-                        onChange={setTreeData}
-                        onDrop={onDrop}
+                    <TreeView
+                        nodes={nodes}
+                        openIds={openIds}
+                        onToggle={setOpen}
+                        query={filter}
+                        selectedId={selected?.id ?? null}
+                        onSelect={handleSelect}
+                        renderLabel={renderLabel}
+                        draggable
+                        onMove={handleMove}
+                        onRowDragStart={handleRowDragStart}
+                        estimatedRowHeight={estimatedRowHeight}
+                        emptyState={<EmptyState searching={!!filter.trim()} />}
+                        ariaLabel={entityType ? `${entityType} tree` : "Tree"}
                     />
                 )}
-            </Box>
+            </Flex>
 
             {/* Delete-all confirmation dialog */}
             <DialogRoot open={deleteAllOpen} onOpenChange={(e) => setDeleteAllOpen(e.open)}>

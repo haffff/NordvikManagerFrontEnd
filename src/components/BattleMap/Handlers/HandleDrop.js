@@ -22,8 +22,8 @@ export default function createHandleDrop({ editor, mapRef, battleMapObjectRef, b
 
       // A tree-drag (token/image dragged in from a DTreeList row) carries a single
       // shared payload in sessionStorage, not one per DataTransferItem — but a drop
-      // can report more than one 'string'-kind item for that same drag (react-tree-
-      // list sets its own internal "itemId" data for its drag-reorder feature).
+      // can report more than one 'string'-kind item for that same drag (the tree
+      // also sets its own drag data, used for reordering).
       // Looping "for each string item" re-read and re-acted on that one payload
       // once per item, silently creating a duplicate element on every drop.
       // Handle it exactly once here; file drops below remain per-item since each

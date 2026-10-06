@@ -6,7 +6,6 @@ import {
   Flex,
   HStack,
   Icon,
-  Input,
   Stack,
   Text,
 } from "@chakra-ui/react";
@@ -15,7 +14,7 @@ import { FaHtml5, FaMinus, FaPlus, FaLayerGroup, FaArrowDown } from "react-icons
 import { toaster } from "../../../ui/toaster";
 import { BasePanel } from "../../../uiComponents/base/BasePanel";
 import CollectionSyncer from "../../../uiComponents/base/CollectionSyncer";
-import DList from "../../../uiComponents/base/List/DList";
+import DTreeList from "../../../uiComponents/treeList/DTreeList";
 import DListItem from "../../../uiComponents/base/List/DListItem";
 import DLabel from "../../../uiComponents/base/Text/DLabel";
 import DListItemButton from "../../../uiComponents/base/List/ListItemDetails/DListItemButton";
@@ -157,7 +156,7 @@ const RightPaneHeader = ({
 export const TemplatesPanel = ({ gameDataRef }) => {
   const [templates, setTemplates] = React.useState([]);
   const [selectedTemplate, setSelectedTemplate] = React.useState(null);
-  const [search, setSearch] = React.useState("");
+  const treeRefreshRef = React.useRef(null);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [pushing, setPushing] = React.useState(false);
 
@@ -291,15 +290,6 @@ export const TemplatesPanel = ({ gameDataRef }) => {
 
   // ── Derived state ────────────────────────────────────────────────────────────
 
-  const filtered = React.useMemo(
-    () =>
-      search.trim()
-        ? templates.filter((t) =>
-            t.name?.toLowerCase().includes(search.toLowerCase())
-          )
-        : templates,
-    [templates, search]
-  );
 
   // ── Render ───────────────────────────────────────────────────────────────────
 
@@ -309,7 +299,11 @@ export const TemplatesPanel = ({ gameDataRef }) => {
         collection={templates}
         setCollection={setTemplates}
         commandPrefix="template"
-        onAdd={(newTemplate) => setSelectedTemplate(newTemplate)}
+        onAdd={(newTemplate) => {
+          setSelectedTemplate(newTemplate);
+          // The server files the new template in the folder tree on the next load.
+          treeRefreshRef.current?.();
+        }}
         onDelete={(deletedId) => {
           if (selectedTemplate?.id === deletedId) setSelectedTemplate(null);
         }}
@@ -323,30 +317,25 @@ export const TemplatesPanel = ({ gameDataRef }) => {
           overflow="hidden"
           gap={0}
         >
-          {/* Search */}
-          <Box px="8px" py="6px" borderBottomWidth="1px" borderColor={themeColors.divider}>
-            <Input
-              size="xs"
-              placeholder="Search templates…"
-              value={search}
-              onChange={(e) => setSearch(e.target.value)}
-            />
-          </Box>
-
-          {/* Scrollable list */}
-          <Box flex={1} overflowY="auto" px="4px" py="4px">
-            <DList mainComponent={true}>
-              {filtered.map((t) => (
+          {/* Folder tree (with its own search) */}
+          <Flex flex={1} minH={0} direction="column" px="4px" pt="4px">
+            <DTreeList
+              entityType="CardTemplate"
+              items={templates}
+              canEditFolders
+              refreshRef={treeRefreshRef}
+              estimatedRowHeight={44}
+              onSelect={(sel) => { if (sel?.itemRef) setSelectedTemplate(sel.itemRef); }}
+              generateItem={(t) => (
                 <TemplateCard
-                  key={t.id}
                   template={t}
                   isSelected={selectedTemplate?.id === t.id}
                   onSelect={setSelectedTemplate}
                   onDelete={handleDelete}
                 />
-              ))}
-            </DList>
-          </Box>
+              )}
+            />
+          </Flex>
 
           {/* Pinned add button */}
           <Box px="6px" py="6px" borderTopWidth="1px" borderColor={themeColors.divider}>

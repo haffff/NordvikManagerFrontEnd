@@ -287,7 +287,7 @@ export const MaterialChooser = ({
 
     // A tree-drag carries one shared payload in sessionStorage, not one per
     // DataTransferItem — but a drop can report more than one 'string'-kind item
-    // for the same drag (react-tree-list's own internal "itemId" data among
+    // for the same drag (the tree's own drag data among
     // others). Handling it once per matching item re-added the same material
     // multiple times in multi-select mode (see HandleDrop.js for the battlemap
     // counterpart of this bug). Handle it exactly once here.
