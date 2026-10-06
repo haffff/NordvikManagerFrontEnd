@@ -327,8 +327,8 @@ export const MaterialChooser = ({
         commandPrefix="resource"
       />
 
-      {/* Selected items */}
-      {selectedMaterials.length > 0 && (
+      {/* Selected items — only while the picker is closed; open, its checkboxes show the selection */}
+      {!showPicker && selectedMaterials.length > 0 && (
         <Box mb={2}>
           {selectedMaterials.map((mat, index) => (
             <SelectedChip

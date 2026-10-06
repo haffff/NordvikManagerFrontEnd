@@ -57,4 +57,17 @@ describe('MaterialChooser', () => {
 
     expect(screen.queryByRole('button', { name: 'Move up' })).toBeNull();
   });
+
+  // Both the list of chosen items and the checkboxes in the picker marked the same
+  // selection. The list now shows only while the picker is closed.
+  it('chosen items show while the picker is closed, not while it is open', async () => {
+    renderWithProviders(<MaterialChooser multipleSelection materialsSelected={['a']} />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Remove base.css' })).toBeTruthy());
+
+    await userEvent.click(screen.getByRole('button', { name: /change/i }));
+    expect(screen.queryByRole('button', { name: 'Remove base.css' })).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.getByRole('button', { name: 'Remove base.css' })).toBeTruthy();
+  });
 });
