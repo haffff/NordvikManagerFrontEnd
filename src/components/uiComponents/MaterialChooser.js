@@ -49,10 +49,12 @@ const getIconByMimeType = (mimeType) => {
   return FaFile;
 };
 
-// The selected materials in the order of the given ids (the order matters when
-// orderable, e.g. stylesheets where later ones win).
-const inOrder = (materials, ids) =>
-  ids.map((id) => materials.find((x) => x.id === id)).filter(Boolean);
+// The selected materials in the order of the given values (the order matters when
+// orderable, e.g. stylesheets where later ones win). A value is a resource id, or its
+// key: addon templates point at their resources by key (a card's "token" property,
+// for one), which the code using them accepts too.
+const inOrder = (materials, values) =>
+  values.map((v) => materials.find((x) => x.id === v) ?? materials.find((x) => x.key && x.key === v)).filter(Boolean);
 
 // ─── SelectedChip — one chosen material ───────────────────────────────────────
 

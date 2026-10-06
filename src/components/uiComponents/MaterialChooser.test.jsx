@@ -70,4 +70,18 @@ describe('MaterialChooser', () => {
     await userEvent.click(screen.getByRole('button', { name: 'Close' }));
     expect(screen.getByRole('button', { name: 'Remove base.css' })).toBeTruthy();
   });
+
+  // Addon templates point at their resources by key (e.g. a card's "token" property is
+  // "roll20compat_token_generic.json"), which the token code accepts; the chooser only
+  // matched ids, so the card's token showed as not selected.
+  it('shows a material selected by its key', async () => {
+    ActiveWebHelper.getAsync.mockResolvedValue([
+      ...MATERIALS,
+      { id: 't', name: 'token_generic.json', key: 'roll20compat_token_generic.json', mimeType: 'application/json' },
+    ]);
+
+    renderWithProviders(<MaterialChooser materialsSelected="roll20compat_token_generic.json" />);
+
+    expect(await screen.findByRole('button', { name: 'Remove token_generic.json' })).toBeTruthy();
+  });
 });
