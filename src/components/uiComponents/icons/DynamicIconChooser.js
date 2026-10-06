@@ -1,71 +1,85 @@
-import { Button, Flex, HStack, Input, Spinner, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, HStack, Input, Spinner, Text } from "@chakra-ui/react";
 import React, { useState, useEffect } from "react";
 import { FaSearch } from "react-icons/fa";
 import DynamicIcon from "./DynamicIcon";
+import { ICON_PACK_LOADERS } from "../../../helpers/ReactIconPackLoaders";
 
-const AmountToShow = 21;
+const SHOWN_AT_FIRST = 21;
+// "More..." over the whole pack (~4000 icons) would render all of them at once.
+const MAX_SHOWN = 300;
 
+/**
+ * Picks a game-icons (react-icons/gi) icon by name. onSelect gets the name, or ""
+ * when the icon is removed (the tree update treats null as "keep the old one").
+ */
 export const DynamicIconChooser = ({ onSelect, iconSelected, isDisabled }) => {
     const [filter, setFilter] = useState("");
     const [showSelect, setShowSelect] = useState(false);
     const [showAll, setShowAll] = useState(false);
     const [icons, setIcons] = useState(null);
     const [loading, setLoading] = useState(false);
+    const [selectedKey, setSelectedKey] = useState(iconSelected || null);
 
-    // The selected state holds both key (string) and Component (the icon fn).
-    // Storing Component lets the preview render immediately after selection
-    // without a second async import cycle.
-    const [selected, setSelected] = useState(
-        iconSelected ? { key: iconSelected, Component: null } : null
-    );
+    // Follow the value we're given: the folder dialog stays mounted between opens,
+    // so without this it kept showing the icon from the previous open.
+    useEffect(() => {
+        setSelectedKey(iconSelected || null);
+    }, [iconSelected]);
 
-    // Load the full gi pack lazily — only once, only when the picker opens.
+    // Load the pack lazily — only once, only when the picker opens.
     useEffect(() => {
         if (!showSelect || icons) return;
         setLoading(true);
-        import("react-icons/gi")
+        ICON_PACK_LOADERS.gi()
             .then((mod) => { setIcons(mod); setLoading(false); })
             .catch(() => setLoading(false));
-    }, [showSelect]);
+    }, [showSelect, icons]);
 
-    const getIcons = () => {
-        if (!icons) return [];
-        const filtered = Object.keys(icons).filter(
-            (k) => /^[A-Z]/.test(k) && k.includes(filter)
-        );
-        const slice = showAll ? filtered : filtered.slice(0, AmountToShow);
-        return slice.map((k) => ({ key: k, Component: icons[k] }));
-    };
+    const query = filter.trim().toLowerCase();
+    const matching = icons
+        ? Object.keys(icons).filter((k) => /^[A-Z]/.test(k) && k.toLowerCase().includes(query))
+        : [];
+    const shown = matching.slice(0, showAll ? MAX_SHOWN : SHOWN_AT_FIRST);
 
-    const handleSelect = (key, Component) => {
-        // React only treats the top-level setState argument as an updater when it's
-        // a function. Storing an object {key, Component} is safe — Component inside
-        // the object is not touched by React's updater detection.
-        setSelected({ key, Component });
+    const select = (key) => {
+        setSelectedKey(key || null);
         setShowSelect(false);
         if (onSelect) onSelect(key);
     };
 
-    // Prefer the directly stored Component (instant, no async) when the user just
-    // clicked an icon. Fall back to DynamicIcon (async load) when the chooser is
-    // initialized from a saved key (e.g. settings panel reopened with existing value).
+    const openPicker = () => {
+        setShowSelect(true);
+        setShowAll(false);
+    };
+
+    // The component straight from the loaded pack when we have it (no async step),
+    // otherwise DynamicIcon loads it.
     const renderPreview = () => {
-        if (!selected) return null;
-        if (selected.Component) {
-            return React.createElement(selected.Component, { size: 55 });
-        }
-        return <DynamicIcon iconName={selected.key} iconProps={{ size: 55 }} />;
+        if (!selectedKey) return null;
+        const Loaded = icons?.[selectedKey];
+        return Loaded ? <Loaded size={55} /> : <DynamicIcon iconName={selectedKey} iconProps={{ size: 55 }} />;
     };
 
     return (
         <>
             {renderPreview()}
+            {selectedKey && (
+                <Text fontSize="xs" color="gray.400" mt={1}>
+                    {selectedKey}
+                </Text>
+            )}
 
             {showSelect ? (
-                <>
-                    <Flex>
+                <Box mt={2}>
+                    <Flex align="center" gap={2}>
                         <FaSearch />
-                        <Input size="xs" onChange={(e) => setFilter(e.target.value)} />
+                        <Input
+                            size="xs"
+                            aria-label="Search icons"
+                            placeholder="Search icons, e.g. dragon"
+                            value={filter}
+                            onChange={(e) => setFilter(e.target.value)}
+                        />
                     </Flex>
 
                     {loading ? (
@@ -73,43 +87,62 @@ export const DynamicIconChooser = ({ onSelect, iconSelected, isDisabled }) => {
                             <Spinner size="sm" />
                         </Flex>
                     ) : (
-                        <HStack wrap="wrap" overflowY="auto" height="200px">
-                            {getIcons().map(({ key, Component }) => (
-                                <Flex
-                                    key={key}
-                                    align="flex-start"
-                                    style={{ cursor: "pointer" }}
-                                    onClick={() => handleSelect(key, Component)}
-                                >
-                                    <Component size="40" />
-                                </Flex>
-                            ))}
-                        </HStack>
+                        <Flex wrap="wrap" alignContent="flex-start" gap={1} maxH="200px" overflowY="auto" mt={2}>
+                            {shown.map((key) => {
+                                const Component = icons[key];
+                                const isSelected = key === selectedKey;
+                                return (
+                                    <Box
+                                        as="button"
+                                        type="button"
+                                        key={key}
+                                        aria-label={key}
+                                        aria-pressed={isSelected}
+                                        title={key}
+                                        p={1}
+                                        borderRadius="md"
+                                        borderWidth="1px"
+                                        borderColor={isSelected ? "blue.400" : "transparent"}
+                                        bg={isSelected ? "var(--nordvik-selection-color, #2d3a5a)" : undefined}
+                                        _hover={{ bg: "whiteAlpha.200" }}
+                                        cursor="pointer"
+                                        onClick={() => select(key)}
+                                    >
+                                        <Component size="36" />
+                                    </Box>
+                                );
+                            })}
+                        </Flex>
                     )}
 
-                    <Button
-                        isDisabled={isDisabled}
-                        width={45}
-                        size="xs"
-                        onClick={() => setShowAll(!showAll)}
-                    >
-                        {showAll ? "Less..." : "More..."}
-                    </Button>
-                </>
-            ) : (
-                <Button
-                    isDisabled={isDisabled}
-                    size="xs"
-                    onClick={() => { setShowSelect(true); setShowAll(false); }}
-                >
-                    {selected ? "Change Icon" : "Select Icon"}
-                </Button>
-            )}
+                    {showAll && matching.length > MAX_SHOWN && (
+                        <Text fontSize="xs" color="fg.muted" mt={1}>
+                            Showing {MAX_SHOWN} of {matching.length} — search to narrow it down.
+                        </Text>
+                    )}
 
-            {selected && (
-                <Text fontSize="xs" color="gray.400" mt={1}>
-                    {selected.key}
-                </Text>
+                    <HStack gap={2} mt={2}>
+                        {matching.length > SHOWN_AT_FIRST && (
+                            <Button size="xs" variant="outline" onClick={() => setShowAll(!showAll)}>
+                                {showAll ? "Less..." : "More..."}
+                            </Button>
+                        )}
+                        <Button size="xs" variant="ghost" onClick={() => setShowSelect(false)}>
+                            Close
+                        </Button>
+                    </HStack>
+                </Box>
+            ) : (
+                <HStack gap={2} mt={1}>
+                    <Button disabled={isDisabled} size="xs" onClick={openPicker}>
+                        {selectedKey ? "Change Icon" : "Select Icon"}
+                    </Button>
+                    {selectedKey && (
+                        <Button disabled={isDisabled} size="xs" variant="ghost" onClick={() => select("")}>
+                            Remove icon
+                        </Button>
+                    )}
+                </HStack>
             )}
         </>
     );

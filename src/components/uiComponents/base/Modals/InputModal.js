@@ -93,7 +93,7 @@ export const InputModal = ({ getConfigDict, openRef, onCloseModal, title }) => {
           <Button
             colorPalette="blue"
             variant="outline"
-            isDisabled={validationSuccess === false}
+            disabled={validationSuccess === false}
             onClick={handleSave}
           >
             Save
