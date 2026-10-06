@@ -18,6 +18,7 @@ import { LoadingScreen } from "../uiComponents/LoadingScreen";
 import { PerformanceMonitor } from "../../helpers/PerformanceMonitor";
 import createLoadCanvas from './Handlers/LoadCanvas';
 import createHandleDrop from './Handlers/HandleDrop';
+import { useCanvasFitsPanel } from './Hooks/useCanvasFitsPanel';
 import BasePanel from "../uiComponents/base/BasePanel";
 import { _entityPermissionSetter } from "../../contexts/PermissionsContext";
 import { ENTITY_TYPES, PERM } from "./Helpers/permissionBits";
@@ -203,32 +204,32 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
     };
   }, []);
 
-  if (map !== undefined && map !== null) {
-    if (ctx.layoutContent.panel.floating) {
-      ctx.setPreferredSize(map.width, map.height);
-    }
-  }
+  // Panel-related syncing runs in effects keyed on this panel's own values — it used
+  // to run during render, which made it depend on the battlemap being re-rendered
+  // on every dock commit (every click anywhere in the app). The dock now only
+  // re-renders this panel when something about the panel itself changes.
+  const panel = ctx.layoutContent.panel;
+  const panelWidth = ctx.layoutContent.layoutPanel.rect.w;
+  const panelHeight = ctx.layoutContent.layoutPanel.rect.h;
+
+  React.useEffect(() => {
+    if (map && panel.floating) ctx.setPreferredSize(map.width, map.height);
+  }, [map?.width, map?.height, panel, panel.floating]);
+
+  React.useEffect(() => {
+    if (battleMapObjectRef.current) battleMapObjectRef.current.Panel = panel;
+  }, [panel]);
+
+  useCanvasFitsPanel(editor?.canvas, panelWidth, panelHeight, !!battleMapModel);
+
+  React.useEffect(() => {
+    if (battleMapModel) ctx.setTitle("BM - " + battleMapModel.name);
+  }, [battleMapModel?.name]);
 
   //Put in loadable
   if (!battleMapModel) {
     return <>{"Loading..."}</>;
   }
-
-  if (
-    battleMapObjectRef !== undefined &&
-    battleMapObjectRef.current.Panel !== ctx.layoutContent.panel
-  ) {
-    battleMapObjectRef.current.Panel = ctx.layoutContent.panel;
-  }
-  if (editor !== undefined && editor.canvas) {
-    editor.canvas.setDimensions({
-      width: ctx.layoutContent.layoutPanel.rect.w,
-      height: ctx.layoutContent.layoutPanel.rect.h,
-    });
-  }
-
-  //Handle file drop on battlemap.
-  ctx?.setTitle("BM - " + battleMapModel.name);
 
   return (
     <Flex

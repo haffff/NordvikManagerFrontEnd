@@ -14,6 +14,7 @@ import { useGameEventHandlers } from "./hooks/useGameEventHandlers";
 import { useGameInitialization } from "./hooks/useGameInitialization";
 import { useGameApi } from "./hooks/useGameApi";
 import { useGameState } from "./hooks/useGameState";
+import { useStableDockState } from "./hooks/useStableDockState";
 import DockableHelper from "../../helpers/DockableHelper";
 import { DragOptimizationProvider } from "../uiComponents/base/DragOptimizationContext";
 import { PermissionsProvider } from "../../contexts/PermissionsContext";
@@ -47,11 +48,15 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
   WebHelper.GameId = resolvedGameId;
   // Setting up dockable. when dockable is loading we start websocketManagerInstance
   const state = Dockable.useDockable();
+  // Same object for the whole session — see useStableDockState. Everything below gets
+  // this, except Dockable.Container and LayoutAutoSaveManager, which need the live
+  // state (updateToken) to follow each commit.
+  const dockState = useStableDockState(state);
 
   // Set the global dockable state for other components to access drag state
   React.useEffect(() => {
-    DockableHelper.setGlobalState(state);
-  }, [state]);
+    DockableHelper.setGlobalState(dockState);
+  }, [dockState]);
 
   // Serialize saved layouts by stable PanelsList key, not the (minified) function name.
   React.useEffect(() => {
@@ -63,7 +68,7 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
     const props = {
       ...content.props,
       gameDataManagerRef,
-      state,
+      state: dockState,
       keyboardEventsManagerRef,
       syncId: content.syncId || content.props?.syncId || undefined,
       withID: content.syncId,
@@ -96,15 +101,15 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
     }
 
     return React.createElement(PanelList[resolvedType], props);
-  }, [gameDataManagerRef, state, keyboardEventsManagerRef]);
-  // Register the Game ClientMediator API — re-runs when state/closures change
-  useGameApi({ state, gameState, CreateLayoutElement });
+  }, [gameDataManagerRef, dockState, keyboardEventsManagerRef]);
+  // Register the Game ClientMediator API — re-runs when its inputs change
+  useGameApi({ state: dockState, gameState, CreateLayoutElement });
 
   const [connectionError, setConnectionError] = React.useState(null);
 
   // Initialize custom hooks
-  const eventHandlers = useGameEventHandlers({ state, gameState, CreateLayoutElement });
-  const { loadGame, initError, clearInitError, resetInitialization, isInitialized } = useGameInitialization({ state, gameState, CreateLayoutElement });
+  const eventHandlers = useGameEventHandlers({ state: dockState, gameState, CreateLayoutElement });
+  const { loadGame, initError, clearInitError, resetInitialization, isInitialized } = useGameInitialization({ state: dockState, gameState, CreateLayoutElement });
 
   // Reset the module-level initialization flag on unmount so that re-entering the same
   // game (e.g. after being kicked and rejoining) triggers a fresh loadGame call.
@@ -204,13 +209,13 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
       <LayoutAutoSaveManager state={state} battlemapsRef={battleMapContexts} />
       <MainToolbar
         key={resolvedGameId}
-        state={state}
+        state={dockState}
         gameDataManagerRef={gameDataManagerRef}
         battlemapsRef={battleMapContexts}
         forceRefreshGame={forceUpdate}
       />      <Flex style={{ height: "100%", overflow: "hidden" }}>
       <Dockable.Container state={state} onPopOut={DockableHelper.getPopOutHandler()} />
-      </Flex><QuickCommandDialog state={state} openRef={quickCommandDialogOpenRef} />
+      </Flex><QuickCommandDialog state={dockState} openRef={quickCommandDialogOpenRef} />
       
       {portaledPanels}
       
