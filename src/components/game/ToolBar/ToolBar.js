@@ -11,8 +11,10 @@ export const ToolBar = ({ children }) => {
             margin={'10px'}
             bg={themeColors.toolbar}
             minWidth="100vh"
-            alignItems="left"
-            justifyContent="left"
+            // Valid values only: as a Chakra prop an invalid one (e.g. "left") replaces
+            // HStack's default centring and the browser then drops it, pushing the buttons down.
+            alignItems="center"
+            justifyContent="flex-start"
             padding="2px"
         >
             {children}
