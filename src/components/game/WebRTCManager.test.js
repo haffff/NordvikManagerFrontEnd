@@ -185,7 +185,8 @@ describe('WebRTCManager', () => {
 
     it('game messages still go out while an upload is waiting', () => {
       const dc = fakeChannel();
-      WebRTCManagerInstance.sendRaw(bigMessage(5 * MB));
+      // Left waiting; afterEach's Close() then fails it, which is expected here.
+      WebRTCManagerInstance.sendRaw(bigMessage(5 * MB)).catch(() => {});
       const before = dc.sent.length;
 
       WebRTCManagerInstance.Send({ command: 'element_move' });
