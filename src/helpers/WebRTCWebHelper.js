@@ -3,6 +3,7 @@
 // instead of direct HTTP. Injected with a transport by WebRTCManager.
 
 import WebHelper from './WebHelper';
+import ResourceCache from './ResourceCache';
 import UtilityHelper from './UtilityHelper';
 
 const REQUEST_TIMEOUT_MS = 30000;
@@ -22,12 +23,21 @@ function _camelizeKeys(obj) {
 }
 
 // Convert a base64 string (with optional data-URI prefix) to blob or text.
-function _base64ToData(b64, mimeType) {
+function _base64ToBytes(b64) {
   const stripped = b64.replace(/^data:[^;]+;base64,/, '');
+  return Uint8Array.from(atob(stripped), (c) => c.charCodeAt(0));
+}
+
+// Text types come back as a "binary string" (one char per byte, what atob gives),
+// everything else as a Blob — the same whether fetched or from the cache.
+function _bytesToData(bytes, mimeType) {
   if (mimeType.startsWith('text') || mimeType.startsWith('application/json')) {
-    return atob(stripped);
+    let text = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      text += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    }
+    return text;
   }
-  const bytes = Uint8Array.from(atob(stripped), (c) => c.charCodeAt(0));
   return new Blob([bytes], { type: mimeType });
 }
 
@@ -221,21 +231,36 @@ class WebRTCWebHelper {
   }
 
   // Fetch a material via the data channel. The backend returns
-  // { data: base64, mimeType: string }; convert to Blob or text to match
+  // { data: base64, mimeType, version }; convert to Blob or text to match
   // what callers of WebHelper.getMaterialAsync expect.
   // `thumbnail` requests a small server-generated/cached resize instead of the
   // original file — used for previews so a folder of full-res images doesn't
   // pull every original down just to show a 36px icon.
+  // Results are kept in ResourceCache (in the browser, between sessions): a cached
+  // resource is requested with its version, and the server answers { notModified }
+  // instead of sending it again while that version is current.
   async getMaterialAsync(id, mimeType, key, thumbnail = false) {
     const queryParam = id ? `id=${id}` : `key=${key}`;
     const thumbParam = thumbnail ? '&thumbnail=true' : '';
-    const result = await this._sendRequest('GET', `materials/resource?${queryParam}${thumbParam}`);
+    const cacheKey = `${this.GameId}:${thumbnail ? 't:' : ''}${id || key}`;
+    const cached = await ResourceCache.get(cacheKey);
+    const versionParam = cached ? `&ifVersion=${encodeURIComponent(cached.version)}` : '';
+
+    const result = await this._sendRequest('GET', `materials/resource?${queryParam}${thumbParam}${versionParam}`);
+    if (result?.status === 200 && result.body?.notModified && cached) {
+      return _bytesToData(new Uint8Array(cached.data), mimeType ?? cached.mimeType ?? 'application/octet-stream');
+    }
     if (result?.status !== 200 || !result?.body?.data) {
       console.warn(`[WebRTCWebHelper] getMaterialAsync failed for id=${id} key=${key}: status=${result?.status}`, result?.body);
       return undefined;
     }
-    const mt = mimeType ?? result.body.mimeType ?? 'application/octet-stream';
-    return _base64ToData(result.body.data, mt);
+    const serverMimeType = result.body.mimeType ?? 'application/octet-stream';
+    const bytes = _base64ToBytes(result.body.data);
+    if (result.body.version) {
+      // Not awaited: storing mustn't delay the caller.
+      ResourceCache.put(cacheKey, { data: bytes.buffer, mimeType: serverMimeType, version: result.body.version });
+    }
+    return _bytesToData(bytes, mimeType ?? serverMimeType);
   }
 
   // Fetch a resource as a Blob, with session-level in-memory caching.
