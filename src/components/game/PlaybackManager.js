@@ -69,10 +69,12 @@ export const PlaybackManager = () => {
         }
       });
     }
-    // Deliberately bypasses getResourceBlobAsync()'s session-wide cache — that cache has
-    // no eviction and is sized for repeated canvas image loads, not audio tracks (larger,
-    // and a long session can play through many unique ones). Each track already gets its
-    // own object URL below, released in disposeAudio(), so nothing is gained by caching here.
+    // Deliberately bypasses getResourceBlobAsync()'s in-memory session cache — it has no
+    // eviction and is sized for repeated canvas image loads, not audio tracks. Tracks are
+    // still kept between plays: getMaterialAsync goes through ResourceCache (in the browser,
+    // size-limited, least recently used dropped first), so a replayed track is only
+    // checked with the server, not downloaded again. Each play gets its own object URL
+    // below, released in disposeAudio().
     WebHelper.getMaterialAsync(trackId)
       .then((blob) => {
         if (audio.__disposed || !(blob instanceof Blob)) return;

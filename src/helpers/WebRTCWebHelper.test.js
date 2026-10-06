@@ -12,7 +12,12 @@ vi.mock('./UtilityHelper', () => ({
   default: { ConvertBlobToB64: (...args) => convertBlobToB64(...args) },
 }));
 
+vi.mock('./ResourceCache', () => ({
+  default: { get: vi.fn(), put: vi.fn() },
+}));
+
 import WebRTCWebHelperInstance from './WebRTCWebHelper';
+import ResourceCache from './ResourceCache';
 
 // Regression coverage for reset() — added so a request still sitting in _queue
 // (channel not open yet) or _pending (sent, awaiting response) at game-exit time
@@ -157,5 +162,90 @@ describe('WebRTCWebHelper sending', () => {
     transport.lastOpts.onProgress(250, 1000);
 
     expect(onProgress).toHaveBeenCalledWith(0.25);
+  });
+});
+
+// Resources are kept in the browser (ResourceCache) with the server's version, and
+// only downloaded again when the server says the version changed.
+describe('WebRTCWebHelper.getMaterialAsync caching', () => {
+  const b64 = (text) => btoa(text);
+  const bytesOf = (text) => Uint8Array.from(text, (c) => c.charCodeAt(0)).buffer;
+  // jsdom's Blob has no .text()
+  const readText = (blob) => new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.readAsText(blob);
+  });
+  let send;
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    WebRTCWebHelperInstance.GameId = 'game-1';
+    ResourceCache.get.mockResolvedValue(null);
+    ResourceCache.put.mockResolvedValue(true);
+    send = vi.spyOn(WebRTCWebHelperInstance, '_sendRequest');
+  });
+
+  afterEach(() => send.mockRestore());
+
+  it('not cached: plain request, result stored with its version', async () => {
+    send.mockResolvedValue({ status: 200, body: { data: b64('music'), mimeType: 'audio/mpeg', version: 'v1' } });
+
+    const blob = await WebRTCWebHelperInstance.getMaterialAsync('r1');
+
+    expect(send.mock.calls[0][1]).toBe('materials/resource?id=r1');
+    expect(blob).toBeInstanceOf(Blob);
+    expect(await readText(blob)).toBe('music');
+    const [key, stored] = ResourceCache.put.mock.calls[0];
+    expect(key).toBe('game-1:r1');
+    expect(stored.version).toBe('v1');
+    expect(stored.mimeType).toBe('audio/mpeg');
+    expect(new Uint8Array(stored.data)).toEqual(new Uint8Array(bytesOf('music')));
+  });
+
+  it('cached and unchanged: asks with its version and uses the cached bytes', async () => {
+    ResourceCache.get.mockResolvedValue({ data: bytesOf('music'), mimeType: 'audio/mpeg', version: 'v1' });
+    send.mockResolvedValue({ status: 200, body: { notModified: true, version: 'v1' } });
+
+    const blob = await WebRTCWebHelperInstance.getMaterialAsync('r1');
+
+    expect(send.mock.calls[0][1]).toBe('materials/resource?id=r1&ifVersion=v1');
+    expect(blob.type).toBe('audio/mpeg');
+    expect(await readText(blob)).toBe('music');
+    expect(ResourceCache.put).not.toHaveBeenCalled();
+  });
+
+  it('cached but changed on the server: new bytes returned and stored', async () => {
+    ResourceCache.get.mockResolvedValue({ data: bytesOf('old'), mimeType: 'audio/mpeg', version: 'v1' });
+    send.mockResolvedValue({ status: 200, body: { data: b64('new'), mimeType: 'audio/mpeg', version: 'v2' } });
+
+    const blob = await WebRTCWebHelperInstance.getMaterialAsync('r1');
+
+    expect(await readText(blob)).toBe('new');
+    expect(ResourceCache.put.mock.calls[0][1].version).toBe('v2');
+  });
+
+  it('text types come back as the same string as before caching, also from the cache', async () => {
+    ResourceCache.get.mockResolvedValue({ data: bytesOf('body{}'), mimeType: 'text/css', version: 'v1' });
+    send.mockResolvedValue({ status: 200, body: { notModified: true, version: 'v1' } });
+
+    expect(await WebRTCWebHelperInstance.getMaterialAsync(null, 'application/octet-stream', 'style.css')).toBeInstanceOf(Blob);
+    expect(await WebRTCWebHelperInstance.getMaterialAsync('r2', 'text/plain')).toBe('body{}');
+  });
+
+  it('thumbnails and key lookups have their own cache keys', async () => {
+    send.mockResolvedValue({ status: 200, body: { data: b64('x'), mimeType: 'image/png', version: 't-v1' } });
+
+    await WebRTCWebHelperInstance.getMaterialAsync('r1', null, null, true);
+    await WebRTCWebHelperInstance.getMaterialAsync(null, null, 'emptyImage');
+
+    expect(ResourceCache.get.mock.calls.map(([k]) => k)).toEqual(['game-1:t:r1', 'game-1:emptyImage']);
+  });
+
+  it('a failed request still returns undefined', async () => {
+    send.mockResolvedValue({ status: 404, body: null });
+
+    expect(await WebRTCWebHelperInstance.getMaterialAsync('r1')).toBeUndefined();
+    expect(ResourceCache.put).not.toHaveBeenCalled();
   });
 });
