@@ -17,6 +17,8 @@ import {
   FaStickyNote,
   FaChevronDown,
   FaChevronUp,
+  FaArrowUp,
+  FaArrowDown,
   FaSync,
   FaUpload,
 } from "react-icons/fa";
@@ -48,9 +50,14 @@ const getIconByMimeType = (mimeType) => {
   return FaFile;
 };
 
+// The selected materials in the order of the given ids (the order matters when
+// orderable, e.g. stylesheets where later ones win).
+const inOrder = (materials, ids) =>
+  ids.map((id) => materials.find((x) => x.id === id)).filter(Boolean);
+
 // ─── SelectedChip — one chosen material ───────────────────────────────────────
 
-const SelectedChip = React.memo(({ material, isDisabled, onRemove }) => {
+const SelectedChip = React.memo(({ material, isDisabled, onRemove, onMove, isFirst, isLast }) => {
   const IconComp = getIconByMimeType(material.mimeType);
   return (
     <DListItem withHover width="100%">
@@ -59,6 +66,12 @@ const SelectedChip = React.memo(({ material, isDisabled, onRemove }) => {
         <Text fontSize="xs" noOfLines={1} flex="1" minW={0}>{material.name}</Text>
       </Flex>
       <DListItemsButtonContainer>
+        {onMove && (
+          <>
+            <DListItemButton disabled={isDisabled || isFirst} icon={FaArrowUp} label="Move up" onClick={() => onMove(material.id, -1)} />
+            <DListItemButton disabled={isDisabled || isLast} icon={FaArrowDown} label="Move down" onClick={() => onMove(material.id, 1)} />
+          </>
+        )}
         <DListItemButton
           isDisabled={isDisabled}
           icon={FaMinus}
@@ -139,6 +152,7 @@ export const MaterialChooser = ({
   additionalFilter,
   materialsSelected,   // array of IDs
   isDisabled,
+  orderable,           // multi-select: show move up/down; the order is kept and reported
 }) => {
   const [materials, setMaterials]               = React.useState(null);   // null = loading
   const [selectedMaterials, setSelectedMaterials] = React.useState([]);  const [showPicker, setShowPicker]             = React.useState(false);
@@ -164,8 +178,7 @@ export const MaterialChooser = ({
     const data = await WebHelper.getAsync("materials/getresources");
     if (!data) return;
     setMaterials(data);
-    const ids = selectedIdsRef.current;
-    setSelectedMaterials(data.filter((x) => ids.includes(x.id)));
+    setSelectedMaterials(inOrder(data, selectedIdsRef.current));
   }, []);
 
   React.useEffect(() => { loadData(); }, [loadData]);
@@ -180,7 +193,7 @@ export const MaterialChooser = ({
   // Covers: initial load, parent prop updates, and CollectionSyncer removals.
   React.useEffect(() => {
     if (!materials) return;
-    setSelectedMaterials(materials.filter((x) => selectedIds.includes(x.id)));
+    setSelectedMaterials(inOrder(materials, selectedIds));
   // selectedIds is derived from materialsSelected; listing both would be redundant.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [materials, selectedIds]);
@@ -195,6 +208,14 @@ export const MaterialChooser = ({
       onSelect?.(next[0]?.id ?? null);
     }
   }, [multipleSelection, onSelect]);
+  const handleMove = React.useCallback((id, delta) => {
+    const next = [...selectedRef.current];
+    const index = next.findIndex((x) => x.id === id);
+    const [item] = next.splice(index, 1);
+    next.splice(index + delta, 0, item);
+    commitSelection(next);
+  }, [commitSelection]);
+
   const handleRemove = React.useCallback((id) => {
     const next = selectedRef.current.filter((x) => x.id !== id);
     commitSelection(next);
@@ -351,12 +372,15 @@ export const MaterialChooser = ({
       {/* Selected items */}
       {selectedMaterials.length > 0 && (
         <Box mb={2}>
-          {selectedMaterials.map((mat) => (
+          {selectedMaterials.map((mat, index) => (
             <SelectedChip
               key={mat.id}
               material={mat}
               isDisabled={isDisabled}
               onRemove={handleRemove}
+              onMove={orderable ? handleMove : undefined}
+              isFirst={index === 0}
+              isLast={index === selectedMaterials.length - 1}
             />
           ))}
         </Box>
