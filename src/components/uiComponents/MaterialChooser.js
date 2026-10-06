@@ -29,8 +29,7 @@ import DListItemButton from "./base/List/ListItemDetails/DListItemButton";
 import CollectionSyncer from "./base/CollectionSyncer";
 import DTreeViewOnly from "./treeList/DTreeViewOnly";
 import { toaster } from "../ui/toaster";
-import ProgressToastManager from "../../helpers/ProgressToastManager";
-import UtilityHelper from "../../helpers/UtilityHelper";
+import uploadMaterials from "../../helpers/uploadMaterials";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -244,58 +243,16 @@ export const MaterialChooser = ({
     if (!allowed.length) return;
 
     setUploading(true);
-    let remaining = allowed.length;
-    let done = 0;
-    let failedCount = 0;
-    const total = allowed.length;
-    const opId = UtilityHelper.GenerateUUID();
-    ProgressToastManager.start(opId, {
-      title: total > 1 ? `Uploading ${total} files…` : `Uploading ${allowed[0].name}…`,
-      total,
-    });
-
-    const finishIfDone = () => {
-      if (remaining > 0) return;
-      setUploading(false);
-      if (failedCount === 0) {
-        ProgressToastManager.complete(opId, {
-          title: total > 1 ? `Uploaded ${total} files` : `Uploaded ${allowed[0].name}`,
-        });
-      } else if (failedCount === total) {
-        ProgressToastManager.fail(opId, { title: "Upload failed" });
-      } else {
-        ProgressToastManager.fail(opId, { title: `${failedCount} of ${total} uploads failed` });
+    uploadMaterials(allowed).then(async ({ uploaded }) => {
+      // Reload once so the tree is fresh, then auto-select the upload if single-select.
+      const data = await WebHelper.getAsync("materials/getresources");
+      if (data) {
+        setMaterials(data);
+        const last = uploaded[uploaded.length - 1];
+        const match = !multipleSelection && last && data.find((x) => x.id === last.id);
+        if (match) commitSelection([match]);
       }
-    };
-
-    allowed.forEach((file) => {
-      WebHelper.postMaterial(
-        file,
-        async (result) => {
-          // Reload all materials so the tree is fresh
-          const data = await WebHelper.getAsync("materials/getresources");
-          if (data) {
-            setMaterials(data);
-            // Auto-select the newly uploaded file if single-select
-            if (!multipleSelection && result?.id) {
-              const uploaded = data.find((x) => x.id === result.id);
-              if (uploaded) commitSelection([uploaded]);
-            }
-          }
-          remaining -= 1;
-          done += 1;
-          ProgressToastManager.update(opId, { current: done, total, message: `Uploaded ${file.name}` });
-          finishIfDone();
-        },
-        (err) => {
-          console.error("MaterialChooser: upload error", err);
-          remaining -= 1;
-          done += 1;
-          failedCount += 1;
-          ProgressToastManager.update(opId, { current: done, total, message: `Failed: ${file.name}` });
-          finishIfDone();
-        }
-      );
+      setUploading(false);
     });
   }, [additionalFilter, multipleSelection, commitSelection]);
 
