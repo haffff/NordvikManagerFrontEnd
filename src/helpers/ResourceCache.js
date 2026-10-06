@@ -25,7 +25,7 @@ function openDb() {
   if (dbPromise) return dbPromise;
   dbPromise = new Promise((resolve) => {
     try {
-      const idb = globalThis.indexedDB;
+      const idb = window.indexedDB;
       if (!idb) return resolve(null);
       const request = idb.open(DB_NAME, 1);
       request.onupgradeneeded = () => {
