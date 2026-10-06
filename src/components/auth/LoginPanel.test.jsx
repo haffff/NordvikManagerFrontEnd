@@ -82,4 +82,23 @@ describe('LoginPanel', () => {
 
     await waitFor(() => expect(onSuccess).toHaveBeenCalledTimes(1));
   });
+
+  // The button never showed it was working: isLogging was never set, and Chakra 3
+  // ignores `isLoading` (it's `loading`).
+  it('the login button shows it is working until the answer comes', async () => {
+    const user = userEvent.setup();
+    let respond;
+    WebHelper.post.mockImplementation((_url, _body, onok, onerror) => { respond = { onok, onerror }; });
+    renderWithProviders(<LoginPanel OnSuccess={onSuccess} />);
+    // While loading, the label is swapped for a spinner, so keep the element.
+    const button = screen.getByRole('button', { name: /login/i });
+
+    await user.click(button);
+    expect(button.getAttribute('data-loading')).not.toBeNull();
+    expect(button.disabled).toBe(true);
+
+    respond.onerror({ status: 401 });
+    await waitFor(() => expect(button.getAttribute('data-loading')).toBeNull());
+    expect(screen.getByRole('button', { name: /login/i })).toBe(button);
+  });
 });
