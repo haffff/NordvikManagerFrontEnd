@@ -37,7 +37,7 @@ importers:
         version: 11.14.0(@types/react@18.3.28)(react@18.3.1)
       '@hlorenzi/react-dockable':
         specifier: github:haffff/react-dockable-expanded#looks-changes
-        version: https://codeload.github.com/haffff/react-dockable-expanded/tar.gz/346e05dd04d3bd6942d8a8561bcc2a9d02e4be99(react@18.3.1)(styled-components@6.3.12(react-dom@18.3.1(react@18.3.1))(react@18.3.1))
+        version: https://codeload.github.com/haffff/react-dockable-expanded/tar.gz/15e3e42d35dbf61f7a1abbb9e85423403a588bd9(react@18.3.1)(styled-components@6.3.12(react-dom@18.3.1(react@18.3.1))(react@18.3.1))
       '@react-icons/all-files':
         specifier: ^4.1.0
         version: 4.1.0(react@18.3.1)
@@ -1325,8 +1325,8 @@ packages:
   '@floating-ui/utils@0.2.11':
     resolution: {integrity: sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==}
 
-  '@hlorenzi/react-dockable@https://codeload.github.com/haffff/react-dockable-expanded/tar.gz/346e05dd04d3bd6942d8a8561bcc2a9d02e4be99':
-    resolution: {tarball: https://codeload.github.com/haffff/react-dockable-expanded/tar.gz/346e05dd04d3bd6942d8a8561bcc2a9d02e4be99}
+  '@hlorenzi/react-dockable@https://codeload.github.com/haffff/react-dockable-expanded/tar.gz/15e3e42d35dbf61f7a1abbb9e85423403a588bd9':
+    resolution: {tarball: https://codeload.github.com/haffff/react-dockable-expanded/tar.gz/15e3e42d35dbf61f7a1abbb9e85423403a588bd9}
     version: 0.1.0
     peerDependencies:
       react: ^17.0.2
@@ -2021,8 +2021,8 @@ packages:
     engines: {node: '>=0.4.0'}
     hasBin: true
 
-  acorn@8.18.0:
-    resolution: {integrity: sha512-lGq+9yr1/GuAWaVYIHRjvvySG5/4VfKIvC8EWxStPdcDh/Ka7FG3twP6v4d5BkravUilhIAsG4Qj83t02LWUPQ==}
+  acorn@8.19.0:
+    resolution: {integrity: sha512-oJlA3XiRm7Cyk6qFD2Jn8ak9B7jSy0qy00ADO3+8dpT0LSjFihQYv4C02LFCSYJV3Q37xYwwRy5m+IpIiUzqWw==}
     engines: {node: '>=0.4.0'}
     hasBin: true
 
@@ -5562,12 +5562,6 @@ snapshots:
       - supports-color
       - utf-8-validate
 
-  '@ckeditor/ckeditor5-find-and-replace@41.4.2':
-    dependencies:
-      '@ckeditor/ckeditor5-ui': 41.4.2
-      ckeditor5: 41.4.2
-      lodash-es: 4.17.21
-
   '@ckeditor/ckeditor5-find-and-replace@41.4.2(canvas@2.11.2)':
     dependencies:
       '@ckeditor/ckeditor5-ui': 41.4.2
@@ -6233,7 +6227,7 @@ snapshots:
 
   '@floating-ui/utils@0.2.11': {}
 
-  '@hlorenzi/react-dockable@https://codeload.github.com/haffff/react-dockable-expanded/tar.gz/346e05dd04d3bd6942d8a8561bcc2a9d02e4be99(react@18.3.1)(styled-components@6.3.12(react-dom@18.3.1(react@18.3.1))(react@18.3.1))':
+  '@hlorenzi/react-dockable@https://codeload.github.com/haffff/react-dockable-expanded/tar.gz/15e3e42d35dbf61f7a1abbb9e85423403a588bd9(react@18.3.1)(styled-components@6.3.12(react-dom@18.3.1(react@18.3.1))(react@18.3.1))':
     dependencies:
       react: 18.3.1
       react-icons: 5.6.0(react@18.3.1)
@@ -7250,9 +7244,9 @@ snapshots:
       acorn: 7.4.1
       acorn-walk: 7.2.0
 
-  acorn-jsx@5.3.2(acorn@8.18.0):
+  acorn-jsx@5.3.2(acorn@8.19.0):
     dependencies:
-      acorn: 8.18.0
+      acorn: 8.19.0
 
   acorn-walk@7.2.0: {}
 
@@ -7260,7 +7254,7 @@ snapshots:
 
   acorn@8.16.0: {}
 
-  acorn@8.18.0: {}
+  acorn@8.19.0: {}
 
   agent-base@6.0.2:
     dependencies:
@@ -7563,7 +7557,7 @@ snapshots:
       '@ckeditor/ckeditor5-engine': 41.4.2
       '@ckeditor/ckeditor5-enter': 41.4.2
       '@ckeditor/ckeditor5-essentials': 41.4.2(canvas@2.11.2)
-      '@ckeditor/ckeditor5-find-and-replace': 41.4.2
+      '@ckeditor/ckeditor5-find-and-replace': 41.4.2(canvas@2.11.2)
       '@ckeditor/ckeditor5-font': 41.4.2(canvas@2.11.2)
       '@ckeditor/ckeditor5-heading': 41.4.2(canvas@2.11.2)
       '@ckeditor/ckeditor5-highlight': 41.4.2(canvas@2.11.2)
@@ -8268,8 +8262,8 @@ snapshots:
 
   espree@9.6.1:
     dependencies:
-      acorn: 8.18.0
-      acorn-jsx: 5.3.2(acorn@8.18.0)
+      acorn: 8.19.0
+      acorn-jsx: 5.3.2(acorn@8.19.0)
       eslint-visitor-keys: 3.4.3
 
   esprima@4.0.1: {}
