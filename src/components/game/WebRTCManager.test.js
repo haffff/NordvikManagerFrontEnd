@@ -114,4 +114,102 @@ describe('WebRTCManager', () => {
     WebRTCManagerInstance.Close();
     expect(webRTCWebHelperMock.reset).toHaveBeenCalled();
   });
+
+  // Regression: sendRaw used to push every chunk of a large message into the
+  // data channel at once. A few big uploads overflowed Chrome's send queue
+  // ("RTCDataChannel send queue is full") and the uploads failed.
+  describe('sendRaw pacing', () => {
+    const MB = 1024 * 1024;
+
+    // A data channel whose buffer only drains when the test says so.
+    const fakeChannel = () => {
+      const dc = {
+        readyState: 'open',
+        bufferedAmount: 0,
+        bufferedAmountLowThreshold: 0,
+        sent: [],
+        send(data) { this.sent.push(data); this.bufferedAmount += data.length; },
+        close: vi.fn(),
+        drain() { this.bufferedAmount = 0; this.onbufferedamountlow?.(); },
+      };
+      WebRTCManagerInstance._dataChannel = dc;
+      return dc;
+    };
+
+    const bigMessage = (bytes) => ({ type: 'api-request', id: 'r1', method: 'POST', path: 'api/x', body: { data: 'x'.repeat(bytes) } });
+
+    it('sends a small message straight away', async () => {
+      const dc = fakeChannel();
+
+      await WebRTCManagerInstance.sendRaw({ type: 'api-request', id: 's', body: 'tiny' });
+
+      expect(dc.sent).toHaveLength(1);
+    });
+
+    it('stops at about 1 MB buffered and continues as the buffer drains, reporting progress', async () => {
+      const dc = fakeChannel();
+      const progress = [];
+      let done = false;
+
+      const sending = WebRTCManagerInstance.sendRaw(bigMessage(5 * MB), { onProgress: (sent, total) => progress.push([sent, total]) })
+        .then(() => { done = true; });
+
+      expect(dc.bufferedAmount).toBeLessThanOrEqual(1.1 * MB);
+      expect(done).toBe(false);
+      const firstBatch = dc.sent.length;
+
+      for (let i = 0; i < 20 && !done; i++) { dc.drain(); await Promise.resolve(); }
+      await sending;
+
+      expect(dc.sent.length).toBeGreaterThan(firstBatch);
+      const total = progress[0][1];
+      expect(total).toBeGreaterThan(5 * MB);
+      expect(progress.at(-1)).toEqual([total, total]);
+      expect(progress.map(([sent]) => sent)).toEqual([...progress.map(([sent]) => sent)].sort((a, b) => a - b));
+      // Everything arrived, in order, as one chunked message.
+      const chunks = dc.sent.map((x) => JSON.parse(x));
+      expect(chunks.map((c) => c.index)).toEqual(chunks.map((_, i) => i));
+      expect(chunks[0].total).toBe(chunks.length);
+    });
+
+    it('a second large message waits for the first instead of overfilling the buffer', async () => {
+      const dc = fakeChannel();
+
+      const first = WebRTCManagerInstance.sendRaw(bigMessage(3 * MB));
+      const second = WebRTCManagerInstance.sendRaw({ ...bigMessage(3 * MB), id: 'r2' });
+
+      expect(dc.bufferedAmount).toBeLessThanOrEqual(1.1 * MB);
+      for (let i = 0; i < 20; i++) { dc.drain(); await Promise.resolve(); }
+      await Promise.all([first, second]);
+    });
+
+    it('game messages still go out while an upload is waiting', () => {
+      const dc = fakeChannel();
+      WebRTCManagerInstance.sendRaw(bigMessage(5 * MB));
+      const before = dc.sent.length;
+
+      WebRTCManagerInstance.Send({ command: 'element_move' });
+
+      expect(dc.sent.length).toBe(before + 1);
+    });
+
+    it('fails a waiting upload when the channel closes', async () => {
+      const dc = fakeChannel();
+      const sending = WebRTCManagerInstance.sendRaw(bigMessage(5 * MB));
+
+      dc.readyState = 'closed';
+      dc.drain();
+
+      await expect(sending).rejects.toThrow(/closed/i);
+    });
+
+    it('fails a waiting upload on Close()', async () => {
+      fakeChannel();
+      const sending = WebRTCManagerInstance.sendRaw(bigMessage(5 * MB));
+
+      WebRTCManagerInstance.Close();
+
+      await expect(sending).rejects.toThrow(/closed/i);
+    });
+  });
 });

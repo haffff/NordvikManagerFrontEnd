@@ -65,4 +65,23 @@ describe('uploadMaterials', () => {
     expect(ProgressToastManager.start).not.toHaveBeenCalled();
     expect(result).toEqual({ uploaded: [], failed: [] });
   });
+
+  it('moves the bar while a file is being sent, without an update per chunk', async () => {
+    const finishers = [];
+    ActiveWebHelper.postMaterial.mockImplementation((f, onok, onerror, onException, onProgress) => {
+      for (let i = 1; i <= 1000; i++) onProgress(i / 2000); // up to 50%, one call per chunk
+      finishers.push(() => onok({ id: 'id-' + f.name }));
+    });
+
+    const result = uploadMaterials([file('big.mp3'), file('small.png')]);
+
+    const updates = ProgressToastManager.update.mock.calls.map(([, u]) => u);
+    expect(updates.length).toBeLessThanOrEqual(110); // whole percents only, for two files
+    expect(updates.at(-1).message).toBe('Uploading small.png — 50%');
+    expect(updates.at(-1).current).toBeCloseTo(1, 1); // two files at 50%: one file's worth
+    expect(updates.at(-1).total).toBe(2);
+
+    finishers.forEach((f) => f());
+    await result;
+  });
 });

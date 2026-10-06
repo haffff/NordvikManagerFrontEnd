@@ -36,6 +36,11 @@ function _camelizeKeys(obj) {
 // WebRTC data channels have a browser-imposed max message size (~256 KB in Chrome).
 // Anything larger (e.g. base64 file uploads) must be split into chunks.
 const SEND_CHUNK_SIZE = 15_000; // bytes — safely under all major browser limits
+// Chunked messages are fed in only while the channel's send buffer is below this,
+// and resume once it drains to LOW. Pushing everything at once overflowed Chrome's
+// send queue ("RTCDataChannel send queue is full") with a few large uploads.
+const BUFFER_HIGH = 1024 * 1024;
+const BUFFER_LOW = 256 * 1024;
 
 class WebRTCManager {
   // Mirrors WebSocketManager properties used by Game.js / hooks
@@ -56,6 +61,7 @@ class WebRTCManager {
   _messageQueue = [];        // queued Send() calls
   _pendingCandidates = [];   // ICE candidates buffered before remoteDescription is set
   _chunkBuffer = new Map(); // chunkId → { parts, received, total } for incoming chunks
+  _outgoing = [];           // large messages waiting to be chunked out, oldest first
   _pendingAuth = false;  // prevents concurrent re-authentication loops
   _iceServers = null;    // populated from /meta before peer connection starts
 
@@ -269,6 +275,7 @@ class WebRTCManager {
     this._messageQueue = [];
     this._pendingCandidates = [];
     this._chunkBuffer.clear();
+    this._failOutgoing();
     this._sessionId = null;
     this._role = 'player';
     this._authRetried = false;
@@ -300,36 +307,77 @@ class WebRTCManager {
   }
 
   // Send a raw object (used by WebRTCWebHelper for api-requests).
-  // Large messages are automatically split into chunks to stay under the
-  // browser's RTCDataChannel send limit (~256 KB in Chrome).
-  sendRaw(message) {
+  // Large messages are split into chunks to stay under the browser's
+  // RTCDataChannel message size limit, and fed in as the send buffer drains.
+  // Resolves once the whole message is handed to the channel; rejects if the
+  // channel closes first. onProgress(sentBytes, totalBytes) follows the chunks.
+  // Small messages (and Send()) go out straight away, also while an upload waits.
+  sendRaw(message, { onProgress } = {}) {
     if (!this.isChannelReady()) {
       this._log('warn', `sendRaw called before channel ready, readyState=${this._dataChannel?.readyState}`);
-      return false;
+      return Promise.reject(new Error('Data channel closed'));
     }
     const json = JSON.stringify(message);
     this._log('log', `sendRaw: ${message.method} ${message.path} (${json.length}b)`);
 
     if (json.length <= SEND_CHUNK_SIZE) {
-      this._dataChannel.send(json);
-      return true;
+      try {
+        this._dataChannel.send(json);
+      } catch (e) {
+        return Promise.reject(e);
+      }
+      onProgress?.(json.length, json.length);
+      return Promise.resolve();
     }
 
-    // Split into fixed-size string chunks
     const chunkId = crypto.randomUUID();
     const total = Math.ceil(json.length / SEND_CHUNK_SIZE);
     this._log('log', `sendRaw: splitting into ${total} chunks (chunkId=${chunkId})`);
-    for (let i = 0; i < total; i++) {
+    return new Promise((resolve, reject) => {
+      this._outgoing.push({ json, chunkId, total, next: 0, onProgress, resolve, reject });
+      this._pumpOutgoing();
+    });
+  }
+
+  _pumpOutgoing() {
+    const dc = this._dataChannel;
+    if (!this.isChannelReady()) {
+      this._failOutgoing();
+      return;
+    }
+    while (this._outgoing.length > 0 && dc.bufferedAmount < BUFFER_HIGH) {
+      const job = this._outgoing[0];
       const envelope = JSON.stringify({
         type: 'chunk',
-        chunkId,
-        index: i,
-        total,
-        data: json.slice(i * SEND_CHUNK_SIZE, (i + 1) * SEND_CHUNK_SIZE),
+        chunkId: job.chunkId,
+        index: job.next,
+        total: job.total,
+        data: job.json.slice(job.next * SEND_CHUNK_SIZE, (job.next + 1) * SEND_CHUNK_SIZE),
       });
-      this._dataChannel.send(envelope);
+      try {
+        dc.send(envelope);
+      } catch (e) {
+        this._outgoing.shift();
+        job.reject(e);
+        continue;
+      }
+      job.next += 1;
+      job.onProgress?.(Math.min(job.next * SEND_CHUNK_SIZE, job.json.length), job.json.length);
+      if (job.next === job.total) {
+        this._outgoing.shift();
+        job.resolve();
+      }
     }
-    return true;
+    if (this._outgoing.length > 0) {
+      // Wait for the buffer to drain, then carry on.
+      dc.bufferedAmountLowThreshold = BUFFER_LOW;
+      dc.onbufferedamountlow = () => this._pumpOutgoing();
+    }
+  }
+
+  _failOutgoing() {
+    const jobs = this._outgoing.splice(0);
+    for (const job of jobs) job.reject(new Error('Data channel closed'));
   }
 
   Subscribe(name, method) {
@@ -414,6 +462,7 @@ class WebRTCManager {
     dc.onclose = () => {
       this._log('warn', 'Data channel closed');
       this.WebSocketReady = false;
+      this._failOutgoing();
     };
 
     dc.onerror = (e) => {

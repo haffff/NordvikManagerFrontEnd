@@ -3,8 +3,9 @@ import ProgressToastManager from "./ProgressToastManager";
 import UtilityHelper from "./UtilityHelper";
 
 /**
- * Uploads files as materials with one progress toast for the whole batch
- * ("3 / 5", the last file done, then success or how many failed).
+ * Uploads files as materials with one progress toast for the whole batch: the bar
+ * follows the bytes sent, the text names the file being sent (or the last one
+ * done), then success or how many failed.
  *
  * onUploaded(result, file) runs as each upload succeeds — result is the server's
  * new resource ({ id, key, ... }).
@@ -24,12 +25,30 @@ export function uploadMaterials(files, { onUploaded } = {}) {
     total,
   });
 
-  const report = (file, ok) =>
+  // Fraction sent per file; a file only counts as 1 once the server has answered.
+  const sent = new Map();
+  const current = () => uploaded.length + failed.length + [...sent.values()].reduce((a, b) => a + b, 0);
+
+  const report = (file, ok) => {
+    sent.delete(file);
     ProgressToastManager.update(opId, {
-      current: uploaded.length + failed.length,
+      current: current(),
       total,
       message: ok ? `Uploaded ${file.name}` : `Failed: ${file.name}`,
     });
+  };
+
+  // Called once per chunk sent; only updates the toast when a whole percent changes.
+  const progress = (file, fraction) => {
+    const percent = Math.floor(fraction * 100);
+    if (Math.floor((sent.get(file) ?? 0) * 100) === percent && sent.has(file)) return;
+    sent.set(file, Math.min(fraction, 0.99));
+    ProgressToastManager.update(opId, {
+      current: current(),
+      total,
+      message: `Uploading ${file.name} — ${percent}%`,
+    });
+  };
 
   const uploadOne = (file) =>
     new Promise((resolve) => {
@@ -48,7 +67,8 @@ export function uploadMaterials(files, { onUploaded } = {}) {
           resolve();
         },
         fail,
-        fail
+        fail,
+        (fraction) => progress(file, fraction)
       );
     });
 
