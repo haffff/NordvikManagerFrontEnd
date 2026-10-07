@@ -17,6 +17,7 @@ import MaterialsPanel from "../components/game/panels/MaterialsPanel";
 import PlaylistsPanel from "../components/game/panels/PlaylistsPanel";
 import PropertiesPanel from "../components/game/panels/PropertiesPanel";
 import SoundboardPanel from "../components/game/panels/SoundboardPanel";
+import TurnOrderPanel from "../components/game/panels/TurnOrderPanel";
 import ToolsPanel from "../components/game/panels/ToolsPanel/ToolsPanel";
 import CardSettingsPanel from "../components/game/settings/CardSettingsPanel";
 import GameSettingsPanel from "../components/game/settings/GameSettingsPanel";
@@ -51,6 +52,7 @@ export const PanelList = {
     MaterialsPanel: MaterialsPanel,
     PlaylistsPanel: PlaylistsPanel,
     SoundboardPanel: SoundboardPanel,
+    TurnOrderPanel: TurnOrderPanel,
 }
 
 // Reverse lookup: rendered component type -> stable PanelList key. Used when
