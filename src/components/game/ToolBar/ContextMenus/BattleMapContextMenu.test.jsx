@@ -1,5 +1,5 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { screen, fireEvent, waitFor } from '@testing-library/react';
+import { screen, fireEvent, waitFor, act } from '@testing-library/react';
 import { renderWithProviders } from '../../../../setupTests';
 
 vi.mock('../../../uiComponents/base/Subscribable', () => ({ default: () => null }));
@@ -78,5 +78,26 @@ describe('BattleMapContextMenu', () => {
 
     expect(await screen.findByText('Battle Map')).toBeInTheDocument();
     expect(screen.queryByText('Add')).not.toBeInTheDocument();
+  });
+
+  it('shows the options for a token selected after the menu last rendered', async () => {
+    // Selecting a token on the canvas doesn't re-render this component, so the
+    // selection has to be read when the menu opens, not when it last rendered.
+    let active = [];
+    const canvas = { ...canvasStub, getActiveObjects: () => active };
+    renderWithProviders(
+      <BattleMapContextMenu battleMapId="bm" canvas={canvas}>
+        <canvas data-testid="map" />
+      </BattleMapContextMenu>
+    );
+
+    // Let the component's own loading (maps, cards) settle first, so no later
+    // re-render picks the selection up by accident.
+    await act(async () => { await new Promise((r) => setTimeout(r, 0)); });
+
+    active = [{ id: 'tok-1', name: 'Inquisitor Vex', isToken: true, tokenData: {} }];
+    fireEvent.contextMenu(screen.getByTestId('map').closest('[data-part="context-trigger"]'));
+
+    expect(await screen.findByText('Inquisitor Vex')).toBeInTheDocument();
   });
 });

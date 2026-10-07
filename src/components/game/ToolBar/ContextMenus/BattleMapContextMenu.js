@@ -42,7 +42,9 @@ import { syncControlsVisibility } from "../../../BattleMap/Helpers/TokenControls
 import { SearchInput } from "../../../uiComponents/SearchInput";
 
 export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) => {
-  const selectedObjects = canvas?.getActiveObjects() || [];
+  // Read when the menu opens: selecting on the canvas doesn't re-render this component,
+  // so a value read at render time would still be the selection from before.
+  const [selectedObjects, setSelectedObjects] = React.useState(() => canvas?.getActiveObjects() || []);
   const { hasEntityPermission, isGM } = usePermissions();
 
   // Resolve the current map id for entity-level permission checks
@@ -316,6 +318,7 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
         if(canvas.contextMenuLock){
             d.open = false;
         }
+        if (d.open) setSelectedObjects(canvas?.getActiveObjects() || []);
     }}>
       <Subscribable commandPrefix="permission_update" onMessage={(msg) => {
         if (msg.data?.entityType !== 'ElementModel' || msg.data?.id !== selectedId) return;
