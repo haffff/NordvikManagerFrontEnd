@@ -173,6 +173,23 @@ describe('MainApp — GM auto-join from ?game= URL param', () => {
     expect(new URLSearchParams(window.location.search).has('game')).toBe(false);
   });
 
+  // A game deleted (or one you were removed from) used to answer 401, which sent the
+  // user to log in and then retried ?game= forever. Now: the server's message, no login.
+  it.each([
+    [404, 'This game no longer exists.'],
+    [403, 'You are not a player in this game.'],
+  ])('a %i shows the server message instead of asking to log in again', async (status, message) => {
+    window.history.replaceState({}, '', `/?game=${GAME_ID}`);
+    global.fetch = vi.fn().mockResolvedValue({ ok: false, status, json: () => Promise.resolve({ error: message }) });
+    const onAuthRequired = vi.fn();
+
+    renderWithProviders(<MainApp onAuthRequired={onAuthRequired} />);
+
+    expect(await screen.findByText(new RegExp(message.replace('.', '\.')))).toBeInTheDocument();
+    expect(onAuthRequired).not.toHaveBeenCalled();
+    expect(new URLSearchParams(window.location.search).has('game')).toBe(false);
+  });
+
   it('does NOT strip ?game= on a 500/transient failure so a reload can retry', async () => {
     window.history.replaceState({}, '', `/?game=${GAME_ID}`);
     global.fetch = vi.fn().mockResolvedValue({ ok: false, status: 500 });
