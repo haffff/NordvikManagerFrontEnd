@@ -2,6 +2,7 @@ import { ActiveWebHelper as WebHelper } from "./transport";
 import emptyImageDefault from "../assets/system/empty-image.svg";
 import emptyTokenImageDefault from "../assets/system/empty-token.svg";
 import emptyAvatarImageDefault from "../assets/system/empty-avatar.svg";
+import { applyVolume } from "./audioVolume";
 
 // Well-known per-game Resource keys (see MaterialsController Resource/CreateResource/
 // ResourceData). A GM can override any of these for their game by uploading a file
@@ -74,7 +75,9 @@ export async function playSystemSound(key) {
   try {
     const url = await resolveSystemAssetUrl(key);
     if (!url) return;
-    const audio = new Audio(url);
+    // System sounds (the chat message sound) follow the player's "notifications" volume.
+    const audio = applyVolume(new Audio(url), "notifications");
+    if (audio.volume === 0) return;
     audio.play()?.catch((e) => {
       console.warn(`[systemAssets] audio.play() blocked for "${key}":`, e?.message ?? e);
     });

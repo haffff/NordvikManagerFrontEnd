@@ -4,6 +4,7 @@ import Subscribable from "../uiComponents/base/Subscribable";
 import { usePermissions } from "../../contexts/PermissionsContext";
 import ClientMediator from "../../ClientMediator";
 import { SYSTEM_ASSET_KEYS, playSystemSound } from "../../helpers/systemAssets";
+import { applyVolume, onVolumeChange } from "../../helpers/audioVolume";
 import PlaylistService from "./PlaylistService";
 
 // Always-mounted singleton (see Game.js) that owns actual audio playback for the
@@ -56,8 +57,9 @@ export const PlaybackManager = () => {
     if (audio.src) URL.revokeObjectURL(audio.src);
   };
 
-  const buildTrackElement = (trackId, { loop, seekFromUtc, onEnded }) => {
-    const audio = new Audio();
+  // category: which of the player's volumes applies ("music" or "sounds").
+  const buildTrackElement = (trackId, { loop, seekFromUtc, onEnded, category = "music" }) => {
+    const audio = applyVolume(new Audio(), category);
     audio.__disposed = false;
     audio.loop = loop;
     if (onEnded) audio.addEventListener("ended", onEnded);
@@ -221,7 +223,7 @@ export const PlaybackManager = () => {
           safePlay(existing);
           break;
         }
-        const audio = buildTrackElement(data.resourceId, { loop: false });
+        const audio = buildTrackElement(data.resourceId, { loop: false, category: "sounds" });
         audio.addEventListener("ended", () => {
           if (audio.src) URL.revokeObjectURL(audio.src);
           delete soundsRef.current[data.resourceId];
@@ -250,6 +252,17 @@ export const PlaybackManager = () => {
     if (event?.playerId !== undefined && event.playerId === currentPlayerIdRef.current) return;
     playSystemSound(SYSTEM_ASSET_KEYS.CHAT_MESSAGE_SOUND);
   }, []);
+
+  // The player changed a volume in Player Settings: apply it to what's playing now.
+  React.useEffect(() => onVolumeChange((category, volume) => {
+    const playing = [
+      ...Object.values(playlistsRef.current).flatMap((entry) => Object.values(entry.elements)),
+      ...Object.values(soundsRef.current),
+    ];
+    playing.forEach((audio) => {
+      if (audio?.__volumeCategory === category) audio.volume = volume;
+    });
+  }), []);
 
   // Resync on mount — pick up any playlists already playing when this client (re)connects.
   React.useEffect(() => {

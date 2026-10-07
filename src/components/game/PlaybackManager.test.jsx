@@ -293,3 +293,30 @@ describe('PlaybackManager — chat notification sound', () => {
     expect(playSystemSoundMock).toHaveBeenCalledWith('chat_message_sound');
   });
 });
+
+describe("PlaybackManager — the player's volume", () => {
+  beforeEach(() => localStorage.clear());
+
+  it('plays music and sound effects at their own volumes', async () => {
+    const { setVolume } = await import('../../helpers/audioVolume');
+    setVolume('music', 0.3);
+    setVolume('sounds', 0.6);
+    await mount();
+
+    subscriptions.playlist({ command: 'playlist_play', data: { playlistId: 'p1', mode: 0, trackOrder: ['t1'], currentTrackIndex: 0, repeat: false } });
+    subscriptions.sound({ command: 'sound_play', data: { resourceId: 'r1' } });
+
+    expect(FakeAudio.instances.map((a) => a.volume)).toEqual([0.3, 0.6]);
+  });
+
+  it('changing a volume applies to what is already playing, of that kind only', async () => {
+    const { setVolume } = await import('../../helpers/audioVolume');
+    await mount();
+    subscriptions.playlist({ command: 'playlist_play', data: { playlistId: 'p1', mode: 0, trackOrder: ['t1'], currentTrackIndex: 0, repeat: false } });
+    subscriptions.sound({ command: 'sound_play', data: { resourceId: 'r1' } });
+
+    setVolume('music', 0.1);
+
+    expect(FakeAudio.instances.map((a) => a.volume)).toEqual([0.1, 1]);
+  });
+});
