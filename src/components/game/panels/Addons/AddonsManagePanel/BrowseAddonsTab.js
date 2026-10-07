@@ -31,12 +31,8 @@ export const BrowseAddonsTab = ({ repository, addons, handleReload, loading }) =
       const { status, body } = await WebHelper.postAsync("addon/install", { key: addon.key });
       if (status >= 200 && status < 300 && body?.operationId) {
         const opId = body.operationId;
-        ProgressToastManager.start(opId, { title: `Installing "${addon.name}"…` });
-        const timeout = 10 * 60 * 1000;
-        Promise.race([
-          ClientMediator.waitForEvent("Progress:Complete", (d) => d?.id === opId, timeout),
-          ClientMediator.waitForEvent("Progress:Failed", (d) => d?.id === opId, timeout).then(() => { throw new Error("install failed"); }),
-        ]).then(() => handleReload()).catch(() => {});
+        ProgressToastManager.track(opId, { title: `Installing "${addon.name}"…` })
+          .then(() => handleReload()).catch(() => {});
       } else {
         toaster.create({ title: "Installation failed", type: "error", duration: 6000 });
         if (body) {
