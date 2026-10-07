@@ -113,3 +113,45 @@ describe('BMService.CleanPreviews', () => {
     });
   });
 });
+
+describe('BMService.FocusElement', () => {
+  const canvasWith = (objects) => ({
+    getObjects: () => objects,
+    getZoom: () => 2,
+    getWidth: () => 800,
+    getHeight: () => 600,
+    viewportTransform: [2, 0, 0, 2, 0, 0],
+    setViewportTransform: vi.fn(function (vpt) { this.viewportTransform = vpt; }),
+    setActiveObject: vi.fn(),
+    requestRenderAll: vi.fn(),
+  });
+
+  it("centres the view on the element and selects it when it's selectable", () => {
+    const service = new BMService();
+    const token = { id: 't1', selectable: true, getCenterPoint: () => ({ x: 100, y: 50 }) };
+    service._canvas = canvasWith([token]);
+
+    service.FocusElement({ elementId: 't1' });
+
+    // screen centre (400, 300) = element centre (100, 50) * zoom 2 + pan
+    expect(service._canvas.setViewportTransform).toHaveBeenCalledWith([2, 0, 0, 2, 200, 200]);
+    expect(service._canvas.setActiveObject).toHaveBeenCalledWith(token);
+  });
+
+  it("only centres on an element the player can't select", () => {
+    const service = new BMService();
+    service._canvas = canvasWith([{ id: 't1', selectable: false, getCenterPoint: () => ({ x: 0, y: 0 }) }]);
+
+    service.FocusElement({ elementId: 't1' });
+
+    expect(service._canvas.setViewportTransform).toHaveBeenCalled();
+    expect(service._canvas.setActiveObject).not.toHaveBeenCalled();
+  });
+
+  it('reports an element that is not on this map', () => {
+    const service = new BMService();
+    service._canvas = canvasWith([]);
+
+    expect(service.FocusElement({ elementId: 'nope' })).toMatch(/not on this map/);
+  });
+});

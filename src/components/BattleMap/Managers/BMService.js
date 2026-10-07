@@ -38,6 +38,10 @@ class BMService {
         description: 'Deletes all currently selected objects from the map.',
         args: [],
       },
+      FocusElement: {
+        description: 'Centres the view on an element (e.g. a token) and selects it if this player may.',
+        args: [{ name: 'elementId', type: 'string', required: true }],
+      },
       ReloadBattleMapComponent: {
         description: 'Fully reloads the BattleMap component (e.g. after a map change).',
         args: [],
@@ -226,6 +230,23 @@ class BMService {
         WebSocketManagerInstance.Send(cmd);
       });
     }
+  }
+
+  // Centres the view on an element, keeping the zoom; selects it only if this player
+  // may (a token they can't control stays unselected).
+  FocusElement({ elementId } = {}) {
+    const canvas = this._canvas;
+    const element = canvas?.getObjects().find((o) => o.id === elementId);
+    if (!element) return `Element ${elementId} is not on this map`;
+
+    const centre = element.getCenterPoint();
+    const zoom = canvas.getZoom();
+    const vpt = [...canvas.viewportTransform];
+    vpt[4] = canvas.getWidth() / 2 - centre.x * zoom;
+    vpt[5] = canvas.getHeight() / 2 - centre.y * zoom;
+    canvas.setViewportTransform(vpt);
+    if (element.selectable) canvas.setActiveObject(element);
+    canvas.requestRenderAll();
   }
 
   SortLayers() {
