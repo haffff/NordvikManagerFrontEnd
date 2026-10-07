@@ -46,6 +46,14 @@ export const CreateNewDialog = ({ OnSuccess, publicGamesAllowed = true }) => {
 
   const set = (field, value) => setForm((f) => ({ ...f, [field]: value }));
 
+  // Until the GM changes the ticks, the built-in add-ons (shipped with the
+  // server, e.g. Basics) are the selection.
+  const addonsSelected = form.addonsSelected ?? addons.filter((a) => a.builtIn).map((a) => a.key);
+  const toggleAddon = (key, checked) =>
+    set("addonsSelected", checked
+      ? [...addonsSelected.filter((x) => x !== key), key]
+      : addonsSelected.filter((x) => x !== key));
+
   const handleOpen = () => {
     setForm(EMPTY_FORM(publicGamesAllowed));
     setError(null);
@@ -58,7 +66,7 @@ export const CreateNewDialog = ({ OnSuccess, publicGamesAllowed = true }) => {
     setError(null);
     WebHelper.post(
       "gamelist/addgame",
-      form,
+      { ...form, addonsSelected },
       (obj) => { setBusy(false); OnSuccess(obj); setOpen(false); },
       async (resp) => {
         setBusy(false);
@@ -214,16 +222,14 @@ export const CreateNewDialog = ({ OnSuccess, publicGamesAllowed = true }) => {
                       {addons.map((addon) => (
                         <HStack key={addon.id}>
                           <Checkbox
-                            onChange={(e) => {
-                              const current = form.addonsSelected ?? [];
-                              set("addonsSelected", e.target.checked
-                                ? [...current, addon.key]
-                                : current.filter((x) => x !== addon.key)
-                              );
-                            }}
+                            checked={addonsSelected.includes(addon.key)}
+                            onCheckedChange={(e) => toggleAddon(addon.key, !!e.checked)}
                           >
                             <Text fontSize="sm">
                               {addon.name}
+                              {addon.builtIn && (
+                                <Text as="span" fontSize="xs" color="gray.400"> (built-in)</Text>
+                              )}
                               {addon.description && (
                                 <Text as="span" color="gray.400"> — {addon.description}</Text>
                               )}
