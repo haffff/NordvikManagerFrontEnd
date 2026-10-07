@@ -1,6 +1,6 @@
 import React from 'react';
 import { screen, fireEvent } from '@testing-library/react';
-import { vi, describe, it, expect } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { renderWithProviders } from '../../../setupTests';
 
 vi.mock('../../../helpers/transport', () => ({
@@ -49,4 +49,29 @@ describe('EditTable validation marking', () => {
 
     expect(input.getAttribute('aria-invalid')).toBe('true');
   });
+
+// Object.groupBy is ES2024: missing in Node 20 (CI) and older browsers, where
+// EditTable threw "Object.groupBy is not a function" on render.
+describe('EditTable without Object.groupBy', () => {
+  let groupBy;
+  beforeEach(() => {
+    groupBy = Object.groupBy;
+    delete Object.groupBy;
+  });
+  afterEach(() => {
+    Object.groupBy = groupBy;
+  });
+
+  it('still renders its fields', () => {
+    renderWithProviders(
+      <EditTable
+        dto={{ name: 'start' }}
+        editableKeyLabelDict={[{ key: 'name', label: 'Name', type: 'string' }]}
+        onSave={vi.fn()}
+      />
+    );
+
+    expect(screen.getByDisplayValue('start')).toBeTruthy();
+  });
+});
 });

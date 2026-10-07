@@ -323,10 +323,9 @@ export const EditTable = ({
   //     return map;
   // }
 
-  const getGroupless = () => {
-    let grouped = Object.groupBy(mappedItems, (x) => x.category);
-    return grouped["default"] ? grouped["default"].map((x) => x.value) : [];
-  };
+  // A plain filter, not Object.groupBy: that's ES2024 and missing in Node 20 and older browsers.
+  const getGroupless = () =>
+    mappedItems.filter((x) => x.category === "default").map((x) => x.value);
   let mappedItems = PrepareItems();
   let groupless = getGroupless();
 
