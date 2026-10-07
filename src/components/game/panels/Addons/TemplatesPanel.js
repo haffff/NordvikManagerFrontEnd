@@ -30,7 +30,14 @@ import themeColors from "../../../../helpers/themeColors";
 
 const EDITABLE_DICT = [
   { key: "name", label: "UI Name", type: "string" },
-  { key: "description", label: "Description", type: "textarea" },  {
+  { key: "description", label: "Description", type: "textarea" },
+  {
+    key: "isHidden",
+    label: "Hidden",
+    type: "boolean",
+    toolTip: "Leave this template out of template lists (it stays usable by id and name, e.g. from actions).",
+  },
+  {
     key: "mainResource",
     label: "Main Resource (HTML)",
     type: "materialSelect",
@@ -59,6 +66,11 @@ const TemplateCard = React.memo(({ template, isSelected, onSelect, onDelete }) =
     onClick={() => onSelect(template)}
   >
     <DLabel>{template.name}</DLabel>
+    {template.isHidden && (
+      <Text fontSize="2xs" color="fg.muted" ml={1} title="Left out of template lists">
+        hidden
+      </Text>
+    )}
     <DListItemsButtonContainer>
       <DListItemButton
         icon={FaMinus}

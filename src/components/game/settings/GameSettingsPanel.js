@@ -1,4 +1,5 @@
 import * as React from "react";
+import { pickableTemplates } from "../../../helpers/pickableTemplates";
 import {
   Heading,
   Tabs,
@@ -120,7 +121,7 @@ export const GameSettingsPanel = () => {
       type: "select",
       options: [
         { label: "None" },
-        ...templates.map((x) => {
+        ...pickableTemplates(templates).map((x) => {
           return { value: x.id, label: x.name };
         }),
       ],

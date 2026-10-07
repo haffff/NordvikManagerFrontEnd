@@ -35,8 +35,13 @@ vi.mock('./SystemAssetsSettingsPanel', () => ({ default: () => null }));
 vi.mock('./SecuritySettingsPanel', () => ({ default: () => null }));
 vi.mock('./PropertiesSettingsPanel', () => ({ default: () => null }));
 vi.mock('../../uiComponents/base/BasePanel', () => ({ BasePanel: ({ children }) => <div>{children}</div> }));
+const { settingsProps } = vi.hoisted(() => ({ settingsProps: { latest: [] } }));
 vi.mock('./SettingsPanelWithPropertySettings', () => ({
-  SettingsPanelWithPropertySettings: ({ dto }) => <div data-testid="settings-name">{dto?.name}</div>,
+  SettingsPanelWithPropertySettings: (props) => {
+    // Latest props per panel instance (by its dictionary's first key), not a growing log.
+    settingsProps.latest = [...settingsProps.latest.filter((p) => p.editableKeyLabelDict?.[0]?.key !== props.editableKeyLabelDict?.[0]?.key), props];
+    return <div data-testid="settings-name">{props.dto?.name}</div>;
+  },
 }));
 
 // Bypass Chakra's real tab-switching/lazyMount machinery entirely — this test
@@ -55,6 +60,7 @@ vi.mock('@chakra-ui/react', async (importOriginal) => {
 });
 
 import { GameSettingsPanel } from './GameSettingsPanel';
+import { ActiveWebHelper } from '../../../helpers/transport';
 
 // Regression coverage: updateSettings used to mutate gameData in place
 // (gameData.name = event.data.name) with no setter call, so it never triggered a
@@ -74,5 +80,23 @@ describe('GameSettingsPanel — reflects settings_game broadcasts', () => {
     const nameNodes = screen.getAllByTestId('settings-name');
     expect(nameNodes.length).toBeGreaterThan(0);
     nameNodes.forEach((node) => expect(node).toHaveTextContent('Game One (renamed)'));
+  });
+
+  // The default character sheet picker doesn't offer hidden templates.
+  it('the character sheet template picker leaves out hidden templates', async () => {
+    // Answered asynchronously, like the real request.
+    ActiveWebHelper.get.mockImplementation((url, ok) => {
+      if (url === 'materials/gettemplatesfull') setTimeout(() => ok([{ id: 't1', name: 'Sheet' }, { id: 't2', name: 'Internal', isHidden: true }]), 0);
+    });
+    settingsProps.latest = [];
+
+    renderWithProviders(<GameSettingsPanel />);
+
+    const picker = () => settingsProps.latest
+      .flatMap((p) => p.editableKeyLabelDict ?? [])
+      .filter((e) => e.key === 'characterSheetTemplate')
+      .at(-1);
+    await vi.waitFor(() => expect(picker()?.options.map((o) => o.label)).toContain('Sheet'));
+    expect(picker().options.map((o) => o.label)).not.toContain('Internal');
   });
 });

@@ -11,8 +11,12 @@ vi.mock('../../../uiComponents/base/CollectionSyncer', () => ({
 vi.mock('../../../uiComponents/base/Subscribable', () => ({ default: () => null }));
 vi.mock('../../../uiComponents/base/BasePanel', () => ({ BasePanel: ({ children }) => <div>{children}</div> }));
 vi.mock('../../../uiComponents/base/Modals/InputModal', () => ({ default: () => null }));
+const { editorProps } = vi.hoisted(() => ({ editorProps: {} }));
 vi.mock('../../settings/SettingsPanelWithPropertySettings', () => ({
-  SettingsPanelWithPropertySettings: ({ dto }) => <div data-testid="settings">Editing {dto.name}</div>,
+  SettingsPanelWithPropertySettings: (props) => {
+    Object.assign(editorProps, props);
+    return <div data-testid="settings">Editing {props.dto.name}</div>;
+  },
 }));
 vi.mock('@hlorenzi/react-dockable', () => ({
   useContentContext: () => ({ setTitle: vi.fn() }),
@@ -26,7 +30,7 @@ vi.mock('../../../../ClientMediator', () => ({
 
 const views = [
   { id: 'v1', name: 'Initiative tracker' },
-  { id: 'v2', name: 'Loot table' },
+  { id: 'v2', name: 'Loot table', isHidden: true },
 ]; // template names reuse the same fixtures
 const tree = [
   { id: 'f-ui', isFolder: true, name: 'Combat UI', head: true, next: 'e-v2', entryType: 'CardTemplate' },
@@ -82,5 +86,21 @@ describe('TemplatesPanel folder tree', () => {
     const before = treeRequests().length;
     act(() => syncerProps.onAdd?.({ id: 'v3', name: 'New Template' }));
     await waitFor(() => expect(treeRequests().length).toBeGreaterThan(before));
+  });
+
+  // Hidden templates are left out of pickers but still managed here.
+  it('marks hidden templates', async () => {
+    renderWithProviders(<TemplatesPanel />);
+    await screen.findByText('Loot table');
+
+    expect(screen.getByText('hidden')).toBeInTheDocument();
+  });
+
+  it('the template editor has a Hidden switch', async () => {
+    renderWithProviders(<TemplatesPanel />);
+    fireEvent.click(await screen.findByText('Loot table'));
+    await screen.findByTestId('settings');
+
+    expect(editorProps.editableKeyLabelDict).toContainEqual(expect.objectContaining({ key: 'isHidden', type: 'boolean' }));
   });
 });
