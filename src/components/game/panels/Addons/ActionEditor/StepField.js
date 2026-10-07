@@ -14,9 +14,19 @@ import { T } from "./editorTheme";
 // still type an id or a %variable% instead.
 const PICKER_TYPES = new Set(["audioresourceid", "resourceid", "playlistid", "mapid", "playerid", "layoutid"]);
 
+// Arg types with a fixed set of choices (still typeable, e.g. as a %variable%).
+const FIXED_OPTIONS = {
+  // Get Data's Type — the backend accepts these or "MapModel" etc.
+  entitytype: ["Map", "Card", "Layout", "Action", "Element", "Property"].map((v) => ({ value: v, label: v })),
+};
+
 const usePickerOptions = (type) => {
-  const [options, setOptions] = React.useState([]);
+  const [options, setOptions] = React.useState(() => FIXED_OPTIONS[type] ?? []);
   React.useEffect(() => {
+    if (FIXED_OPTIONS[type]) {
+      setOptions(FIXED_OPTIONS[type]);
+      return undefined;
+    }
     if (!PICKER_TYPES.has(type)) return undefined;
     let cancelled = false;
     CommandExecutionHelper.GetArgCompletions(type)
@@ -75,7 +85,7 @@ export const StepField = ({ arg, value, onChange, onBlur, variables, knownNames,
   }
 
   const isAction = type === "action";
-  const isPicker = PICKER_TYPES.has(type);
+  const isPicker = PICKER_TYPES.has(type) || Boolean(FIXED_OPTIONS[type]);
   const multiline = type === "textarea";
 
   return (
@@ -91,7 +101,7 @@ export const StepField = ({ arg, value, onChange, onBlur, variables, knownNames,
         options={isAction ? actionOptions : pickerOptions}
         variables={variables}
         knownNames={knownNames}
-        placeholder={isAction ? "prefix/name" : isPicker ? "pick one, or type an id / %variable%" : undefined}
+        placeholder={isAction ? "prefix/name" : FIXED_OPTIONS[type] ? "pick one, or type a %variable%" : isPicker ? "pick one, or type an id / %variable%" : undefined}
       />
       <Help>
         {arg.deferred && !isAction ? "Filled in by the step itself. " : ""}
