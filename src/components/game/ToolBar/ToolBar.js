@@ -8,7 +8,6 @@ export const ToolBar = ({ children }) => {
     return (
         <HStack
             className="nm_toolbar"
-            margin={'10px'}
             bg={themeColors.toolbar}
             minWidth="100vh"
             // Valid values only: as a Chakra prop an invalid one (e.g. "left") replaces
