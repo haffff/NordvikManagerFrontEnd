@@ -42,6 +42,9 @@ export default defineConfig(({ mode }) => {
       globals: true,
       environment: 'jsdom',
       setupFiles: ['./src/setupTests.js'],
+      // Vitest blanks CSS files unless listed here; helpers/cardAppStyles.js
+      // reads these two as text (?raw) and its tests check that text.
+      css: { include: [/stylesheets[\\/](panel|card-base)\.css/] },
       server: {
         deps: {
           // Force ESM processing for styled-components and the dockable library

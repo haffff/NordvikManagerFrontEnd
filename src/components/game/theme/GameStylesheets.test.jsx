@@ -2,6 +2,7 @@ import { act, render, waitFor } from '@testing-library/react';
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { GameStylesheets, PERSONAL_STYLESHEETS_CHANGED } from './GameStylesheets';
 import { invalidateCssMaterial, setPersonalStylesheets } from '../../../helpers/customStyles';
+import { appliedGameCss } from '../../../helpers/cardAppStyles';
 
 const subscriptions = new Map();
 const gameProps = { current: [] };
@@ -21,7 +22,7 @@ vi.mock('../../../helpers/transport', () => ({
 // jsdom has no constructable stylesheets or adoptedStyleSheets.
 class FakeSheet {
   cssRules = [];
-  replaceSync(text) { this.text = text; }
+  replaceSync(text) { this.text = text; this.cssRules = [{ cssText: text }]; }
 }
 
 const appliedTexts = () => document.adoptedStyleSheets.map((s) => s.text);
@@ -69,5 +70,14 @@ describe('GameStylesheets', () => {
     await waitFor(() => expect(appliedTexts()).toHaveLength(2));
     unmount();
     expect(document.adoptedStyleSheets).toEqual([]);
+  });
+
+  it('publishes the CSS it applied, for cards that use the app styles, and clears it when the game closes', async () => {
+    setPersonalStylesheets('game-1', ['mine']);
+    const { unmount } = render(<GameStylesheets gameId="game-1" />);
+
+    await waitFor(() => expect(appliedGameCss()).toBe(['.a{}', '.b{}', '.c{}'].join('\n')));
+    unmount();
+    expect(appliedGameCss()).toBe('');
   });
 });

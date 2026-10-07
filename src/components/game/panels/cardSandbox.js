@@ -247,6 +247,22 @@ export const SANDBOX_BRIDGE_SCRIPT = `<script>
         break;
       }
 
+      case 'APP_STYLES':
+        // The app's styles for a card that opts into them changed (the game's
+        // theme). Only ever text in a <style>, never parsed as HTML.
+        for (const [id, css] of [['nm-app-base', msg.base], ['nm-app-theme', msg.theme]]) {
+          const current = document.getElementById(id);
+          if (!current || typeof css !== 'string') continue;
+          let style = current;
+          if (current.tagName !== 'STYLE') {
+            style = document.createElement('style');
+            style.id = id;
+            current.replaceWith(style);
+          }
+          style.textContent = css;
+        }
+        break;
+
       case 'WS_EVENT':
         for (const cb of _wsSubscriptions) {
           try { cb({ command: msg.command, data: msg.data }); }

@@ -7,6 +7,7 @@ import { ActiveTransportManager as WebSocketManagerInstance } from "../../../hel
 import { SANDBOX_BRIDGE_SCRIPT } from "./cardSandbox";
 import CardAPIFactory from "../../../CardAPI";
 import DockableHelper from "../../../helpers/DockableHelper";
+import { baseCardCss, cardStyleLinks, onGameCssChange } from "../../../helpers/cardAppStyles";
 
 // ─── postMessage bridge ───────────────────────────────────────────────────────
 
@@ -288,11 +289,14 @@ function mountBridge(iframe, cardApi, cardId, additionalArguments, onClosePanel)
   const hostWindow = iframe.ownerDocument?.defaultView ?? window;
   hostWindow.addEventListener("message", onMessage);
 
-  return () => {
+  const cleanup = () => {
     hostWindow.removeEventListener("message", onMessage);
     WebSocketManagerInstance.Unsubscribe(wsSubKey);
     cardApi.destroy();
   };
+  // For the panel's own messages to the page (queued until it's ready).
+  cleanup.post = post;
+  return cleanup;
 }
 
 // ─── CardPanel ────────────────────────────────────────────────────────────────
@@ -320,7 +324,7 @@ export const CardPanel = ({ id, name, data }) => {
       const [response, properties] = await Promise.all([
         WebHelper.getAsync("materials/getcard?id=" + id),
         WebHelper.getAsync(
-          "properties/QueryProperties?parentIds=" + id + "&names=additionalArguments"
+          "properties/QueryProperties?parentIds=" + id + "&names=additionalArguments,app_styles"
         ),
       ]);
 
@@ -332,7 +336,11 @@ export const CardPanel = ({ id, name, data }) => {
       // stored on the card itself and would be shared/racy across concurrent opens of
       // the same shared view-card (e.g. two players opening the same addon-installed
       // "item_creator" view at once with different context).
-      const additionalArguments = data ?? (properties?.[0]?.value ?? null);
+      const propertyValue = (name) => (properties ?? []).find((p) => p?.name === name)?.value;
+      const additionalArguments = data ?? (propertyValue("additionalArguments") ?? null);
+      // The template opted into the app's styles: its --nordvik-* variables and nm_
+      // classes before the card's CSS, the game's theme after (helpers/cardAppStyles).
+      const appStyles = propertyValue("app_styles") === "true";
 
       // 2. Fetch main resource metadata.
       //    The main resource is ALWAYS text/html.
@@ -417,10 +425,11 @@ export const CardPanel = ({ id, name, data }) => {
         .join("\n");
 
       // Inject inline CSS into <head>
-      let iframeHtml = cssStyles
+      const headCss = appStyles ? cardStyleLinks(cssStyles) : cssStyles;
+      let iframeHtml = headCss
         ? rebasedHtml.includes("</head>")
-          ? rebasedHtml.replace("</head>", cssStyles + "\n</head>")
-          : rebasedHtml.replace("<body", cssStyles + "\n<body")
+          ? rebasedHtml.replace("</head>", headCss + "\n</head>")
+          : rebasedHtml.replace("<body", headCss + "\n<body")
         : rebasedHtml;
 
       // Inject bridge + JS scripts before </body> (append if tag absent)
@@ -460,7 +469,15 @@ export const CardPanel = ({ id, name, data }) => {
         );
         globalState.commit();
       };
-      cleanupRef.current = mountBridge(iframe, cardApi, id, additionalArguments, closePanel);
+      const bridge = mountBridge(iframe, cardApi, id, additionalArguments, closePanel);
+      // The theme (or its colours) changed while the card is open: restyle it in place.
+      const stopStyles = appStyles
+        ? onGameCssChange((theme) => bridge.post({ type: "APP_STYLES", base: baseCardCss(), theme }))
+        : null;
+      cleanupRef.current = () => {
+        stopStyles?.();
+        bridge();
+      };
 
       // Do NOT revoke the blob URL in onload — when the dockable panel is
       // moved in the DOM the browser resets the iframe and re-navigates to

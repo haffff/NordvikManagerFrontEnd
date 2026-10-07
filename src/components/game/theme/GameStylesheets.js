@@ -10,6 +10,7 @@ import {
   loadCssMaterial,
   parseStylesheetList,
 } from "../../../helpers/customStyles";
+import { setAppliedGameCss, sheetText } from "../../../helpers/cardAppStyles";
 
 // Fired on window when this player changes their own stylesheets (they live
 // in this browser, so there's no server broadcast for them).
@@ -83,6 +84,8 @@ export const GameStylesheets = ({ gameId }) => {
       const others = document.adoptedStyleSheets.filter((s) => !appliedRef.current.includes(s));
       document.adoptedStyleSheets = [...others, ...sheets];
       appliedRef.current = sheets;
+      // Cards that use the app's styles get the same (sanitised) CSS.
+      setAppliedGameCss(sheets.map(sheetText).join("\n"));
     });
     return () => { cancelled = true; };
   }, [gmIds, personalIds, reloadToken, disabled]);
@@ -91,6 +94,7 @@ export const GameStylesheets = ({ gameId }) => {
     if (typeof document === "undefined" || !("adoptedStyleSheets" in document)) return;
     document.adoptedStyleSheets = document.adoptedStyleSheets.filter((s) => !appliedRef.current.includes(s));
     appliedRef.current = [];
+    setAppliedGameCss("");
   }, []);
 
   return null;

@@ -1,0 +1,53 @@
+/* The base look of a card page that opts into the app's styles (template
+   property app_styles = "true"; see helpers/cardAppStyles.js). It's injected
+   with panel.css and the current --nordvik-* values before the card's own CSS,
+   and the game's theme comes after it. nm_label, nm_container and nm_button are
+   styled with Chakra in the app; these are plain-CSS equivalents. */
+html,
+body {
+  margin: 0;
+  height: 100%;
+}
+
+body {
+  background: var(--nordvik-background-color);
+  color: var(--nordvik-text-color);
+  font-family: var(--nordvik-font, system-ui, sans-serif);
+  font-size: 14px;
+}
+
+a {
+  color: var(--nordvik-accent-blue, rgb(100,150,230));
+}
+
+.nm_label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--nordvik-text-soft, rgb(200,200,200));
+}
+
+.nm_container {
+  box-sizing: border-box;
+  padding: 8px;
+  border: 1px solid var(--nordvik-border, rgb(65,65,65));
+  border-radius: 6px;
+  background: var(--nordvik-surface, rgb(38,38,38));
+}
+
+.nm_button {
+  padding: 4px 10px;
+  border: 1px solid var(--nordvik-button-border-color);
+  border-radius: 4px;
+  background: var(--nordvik-button-color);
+  color: var(--nordvik-text-color);
+  font: inherit;
+  cursor: pointer;
+}
+
+.nm_button:hover {
+  background: var(--nordvik-button-color-hover);
+}
+
+.nm_button:active {
+  background: var(--nordvik-button-color-active);
+}
