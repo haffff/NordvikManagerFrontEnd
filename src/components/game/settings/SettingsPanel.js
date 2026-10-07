@@ -125,7 +125,7 @@ const buildInput = (editable, key, value, validationError, disabled, OnChange) =
           )}
           <NumberInputRoot
             disabled={disabled}
-            isInvalid={!!validationError}
+            invalid={!!validationError}
             defaultValue={value}
             min={editable.min}
             max={editable.max}
@@ -184,8 +184,8 @@ const buildInput = (editable, key, value, validationError, disabled, OnChange) =
     case "textarea":
       return (
         <Textarea
-          isDisabled={disabled}
-          isInvalid={!!validationError}
+          disabled={disabled}
+          aria-invalid={!!validationError}
           defaultValue={value}
           onChange={(e) => OnChange(key, e.target.value)}
         />

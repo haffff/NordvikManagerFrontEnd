@@ -49,10 +49,12 @@ const getIconByMimeType = (mimeType) => {
   return FaFile;
 };
 
-// The selected materials in the order of the given ids (the order matters when
-// orderable, e.g. stylesheets where later ones win).
-const inOrder = (materials, ids) =>
-  ids.map((id) => materials.find((x) => x.id === id)).filter(Boolean);
+// The selected materials in the order of the given values (the order matters when
+// orderable, e.g. stylesheets where later ones win). A value is a resource id, or its
+// key: addon templates point at their resources by key (a card's "token" property,
+// for one), which the code using them accepts too.
+const inOrder = (materials, values) =>
+  values.map((v) => materials.find((x) => x.id === v) ?? materials.find((x) => x.key && x.key === v)).filter(Boolean);
 
 // ─── SelectedChip — one chosen material ───────────────────────────────────────
 
@@ -72,7 +74,8 @@ const SelectedChip = React.memo(({ material, isDisabled, onRemove, onMove, isFir
           </>
         )}
         <DListItemButton
-          isDisabled={isDisabled}
+          disabled={isDisabled}
+          label={`Remove ${material.name}`}
           icon={FaMinus}
           color="red"
           onClick={() => onRemove(material.id)}
@@ -326,8 +329,8 @@ export const MaterialChooser = ({
         commandPrefix="resource"
       />
 
-      {/* Selected items */}
-      {selectedMaterials.length > 0 && (
+      {/* Selected items — only while the picker is closed; open, its checkboxes show the selection */}
+      {!showPicker && selectedMaterials.length > 0 && (
         <Box mb={2}>
           {selectedMaterials.map((mat, index) => (
             <SelectedChip

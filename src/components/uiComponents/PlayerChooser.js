@@ -18,7 +18,8 @@ const SelectedChip = React.memo(({ player, isDisabled, onRemove }) => (
     </Flex>
     <DListItemsButtonContainer>
       <DListItemButton
-        isDisabled={isDisabled}
+        disabled={isDisabled}
+        label={`Remove ${player.name}`}
         icon={FaMinus}
         color="red"
         onClick={() => onRemove(player.id)}

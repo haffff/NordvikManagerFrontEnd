@@ -57,4 +57,31 @@ describe('MaterialChooser', () => {
 
     expect(screen.queryByRole('button', { name: 'Move up' })).toBeNull();
   });
+
+  // Both the list of chosen items and the checkboxes in the picker marked the same
+  // selection. The list now shows only while the picker is closed.
+  it('chosen items show while the picker is closed, not while it is open', async () => {
+    renderWithProviders(<MaterialChooser multipleSelection materialsSelected={['a']} />);
+    await waitFor(() => expect(screen.getByRole('button', { name: 'Remove base.css' })).toBeTruthy());
+
+    await userEvent.click(screen.getByRole('button', { name: /change/i }));
+    expect(screen.queryByRole('button', { name: 'Remove base.css' })).toBeNull();
+
+    await userEvent.click(screen.getByRole('button', { name: 'Close' }));
+    expect(screen.getByRole('button', { name: 'Remove base.css' })).toBeTruthy();
+  });
+
+  // Addon templates point at their resources by key (e.g. a card's "token" property is
+  // "roll20compat_token_generic.json"), which the token code accepts; the chooser only
+  // matched ids, so the card's token showed as not selected.
+  it('shows a material selected by its key', async () => {
+    ActiveWebHelper.getAsync.mockResolvedValue([
+      ...MATERIALS,
+      { id: 't', name: 'token_generic.json', key: 'roll20compat_token_generic.json', mimeType: 'application/json' },
+    ]);
+
+    renderWithProviders(<MaterialChooser materialsSelected="roll20compat_token_generic.json" />);
+
+    expect(await screen.findByRole('button', { name: 'Remove token_generic.json' })).toBeTruthy();
+  });
 });

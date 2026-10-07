@@ -9,14 +9,16 @@ export const LoginPanel = ({ OnSuccess, onRegister }) => {
     const [error, setError] = React.useState(false);
     const [loginForm, setLoginForm] = React.useState({});
     const onFormSubmit = () => {
+        setisLogging(true);
         WebHelper.post("User/login", 
         loginForm, 
         (result) => 
         {
+            setisLogging(false);
             OnSuccess();
         }, 
-        (result) => { setError(true)}, 
-        () => {toaster.create(UtilityHelper.GenerateConnectionErrorToast());})
+        (result) => { setisLogging(false); setError(true)}, 
+        () => { setisLogging(false); toaster.create(UtilityHelper.GenerateConnectionErrorToast());})
     }
 
     return (
@@ -26,7 +28,7 @@ export const LoginPanel = ({ OnSuccess, onRegister }) => {
                 <Input placeholder="Login" size="md" onInput={(input) => setLoginForm({ ...loginForm, UserName: input.target.value })} />
                 <Heading as="h6" size="xs">Password</Heading>
                 <Input pr="4.5rem" type="password" placeholder="Enter password" onInput={(input) => setLoginForm({ ...loginForm, password: input.target.value })} borderColor={error ? "tomato" : "gray.200"}/>
-                <Button variant={'outline'} isLoading={isLogging} onClick={onFormSubmit}>
+                <Button variant={'outline'} loading={isLogging} onClick={onFormSubmit}>
                     Login
                 </Button>
                 {onRegister && (

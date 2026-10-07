@@ -80,8 +80,9 @@ export const EditTable = ({
       }
     });
 
+    // Always replaced, so a field that was invalid is unmarked once it's fixed.
+    setValidationDict(validationResult);
     if (Object.keys(validationResult).length > 0) {
-      setValidationDict(validationResult);
       return false;
     }
 
@@ -118,7 +119,7 @@ export const EditTable = ({
               <LabelCell label={editable.label} description={editable.toolTip} docUrl={editable.docUrl} />
               <Table.Cell>
                 <Input
-                  isInvalid={validationDict[key]}
+                  aria-invalid={!!validationDict[key]}
                   size={"xs"}
                   defaultValue={dto[editable.key]}
                   onChange={(e) => OnChange(editable.key, e.target.value)}
@@ -190,7 +191,7 @@ export const EditTable = ({
               <LabelCell label={editable.label} description={editable.toolTip} docUrl={editable.docUrl} />
               <Table.Cell>
                 <Input
-                  isInvalid={validationDict[key]}
+                  aria-invalid={!!validationDict[key]}
                   size={"xs"}
                   list={options.length ? listId : undefined}
                   placeholder={options.length ? "start typing to pick, or enter an id / %variable%" : "id or %variable%"}
@@ -229,7 +230,7 @@ export const EditTable = ({
               />
               <Table.Cell>
                 <NumberInputRoot
-                  isInvalid={validationDict[key]}
+                  invalid={!!validationDict[key]}
                   defaultValue={dto[key]}
                   min={editable.min}
                   max={editable.max}
@@ -322,10 +323,9 @@ export const EditTable = ({
   //     return map;
   // }
 
-  const getGroupless = () => {
-    let grouped = Object.groupBy(mappedItems, (x) => x.category);
-    return grouped["default"] ? grouped["default"].map((x) => x.value) : [];
-  };
+  // A plain filter, not Object.groupBy: that's ES2024 and missing in Node 20 and older browsers.
+  const getGroupless = () =>
+    mappedItems.filter((x) => x.category === "default").map((x) => x.value);
   let mappedItems = PrepareItems();
   let groupless = getGroupless();
 

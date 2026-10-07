@@ -25,7 +25,7 @@ export function withVisibleAlpha(previous, next) {
 // Where an unset colour field opens: opaque, so picking a colour just works.
 export const DEFAULT_COLOR = "rgba(0,0,0,1)";
 
-export const DColorPicker = ({ initColor, onValueChange, minimal }) => {
+export const DColorPicker = ({ initColor, onValueChange, minimal, isDisabled, isInvalid }) => {
   const [color, setColor] = useState(initColor || DEFAULT_COLOR);
   // Unset until a colour is given or picked — shown as "Not set", not as the default.
   const [isSet, setIsSet] = useState(!!initColor);
@@ -39,6 +39,8 @@ export const DColorPicker = ({ initColor, onValueChange, minimal }) => {
 
   return (
     <ColorPickerRoot
+      disabled={!!isDisabled}
+      invalid={!!isInvalid}
       value={parseColor(color)}
       onValueChange={({ value }) => {
         const valueAsString = withVisibleAlpha(parseColor(color), value).toString("rgba");
