@@ -47,14 +47,17 @@ export const CardsPanel = ({ state }) => {
         return { value: x.id, label: x.name };
       }),
     },
-    {
+    // A player's card is their own (the server also gives the GM full rights).
+    ...(canEditFolders ? [{
       key: "owner",
       required: false,
       label: "Owner",
       toolTip: "Owner of card.",
       type: "playerSelect",
-    },
+    }] : []),
   ];
+  // A player may create cards only from templates the GM has shared with them.
+  const canAddCards = canEditFolders || pickableTemplates(templates).length > 0;
 
   const panelRef = React.useRef(panels);
   panelRef.current = panels;
@@ -63,11 +66,9 @@ export const CardsPanel = ({ state }) => {
     let cards = await WebHelper.getAsync("materials/getcards");
     setPanels(cards);
     let currentPlayer = ClientMediator.sendCommand("Game", "GetCurrentPlayer", {}, true);
-    var ownerId = ClientMediator.sendCommand("Game", "GetOwner");
-    if (currentPlayer.id === ownerId) {
-      let templates = await WebHelper.getAsync("materials/gettemplatesfull");
-      setTemplates(templates);
-    }
+    // Everyone: the server only returns the templates this player can read.
+    let templates = await WebHelper.getAsync("materials/gettemplatesfull");
+    setTemplates(templates ?? []);
     setCurrentPlayer(currentPlayer);
   }, []);
 
@@ -102,7 +103,7 @@ export const CardsPanel = ({ state }) => {
       />
 
       <DTreeList
-        withAddItem={true}
+        withAddItem={canAddCards}
         entityType={"CardModel"}
         estimatedRowHeight={52}
         items={panels}
