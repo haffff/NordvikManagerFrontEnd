@@ -48,3 +48,27 @@ describe('audioVolume', () => {
     expect(audio.__volumeCategory).toBe('sounds');
   });
 });
+
+describe('audioVolume with the GM volume', () => {
+  beforeEach(() => localStorage.clear());
+
+  it("plays at the GM's volume times the player's own", () => {
+    setVolume('music', 0.5);
+    const audio = {};
+
+    applyVolume(audio, 'music', 0.8);
+
+    expect(audio.volume).toBeCloseTo(0.4);
+    expect(audio.__gmVolume).toBe(0.8);
+  });
+
+  it('the GM volume can change on its own', async () => {
+    const { setGmVolume } = await import('./audioVolume');
+    setVolume('music', 0.5);
+    const audio = applyVolume({}, 'music', 1);
+
+    setGmVolume(audio, 0.2);
+
+    expect(audio.volume).toBeCloseTo(0.1);
+  });
+});

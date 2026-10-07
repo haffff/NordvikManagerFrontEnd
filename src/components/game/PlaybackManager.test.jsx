@@ -320,3 +320,45 @@ describe("PlaybackManager — the player's volume", () => {
     expect(FakeAudio.instances.map((a) => a.volume)).toEqual([0.1, 1]);
   });
 });
+
+describe("PlaybackManager — the GM's volumes", () => {
+  beforeEach(() => localStorage.clear());
+  const play = (extra) => subscriptions.playlist({ command: 'playlist_play', data: { playlistId: 'p1', mode: 0, trackOrder: ['t1'], currentTrackIndex: 0, repeat: false, ...extra } });
+
+  it("plays a track at the playlist's volume times the file's own", async () => {
+    await mount();
+
+    play({ volume: 0.8, trackVolumes: { t1: 0.5 } });
+
+    expect(FakeAudio.instances[0].volume).toBeCloseTo(0.4);
+  });
+
+  it('follows the GM changing the playlist volume while it plays, and the player their own', async () => {
+    const { setVolume } = await import('../../helpers/audioVolume');
+    await mount();
+    play({ volume: 0.8, trackVolumes: { t1: 0.5 } });
+
+    subscriptions.playlist({ command: 'playlist_volume', data: { playlistId: 'p1', volume: 0.5 } });
+    expect(FakeAudio.instances[0].volume).toBeCloseTo(0.25);
+
+    setVolume('music', 0.5);
+    expect(FakeAudio.instances[0].volume).toBeCloseTo(0.125);
+  });
+
+  it('keeps the volumes for the next track of the playlist', async () => {
+    await mount();
+    play({ trackOrder: ['t1', 't2'], volume: 0.5, trackVolumes: { t2: 0.4 } });
+
+    subscriptions.playlist({ command: 'playlist_track_change', data: { playlistId: 'p1', trackId: 't2', trackIndex: 1, trackOrder: ['t1', 't2'] } });
+
+    expect(FakeAudio.instances[1].volume).toBeCloseTo(0.2);
+  });
+
+  it("plays a sound at the volume the server sent", async () => {
+    await mount();
+
+    subscriptions.sound({ command: 'sound_play', data: { resourceId: 'r1', volume: 0.3 } });
+
+    expect(FakeAudio.instances[0].volume).toBeCloseTo(0.3);
+  });
+});

@@ -14,7 +14,7 @@ vi.mock('../../../contexts/PermissionsContext', () => ({ usePermissions: () => (
 vi.mock('@hlorenzi/react-dockable', () => ({ useContentContext: () => ({ setTitle: vi.fn() }) }));
 
 const playlists = [
-  { id: 'p1', name: 'Battle drums', resources: [] },
+  { id: 'p1', name: 'Battle drums', resources: [], volume: 0.8 },
   { id: 'p2', name: 'Tavern', resources: [] },
 ];
 const tree = [
@@ -89,5 +89,23 @@ describe('PlaylistsPanel folder tree', () => {
     const before = treeRequests().length;
     fireEvent.click(screen.getByText('New Playlist'));
     await waitFor(() => expect(treeRequests().length).toBeGreaterThan(before));
+  });
+
+  it("each playlist has a volume slider that saves its volume", async () => {
+    ClientMediator.sendCommandAsync.mockImplementation(async (panel, cmd) => {
+      if (cmd === 'GetPlaylists') return playlists;
+      if (cmd === 'GetCurrentPlayback') return [];
+      if (cmd === 'SetVolume') return { status: 200, body: 0 };
+      return undefined;
+    });
+    renderWithProviders(<PlaylistsPanel />);
+    fireEvent.doubleClick(await screen.findByText('Combat')); // Battle drums is in this folder
+    const slider = await screen.findByRole('slider', { name: 'Volume of Battle drums' });
+    expect(slider).toHaveValue('80');
+
+    fireEvent.change(slider, { target: { value: '50' } });
+    fireEvent.pointerUp(slider);
+
+    await waitFor(() => expect(ClientMediator.sendCommandAsync).toHaveBeenCalledWith('Playlist', 'SetVolume', { playlist: playlists[0], volume: 0.5 }));
   });
 });
