@@ -114,9 +114,11 @@ export const TokenQuickEditOverlay = ({ battleMapId, canvas }) => {
             // The property store round-trips booleans as .NET's bool.ToString()
             // ("True"/"False", PascalCase) — UtilityHelper.ParseBool already
             // normalizes that (and lowercase "true"/"false") case-insensitively.
+            // A field's `default` shows while the token has no value of its own.
+            const value = found?.value ?? (p.default !== undefined ? String(p.default) : undefined);
             nextValues[p.name] = p.type === "boolean"
-              ? UtilityHelper.ParseBool(found?.value ?? false)
-              : found?.value ?? "";
+              ? UtilityHelper.ParseBool(value ?? false)
+              : value ?? "";
             if (found?.id) nextIds[p.name] = found.id;
           });
         })

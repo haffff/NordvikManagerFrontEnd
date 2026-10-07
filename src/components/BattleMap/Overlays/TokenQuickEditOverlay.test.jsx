@@ -211,4 +211,17 @@ describe('TokenQuickEditOverlay', () => {
     }));
     expect(screen.queryByText('pick img-1')).toBeNull();
   });
+
+  it("a field's default shows while the token has no value of its own", async () => {
+    const showBars = { name: 'mask_bars_enabled', dtoProperty: 'mask_bars_enabled', label: 'Show bars', source: 'element', type: 'boolean', default: true };
+    const { token, select } = setup({ editableProps: [showBars, barField(1)] });
+    select([token]);
+    await userEvent.click(gear());
+
+    const box = await screen.findByRole('checkbox', { name: 'Show bars' });
+    await waitFor(() => expect(box).toBeChecked());
+
+    await userEvent.click(box);
+    expect(writeTokenProperty).toHaveBeenCalledWith(expect.objectContaining({ dtoProperty: 'mask_bars_enabled', value: false }));
+  });
 });
