@@ -5,7 +5,6 @@ import { ActiveWebHelper as WebHelper } from "../../../../../helpers/transport";
 import { toaster } from "../../../../ui/toaster";
 import UtilityHelper from "../../../../../helpers/UtilityHelper";
 import ProgressToastManager from "../../../../../helpers/ProgressToastManager";
-import ClientMediator from "../../../../../ClientMediator";
 
 export const InstallFromFileTab = ({ handleReload }) => {
   const [file, setFile] = useState(null);
@@ -37,15 +36,10 @@ export const InstallFromFileTab = ({ handleReload }) => {
         mimeType: file.type || "application/zip",
       });
       if (status >= 200 && status < 300 && body?.operationId) {
-        ProgressToastManager.start(body.operationId, { title: `Installing ${fileName}…` });
         setFile(null);
         // Reload the addon list once the install finishes — the toast itself tracks progress.
-        const opId = body.operationId;
-        const timeout = 10 * 60 * 1000;
-        Promise.race([
-          ClientMediator.waitForEvent("Progress:Complete", (d) => d?.id === opId, timeout),
-          ClientMediator.waitForEvent("Progress:Failed", (d) => d?.id === opId, timeout).then(() => { throw new Error("install failed"); }),
-        ]).then(() => handleReload()).catch(() => {});
+        ProgressToastManager.track(body.operationId, { title: `Installing ${fileName}…` })
+          .then(() => handleReload()).catch(() => {});
       } else {
         toaster.create({ title: "Installation failed", type: "error", duration: 6000 });
       }

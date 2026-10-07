@@ -14,7 +14,6 @@ import {
 import { FaArrowUp, FaTrash } from "react-icons/fa";
 import { ActiveWebHelper as WebHelper } from "../../../../../helpers/transport";
 import { toaster } from "../../../../ui/toaster";
-import ClientMediator from "../../../../../ClientMediator";
 import ProgressToastManager from "../../../../../helpers/ProgressToastManager";
 import { Switch } from "../../../../ui/switch";
 import DContainer from "../../../../uiComponents/base/Containers/DContainer";
@@ -49,12 +48,8 @@ export const BrowseInstalledTab = ({ handleReload, addons, loading }) => {
       const { status, body } = await WebHelper.postAsync("addon/uninstall", { addonId: addon.id ?? addon.key });
       if (status >= 200 && status < 300 && body?.operationId) {
         const opId = body.operationId;
-        ProgressToastManager.start(opId, { title: `Uninstalling "${addon.name}"…` });
-        const timeout = 10 * 60 * 1000;
-        Promise.race([
-          ClientMediator.waitForEvent("Progress:Complete", (d) => d?.id === opId, timeout),
-          ClientMediator.waitForEvent("Progress:Failed", (d) => d?.id === opId, timeout).then(() => { throw new Error("uninstall failed"); }),
-        ]).then(() => { setSelectedKey(null); return handleReload(); }).catch(() => {});
+        ProgressToastManager.track(opId, { title: `Uninstalling "${addon.name}"…` })
+          .then(() => { setSelectedKey(null); return handleReload(); }).catch(() => {});
       } else {
         toaster.create({ title: "Uninstall failed", type: "error", duration: 6000 });
       }
