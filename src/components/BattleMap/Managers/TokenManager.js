@@ -210,9 +210,11 @@ class TokenManager {
       },
       CreateToken: {
         description:
-          "Spawns a new token on the map from a card ID at the given position.",
+          "Spawns a new token on the map at the given position, for a card (cardId) or, with no card, from a token definition (token: its resource key or id; image: optional).",
         args: [
-          { name: "cardId", type: "string", required: true },
+          { name: "cardId", type: "string", required: false },
+          { name: "token", type: "string", required: false },
+          { name: "image", type: "string", required: false },
           { name: "x", type: "number", required: false },
           { name: "y", type: "number", required: false },
         ],
@@ -1253,22 +1255,28 @@ class TokenManager {
 
   // ── Token creation ──────────────────────────────────────────────────────
 
-  CreateToken({ cardId, position, x, y, isCommand }) {
-    if (isCommand && !cardId) return "--cardId is required";
+  /**
+   * Places a token: either for a card (cardId: the definition, name, size and image
+   * come from the card's properties) or, with no card, straight from a token
+   * definition (token: its resource key or id; image: optional). A card-less token
+   * keeps its own values, image included, on the element itself.
+   */
+  CreateToken({ cardId, token, image, position, x, y, isCommand }) {
+    if (isCommand && !cardId && !token) return "--cardId or --token is required";
 
     // Normalise position — use explicit x/y from command, or the provided object
     const pos = isCommand
       ? { x: parseFloat(x) || 0, y: parseFloat(y) || 0 }
       : { x: position?.x ?? 0, y: position?.y ?? 0 };
 
-    this._createTokenAsync(cardId, pos);
+    this._createTokenAsync({ cardId, tokenRef: token, image }, pos);
   }
 
   /**
-   * Internal: fetch token definition + card properties, build the Fabric
-   * object, and send the element_add command via WebSocket.
+   * Internal: resolve the token definition and its inputs (from the card, or
+   * from the definition alone), build the Fabric object, and send element_add.
    */
-  async _createTokenAsync(cardId, position) {
+  async _createTokenAsync({ cardId, tokenRef, image }, position) {
     const map = this._getSelectedMap();
     if (!map) {
       console.error("TokenManager._createTokenAsync: no map selected");
@@ -1277,25 +1285,11 @@ class TokenManager {
 
     const { gridSize } = map;
 
-    // Fetch card properties
-    const properties = await ClientMediator.sendCommandAsync(
-      "Properties",
-      "GetByNames",
-      { parentId: cardId, names: CREATE_TOKEN_PROPS }
-    );
-
-    const tokenId = findPropValue(properties, "token");
-    if (!tokenId) {
-      console.error(
-        `TokenManager._createTokenAsync: no "token" property found for card "${cardId}"`
-      );
-      return;
-    }
-
-    const characterName = findPropValue(properties, "character_name", "Token");
-    const tokenSize =
-      parseInt(findPropValue(properties, "drop_token_size", "1"), 10) || 1;
-    const tokenImageId = findPropValue(properties, "tokenImage");
+    const inputs = cardId
+      ? await this._tokenInputsFromCard(cardId)
+      : { tokenId: tokenRef, displayName: null, tokenSize: null, tokenImageId: image, imageSource: "element" };
+    if (!inputs) return;
+    const { tokenId, tokenImageId, imageSource } = inputs;
 
     // Fetch the token JSON template
     const tokenRaw = await _getMaterial(tokenId, "application/json");
@@ -1307,6 +1301,10 @@ class TokenManager {
     }
 
     const token = JSON.parse(tokenRaw);
+    const tokenName = cardId
+      ? `${token.prefix ?? "token"} ${inputs.displayName}`
+      : token.prefix ?? "Token";
+    const tokenSize = inputs.tokenSize ?? (parseInt(token.size, 10) || 1);
 
     // Convert the raw resource ID to a full URL so fabric.util.loadImage
     // recognises it as a backend resource and fetches it via WebRTC. No
@@ -1318,7 +1316,7 @@ class TokenManager {
     fabric.Image.fromURL(tokenImageUrl, (fabricObject) => {
       fabricObject.set({
         ...token.object,
-        name: `${token.prefix ?? "token"} ${characterName}`,
+        name: tokenName,
         left: position.x,
         top: position.y,
         cardId: cardId,
@@ -1339,7 +1337,7 @@ class TokenManager {
           assignableIcons: token.assignableIcons ?? [],
           propDeps: [
             ...(token?.tokenData?.propDeps ?? []),
-            IMAGE_PROP_DEP,
+            { ...IMAGE_PROP_DEP, source: imageSource },
           ],
         },
         isToken: true,
@@ -1395,6 +1393,31 @@ class TokenManager {
         },
       });
     });
+  }
+
+  /** A card token's inputs, read from the card's properties. */
+  async _tokenInputsFromCard(cardId) {
+    const properties = await ClientMediator.sendCommandAsync(
+      "Properties",
+      "GetByNames",
+      { parentId: cardId, names: CREATE_TOKEN_PROPS }
+    );
+
+    const tokenId = findPropValue(properties, "token");
+    if (!tokenId) {
+      console.error(
+        `TokenManager._createTokenAsync: no "token" property found for card "${cardId}"`
+      );
+      return null;
+    }
+
+    return {
+      tokenId,
+      displayName: findPropValue(properties, "character_name", "Token"),
+      tokenSize: parseInt(findPropValue(properties, "drop_token_size", "1"), 10) || 1,
+      tokenImageId: findPropValue(properties, "tokenImage"),
+      imageSource: "card",
+    };
   }
 
   // ── UI positioning ──────────────────────────────────────────────────────

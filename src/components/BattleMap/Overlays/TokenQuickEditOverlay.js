@@ -4,6 +4,7 @@ import ClientMediator from "../../../ClientMediator";
 import { useClientMediator } from "../../uiComponents/hooks/useClientMediator";
 import UtilityHelper from "../../../helpers/UtilityHelper";
 import { resolveTokenParentId, writeTokenProperty } from "./tokenPropertyIO";
+import { MaterialChooser } from "../../uiComponents/MaterialChooser";
 
 /**
  * A small gear next to the selected token opens compact editable fields, for
@@ -27,6 +28,8 @@ export const TokenQuickEditOverlay = ({ battleMapId, canvas }) => {
   const [open, setOpen] = React.useState(false);
   const [dragging, setDragging] = React.useState(false);
   const [refreshKey, setRefreshKey] = React.useState(0);
+  // The image field whose material picker is open (it's big, so only on request).
+  const [pickingImage, setPickingImage] = React.useState(null);
   const panelRef = React.useRef(null);
   const gearRef = React.useRef(null);
 
@@ -178,6 +181,11 @@ export const TokenQuickEditOverlay = ({ battleMapId, canvas }) => {
     };
   }, [token, canvas]);
 
+  // A closed panel doesn't reopen with the image picker still showing.
+  React.useEffect(() => {
+    if (!open) setPickingImage(null);
+  }, [open]);
+
   // ── Esc or a click outside closes the panel ──────────────────────────────
   React.useEffect(() => {
     if (!open) return;
@@ -217,8 +225,20 @@ export const TokenQuickEditOverlay = ({ battleMapId, canvas }) => {
   });
   const hasIcons = (token.tokenData?.assignableIcons?.length ?? 0) > 0;
 
+  const isImage = (material) => material.mimeType === "image/jpeg" || material.mimeType === "image/png";
+
   const renderInput = (field) =>
-    field.type === "boolean" ? (
+    field.type === "image" ? (
+      <button
+        type="button"
+        aria-label={`Choose ${(field.label ?? field.name).toLowerCase()}`}
+        aria-expanded={pickingImage === field.name}
+        style={{ fontSize: "11px", color: "#eee", background: "transparent", border: "1px solid rgba(255,255,255,0.2)", borderRadius: "3px", cursor: "pointer" }}
+        onClick={() => setPickingImage((current) => (current === field.name ? null : field.name))}
+      >
+        Choose…
+      </button>
+    ) : field.type === "boolean" ? (
       // A checkbox has no "blur to commit" idiom — commit immediately on toggle.
       <input
         type="checkbox"
@@ -316,6 +336,20 @@ export const TokenQuickEditOverlay = ({ battleMapId, canvas }) => {
               ))}
             </div>
           ))}
+          {pickingImage && (
+            <div style={{ width: "260px", maxHeight: "320px", overflow: "auto" }}>
+              <MaterialChooser
+                additionalFilter={isImage}
+                materialsSelected={values[pickingImage]}
+                onSelect={(id) => {
+                  const field = editableProps.find((f) => f.name === pickingImage);
+                  setValues((prev) => ({ ...prev, [pickingImage]: id }));
+                  if (field) commit(field, id);
+                  setPickingImage(null);
+                }}
+              />
+            </div>
+          )}
           {hasIcons && (
             <button
               type="button"

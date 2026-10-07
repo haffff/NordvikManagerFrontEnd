@@ -26,6 +26,11 @@ vi.mock('./tokenPropertyIO', () => ({
   writeTokenProperty: vi.fn(),
 }));
 
+// Stands in for the material picker: one button that picks image "img-1".
+vi.mock('../../uiComponents/MaterialChooser', () => ({
+  MaterialChooser: ({ onSelect }) => <button type="button" onClick={() => onSelect('img-1')}>pick img-1</button>,
+}));
+
 import ClientMediator from '../../../ClientMediator';
 import { writeTokenProperty } from './tokenPropertyIO';
 import { TokenQuickEditOverlay } from './TokenQuickEditOverlay';
@@ -188,5 +193,22 @@ describe('TokenQuickEditOverlay', () => {
 
     act(() => canvasHandlers['object:modified']({ target: token }));
     expect(gear()).toBeTruthy();
+  });
+
+  it('an image field picks a material and saves it on the token', async () => {
+    const image = { name: 'tokenImage', dtoProperty: 'tokenImage', label: 'Image', source: 'element', type: 'image' };
+    const { token, select } = setup({ editableProps: [image, barField(1)] });
+    select([token]);
+    await userEvent.click(gear());
+
+    // closed until asked for, so the panel stays small
+    expect(screen.queryByText('pick img-1')).toBeNull();
+    await userEvent.click(await screen.findByRole('button', { name: 'Choose image' }));
+    await userEvent.click(screen.getByText('pick img-1'));
+
+    expect(writeTokenProperty).toHaveBeenCalledWith(expect.objectContaining({
+      token, source: 'element', dtoProperty: 'tokenImage', value: 'img-1',
+    }));
+    expect(screen.queryByText('pick img-1')).toBeNull();
   });
 });
