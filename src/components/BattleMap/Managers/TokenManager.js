@@ -616,6 +616,12 @@ class TokenManager {
       }
     } // end legacy path
 
+    // A part masked off (mask_<group>_enabled, see _resolveMaskStates) stays hidden
+    // whatever its own visibility rule says, also on a live single-value update.
+    if (objectProperty === "visible" && targetElement?._maskVisible === false) {
+      value = false;
+    }
+
     // Fabric crashes with a 0×0 cache canvas — clamp width/height to at least 1px.
     if ((objectProperty === "width" || objectProperty === "height") && typeof value === "number") {
       value = Math.max(value, 1);

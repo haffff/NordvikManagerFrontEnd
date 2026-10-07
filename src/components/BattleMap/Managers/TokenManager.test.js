@@ -103,3 +103,25 @@ describe('TokenManager.CreateToken', () => {
     expect(manager().CreateToken({ isCommand: true })).toMatch(/--cardId or --token is required/);
   });
 });
+
+describe('TokenManager masking', () => {
+  const visibleWhenMax = { expression: 'Math(0%bar2_max%, value > 0)', objectProperty: 'visible', type: 'bool', source: 'element' };
+  const props = [{ name: 'bar2_max', value: '10', entityName: 'ElementModel' }];
+  const element = (maskVisible) => ({ _maskVisible: maskVisible, visible: false, set(key, value) { this[key] = value; } });
+
+  it("a masked-off part stays hidden when its own visibility rule changes (e.g. a bar's max is set)", () => {
+    const bar = element(false);
+
+    manager()._applyDep(visibleWhenMax, { id: 'tok-1' }, bar, props);
+
+    expect(bar.visible).toBe(false);
+  });
+
+  it('an unmasked part follows its visibility rule', () => {
+    const bar = element(true);
+
+    manager()._applyDep(visibleWhenMax, { id: 'tok-1' }, bar, props);
+
+    expect(bar.visible).toBe(true);
+  });
+});
