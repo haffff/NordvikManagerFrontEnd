@@ -23,6 +23,7 @@ import RequestInputManager from "./RequestInputManager";
 import LayoutAutoSaveManager from "./LayoutAutoSaveManager";
 import GameStylesheets from "./theme/GameStylesheets";
 import themeColors from "../../helpers/themeColors";
+import "../../stylesheets/dock.css";
 
 export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
   // A player who joined via an invite link only ever learns the Central Server's
@@ -213,7 +214,7 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
         gameDataManagerRef={gameDataManagerRef}
         battlemapsRef={battleMapContexts}
         forceRefreshGame={forceUpdate}
-      />      <Flex style={{ height: "100%", overflow: "hidden" }}>
+      />      <Flex className="nm_dock" style={{ height: "100%", overflow: "hidden" }}>
       <Dockable.Container state={state} onPopOut={DockableHelper.getPopOutHandler()} />
       </Flex><QuickCommandDialog state={dockState} openRef={quickCommandDialogOpenRef} />
       

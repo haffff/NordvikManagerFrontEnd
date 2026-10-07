@@ -327,7 +327,11 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
         onAdd={handleCardAdded}
         onDelete={handleCardDeleted}
       />
-      <MenuContextTrigger >{children}</MenuContextTrigger>
+      {/* asChild: a div, not Chakra's default button, so the map isn't one big button
+          (it would take every button style and be announced as a button). */}
+      <MenuContextTrigger asChild>
+        <div className="nm_bm_contextTrigger">{children}</div>
+      </MenuContextTrigger>
       <MenuContent>
         {selectedObjects && selectedObjects.length === 1 ? (
           <>
