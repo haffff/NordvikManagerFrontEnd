@@ -1,4 +1,5 @@
 import * as React from "react";
+import { pickableTemplates } from "../../../helpers/pickableTemplates";
 import * as Dockable from "@hlorenzi/react-dockable";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
 import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
@@ -42,7 +43,7 @@ export const CardsPanel = ({ state }) => {
       label: "Template",
       toolTip: "Name of template.",
       type: "select",
-      options: templates.map((x) => {
+      options: pickableTemplates(templates).map((x) => {
         return { value: x.id, label: x.name };
       }),
     },
@@ -110,7 +111,7 @@ export const CardsPanel = ({ state }) => {
         canEditFolders={canEditFolders}
         onDeleteItem={(item) => WebSocketManagerInstance.Send({ command: "card_delete", data: item.id })}
         onAddItem={() => {
-          openRef.current({ template: templates[0]?.id });
+          openRef.current({ template: pickableTemplates(templates)[0]?.id });
         }}
         onGenerateEditButtons={(item) => {
           return (

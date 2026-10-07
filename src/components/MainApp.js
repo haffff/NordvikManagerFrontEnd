@@ -74,7 +74,9 @@ export const MainApp = ({ onAuthRequired }) => {
                 // invalid or forbidden — leave it alone on a transient/5xx
                 // failure so a plain reload can retry once the backend recovers.
                 if (resp.status === 404 || resp.status === 403) removeUrlParam('game');
-                throw new Error(`Session start failed (${resp.status})`);
+                // The server says why (e.g. "This game no longer exists.") — show that.
+                const body = await resp.json?.().catch(() => null);
+                throw new Error(body?.error || `Session start failed (${resp.status})`);
             }
             const { centralSessionId: csId, centralAccessToken } = await resp.json();
 
