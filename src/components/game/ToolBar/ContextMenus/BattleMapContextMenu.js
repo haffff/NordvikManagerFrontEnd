@@ -48,6 +48,8 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
   // Resolve the current map id for entity-level permission checks
   const currentMap = ClientMediator.sendCommand("BattleMap", "GetSelectedMap", { contextId: battleMapId });
   const canEditMap = hasEntityPermission(ENTITY_TYPES.MAP, currentMap?.id, PERM.EDIT);
+  // Placing tokens only needs Control on the map (the server allows a token with either).
+  const canPlaceTokens = canEditMap || hasEntityPermission(ENTITY_TYPES.MAP, currentMap?.id, PERM.CONTROL);
 
   const gameId = React.useMemo(() => ClientMediator.sendCommand("Game", "GetGameId"), []);
   const { layers } = useCustomLayers(gameId);
@@ -468,7 +470,7 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
           </>
         ) : (
           <>
-            {canEditMap && (
+            {canPlaceTokens && (
               <DropDownMenu
                 viewId={"battlemap_add"}
                 submenu={true}
