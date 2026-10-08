@@ -6,59 +6,80 @@ import { RESERVED_LAYERS } from "../Constants/layers";
 // Matches the backend's default for new maps: subtle over battle map images.
 export const DEFAULT_GRID_COLOR = "rgba(170, 170, 170, 0.35)";
 
+/**
+ * The grid lines to draw for a map of width × height: x positions (vertical lines) and
+ * y positions (horizontal lines), every gridSize plus the map's own border, limited to
+ * `view` (the part of the map on screen, in map coordinates) when given. from/to are
+ * where the lines start and end — the visible part of the map.
+ */
+export function visibleGridLines({ width, height, gridSize, view }) {
+  const from = { x: Math.max(0, view?.left ?? 0), y: Math.max(0, view?.top ?? 0) };
+  const to = { x: Math.min(width, view?.right ?? width), y: Math.min(height, view?.bottom ?? height) };
+  const lines = (start, end, size) => {
+    const out = [];
+    if (end < start || !(gridSize > 0)) return out;
+    for (let v = Math.ceil(start / gridSize) * gridSize; v <= end; v += gridSize) out.push(v);
+    // The map's far border, also when the map isn't a whole number of squares.
+    if (size >= start && size <= end && out[out.length - 1] !== size) out.push(size);
+    return out;
+  };
+  // Off screen in either direction: nothing of it is in view.
+  if (to.x < from.x || to.y < from.y) return { xs: [], ys: [], from, to };
+  return { xs: lines(from.x, to.x, width), ys: lines(from.y, to.y, height), from, to };
+}
+
+// One object for the whole grid. It used to be a group of one Fabric line per grid line,
+// every one of them drawn on every frame (pan, zoom, token drag) whether on screen or
+// not; this draws only the lines in view, as one path with one stroke. Not cached: what
+// it draws depends on the view.
+const GridObject = fabric.util.createClass(fabric.Rect, {
+  type: "grid",
+
+  _render(ctx) {
+    const vpt = this.canvas?.vptCoords;
+    const view = vpt
+      ? { left: vpt.tl.x - this.left, top: vpt.tl.y - this.top, right: vpt.br.x - this.left, bottom: vpt.br.y - this.top }
+      : undefined;
+    const { xs, ys, from, to } = visibleGridLines({ width: this.width, height: this.height, gridSize: this.gridSize, view });
+    if (!xs.length && !ys.length) return;
+
+    // Fabric draws an object around its centre.
+    const ox = -this.width / 2;
+    const oy = -this.height / 2;
+    ctx.save();
+    ctx.beginPath();
+    for (const x of xs) {
+      ctx.moveTo(ox + x, oy + from.y);
+      ctx.lineTo(ox + x, oy + to.y);
+    }
+    for (const y of ys) {
+      ctx.moveTo(ox + from.x, oy + y);
+      ctx.lineTo(ox + to.x, oy + y);
+    }
+    ctx.strokeStyle = this.gridColor;
+    ctx.lineWidth = 1;
+    ctx.stroke();
+    ctx.restore();
+  },
+});
+
 class GridFactory {
   DrawGrid = (gridSize, size, mapId, gridColor) => {
     gridColor = gridColor || DEFAULT_GRID_COLOR; // also when the map has null
-    let gridArr = [];
 
-    for (var i = 0; i < size[0] / gridSize; i++) {
-      let line = new fabric.Line([i * gridSize, 0, i * gridSize, size[1]], {
-        name: ".line",
-        type: "line",
-        stroke: gridColor,
-        selectable: false,
-        layer: RESERVED_LAYERS.GRID,
-      });
-      gridArr.push(line);
-    }
-
-    for (var i = 0; i < size[1] / gridSize; i++) {
-      let line = new fabric.Line([0, i * gridSize, size[0], i * gridSize], {
-        name: ".line",
-        type: "line",
-        stroke: gridColor,
-        selectable: false,
-        layer: RESERVED_LAYERS.GRID,
-      });
-      gridArr.push(line);
-    }
-
-    let line = new fabric.Line([size[0], 0, size[0], size[1]], {
-      name: ".line",
-      type: "line",
-      stroke: gridColor,
-      selectable: false,
-      layer: RESERVED_LAYERS.GRID,
-    });
-    gridArr.push(line);
-
-    line = new fabric.Line([0, size[1], size[0], size[1]], {
-      name: ".line",
-      type: "line",
-      stroke: gridColor,
-      selectable: false,
-      layer: RESERVED_LAYERS.GRID,
-    });
-    gridArr.push(line);
-
-    //ClientMediator.sendCommand("Ga")
-
-    let grp = new fabric.Group(gridArr, {
+    let grp = new GridObject({
+      left: 0,
+      top: 0,
+      width: size[0],
+      height: size[1],
       originX: "left",
       originY: "top",
+      fill: "transparent",
+      strokeWidth: 0,
+      gridSize,
+      gridColor,
       name: ".grid",
       selectable: false,
-      interactive: false,
       layer: RESERVED_LAYERS.GRID,
       objectCaching: false,
     });

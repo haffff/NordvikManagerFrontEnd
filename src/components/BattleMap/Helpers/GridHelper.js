@@ -5,8 +5,8 @@ export default function drawGrid(canvas, map) {
   if (!canvas || !map) return null;
 
   try {
-    // remove existing grid groups
-    const existingGridObjects = (canvas.getObjects("group") || []).filter((x) => x.name === ".grid");
+    // remove the existing grid (any type: it used to be a group of lines)
+    const existingGridObjects = (canvas.getObjects() || []).filter((x) => x.name === ".grid");
     if (existingGridObjects.length) {
       existingGridObjects.forEach((g) => {
         try { canvas.remove(g); } catch (e) { /* ignore */ }
