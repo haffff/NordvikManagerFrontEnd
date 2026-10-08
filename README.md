@@ -129,3 +129,20 @@ flowchart TB
     AWH == "WebRTC data channel" ==> Backend
     Actions == "steps that need\nBackend logic" ==> Backend
 ```
+
+### Battle map canvas
+
+The map is a [Fabric.js](http://fabricjs.com/) canvas, set up in [LoadCanvas](src/components/BattleMap/Handlers/LoadCanvas.js); [BMService](src/components/BattleMap/Managers/BMService.js) and [TokenManager](src/components/BattleMap/Managers/TokenManager.js) are its ClientMediator panels (`BattleMap`, `BattleMap_token`).
+
+- **Layers** — every element has a `layer` (reserved Background, Grid, Token and token UI, plus the game's custom layers from the `customLayers` game property, see [useCustomLayers](src/components/uiComponents/hooks/useCustomLayers.js)). [LayerTargeting](src/components/BattleMap/Helpers/LayerTargeting.js) hooks Fabric's hit test and drawing per canvas: clicks only reach the layer being worked on, custom layers marked **hidden** aren't drawn, and **GM-only** layers are left out for players and drawn faded for the GM ([layerVisibility](src/components/BattleMap/Helpers/layerVisibility.js)). This happens on the canvas only — elements of those layers still reach every browser.
+- **Tokens** — a token's look comes from its addon's token JSON: additional objects (bars, labels, status icons) whose `propDeps` bind object properties to card/element properties, live. Parts with a `maskGroup` can be shown, hidden or made GM-only per map (Map settings → Token Elements) or per token.
+- **Grid** — a single object ([GridFactory](src/components/BattleMap/Factories/GridFactory.js)) that draws only the lines in view, as one path, so big maps stay fast.
+
+### Audio
+
+[PlaybackManager](src/components/game/PlaybackManager.js) (always mounted) plays playlists and soundboard sounds from `playlist_*` / `sound_*` events, and registers the `Playlist` ClientMediator commands ([PlaylistService](src/components/game/PlaylistService.js)). What a player hears is the GM's volume (playlist or soundboard × the file's own) times the player's own volume for music, sound effects or notifications, kept in their browser — see [audioVolume](src/helpers/audioVolume.js), which also fades music in and out and ramps volume changes.
+
+### Theming
+
+All UI colours are CSS variables a game stylesheet (or a theme addon) can override — the list is in [themeColors](src/helpers/themeColors.js) and [index.css](src/index.css), and documented in the user guide's "Custom styling" page. Highlights (selection, current tab, current turn, focus, drop targets) all use one variable, `--nordvik-accent`; status colours (green / orange / red) keep their own meaning.
+
