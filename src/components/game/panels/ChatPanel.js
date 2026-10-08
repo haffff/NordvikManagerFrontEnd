@@ -18,8 +18,10 @@ import {
   SelectValueText,
 } from "../../ui/select";
 import * as Dockable from "@hlorenzi/react-dockable";
-import { FaSearch, FaPaperPlane, FaTimes } from "react-icons/fa";
+import { FaSearch, FaPaperPlane, FaTimes, FaDiceD20 } from "react-icons/fa";
 import { Tooltip } from "../../ui/tooltip";
+import { PopoverRoot, PopoverTrigger, PopoverContent, PopoverBody } from "../../ui/popover";
+import DiceRoller from "../dice/DiceRoller";
 
 import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
@@ -429,6 +431,8 @@ const SearchBar = React.memo(({ filter, setFilter, from, setFrom, players, onClo
 
 // ── ChatPanel ─────────────────────────────────────────────────────────────────
 export const ChatPanel = () => {
+  // Click-to-roll dice builder for players who don't know the /r syntax.
+  const [diceOpen, setDiceOpen] = React.useState(false);
   const [items,           setItems          ] = React.useState([]);
   const [message,         setMessage        ] = React.useState("");
   const [reachedTop,      setReachedTop     ] = React.useState(false);
@@ -738,6 +742,34 @@ export const ChatPanel = () => {
             _focus={{ borderColor: themeColors.inputFocus, boxShadow: "none" }}
             borderRadius="6px"
           />
+
+          <PopoverRoot
+            open={diceOpen}
+            onOpenChange={(e) => setDiceOpen(e.open)}
+            positioning={{ placement: "top-end" }}
+            lazyMount
+          >
+            <PopoverTrigger asChild>
+              <IconButton
+                size="sm"
+                variant={diceOpen ? "solid" : "ghost"}
+                aria-label="Roll dice"
+                title="Roll dice"
+                alignSelf="flex-end"
+                mb="1px"
+                ml="4px"
+                flexShrink={0}
+                color={diceOpen ? "white" : TEXT_MUTED}
+              >
+                <Icon as={FaDiceD20} />
+              </IconButton>
+            </PopoverTrigger>
+            <PopoverContent width="auto" bg={BG_RAISED} borderColor={BORDER_CLR}>
+              <PopoverBody p={0}>
+                <DiceRoller onRolled={() => setDiceOpen(false)} />
+              </PopoverBody>
+            </PopoverContent>
+          </PopoverRoot>
 
           <Tooltip content="Send (Enter)" openDelay={300}>
             <IconButton

@@ -10,6 +10,7 @@ import AdminPlayersPanel from "../components/game/panels/AdminPlayersPanel";
 import CardPanel from "../components/game/panels/CardPanel";
 import CardsPanel from "../components/game/panels/CardsPanel";
 import ChatPanel from "../components/game/panels/ChatPanel";
+import DiceRollerPanel from "../components/game/panels/DiceRollerPanel";
 import LayoutsManagerPanel from "../components/game/panels/LayoutsManagerPanel";
 import MapSelector from "../components/game/panels/MapSelector";
 import PlayersPanel from "../components/game/panels/PlayersPanel";
@@ -28,6 +29,7 @@ import PlayerSettingsPanel from "../components/game/settings/PlayerSettingsPanel
 
 export const PanelList = {
     ChatPanel: ChatPanel,
+    DiceRollerPanel: DiceRollerPanel,
     Battlemap: Battlemap,
     ActionsPanel: ActionsPanel,
     AddonsManagePanel: AddonsManagePanel,

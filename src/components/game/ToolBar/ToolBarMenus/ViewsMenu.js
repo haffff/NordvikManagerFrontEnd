@@ -1,7 +1,8 @@
 import * as React from 'react';
 import ToolsPanel from '../../panels/ToolsPanel/ToolsPanel';
 import ChatPanel from '../../panels/ChatPanel';
-import { FaListOl, FaMusic, FaPaintBrush, FaTools, FaUserAlt, FaUserCog, FaUserFriends, FaVolumeUp } from 'react-icons/fa';
+import DiceRollerPanel from '../../panels/DiceRollerPanel';
+import { FaDiceD20, FaListOl, FaMusic, FaPaintBrush, FaTools, FaUserAlt, FaUserCog, FaUserFriends, FaVolumeUp } from 'react-icons/fa';
 import { IoMdChatboxes } from 'react-icons/io';
 import PlayersPanel from '../../panels/PlayersPanel';
 import AdminPlayersPanel from '../../panels/AdminPlayersPanel';
@@ -37,6 +38,7 @@ export const ViewsMenu = ({ state, onDropDown }) => {
                 <BattleMapsMenu key={'1'} state={state} maps={maps} onCreateBmModalRef={onCreateBmModalRef} />
                 <CreateDropDownButton width={150} name={"Tools"} icon={<FaTools />} state={state} element={<ToolsPanel />} />
                 <CreateDropDownButton width={150} name={"Chat"} icon={<IoMdChatboxes />} state={state} element={<ChatPanel />} />
+                <CreateDropDownButton width={150} name={"Dice"} icon={<FaDiceD20 />} state={state} element={<DiceRollerPanel />} />
                 <CreateDropDownButton width={150} name={"Players"} icon={<FaUserFriends />} state={state} element={<PlayersPanel />} />
                 <CreateDropDownButton width={150} name={"Turn order"} icon={<FaListOl />} state={state} element={<TurnOrderPanel />} />
                 <CreateDropDownButton width={150} name={"Cards"} icon={<FaUserAlt />} state={state} element={<CardsPanel state={state} />} />
