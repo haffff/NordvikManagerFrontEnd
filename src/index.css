@@ -75,7 +75,7 @@ code {
   --nordvik-background-color: rgb(30,30,30);
   /* The one highlight colour: what's selected, current, focused or where a drop
      lands. Status colours (green/orange/red) keep their meaning separately. */
-  --nordvik-accent: rgb(189, 24, 24);
+  --nordvik-accent: rgb(25, 165, 158);
   --nordvik-selection-color: var(--nordvik-accent);
   --nordvik-item-color: rgb(70, 70, 70);
   --nordvik-button-color: rgb(23, 23, 23);

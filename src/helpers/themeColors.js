@@ -42,8 +42,8 @@ export const themeColors = Object.freeze({
   // The app's one highlight colour (selected, current, focused, drop target).
   // Set --nordvik-accent to recolour all of it; accentText is a lighter tint of it
   // that stays readable as text, icons and thin lines on the dark panels.
-  accent: v("accent", "rgb(189,24,24)"),
-  accentText: v("accent-text", "color-mix(in srgb, var(--nordvik-accent, rgb(189,24,24)) 55%, white)"),
+  accent: v("accent", "rgb(25, 165, 158)"),
+  accentText: v("accent-text", "color-mix(in srgb, var(--nordvik-accent, rgb(25, 165, 158)) 55%, white)"),
 
   // Status and data colours (log levels, %variables%, links) — not highlights
   accentBlue: v("accent-blue", "rgb(100,150,230)"),
