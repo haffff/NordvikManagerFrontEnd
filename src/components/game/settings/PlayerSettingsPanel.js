@@ -33,8 +33,13 @@ export const PlayerSettingsPanel = ({ player }) => {
     },
   ];
 
+  // Without a player (Settings → Player, or restored from a saved layout, which drops
+  // it) these are your own settings.
+  const currentPlayerId = ClientMediator.sendCommand("Game", "GetCurrentPlayer")?.id;
+  const playerId = player?.id ?? currentPlayerId;
+
   // Personal stylesheets, sound volumes and the offline cache live in this browser, so only your own player has them.
-  const isCurrentPlayer = ClientMediator.sendCommand("Game", "GetCurrentPlayer")?.id === player?.id;
+  const isCurrentPlayer = !!playerId && playerId === currentPlayerId;
 
   const ctx = Dockable.useContentContext();
   ctx.setTitle(`Player settings`);
@@ -68,14 +73,14 @@ export const PlayerSettingsPanel = ({ player }) => {
       const newPlayer = await ClientMediator.sendCommandWaitForRegisterAsync(
         "Game",
         "GetPlayer",
-        { id: player.id },
+        { id: playerId },
         true
       );
       setPlayerData(newPlayer);
     };
 
-    GetData();
-  }, [player]);
+    if (playerId) GetData();
+  }, [playerId]);
 
   return (
     <Subscribable commandPrefix={"settings_player"} onMessage={updateSettings}>
