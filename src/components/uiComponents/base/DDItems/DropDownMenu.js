@@ -3,6 +3,7 @@ import * as React from "react";
 import { IoIosArrowDropdown } from "react-icons/io";
 import DropDownButton from "./DropDrownButton";
 import ClientMediator from "../../../../ClientMediator";
+import { resetMapTools } from "../../../BattleMap/mapToolsStore";
 import { usePermissions } from "../../../../contexts/PermissionsContext";
 import {
   MenuContent,
@@ -32,8 +33,10 @@ const AncestorMenus = React.createContext(NO_ITEMS);
 // clearing it on exit, an addon-added menu item from Game A (e.g. one that calls
 // into commands/panels that don't exist for Game B) would silently reappear when
 // the user leaves and joins a different Game B. Call this from MainApp.handleExit.
+// Addon map tools (Tools panel) are cleared with them for the same reason.
 export function resetPersistedMenuItems() {
   resetMenuItems();
+  resetMapTools();
 }
 
 export const DropDownMenu = ({

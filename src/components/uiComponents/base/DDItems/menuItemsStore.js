@@ -41,8 +41,20 @@ export const addSubMenu = (parentViewId, subMenuId, subMenuName) => {
   append(parentViewId, { key: subMenuId, subMenu: { viewId: subMenuId, name: subMenuName || subMenuId } });
 };
 
+// What a context menu was opened on (e.g. { elementId } for a token's right-click menu),
+// per viewId. The menu sets it when it opens; an addon item's click passes it to its
+// action as variables (useGameEventHandlers.HandleAddMenuItem).
+let contextByView = new Map();
+
+export const setMenuContext = (viewId, context) => {
+  contextByView.set(viewId, context ?? {});
+};
+
+export const getMenuContext = (viewId) => contextByView.get(viewId) ?? {};
+
 /** On leaving a game: the next game starts without the previous one's items. */
 export const resetMenuItems = () => {
   itemsByView = new Map();
+  contextByView = new Map();
   emit();
 };

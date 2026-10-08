@@ -205,6 +205,7 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
       <Subscribable onMessage={eventHandlers.HandleViewShow} commandPrefix={"view_show"} />
       <Subscribable onMessage={eventHandlers.HandleAddMenuItem} commandPrefix={"menu_item_add"} />
       <Subscribable onMessage={eventHandlers.HandleAddToolbarButton} commandPrefix={"toolbar_button_add"} />
+      <Subscribable onMessage={eventHandlers.HandleAddMapTool} commandPrefix={"map_tool_add"} />
       <Subscribable onMessage={eventHandlers.HandleFireClientMediator} commandPrefix={"client_mediator_fire"} />
       <Subscribable onMessage={eventHandlers.HandleRunClientCommand} commandPrefix={"run_client_command"} />
       <Subscribable onMessage={eventHandlers.HandleOperationProgress} commandPrefix={"operation_"} />

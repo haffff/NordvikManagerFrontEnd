@@ -43,6 +43,8 @@ import { useCustomLayers } from "../../../uiComponents/hooks/useCustomLayers";
 import { syncControlsVisibility } from "../../../BattleMap/Helpers/TokenControlsHelper";
 import { SearchInput } from "../../../uiComponents/SearchInput";
 import { LAYER_STATES, layerFlagUpdate, layerLabel, layerState } from "../../../BattleMap/Helpers/layerVisibility";
+import AddonMenuItems from "../../../uiComponents/base/DDItems/AddonMenuItems";
+import { setMenuContext } from "../../../uiComponents/base/DDItems/menuItemsStore";
 
 export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) => {
   // Read when the menu opens: selecting on the canvas doesn't re-render this component,
@@ -411,7 +413,14 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
         if(canvas.contextMenuLock){
             d.open = false;
         }
-        if (d.open) setSelectedObjects(canvas?.getActiveObjects() || []);
+        if (d.open) {
+          const opened = canvas?.getActiveObjects() || [];
+          setSelectedObjects(opened);
+          // What addon items in these menus get as variables when clicked.
+          const position = ClientMediator.sendCommand("BattleMap", "GetLastClickPos", { contextId: battleMapId });
+          setMenuContext("battlemap", { battleMapId, position });
+          setMenuContext("battlemap_element", { battleMapId, position, elementId: opened[0]?.id });
+        }
     }}>
       <Subscribable commandPrefix="permission_update" onMessage={(msg) => {
         if (msg.data?.entityType !== 'ElementModel' || msg.data?.id !== selectedId) return;
@@ -518,6 +527,7 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
               />
             )}
             {permissionsMenu}
+            <AddonMenuItems viewId="battlemap_element" />
           </>
         ) : selectedObjects.length > 1 ? (
           <>
@@ -625,6 +635,7 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
                 icon={<FaWrench/>}
               />
             )}
+            <AddonMenuItems viewId="battlemap" />
           </>
         )}
       </MenuContent>

@@ -17,6 +17,7 @@ import {
   FaRuler,
   FaSquare,
   FaPlay,
+  FaMagic,
 } from "react-icons/fa";
 import ClientMediator from "../../../../ClientMediator";
 import UtilityHelper from "../../../../helpers/UtilityHelper";
@@ -35,6 +36,7 @@ import { DWrapItem } from "../../../uiComponents/base/DWrapItem";
 import { useCustomLayers } from "../../../uiComponents/hooks/useCustomLayers";
 import { usePermissions } from "../../../../contexts/PermissionsContext";
 import { PERM, ENTITY_TYPES } from "../../../BattleMap/Helpers/permissionBits";
+import { getMapTools, subscribeMapTools } from "../../../BattleMap/mapToolsStore";
 
 export const ToolsPanel = ({ battleMapId }) => {
   const panelRef = React.useRef(null);
@@ -55,6 +57,9 @@ export const ToolsPanel = ({ battleMapId }) => {
   const canEditMap = hasEntityPermission(ENTITY_TYPES.MAP, currentMap?.id, PERM.EDIT);
 
   const registrationIdRef = React.useRef(null);
+
+  // Tools added by addons (Add Map Tool step): clicking the map runs their action.
+  const mapTools = React.useSyncExternalStore(subscribeMapTools, getMapTools);
 
   const config = [
     { type: "label", name: "Select", ignoreAsSeparator: true },
@@ -143,6 +148,16 @@ export const ToolsPanel = ({ battleMapId }) => {
       onClick: () => handleMeasureCone(),
       selected: mode === "Measure_Cone",
     },
+    ...(mapTools.length > 0 ? [
+      { type: "label", name: "Addon tools" },
+      ...mapTools.map((tool) => ({
+        type: "option",
+        icon: <FaMagic />,
+        name: tool.uiName || tool.name,
+        onClick: () => handleActionTool(tool),
+        selected: mode === "ActionTool_" + tool.name,
+      })),
+    ] : []),
     { type: "label", name: "Align" },
     {
       type: "option",
@@ -195,6 +210,20 @@ export const ToolsPanel = ({ battleMapId }) => {
       withSizing: sizing,
       overlayContent,
       type,
+    });
+  };
+
+  const handleActionTool = (tool) => {
+    if (mode === "ActionTool_" + tool.name) {
+      clearMode();
+      return;
+    }
+    clearMode();
+
+    ClientMediator.sendCommand("BattleMap", "SetActionToolMode", {
+      contextId: _battleMapId,
+      enabled: true,
+      tool,
     });
   };
 

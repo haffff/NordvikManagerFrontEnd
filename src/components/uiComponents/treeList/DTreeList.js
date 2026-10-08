@@ -15,6 +15,8 @@ import DynamicIcon from '../icons/DynamicIcon';
 import { SearchInput } from '../SearchInput';
 import { MenuContent, MenuContextTrigger, MenuRoot } from '../../ui/menu';
 import DropDownItem from '../base/DDItems/DropDownItem';
+import AddonMenuItems from '../base/DDItems/AddonMenuItems';
+import { getMenuItems, setMenuContext, subscribeMenuItems } from '../base/DDItems/menuItemsStore';
 import themeColors from '../../../helpers/themeColors';
 import { TreeView } from '../tree/TreeView';
 import { buildTree, collectDescendants, computeMove, entryPath, splitMatch } from '../tree/treeModel';
@@ -113,17 +115,32 @@ const buttonsToMenuItems = (buttons) =>
         />
     ));
 
+const NO_ADDON_ITEMS = Object.freeze([]);
+
 /** Wraps a leaf row's label so right-click shows the same edit actions the
- * toolbar renders via onGenerateEditButtons for the currently selected item. */
+ * toolbar renders via onGenerateEditButtons for the currently selected item,
+ * plus any addon items for the list's addonMenu location (Add Menu Item). */
 const LeafLabelContextMenu = React.memo(({ node, entity, actions, children }) => {
+    const addonMenu = actions?.getAddonMenu();
+    const addonItems = React.useSyncExternalStore(
+        subscribeMenuItems,
+        () => (addonMenu?.viewId ? getMenuItems(addonMenu.viewId) : NO_ADDON_ITEMS)
+    );
     const buttons = actions?.getEditButtons(entity);
     const items = buttons ? buttonsToMenuItems(buttons) : [];
-    if (!items.length) return children;
+    if (!items.length && !addonItems.length) return children;
 
     return (
-        <MenuRoot onOpenChange={(d) => { if (d.open) actions.onSelect(node); }}>
+        <MenuRoot onOpenChange={(d) => {
+            if (!d.open) return;
+            actions.onSelect(node);
+            if (addonMenu?.viewId) setMenuContext(addonMenu.viewId, addonMenu.context?.(entity) ?? { id: entity?.id });
+        }}>
             <MenuContextTrigger>{children}</MenuContextTrigger>
-            <MenuContent>{items}</MenuContent>
+            <MenuContent>
+                {items}
+                {addonMenu?.viewId && <AddonMenuItems viewId={addonMenu.viewId} />}
+            </MenuContent>
         </MenuRoot>
     );
 });
@@ -197,6 +214,9 @@ export const DTreeList = ({
     onRefresh,
     canEditFolders,
     estimatedRowHeight,
+    // Optional { viewId, context: (entity) => variables }: a menu location addons can add
+    // right-click items to (Add Menu Item), e.g. "cards_item" for the Cards panel.
+    addonMenu,
 }) => {
     const _generateItem = React.useMemo(
         () => generateItem ?? ((x) => x?.name ?? ""),
@@ -225,6 +245,8 @@ export const DTreeList = ({
     onGenerateEditButtonsRef.current = onGenerateEditButtons;
     const canEditFoldersRef = React.useRef(canEditFolders);
     canEditFoldersRef.current = canEditFolders;
+    const addonMenuRef = React.useRef(addonMenu);
+    addonMenuRef.current = addonMenu;
 
     // modal open-fn refs
     const openCreateRef = React.useRef();
@@ -252,6 +274,7 @@ export const DTreeList = ({
         onDeleteAllFolder: (node) => handleOpenDeleteAllRef.current(node),
         getEditButtons:    (entity) => onGenerateEditButtonsRef.current?.(entity),
         canEditFolders:    () => canEditFoldersRef.current,
+        getAddonMenu:      () => addonMenuRef.current,
     }).current;
 
     // ── tree ───────────────────────────────────────────────────────────────────

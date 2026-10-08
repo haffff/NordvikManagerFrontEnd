@@ -19,6 +19,9 @@ import CardSettingsPanel from "../settings/CardSettingsPanel";
 import { GiGears } from "react-icons/gi";
 import DTreeListItem from "../../uiComponents/base/List/DTreeListItem";
 
+// Right-click on a card: addon items in "cards_item" get the card's id as %cardId%.
+const CARD_ADDON_MENU = { viewId: "cards_item", context: (card) => ({ cardId: card?.id }) };
+
 export const CardsPanel = ({ state }) => {
   const [panels, setPanels] = React.useState([]);
   const [currentPlayer, setCurrentPlayer] = React.useState(null);
@@ -106,6 +109,7 @@ export const CardsPanel = ({ state }) => {
         withAddItem={canAddCards}
         entityType={"CardModel"}
         estimatedRowHeight={52}
+        addonMenu={CARD_ADDON_MENU}
         items={panels}
         refreshRef={treeRefreshRef}
         onRefresh={loadData}
