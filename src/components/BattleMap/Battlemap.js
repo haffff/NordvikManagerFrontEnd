@@ -12,6 +12,7 @@ import BattleMapContextMenu from "../game/ToolBar/ContextMenus/BattleMapContextM
 import { PopupBMOverlay } from "./Overlays/PopupBMOverlay";
 import { InfoBMOverlay } from "./Overlays/InfoBMOverlay";
 import { TokenQuickEditOverlay } from "./Overlays/TokenQuickEditOverlay";
+import { CurrentTurnOverlay } from "./Overlays/CurrentTurnOverlay";
 import { TokenIconPickerOverlay } from "./Overlays/TokenIconPickerOverlay";
 import "../../stylesheets/battlemap.css";
 import { LoadingScreen } from "../uiComponents/LoadingScreen";
@@ -256,6 +257,7 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
       <PopupBMOverlay key={uuid + "popup"} battleMapId={uuid} />
       <InfoBMOverlay battleMapId={uuid} />
       <TokenQuickEditOverlay battleMapId={uuid} canvas={editor?.canvas} />
+      <CurrentTurnOverlay canvas={editor?.canvas} />
       <TokenIconPickerOverlay battleMapId={uuid} canvas={editor?.canvas} />
     </Flex>
   );

@@ -21,6 +21,7 @@ import {
   FaTrash,
   FaWrench,
   FaRegCheckCircle,
+  FaListOl,
 } from "react-icons/fa";
 import Loadable from "../../../uiComponents/base/Loadable";
 import Subscribable from "../../../uiComponents/base/Subscribable";
@@ -30,6 +31,7 @@ import { ActiveTransportManager as WebSocketManagerInstance, ActiveWebHelper as 
 import ClientMediator from "../../../../ClientMediator";
 import { Heading } from "@chakra-ui/react";
 import SwitchMapSubmenu from "./SwitchMapSubmenu";
+import { TurnOrderService } from "../../turnOrder/TurnOrderService";
 import { MenuContent, MenuContextTrigger, MenuRoot } from "../../../ui/menu";
 import { PERM, PERM_LEVEL, ENTITY_TYPES } from "../../../BattleMap/Helpers/permissionBits";
 import CommandFactory from "../../../BattleMap/Factories/CommandFactory";
@@ -356,6 +358,14 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
               icon={FaTrash}
               onClick={HandleDelete}
             />
+            {selectedObjects[0]?.isToken && canEditMap && (
+              <DropDownItem
+                width={width}
+                name={"Add to turn order"}
+                icon={FaListOl}
+                onClick={() => TurnOrderService.Add({ mapId: currentMap?.id, elementIds: [selectedObjects[0].id] })}
+              />
+            )}
             <DropDownItem
               width={width}
               name={"Copy"}

@@ -19,8 +19,10 @@ vi.mock('../../../../contexts/PermissionsContext', () => ({
   }),
 }));
 vi.mock('../../../uiComponents/hooks/useCustomLayers', () => ({ useCustomLayers: () => ({ layers: [] }) }));
+vi.mock('../../turnOrder/TurnOrderService', () => ({ TurnOrderService: { Add: vi.fn(() => Promise.resolve(true)) } }));
 
 import BattleMapContextMenu from './BattleMapContextMenu';
+import { TurnOrderService } from '../../turnOrder/TurnOrderService';
 
 const canvasStub = { getActiveObjects: () => [], contextMenuLock: false, on: vi.fn(), off: vi.fn() };
 
@@ -99,5 +101,20 @@ describe('BattleMapContextMenu', () => {
     fireEvent.contextMenu(screen.getByTestId('map').closest('[data-part="context-trigger"]'));
 
     expect(await screen.findByText('Inquisitor Vex')).toBeInTheDocument();
+  });
+
+  it('a selected token can be added to the turn order', async () => {
+    const token = { id: 'tok-1', name: 'Goblin', isToken: true, tokenData: {} };
+    const canvas = { ...canvasStub, getActiveObjects: () => [token] };
+    renderWithProviders(
+      <BattleMapContextMenu battleMapId="bm" canvas={canvas}>
+        <canvas data-testid="map" />
+      </BattleMapContextMenu>
+    );
+
+    fireEvent.contextMenu(screen.getByTestId('map').closest('[data-part="context-trigger"]'));
+    fireEvent.click(await screen.findByText('Add to turn order'));
+
+    expect(TurnOrderService.Add).toHaveBeenCalledWith(expect.objectContaining({ elementIds: ['tok-1'] }));
   });
 });

@@ -31,6 +31,9 @@ const ALLOWED_COMMANDS = Object.freeze({
   // BattleMap read-only
   "BattleMap.GetSelectedMap": true,
 
+  // Turn order read-only (whose turn it is, e.g. to show "your turn" on a sheet)
+  "TurnOrder.GetState": true,
+
   // Chat (sending only — receiving is via WS subscription)
   "Chat.SendMessage": true,
 });
@@ -46,13 +49,15 @@ const ALLOWED_WS_COMMANDS = Object.freeze({
 
 /**
  * WebSocket event prefixes that card addons are permitted to receive.
- * Notifications about their own properties, chat, and custom events.
+ * Notifications about their own properties, chat, custom events and the turn order.
+ * Also applied by CardPanel's bridge when forwarding events into the sandbox.
  */
-const ALLOWED_WS_RECEIVE_PREFIXES = Object.freeze([
+export const ALLOWED_WS_RECEIVE_PREFIXES = Object.freeze([
   "property_",
   "chat_",
   "custom_",
   "action_",
+  "turnorder_", // only notices (map, round, whose turn unless hidden)
 ]);
 
 // ─── Constants ───────────────────────────────────────────────────────────────

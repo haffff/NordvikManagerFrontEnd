@@ -20,6 +20,7 @@ vi.mock('@hlorenzi/react-dockable', () => ({
 vi.mock('./ToolBar/MainToolbar', () => ({ default: () => null }));
 vi.mock('../uiComponents/base/Subscribable', () => ({ default: () => null }));
 vi.mock('./PlaybackManager', () => ({ default: () => null }));
+vi.mock('./turnOrder/TurnOrderManager', () => ({ default: () => null }));
 vi.mock('./RequestInputManager', () => ({ default: () => null }));
 vi.mock('./LayoutAutoSaveManager', () => ({ default: () => null }));
 vi.mock('./theme/GameStylesheets', () => ({ default: () => null }));

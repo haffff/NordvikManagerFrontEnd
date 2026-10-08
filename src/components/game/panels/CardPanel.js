@@ -5,7 +5,7 @@ import { BasePanel } from "../../uiComponents/base/BasePanel";
 import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import { SANDBOX_BRIDGE_SCRIPT } from "./cardSandbox";
-import CardAPIFactory from "../../../CardAPI";
+import CardAPIFactory, { ALLOWED_WS_RECEIVE_PREFIXES } from "../../../CardAPI";
 import DockableHelper from "../../../helpers/DockableHelper";
 import { baseCardCss, cardStyleLinks, onGameCssChange } from "../../../helpers/cardAppStyles";
 
@@ -60,9 +60,7 @@ function mountBridge(iframe, cardApi, cardId, additionalArguments, onClosePanel)
     const { command, data } = message;
 
     // Only forward events the sandbox is allowed to receive
-    const allowed = ["property_", "chat_", "custom_", "action_"].some(
-      (p) => command?.startsWith(p)
-    );
+    const allowed = ALLOWED_WS_RECEIVE_PREFIXES.some((p) => command?.startsWith(p));
     if (!allowed) return;
 
     // Property events → PROPERTY_EVENT (avoids full re-fetch).

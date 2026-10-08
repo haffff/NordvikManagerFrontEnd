@@ -1,7 +1,7 @@
 import * as React from 'react';
 import ToolsPanel from '../../panels/ToolsPanel/ToolsPanel';
 import ChatPanel from '../../panels/ChatPanel';
-import { FaMusic, FaPaintBrush, FaTools, FaUserAlt, FaUserCog, FaUserFriends, FaVolumeUp } from 'react-icons/fa';
+import { FaListOl, FaMusic, FaPaintBrush, FaTools, FaUserAlt, FaUserCog, FaUserFriends, FaVolumeUp } from 'react-icons/fa';
 import { IoMdChatboxes } from 'react-icons/io';
 import PlayersPanel from '../../panels/PlayersPanel';
 import AdminPlayersPanel from '../../panels/AdminPlayersPanel';
@@ -10,6 +10,7 @@ import CardsPanel from '../../panels/CardsPanel';
 import MaterialsPanel from '../../panels/MaterialsPanel';
 import PlaylistsPanel from '../../panels/PlaylistsPanel';
 import SoundboardPanel from '../../panels/SoundboardPanel';
+import TurnOrderPanel from '../../panels/TurnOrderPanel';
 import DropDownMenu from '../../../uiComponents/base/DDItems/DropDownMenu';
 import CreateDropDownButton from '../../../uiComponents/base/DDItems/SpecialButtons/CreateDropDownButton';
 import ClientMediator from '../../../../ClientMediator';
@@ -37,6 +38,7 @@ export const ViewsMenu = ({ state, onDropDown }) => {
                 <CreateDropDownButton width={150} name={"Tools"} icon={<FaTools />} state={state} element={<ToolsPanel />} />
                 <CreateDropDownButton width={150} name={"Chat"} icon={<IoMdChatboxes />} state={state} element={<ChatPanel />} />
                 <CreateDropDownButton width={150} name={"Players"} icon={<FaUserFriends />} state={state} element={<PlayersPanel />} />
+                <CreateDropDownButton width={150} name={"Turn order"} icon={<FaListOl />} state={state} element={<TurnOrderPanel />} />
                 <CreateDropDownButton width={150} name={"Cards"} icon={<FaUserAlt />} state={state} element={<CardsPanel state={state} />} />
                 <CreateDropDownButton width={150} name={"Materials"} icon={<FaPaintBrush />} state={state} element={<MaterialsPanel state={state} />} />
                 <CreateDropDownButton gmOnly width={150} name={"Playlists"} icon={<FaMusic />} state={state} element={<PlaylistsPanel state={state} />} />

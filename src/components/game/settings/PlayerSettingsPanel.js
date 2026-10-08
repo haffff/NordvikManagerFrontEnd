@@ -9,6 +9,7 @@ import { toaster } from "../../ui/toaster";
 import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import { PersonalStylesheetSettings } from "../theme/StylesheetSettings";
 import ResourceCacheSettings from "./ResourceCacheSettings";
+import AudioVolumeSettings from "./AudioVolumeSettings";
 
 export const PlayerSettingsPanel = ({ player }) => {
   const [playerData, setPlayerData] = React.useState();
@@ -32,7 +33,7 @@ export const PlayerSettingsPanel = ({ player }) => {
     },
   ];
 
-  // Personal stylesheets and the offline cache live in this browser, so only your own player has them.
+  // Personal stylesheets, sound volumes and the offline cache live in this browser, so only your own player has them.
   const isCurrentPlayer = ClientMediator.sendCommand("Game", "GetCurrentPlayer")?.id === player?.id;
 
   const ctx = Dockable.useContentContext();
@@ -85,6 +86,7 @@ export const PlayerSettingsPanel = ({ player }) => {
         normalize={true}
       />
       {isCurrentPlayer && <PersonalStylesheetSettings gameId={WebHelper.GameId} />}
+      {isCurrentPlayer && <AudioVolumeSettings />}
       {isCurrentPlayer && <ResourceCacheSettings />}
     </Subscribable>
   );

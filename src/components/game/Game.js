@@ -19,6 +19,7 @@ import DockableHelper from "../../helpers/DockableHelper";
 import { DragOptimizationProvider } from "../uiComponents/base/DragOptimizationContext";
 import { PermissionsProvider } from "../../contexts/PermissionsContext";
 import PlaybackManager from "./PlaybackManager";
+import TurnOrderManager from "./turnOrder/TurnOrderManager";
 import RequestInputManager from "./RequestInputManager";
 import LayoutAutoSaveManager from "./LayoutAutoSaveManager";
 import GameStylesheets from "./theme/GameStylesheets";
@@ -206,6 +207,7 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
       <Subscribable onMessage={eventHandlers.HandleOperationProgress} commandPrefix={"operation_"} />
       <GameStylesheets gameId={resolvedGameId} />
       <PlaybackManager />
+      <TurnOrderManager />
       <RequestInputManager />
       <LayoutAutoSaveManager state={state} battlemapsRef={battleMapContexts} />
       <MainToolbar
