@@ -84,3 +84,49 @@ describe('DropDownMenu.resetPersistedMenuItems', () => {
     expect(screen.queryByTestId('stale-item')).not.toBeInTheDocument();
   });
 });
+
+// Addon menu items arrive whenever the server's hooks run — often before the menu
+// they belong to exists (the map's "Add" submenu only mounts with a battle map and
+// the map permissions loaded). They used to be dropped then, at random.
+describe('DropDownMenu items added while the menu is not mounted', () => {
+  beforeEach(() => {
+    ClientMediator._clientsHashSet = {};
+    ClientMediator._clientPanelIndex = {};
+    resetPersistedMenuItems();
+  });
+
+  it('shows an item added before the menu first mounts', async () => {
+    const { addMenuItem } = await import('./menuItemsStore');
+    addMenuItem('battlemap_add', <div key="generic-token" data-testid="generic-token">Generic token</div>);
+
+    renderWithProviders(<DropDownMenu viewId="battlemap_add" name="Add" />);
+
+    expect(await screen.findByTestId('generic-token')).toBeInTheDocument();
+  });
+
+  it('keeps an item sent while the menu was unmounted, for when it mounts again', async () => {
+    const { unmount } = renderWithProviders(<DropDownMenu viewId="battlemap_add" name="Add" />);
+    unmount();
+
+    act(() => {
+      ClientMediator.sendCommand('DropDownMenu', 'AddMenuItem', {
+        contextId: 'battlemap_add',
+        item: <div key="note" data-testid="note">Note</div>,
+      });
+    });
+    renderWithProviders(<DropDownMenu viewId="battlemap_add" name="Add" />);
+
+    expect(await screen.findByTestId('note')).toBeInTheDocument();
+  });
+
+  it('builds a submenu and its items before any of them is mounted', async () => {
+    const { addMenuItem, addSubMenu } = await import('./menuItemsStore');
+    addMenuItem('basics', <div key="note" data-testid="sub-note">Note</div>);
+    addSubMenu('battlemap_add', 'basics', 'Basics');
+
+    renderWithProviders(<DropDownMenu viewId="battlemap_add" name="Add" />);
+
+    expect(await screen.findByText('Basics')).toBeInTheDocument();
+    expect(await screen.findByTestId('sub-note')).toBeInTheDocument();
+  });
+});

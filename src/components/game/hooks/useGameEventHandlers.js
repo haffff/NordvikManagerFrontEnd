@@ -4,6 +4,7 @@ import DockableHelper from '../../../helpers/DockableHelper';
 import ClientMediator from '../../../ClientMediator';
 import { toaster } from '../../ui/toaster';
 import { DropDownItem } from '../../uiComponents/base/DDItems/DropDownItem';
+import { addMenuItem, addSubMenu } from "../../uiComponents/base/DDItems/menuItemsStore";
 
 /**
  * Custom hook for managing game-specific WebSocket event handlers
@@ -167,24 +168,6 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
   }, [state, CreateLayoutElement]);
 
   /**
-   * Waits until a DropDownMenu with the given viewId has registered with
-   * ClientMediator, resolving immediately if it already has. Plain
-   * ClientMediator.sendCommand("DropDownMenu", ...) silently drops the message
-   * if nothing is registered yet for that contextId (it doesn't queue), and
-   * waitForEvent alone only catches *future* "DropDownMenuReady" firings — it
-   * hangs forever if the target registered (and fired ready) before this runs.
-   * Lazily-mounted targets (e.g. the battlemap right-click menu's "Add"
-   * submenu, only mounted once a battlemap panel exists) need both checks.
-   */
-  const whenDropDownMenuReady = useCallback((viewId) => {
-    const existing = ClientMediator._resolveClients
-      ? ClientMediator._resolveClients("DropDownMenu", { contextId: viewId })
-      : null;
-    if (existing && existing.length > 0) return Promise.resolve();
-    return ClientMediator.waitForEvent("DropDownMenuReady", (data) => data.viewId === viewId, 5000);
-  }, []);
-
-  /**
    * Backend → client: add a dynamic menu item to a named dropdown menu.
    * Payload: { name, uiName, icon, action, location, onlyOwner }
    */
@@ -211,60 +194,27 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
     }
   }, []);
 
+  // Straight into the menu item store: the target menu (e.g. the map's "Add"
+  // submenu) may not be mounted yet, or may be re-mounted later, and shows the
+  // store's items whenever it is.
   const HandleAddMenuItem = useCallback((resp) => {
     const item = resp.data;
+    const menuItem = React.createElement(DropDownItem, {
+      key: item.name,
+      name: item.uiName || item.name,
+      onClick: async () => {
+        const extraArgs = await resolveBattlemapAddContext(item);
+        ClientMediator.sendCommand("Action", "Run", { name: item.action, args: { ...item.actionArgs, ...extraArgs } });
+      },
+    });
 
-    // If a submenu is requested, ensure a DropDownMenu is created inside the parent first
     if (item.subMenuId) {
-
-      whenDropDownMenuReady(item.subMenuId)
-        .then(() => {
-          const menuItem = React.createElement(DropDownItem, {
-            key: item.name,
-            name: item.uiName || item.name,
-            onClick: async () => {
-              const extraArgs = await resolveBattlemapAddContext(item);
-              ClientMediator.sendCommand("Action", "Run", { name: item.action, args: { ...item.actionArgs, ...extraArgs } });
-            },
-          });
-          ClientMediator.sendCommand("DropDownMenu", "AddMenuItem", {
-            contextId: item.subMenuId,
-            item: menuItem,
-          });
-        })
-        .catch((e) => console.warn(`HandleAddMenuItem: submenu "${item.subMenuId}" never became ready`, e));
-
-      whenDropDownMenuReady(item.location || "game")
-        .then(() => {
-          ClientMediator.sendCommand("DropDownMenu", "AddSubMenu", {
-            contextId: item.location || "game",
-            subMenuId: item.subMenuId,
-            subMenuName: item.subMenuName || item.subMenuId,
-          });
-        })
-        .catch((e) => console.warn(`HandleAddMenuItem: parent menu "${item.location || "game"}" never became ready`, e));
-
-      }
-      else {
-        const targetContextId = item.subMenuId || item.location || "game";
-        whenDropDownMenuReady(targetContextId)
-          .then(() => {
-            const menuItem = React.createElement(DropDownItem, {
-              key: item.name,
-              name: item.uiName || item.name,
-              onClick: async () => {
-                const extraArgs = await resolveBattlemapAddContext(item);
-                ClientMediator.sendCommand("Action", "Run", { name: item.action, args: { ...item.actionArgs, ...extraArgs } });
-              },
-            });
-            ClientMediator.sendCommand("DropDownMenu", "AddMenuItem", {
-              contextId: targetContextId,
-              item: menuItem,
-            });
-          })
-          .catch((e) => console.warn(`HandleAddMenuItem: menu "${targetContextId}" never became ready`, e));
-  }
-  }, [whenDropDownMenuReady, resolveBattlemapAddContext]);
+      addMenuItem(item.subMenuId, menuItem);
+      addSubMenu(item.location || "game", item.subMenuId, item.subMenuName || item.subMenuId);
+    } else {
+      addMenuItem(item.location || "game", menuItem);
+    }
+  }, [resolveBattlemapAddContext]);
 
   /**
    * Backend → client: add a dynamic button to the toolbar.

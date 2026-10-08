@@ -13,17 +13,23 @@ import {
   MenuRoot,
 } from "../../../ui/menu";
 import { FaAngleDown, FaArrowDown } from "react-icons/fa";
+import {
+  addMenuItem,
+  addSubMenu,
+  getMenuItems,
+  resetMenuItems,
+  subscribeMenuItems,
+} from "./menuItemsStore";
 
-// Module-level store so addon-added items survive component remounts.
-const _persistedItems = new Map(); // viewId → React element[]
+const NO_ITEMS = Object.freeze([]);
 
 // Not scoped to a game/session on its own — MainApp remounts <Game key={gameID}>
-// on every game switch, but this map survives that remount untouched. Without
+// on every game switch, but the item store survives that remount untouched. Without
 // clearing it on exit, an addon-added menu item from Game A (e.g. one that calls
 // into commands/panels that don't exist for Game B) would silently reappear when
 // the user leaves and joins a different Game B. Call this from MainApp.handleExit.
 export function resetPersistedMenuItems() {
-  _persistedItems.clear();
+  resetMenuItems();
 }
 
 export const DropDownMenu = ({
@@ -38,58 +44,29 @@ export const DropDownMenu = ({
   viewId,
 }) => {
   const { isGM, isAdmin } = usePermissions();
-  const [additionalItems, setAdditionalItems] = React.useState(
-    () => _persistedItems.get(viewId) ?? []
+  const additionalItems = React.useSyncExternalStore(
+    subscribeMenuItems,
+    () => (viewId ? getMenuItems(viewId) : NO_ITEMS)
   );
-  let ref = React.useRef();
 
+  // Kept for addons and actions that send "DropDownMenu" commands through the
+  // ClientMediator; the items go to the store either way.
   React.useEffect(() => {
-    if (viewId) {
-      ClientMediator.register({
-        panel: "DropDownMenu",
-        id: viewId,
-        contextId: viewId,
-        AddMenuItem: (data) => {
-          const element = (data && data.item !== undefined) ? data.item : data;
-          // The sender (HandleAddMenuItem) sets key to the item's stable Name, not a
-          // per-broadcast id — without checking it here, the same addon action
-          // re-firing (e.g. on a reconnect, or any Hook it's wired to running more
-          // than once) re-broadcasts menu_item_add and this appended a duplicate
-          // every time, unlike AddSubMenu right below, which already guards this.
-          setAdditionalItems(prev => {
-            if (element?.key != null && prev.some(el => el.key === element.key)) return prev;
-            const next = [...prev, element];
-            _persistedItems.set(viewId, next);
-            return next;
-          });
-        },
-        AddSubMenu: ({ subMenuId, subMenuName }) => {
-          // Skip if a DropDownMenu with that viewId is already rendered
-          const existing = ClientMediator._resolveClients
-            ? ClientMediator._resolveClients("DropDownMenu", { contextId: subMenuId })
-            : null;
-          if (existing && existing.length > 0) return;
-          // Skip if already in the persisted list
-          const current = _persistedItems.get(viewId) ?? [];
-          if (current.some(el => el.key === subMenuId)) return;
-          const submenuElement = React.createElement(DropDownMenu, {
-            key: subMenuId,
-            viewId: subMenuId,
-            name: subMenuName || subMenuId,
-            submenu: true,
-          });
-          setAdditionalItems(prev => {
-            const next = [...prev, submenuElement];
-            _persistedItems.set(viewId, next);
-            return next;
-          });
-        },
-      });
-
-      // send client mediator ready event
-      ClientMediator.fireEvent("DropDownMenuReady", { viewId });
-    }
-  }, []);
+    if (!viewId) return;
+    ClientMediator.register({
+      panel: "DropDownMenu",
+      id: viewId,
+      contextId: viewId,
+      AddMenuItem: (data) => {
+        const element = (data && data.item !== undefined) ? data.item : data;
+        addMenuItem(viewId, element);
+      },
+      AddSubMenu: ({ subMenuId, subMenuName }) => addSubMenu(viewId, subMenuId, subMenuName),
+    });
+    ClientMediator.fireEvent("DropDownMenuReady", { viewId });
+    // Deliberately left registered on unmount: it only writes to the store, so
+    // items sent while this menu is closed are still there when it mounts again.
+  }, [viewId]);
 
   if (gmOnly && !isGM) return null;
   if (adminOnly && !isAdmin) return null;
@@ -103,9 +80,12 @@ export const DropDownMenu = ({
       </MenuTrigger>}
       <MenuContent>
         {children}
-        {additionalItems}
+        {additionalItems.map((item) => item?.subMenu
+          ? <DropDownMenu key={item.key} viewId={item.subMenu.viewId} name={item.subMenu.name} submenu={true} />
+          : item)}
       </MenuContent>
     </MenuRoot>
   );
 };
 export default DropDownMenu;
+
