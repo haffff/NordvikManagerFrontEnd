@@ -16,7 +16,7 @@ const ROOT_VARIABLES = Object.freeze({
   "text-color": "#f0f0f0",
   "secondary-color": "#0b0b0b",
   "background-color": "rgb(30,30,30)",
-  "selection-color": "rgb(189, 24, 24)",
+  "selection-color": "var(--nordvik-accent)",
   "item-color": "rgb(70, 70, 70)",
   "button-color": "rgb(23, 23, 23)",
   "button-border-color": "rgb(206, 206, 206)",

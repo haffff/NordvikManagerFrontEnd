@@ -97,8 +97,8 @@ div.jsoneditor-value[contenteditable=true]:focus,
 div.jsoneditor-value[contenteditable=true]:hover,
 div.jsoneditor-field.jsoneditor-highlight,
 div.jsoneditor-value.jsoneditor-highlight {
-  background-color: rgba(189, 24, 24, 0.25) !important;
-  border: 1px solid var(--nordvik-selection-color, rgb(189, 24, 24)) !important;
+  background-color: color-mix(in srgb, var(--nordvik-selection-color, var(--nordvik-accent)) 25%, transparent) !important;
+  border: 1px solid var(--nordvik-selection-color, var(--nordvik-accent)) !important;
 }
 
 div.jsoneditor-field.jsoneditor-highlight-active,
@@ -107,16 +107,16 @@ div.jsoneditor-field.jsoneditor-highlight-active:hover,
 div.jsoneditor-value.jsoneditor-highlight-active,
 div.jsoneditor-value.jsoneditor-highlight-active:focus,
 div.jsoneditor-value.jsoneditor-highlight-active:hover {
-  background-color: rgba(189, 24, 24, 0.4) !important;
-  border: 1px solid var(--nordvik-selection-color, rgb(189, 24, 24)) !important;
+  background-color: color-mix(in srgb, var(--nordvik-selection-color, var(--nordvik-accent)) 40%, transparent) !important;
+  border: 1px solid var(--nordvik-selection-color, var(--nordvik-accent)) !important;
 }
 
-/* Muted crimson (the app's own --nordvik-selection-color, used for selection
-   highlighting elsewhere) instead of a plain white overlay — more consistent
+/* A translucent tint of the app's --nordvik-selection-color (the accent, used for
+   selection highlighting elsewhere) instead of a plain white overlay — more consistent
    with the rest of the app, and less glaring on a dark background than white. */
 .jsoneditor tr.jsoneditor-highlight,
 .jsoneditor tr.jsoneditor-selected {
-  background-color: rgba(189, 24, 24, 0.35) !important;
+  background-color: color-mix(in srgb, var(--nordvik-selection-color, var(--nordvik-accent)) 35%, transparent) !important;
 }
 
 /* --nordvik-item-color (rgb(70,70,70)) is this app's own existing "hovered
