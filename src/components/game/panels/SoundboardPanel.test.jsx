@@ -18,7 +18,7 @@ vi.mock('@hlorenzi/react-dockable', () => ({ useContentContext: () => ({ setTitl
 
 const playlists = [
   { id: 'p1', name: 'Battle drums', resources: [{ id: 'r1', name: 'Drum hit' }] },
-  { id: 'p2', name: 'Tavern', resources: [] },
+  { id: 'p2', name: 'Tavern', resources: [{ id: 'r2', name: 'Door creak' }], volume: 0.6 },
 ];
 const tree = [
   { id: 'f-combat', isFolder: true, name: 'Combat', head: true, next: 'e-p2', entryType: 'Soundboard' },
@@ -95,5 +95,25 @@ describe('SoundboardPanel folder tree', () => {
     const before = treeRequests().length;
     fireEvent.click(screen.getByText('New Soundboard'));
     await waitFor(() => expect(treeRequests().length).toBeGreaterThan(before));
+  });
+
+  it("a sound is played from its soundboard, so the soundboard's volume applies", async () => {
+    renderWithProviders(<SoundboardPanel />);
+    fireEvent.click(await screen.findByText('Tavern'));
+
+    fireEvent.click(await screen.findByText('Door creak'));
+
+    await waitFor(() => expect(ClientMediator.sendCommandAsync).toHaveBeenCalledWith('Playlist', 'PlaySound', { resourceId: 'r2', soundboardId: 'p2' }));
+  });
+
+  it('each soundboard has a volume slider that saves its volume', async () => {
+    renderWithProviders(<SoundboardPanel />);
+    const slider = await screen.findByRole('slider', { name: 'Volume of Tavern' });
+    expect(slider).toHaveValue('60');
+
+    fireEvent.change(slider, { target: { value: '30' } });
+    fireEvent.pointerUp(slider);
+
+    await waitFor(() => expect(ClientMediator.sendCommandAsync).toHaveBeenCalledWith('Playlist', 'SetVolume', { playlist: playlists[1], volume: 0.3 }));
   });
 });

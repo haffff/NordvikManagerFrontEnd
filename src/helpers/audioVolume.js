@@ -47,10 +47,27 @@ export function onVolumeChange(listener) {
   return () => listeners.delete(listener);
 }
 
-/** Sets an audio element's volume for its category, and remembers the category on it. */
-export function applyVolume(audio, category) {
+/**
+ * Sets an audio element's volume: the GM's volume for it (playlist / soundboard and
+ * file, 0..1) times this player's for its category. Both are remembered on the element,
+ * so either can change later (setGmVolume, or a player change via onVolumeChange).
+ */
+export function applyVolume(audio, category, gmVolume = 1) {
   if (!audio) return audio;
   audio.__volumeCategory = category;
-  audio.volume = getVolume(category);
+  audio.__gmVolume = clamp(gmVolume);
+  audio.volume = audio.__gmVolume * getVolume(category);
   return audio;
+}
+
+/** The GM changed the volume of something playing. */
+export function setGmVolume(audio, gmVolume) {
+  if (!audio) return;
+  applyVolume(audio, audio.__volumeCategory ?? "music", gmVolume);
+}
+
+/** Re-applies this player's volume (after a change) to an element, keeping the GM's. */
+export function refreshVolume(audio) {
+  if (!audio?.__volumeCategory) return;
+  applyVolume(audio, audio.__volumeCategory, audio.__gmVolume ?? 1);
 }
