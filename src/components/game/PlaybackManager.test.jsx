@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render } from '@testing-library/react';
 
 // PlaybackManager renders no visible DOM of its own — it just mounts three
@@ -93,6 +93,9 @@ beforeEach(() => {
   getMaterialAsyncMock.mockImplementation(() => Promise.resolve(new Blob(['x'])));
 });
 
+// Lets every fade (start/stop ~0.5 s, volume ramps ~0.3 s) and pending load finish.
+const settle = () => vi.advanceTimersByTimeAsync(1000);
+
 async function mount() {
   const utils = render(<PlaybackManager />);
   // Flush the mount effects (GetCurrentPlayer lookup, PlaylistService registration).
@@ -131,7 +134,8 @@ describe('PlaybackManager — soundboard one-shots', () => {
     expect(instance.paused).toBe(false);
   });
 
-  it('disposes the element on sound_stop and allows a fresh one afterwards', async () => {
+  it('disposes the element on sound_stop (after fading it out) and allows a fresh one afterwards', async () => {
+    vi.useFakeTimers();
     await mount();
 
     subscriptions.sound({ command: 'sound_play', data: { resourceId: 'r1' } });
@@ -140,6 +144,7 @@ describe('PlaybackManager — soundboard one-shots', () => {
     const first = FakeAudio.instances[0];
 
     subscriptions.sound({ command: 'sound_stop', data: { resourceId: 'r1' } });
+    await settle();
 
     expect(first.paused).toBe(true);
     expect(global.URL.revokeObjectURL).toHaveBeenCalled();
@@ -150,6 +155,7 @@ describe('PlaybackManager — soundboard one-shots', () => {
 
     expect(FakeAudio.instances).toHaveLength(2); // rebuilt from scratch
     expect(getMaterialAsyncMock).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
   });
 
   it('does not set .src or play() when the blob resolves after the element was already disposed (teardown race)', async () => {
@@ -295,7 +301,8 @@ describe('PlaybackManager — chat notification sound', () => {
 });
 
 describe("PlaybackManager — the player's volume", () => {
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => { localStorage.clear(); vi.useFakeTimers(); });
+  afterEach(() => vi.useRealTimers());
 
   it('plays music and sound effects at their own volumes', async () => {
     const { setVolume } = await import('../../helpers/audioVolume');
@@ -305,6 +312,7 @@ describe("PlaybackManager — the player's volume", () => {
 
     subscriptions.playlist({ command: 'playlist_play', data: { playlistId: 'p1', mode: 0, trackOrder: ['t1'], currentTrackIndex: 0, repeat: false } });
     subscriptions.sound({ command: 'sound_play', data: { resourceId: 'r1' } });
+    await settle();
 
     expect(FakeAudio.instances.map((a) => a.volume)).toEqual([0.3, 0.6]);
   });
@@ -315,20 +323,24 @@ describe("PlaybackManager — the player's volume", () => {
     subscriptions.playlist({ command: 'playlist_play', data: { playlistId: 'p1', mode: 0, trackOrder: ['t1'], currentTrackIndex: 0, repeat: false } });
     subscriptions.sound({ command: 'sound_play', data: { resourceId: 'r1' } });
 
+    await settle();
     setVolume('music', 0.1);
+    await settle();
 
     expect(FakeAudio.instances.map((a) => a.volume)).toEqual([0.1, 1]);
   });
 });
 
 describe("PlaybackManager — the GM's volumes", () => {
-  beforeEach(() => localStorage.clear());
+  beforeEach(() => { localStorage.clear(); vi.useFakeTimers(); });
+  afterEach(() => vi.useRealTimers());
   const play = (extra) => subscriptions.playlist({ command: 'playlist_play', data: { playlistId: 'p1', mode: 0, trackOrder: ['t1'], currentTrackIndex: 0, repeat: false, ...extra } });
 
   it("plays a track at the playlist's volume times the file's own", async () => {
     await mount();
 
     play({ volume: 0.8, trackVolumes: { t1: 0.5 } });
+    await settle();
 
     expect(FakeAudio.instances[0].volume).toBeCloseTo(0.4);
   });
@@ -337,11 +349,14 @@ describe("PlaybackManager — the GM's volumes", () => {
     const { setVolume } = await import('../../helpers/audioVolume');
     await mount();
     play({ volume: 0.8, trackVolumes: { t1: 0.5 } });
+    await settle();
 
     subscriptions.playlist({ command: 'playlist_volume', data: { playlistId: 'p1', volume: 0.5 } });
+    await settle();
     expect(FakeAudio.instances[0].volume).toBeCloseTo(0.25);
 
     setVolume('music', 0.5);
+    await settle();
     expect(FakeAudio.instances[0].volume).toBeCloseTo(0.125);
   });
 
@@ -350,6 +365,7 @@ describe("PlaybackManager — the GM's volumes", () => {
     play({ trackOrder: ['t1', 't2'], volume: 0.5, trackVolumes: { t2: 0.4 } });
 
     subscriptions.playlist({ command: 'playlist_track_change', data: { playlistId: 'p1', trackId: 't2', trackIndex: 1, trackOrder: ['t1', 't2'] } });
+    await settle();
 
     expect(FakeAudio.instances[1].volume).toBeCloseTo(0.2);
   });
@@ -358,7 +374,82 @@ describe("PlaybackManager — the GM's volumes", () => {
     await mount();
 
     subscriptions.sound({ command: 'sound_play', data: { resourceId: 'r1', volume: 0.3 } });
+    await settle();
 
     expect(FakeAudio.instances[0].volume).toBeCloseTo(0.3);
+  });
+});
+
+// Start, stop and track changes fade; pause and resume are instant; sound effects
+// start at full volume.
+describe('PlaybackManager — fades', () => {
+  beforeEach(() => { localStorage.clear(); vi.useFakeTimers(); });
+  afterEach(() => vi.useRealTimers());
+  const play = (extra) => subscriptions.playlist({ command: 'playlist_play', data: { playlistId: 'p1', mode: 0, trackOrder: ['t1', 't2'], currentTrackIndex: 0, repeat: false, ...extra } });
+  const loaded = () => vi.advanceTimersByTimeAsync(0);
+
+  it('music fades in when it starts', async () => {
+    await mount();
+    play();
+    await loaded();
+    const track = FakeAudio.instances[0];
+
+    expect(track.paused).toBe(false);
+    expect(track.volume).toBeLessThan(0.2);
+    await settle();
+    expect(track.volume).toBeCloseTo(1);
+  });
+
+  it('stopping fades out before the track is paused and released', async () => {
+    await mount();
+    play();
+    await settle();
+    const track = FakeAudio.instances[0];
+
+    subscriptions.playlist({ command: 'playlist_stop', data: { playlistId: 'p1' } });
+    await vi.advanceTimersByTimeAsync(200);
+    expect(track.paused).toBe(false);
+    expect(track.volume).toBeLessThan(1);
+
+    await settle();
+    expect(track.paused).toBe(true);
+    expect(global.URL.revokeObjectURL).toHaveBeenCalled();
+  });
+
+  it('the next track takes over with a quick dip: the old fades out, the new fades in', async () => {
+    await mount();
+    play();
+    await settle();
+    const first = FakeAudio.instances[0];
+
+    subscriptions.playlist({ command: 'playlist_track_change', data: { playlistId: 'p1', trackId: 't2', trackIndex: 1, trackOrder: ['t1', 't2'] } });
+    await loaded();
+    expect(first.paused).toBe(false); // still fading out
+    expect(FakeAudio.instances[1].volume).toBeLessThan(0.2);
+
+    await settle();
+    expect(first.paused).toBe(true);
+    expect(FakeAudio.instances[1].volume).toBeCloseTo(1);
+  });
+
+  it('pause and resume are instant', async () => {
+    await mount();
+    play();
+    await settle();
+    const track = FakeAudio.instances[0];
+
+    subscriptions.playlist({ command: 'playlist_pause', data: { playlistId: 'p1' } });
+    expect(track.paused).toBe(true);
+    play();
+    expect(track.paused).toBe(false);
+    expect(track.volume).toBeCloseTo(1);
+  });
+
+  it('a sound effect starts at full volume, without a fade-in', async () => {
+    await mount();
+    subscriptions.sound({ command: 'sound_play', data: { resourceId: 'r1' } });
+    await loaded();
+
+    expect(FakeAudio.instances[0].volume).toBe(1);
   });
 });

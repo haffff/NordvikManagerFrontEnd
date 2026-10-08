@@ -4,7 +4,7 @@ import Subscribable from "../uiComponents/base/Subscribable";
 import { usePermissions } from "../../contexts/PermissionsContext";
 import ClientMediator from "../../ClientMediator";
 import { SYSTEM_ASSET_KEYS, playSystemSound } from "../../helpers/systemAssets";
-import { applyVolume, onVolumeChange, refreshVolume, setGmVolume } from "../../helpers/audioVolume";
+import { applyVolume, fadeIn, fadeOut, onVolumeChange, refreshVolume, setGmVolume } from "../../helpers/audioVolume";
 import PlaylistService from "./PlaylistService";
 
 // Always-mounted singleton (see Game.js) that owns actual audio playback for the
@@ -57,9 +57,21 @@ export const PlaybackManager = () => {
     if (audio.src) URL.revokeObjectURL(audio.src);
   };
 
+  // Stop, track change: fade out, then dispose. Flagged disposed at once, so a track
+  // still loading never starts. A paused element (nothing to hear) goes at once.
+  const fadeOutAndDispose = (audio) => {
+    audio.__disposed = true;
+    if (audio.paused) {
+      disposeAudio(audio);
+      return;
+    }
+    fadeOut(audio, () => disposeAudio(audio));
+  };
+
   // category: which of the player's volumes applies ("music" or "sounds");
   // gmVolume: the GM's for this element (playlist or soundboard, times the file's own).
-  const buildTrackElement = (trackId, { loop, seekFromUtc, onEnded, category = "music", gmVolume = 1 }) => {
+  // fadeInOnStart: music fades in; a sound effect starts at once (a door slam needs its attack).
+  const buildTrackElement = (trackId, { loop, seekFromUtc, onEnded, category = "music", gmVolume = 1, fadeInOnStart = category === "music" }) => {
     const audio = applyVolume(new Audio(), category, gmVolume);
     audio.__disposed = false;
     audio.loop = loop;
@@ -82,16 +94,18 @@ export const PlaybackManager = () => {
       .then((blob) => {
         if (audio.__disposed || !(blob instanceof Blob)) return;
         audio.src = URL.createObjectURL(blob);
+        if (fadeInOnStart) fadeIn(audio);
         safePlay(audio);
       })
       .catch((e) => console.warn("[PlaybackManager] failed to fetch track blob:", e?.message ?? e));
     return audio;
   };
 
-  const teardownPlaylist = (playlistId) => {
+  // immediate: on unmount, nothing is left to fade.
+  const teardownPlaylist = (playlistId, { immediate = false } = {}) => {
     const entry = playlistsRef.current[playlistId];
     if (!entry) return;
-    Object.values(entry.elements).forEach(disposeAudio);
+    Object.values(entry.elements).forEach(immediate ? disposeAudio : fadeOutAndDispose);
     delete playlistsRef.current[playlistId];
   };
 
@@ -174,8 +188,8 @@ export const PlaybackManager = () => {
     const entry = playlistsRef.current[data.playlistId];
     if (!entry) return;
 
-    // Sequential only — tear down the previous single track element.
-    Object.values(entry.elements).forEach(disposeAudio);
+    // Sequential only — fade out the previous single track element (the next fades in).
+    Object.values(entry.elements).forEach(fadeOutAndDispose);
     entry.elements = {};
     entry.trackOrder = data.trackOrder ?? entry.trackOrder;
     entry.currentTrackIndex = data.trackIndex ?? 0;
@@ -254,7 +268,7 @@ export const PlaybackManager = () => {
       case "sound_stop": {
         const audio = soundsRef.current[data.resourceId];
         if (audio) {
-          disposeAudio(audio);
+          fadeOutAndDispose(audio);
           delete soundsRef.current[data.resourceId];
         }
         break;
@@ -296,7 +310,7 @@ export const PlaybackManager = () => {
       .catch((e) => console.warn("[PlaybackManager] failed to fetch current playback:", e?.message ?? e));
 
     return () => {
-      Object.keys(playlistsRef.current).forEach(teardownPlaylist);
+      Object.keys(playlistsRef.current).forEach((id) => teardownPlaylist(id, { immediate: true }));
       Object.values(soundsRef.current).forEach(disposeAudio);
       soundsRef.current = {};
     };

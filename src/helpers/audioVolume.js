@@ -47,6 +47,57 @@ export function onVolumeChange(listener) {
   return () => listeners.delete(listener);
 }
 
+// Fades: starting and stopping fade (no click from cutting a waveform, and a soft
+// start hides each browser beginning a track a moment apart); volume changes ramp.
+// Pausing and resuming stay instant.
+export const FADE_MS = 500;
+export const RAMP_MS = 300;
+const STEP_MS = 20;
+
+/** The volume an element should play at: the GM's for it times this player's. */
+const targetOf = (audio) => (audio.__gmVolume ?? 1) * getVolume(audio.__volumeCategory ?? "music");
+
+const cancelFade = (audio) => {
+  if (audio.__fade) clearInterval(audio.__fade);
+  audio.__fade = undefined;
+};
+
+/** Ramps the element's volume to `target` over `ms`, replacing any fade still running. */
+export function fadeTo(audio, target, ms, onDone) {
+  if (!audio) return;
+  cancelFade(audio);
+  const from = Number.isFinite(audio.volume) ? audio.volume : 0;
+  const to = clamp(target);
+  if (ms <= 0 || from === to) {
+    audio.volume = to;
+    onDone?.();
+    return;
+  }
+  const started = Date.now();
+  audio.__fade = setInterval(() => {
+    const t = Math.min(1, (Date.now() - started) / ms);
+    // Ends exactly on the target, not a float's width off it.
+    audio.volume = t >= 1 ? to : clamp(from + (to - from) * t);
+    if (t >= 1) {
+      cancelFade(audio);
+      onDone?.();
+    }
+  }, STEP_MS);
+}
+
+/** From silence up to the volume it should play at. */
+export function fadeIn(audio, ms = FADE_MS) {
+  if (!audio) return;
+  cancelFade(audio);
+  audio.volume = 0;
+  fadeTo(audio, targetOf(audio), ms);
+}
+
+/** Down to silence, then onDone (e.g. pause and release the element). */
+export function fadeOut(audio, onDone, ms = FADE_MS) {
+  fadeTo(audio, 0, ms, onDone);
+}
+
 /**
  * Sets an audio element's volume: the GM's volume for it (playlist / soundboard and
  * file, 0..1) times this player's for its category. Both are remembered on the element,
@@ -54,20 +105,23 @@ export function onVolumeChange(listener) {
  */
 export function applyVolume(audio, category, gmVolume = 1) {
   if (!audio) return audio;
+  cancelFade(audio);
   audio.__volumeCategory = category;
   audio.__gmVolume = clamp(gmVolume);
-  audio.volume = audio.__gmVolume * getVolume(category);
+  audio.volume = targetOf(audio);
   return audio;
 }
 
-/** The GM changed the volume of something playing. */
+/** The GM changed the volume of something playing: ramp to it. */
 export function setGmVolume(audio, gmVolume) {
   if (!audio) return;
-  applyVolume(audio, audio.__volumeCategory ?? "music", gmVolume);
+  audio.__gmVolume = clamp(gmVolume);
+  audio.__volumeCategory ??= "music";
+  fadeTo(audio, targetOf(audio), RAMP_MS);
 }
 
-/** Re-applies this player's volume (after a change) to an element, keeping the GM's. */
+/** Re-applies this player's volume (after a change) to an element, keeping the GM's: ramps to it. */
 export function refreshVolume(audio) {
   if (!audio?.__volumeCategory) return;
-  applyVolume(audio, audio.__volumeCategory, audio.__gmVolume ?? 1);
+  fadeTo(audio, targetOf(audio), RAMP_MS);
 }
