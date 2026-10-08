@@ -1449,9 +1449,14 @@ class TokenManager {
     if (!map?.gridSize) return;
 
     const { gridSize } = map;
-    const center = token.getCenterPoint();
+    // Canvas coordinates, also while the token is in a multi-selection: Fabric then
+    // keeps the token's own left/top (and getCenterPoint) relative to the selection's
+    // centre, which would put its bars near the canvas corner.
+    const center = token.group
+      ? fabric.util.transformPoint(token.getCenterPoint(), token.group.calcTransformMatrix())
+      : token.getCenterPoint();
     const gridSizeScale = gridSize / token.width;
-    const currentScale = token.scaleX;
+    const currentScale = token.getObjectScaling().scaleX;
     const expectedSize = gridSize * (currentScale / gridSizeScale);
     const halfSize = expectedSize / 2;
     const zero = {
