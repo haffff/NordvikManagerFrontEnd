@@ -119,13 +119,29 @@ export const TurnOrderPanel = () => {
                 background={current ? themeColors.chatOwn : themeColors.surface}
                 opacity={entry.hidden ? 0.6 : 1}
                 cursor={entry.elementId ? "pointer" : "default"}
-                draggable={canEdit}
-                onDragStart={() => { dragged.current = entry.id; }}
                 onDragOver={(e) => { if (canEdit) e.preventDefault(); }}
                 onDrop={() => onDrop(entry.id)}
                 onClick={() => entry.elementId && showOnMap(entry.elementId)}
               >
-                {canEdit && <Box color={themeColors.textSubtle} cursor="grab"><FaGripVertical /></Box>}
+                {/* Dragged by this grip only, so the initiative field and buttons stay usable. */}
+                {canEdit && (
+                  <Box
+                    data-drag-handle
+                    draggable
+                    aria-label={`Drag ${entry.name}`}
+                    title="Drag to move"
+                    color={themeColors.textSubtle}
+                    cursor="grab"
+                    onClick={(e) => e.stopPropagation()}
+                    onDragStart={(e) => {
+                      dragged.current = entry.id;
+                      const rowEl = e.currentTarget.closest("[data-entry]");
+                      try { if (rowEl) e.dataTransfer?.setDragImage?.(rowEl, 12, 12); } catch { /* jsdom */ }
+                    }}
+                  >
+                    <FaGripVertical />
+                  </Box>
+                )}
                 <Box color={themeColors.textMuted}>{entry.elementId ? <FaChessPawn /> : <FaFlag />}</Box>
                 <Text flex="1" truncate>{entry.name}</Text>
                 {canEdit ? <InitiativeField entry={entry} /> : <Text minWidth="24px" textAlign="right">{entry.initiative ?? ""}</Text>}

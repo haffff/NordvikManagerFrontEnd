@@ -79,6 +79,19 @@ describe('TurnOrderPanel', () => {
       expect(TurnOrderService.Reset).toHaveBeenCalledWith({ clear: false });
     });
 
+    // Dragged by the grip only, so the initiative field and buttons stay usable.
+    it('entries are reordered by dragging their grip, not the row', () => {
+      show(gmState);
+      expect(row('Hero')).not.toHaveAttribute('draggable', 'true');
+
+      const grip = row('Lair action').querySelector('[data-drag-handle]');
+      expect(grip).toHaveAttribute('draggable', 'true');
+      fireEvent.dragStart(grip);
+      fireEvent.drop(row('Hero'));
+
+      expect(TurnOrderService.Reorder).toHaveBeenCalledWith({ entryIds: ['e3', 'e1', 'e2'] });
+    });
+
     it('initiative is saved when leaving the field', async () => {
       show(gmState);
       const field = screen.getByRole('textbox', { name: 'Initiative of Goblin' });

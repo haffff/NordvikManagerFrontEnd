@@ -179,13 +179,28 @@ describe("TreeView", () => {
       const onRowDragStart = vi.fn();
       renderWithProviders(<Host nodes={nodes} initialOpen={["maps"]} draggable onMove={onMove} onRowDragStart={onRowDragStart} {...extra} />);
       const row = (id) => screen.getAllByRole("treeitem").find((r) => r.getAttribute("data-row-id") === id);
-      return { onMove, onRowDragStart, row };
+      // Drags start from a row's grip, not the row: a row can hold controls (a volume
+      // slider) that a whole-row drag would take over.
+      const handle = (id) => row(id).querySelector("[data-drag-handle]");
+      return { onMove, onRowDragStart, row, handle };
     };
 
+    it("drags by the grip only; the row itself isn't draggable", () => {
+      const { row, handle } = setup();
+      expect(row("e-goblin")).not.toHaveAttribute("draggable", "true");
+      expect(handle("e-goblin")).toHaveAttribute("draggable", "true");
+      expect(handle("e-goblin")).toHaveAttribute("aria-label", "Drag Goblin");
+    });
+
+    it("has no grips when the tree isn't draggable", () => {
+      renderWithProviders(<Host nodes={nodes} initialOpen={["maps"]} />);
+      expect(document.querySelector("[data-drag-handle]")).toBeNull();
+    });
+
     it("drops before/after/inside depending on pointer position", () => {
-      const { onMove, onRowDragStart, row } = setup();
+      const { onMove, onRowDragStart, row, handle } = setup();
       const dt = makeDataTransfer();
-      fireEvent.dragStart(row("e-goblin"), { dataTransfer: dt });
+      fireEvent.dragStart(handle("e-goblin"), { dataTransfer: dt });
       expect(onRowDragStart).toHaveBeenCalledWith(expect.objectContaining({ id: "e-goblin" }), expect.anything());
 
       vi.spyOn(row("e-dungeon"), "getBoundingClientRect").mockReturnValue(rect(100, 28));
@@ -193,14 +208,14 @@ describe("TreeView", () => {
       drag("drop", row("e-dungeon"), dt, 103);
       expect(onMove).toHaveBeenLastCalledWith("e-goblin", "e-dungeon", "before");
 
-      fireEvent.dragStart(row("e-goblin"), { dataTransfer: dt });
+      fireEvent.dragStart(handle("e-goblin"), { dataTransfer: dt });
       vi.spyOn(row("maps"), "getBoundingClientRect").mockReturnValue(rect(0, 28));
       drag("drop", row("maps"), dt, 14);
       expect(onMove).toHaveBeenLastCalledWith("e-goblin", "maps", "inside");
     });
 
     it("ignores drags that didn't start in this tree (e.g. files)", () => {
-      const { onMove, row } = setup();
+      const { onMove, row, handle } = setup();
       const files = makeDataTransfer();
       files.setData("Files", "x");
       vi.spyOn(row("maps"), "getBoundingClientRect").mockReturnValue(rect(0, 28));
@@ -209,18 +224,18 @@ describe("TreeView", () => {
     });
 
     it("does nothing when a row is dropped on itself", () => {
-      const { onMove, row } = setup();
+      const { onMove, row, handle } = setup();
       const dt = makeDataTransfer();
-      fireEvent.dragStart(row("e-forest"), { dataTransfer: dt });
+      fireEvent.dragStart(handle("e-forest"), { dataTransfer: dt });
       vi.spyOn(row("e-forest"), "getBoundingClientRect").mockReturnValue(rect(50, 28));
       drag("drop", row("e-forest"), dt, 60);
       expect(onMove).not.toHaveBeenCalled();
     });
 
     it("dropping on empty space moves to the end of the top level", () => {
-      const { onMove, row } = setup();
+      const { onMove, row, handle } = setup();
       const dt = makeDataTransfer();
-      fireEvent.dragStart(row("e-dungeon"), { dataTransfer: dt });
+      fireEvent.dragStart(handle("e-dungeon"), { dataTransfer: dt });
       drag("drop", screen.getByRole("tree"), dt, 500);
       expect(onMove).toHaveBeenLastCalledWith("e-dungeon", null, "end");
     });

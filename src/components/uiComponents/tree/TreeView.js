@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Box, Flex } from "@chakra-ui/react";
-import { FaChevronDown, FaChevronRight } from "react-icons/fa";
+import { FaChevronDown, FaChevronRight, FaGripVertical } from "react-icons/fa";
 import themeColors from "../../../helpers/themeColors";
 import UtilityHelper from "../../../helpers/UtilityHelper";
 import { flattenVisible } from "./treeModel";
@@ -346,8 +346,6 @@ export const TreeView = ({
               aria-level={row.depth + 1}
               aria-expanded={node.isFolder ? row.isOpen : undefined}
               aria-selected={isSelected}
-              draggable={draggable}
-              onDragStart={draggable ? (e) => handleRowDragStart(e, node) : undefined}
               onDragEnd={endDrag}
               onDragOver={(e) => onRowDragOver(e, row)}
               onDrop={(e) => onRowDrop(e, row)}
@@ -363,6 +361,25 @@ export const TreeView = ({
               }}
             >
               <Flex align="center" pr="2px" style={{ minHeight: MIN_ROW_HEIGHT, paddingLeft: row.depth * INDENT_PX + 2 }}>
+                {/* Rows are dragged by this grip only: a row can hold controls (a volume
+                    slider, buttons) that a whole-row drag would take over. */}
+                {draggable && (
+                  <Box
+                    data-drag-handle
+                    draggable
+                    aria-label={`Drag ${node.name ?? ""}`.trim()}
+                    title="Drag to move"
+                    onDragStart={(e) => {
+                      const rowEl = e.currentTarget.closest('[role="treeitem"]');
+                      try { if (rowEl) e.dataTransfer.setDragImage?.(rowEl, 12, 12); } catch { /* jsdom */ }
+                      handleRowDragStart(e, node);
+                    }}
+                    w="14px" flexShrink={0} color={themeColors.textSubtle} cursor="grab"
+                    display="flex" justifyContent="center"
+                  >
+                    <FaGripVertical size={10} />
+                  </Box>
+                )}
                 <Box
                   w="16px" flexShrink={0} color={themeColors.textMuted} display="flex" justifyContent="center"
                   onClick={(e) => {
