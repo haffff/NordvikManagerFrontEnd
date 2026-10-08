@@ -13,7 +13,8 @@ export const T = {
   faint: themeColors.textSubtle,
   token: themeColors.accentGold,     // %variables% in summaries
   missing: themeColors.accentRed,    // required argument not filled in
-  accent: themeColors.accentBlue,
+  accent: themeColors.accentText,
+  selected: themeColors.accent,
 };
 
 // Type chip colour per step category (anything else falls back to gray).

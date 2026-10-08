@@ -86,7 +86,7 @@ const CollapsibleDivider = ({ isCollapsed, onToggle, onMouseDown }) => (
         inset={0}
         cursor="col-resize"
         bg={themeColors.controlStrong}
-        _hover={{ bg: themeColors.accentBlue }}
+        _hover={{ bg: themeColors.accent }}
         onMouseDown={onMouseDown}
       />
     )}

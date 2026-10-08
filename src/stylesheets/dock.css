@@ -1,7 +1,7 @@
 /* The dock library declares its colours on its own root element (a styled-components
    class), so :root can't override them. They're re-declared here one step more
    specific, from --nordvik-dock-* variables a game stylesheet can set. The fallbacks
-   are the library's own defaults. */
+   are the library's own defaults, except the highlight, which follows --nordvik-accent. */
 .nm_dock > div {
     --dockable-voidBkg: var(--nordvik-dock-void, #1a1a1a);
     --dockable-panelBkg: var(--nordvik-dock-panel, #1e1e1e);
@@ -9,8 +9,8 @@
     --dockable-panelActiveBorder: var(--nordvik-dock-border-active, #555555);
     --dockable-panelTabBkg: var(--nordvik-dock-tab, #272727);
     --dockable-panelTabTextColor: var(--nordvik-dock-tab-text, #e8e8e8);
-    --dockable-overlayColor: var(--nordvik-dock-overlay, #00aaff18);
-    --dockable-anchorColor: var(--nordvik-dock-accent, #00aaff);
+    --dockable-overlayColor: var(--nordvik-dock-overlay, color-mix(in srgb, var(--nordvik-accent, #bd1818) 10%, transparent));
+    --dockable-anchorColor: var(--nordvik-dock-accent, var(--nordvik-accent, #bd1818));
     --dockable-buttonHoverBkg: var(--nordvik-dock-button-hover, #3a3a3a);
     --dockable-scrollbarColor: var(--nordvik-dock-scrollbar, #555555);
 }

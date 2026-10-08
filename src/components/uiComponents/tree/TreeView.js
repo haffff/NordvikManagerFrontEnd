@@ -34,7 +34,7 @@ const MeasuredRow = React.forwardRef(function MeasuredRow({ observer, ...props }
   }, [observer]);
   return <Box ref={elRef} {...props} />;
 });
-const focusRing = `inset 0 0 0 1px ${themeColors.accentBlue}`;
+const focusRing = `inset 0 0 0 1px ${themeColors.accentText}`;
 
 // Where in a row the pointer is → drop position. Folders take "inside" in the middle half.
 export function dropPositionFor(offsetY, height, isFolder) {
@@ -48,7 +48,7 @@ export function dropPositionFor(offsetY, height, isFolder) {
 }
 
 const dropStyle = (position) => {
-  const line = themeColors.accentBlue;
+  const line = themeColors.accent;
   if (position === "before") return { boxShadow: `inset 0 2px 0 ${line}` };
   if (position === "after") return { boxShadow: `inset 0 -2px 0 ${line}` };
   if (position === "inside") return { boxShadow: `inset 0 0 0 1px ${line}`, background: selectedBg };
@@ -329,7 +329,7 @@ export const TreeView = ({
       onDragLeave={(e) => { if (e.currentTarget === e.target) setDrop(null); }}
     >
       {!rows.length && emptyState}
-      <div style={{ position: "relative", height: total, boxShadow: drop?.end ? `inset 0 -2px 0 ${themeColors.accentBlue}` : undefined }}>
+      <div style={{ position: "relative", height: total, boxShadow: drop?.end ? `inset 0 -2px 0 ${themeColors.accent}` : undefined }}>
         {rows.slice(start, end).map((row, k) => {
           const i = start + k;
           const { node } = row;

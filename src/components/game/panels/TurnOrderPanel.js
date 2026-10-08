@@ -115,7 +115,7 @@ export const TurnOrderPanel = () => {
                 marginBottom="2px"
                 borderRadius="4px"
                 borderLeft="3px solid"
-                borderColor={current ? themeColors.accentGold : "transparent"}
+                borderColor={current ? themeColors.accent : "transparent"}
                 background={current ? themeColors.chatOwn : themeColors.surface}
                 opacity={entry.hidden ? 0.6 : 1}
                 cursor={entry.elementId ? "pointer" : "default"}

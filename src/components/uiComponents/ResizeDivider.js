@@ -4,7 +4,7 @@ import themeColors from "../../helpers/themeColors";
 
 // ── Design tokens (kept local so the component is self-contained) ─────────────
 const BORDER_CLR = themeColors.border;
-const CLR_BLUE   = themeColors.accentBlue;
+const CLR_ACCENT = themeColors.accent;
 const MIN_COL    = 80; // px — minimum width any column may shrink to
 
 // ── useDragResize ─────────────────────────────────────────────────────────────
@@ -62,7 +62,7 @@ export function useDragResize(containerRef, initialFractions = [0.33, 0.33]) {
 export const ResizeDivider = React.memo(({
   onMouseDown,
   color     = BORDER_CLR,
-  hoverColor = CLR_BLUE,
+  hoverColor = CLR_ACCENT,
 }) => (
   <Box
     width="4px"

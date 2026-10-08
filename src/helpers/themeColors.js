@@ -3,7 +3,7 @@
 // "Custom styling" page on the docs site: /user-guide/custom-styling). Each falls back to the
 // app's own colour, so nothing changes until a stylesheet sets it:
 //
-//   :root { --nordvik-surface: #1d1726; --nordvik-accent-blue: gold; }
+//   :root { --nordvik-surface: #1d1726; --nordvik-accent: gold; }
 //
 // Use these for UI chrome instead of colour literals. Colours that are data
 // (a player's colour, a drawn shape's fill) stay as they are.
@@ -39,7 +39,13 @@ export const themeColors = Object.freeze({
   textMuted: v("text-muted", "rgb(140,140,140)"),
   textSubtle: v("text-subtle", "rgb(130,130,130)"),
 
-  // Accents
+  // The app's one highlight colour (selected, current, focused, drop target).
+  // Set --nordvik-accent to recolour all of it; accentText is a lighter tint of it
+  // that stays readable as text, icons and thin lines on the dark panels.
+  accent: v("accent", "rgb(189,24,24)"),
+  accentText: v("accent-text", "color-mix(in srgb, var(--nordvik-accent, rgb(189,24,24)) 55%, white)"),
+
+  // Status and data colours (log levels, %variables%, links) — not highlights
   accentBlue: v("accent-blue", "rgb(100,150,230)"),
   accentGreen: v("accent-green", "rgb(80,200,120)"),
   accentRed: v("accent-red", "rgb(220,80,80)"),

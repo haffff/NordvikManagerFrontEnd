@@ -59,7 +59,7 @@ const UploadZone = React.memo(({ uploading, onFiles }) => {
     return (
         <Box
             border="1px dashed"
-            borderColor={isDragOver ? "blue.400" : BORDER_CLR}
+            borderColor={isDragOver ? themeColors.accent : BORDER_CLR}
             borderRadius="md"
             bg={isDragOver ? BG_DROP_HOV : BG_DROP}
             transition="all 0.15s"
@@ -81,8 +81,8 @@ const UploadZone = React.memo(({ uploading, onFiles }) => {
             <Flex align="center" justify="center" gap={2} pointerEvents="none">
                 {uploading
                     ? <><Spinner size="xs" color="blue.300" /><Text fontSize="xs" color="gray.400">Uploading…</Text></>
-                    : <><Icon as={FaUpload} color={isDragOver ? "blue.300" : "gray.500"} />
-                        <Text fontSize="xs" color={isDragOver ? "blue.300" : "gray.500"}>
+                    : <><Icon as={FaUpload} color={isDragOver ? themeColors.accentText : "gray.500"} />
+                        <Text fontSize="xs" color={isDragOver ? themeColors.accentText : "gray.500"}>
                             Drop files or click to upload
                         </Text></>
                 }

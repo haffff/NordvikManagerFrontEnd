@@ -30,6 +30,7 @@ import CollectionSyncer from "./base/CollectionSyncer";
 import DTreeViewOnly from "./treeList/DTreeViewOnly";
 import { toaster } from "../ui/toaster";
 import uploadMaterials from "../../helpers/uploadMaterials";
+import themeColors from "../../helpers/themeColors";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -114,7 +115,7 @@ const DropZone = React.memo(({ uploading, additionalFilter, onFilesDropped, onFi
   return (
     <Box
       border="1px dashed"
-      borderColor={isDragOver ? "blue.400" : BORDER_CLR}
+      borderColor={isDragOver ? themeColors.accent : BORDER_CLR}
       borderRadius="md"
       bg={isDragOver ? BG_DROP_HOV : BG_DROP}
       transition="all 0.15s"

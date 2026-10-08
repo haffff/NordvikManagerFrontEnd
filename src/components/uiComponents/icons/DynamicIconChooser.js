@@ -3,6 +3,7 @@ import React, { useState, useEffect } from "react";
 import { FaSearch } from "react-icons/fa";
 import DynamicIcon from "./DynamicIcon";
 import { ICON_PACK_LOADERS } from "../../../helpers/ReactIconPackLoaders";
+import themeColors from "../../../helpers/themeColors";
 
 const SHOWN_AT_FIRST = 21;
 // "More..." over the whole pack (~4000 icons) would render all of them at once.
@@ -102,7 +103,7 @@ export const DynamicIconChooser = ({ onSelect, iconSelected, isDisabled }) => {
                                         p={1}
                                         borderRadius="md"
                                         borderWidth="1px"
-                                        borderColor={isSelected ? "blue.400" : "transparent"}
+                                        borderColor={isSelected ? themeColors.accentText : "transparent"}
                                         bg={isSelected ? "var(--nordvik-selection-color, #2d3a5a)" : undefined}
                                         _hover={{ bg: "whiteAlpha.200" }}
                                         cursor="pointer"

@@ -5,6 +5,7 @@ import { ActiveWebHelper as WebHelper } from "../../../../../helpers/transport";
 import { toaster } from "../../../../ui/toaster";
 import UtilityHelper from "../../../../../helpers/UtilityHelper";
 import ProgressToastManager from "../../../../../helpers/ProgressToastManager";
+import themeColors from "../../../../../helpers/themeColors";
 
 export const InstallFromFileTab = ({ handleReload }) => {
   const [file, setFile] = useState(null);
@@ -84,7 +85,7 @@ export const InstallFromFileTab = ({ handleReload }) => {
           borderWidth="2px"
           borderRadius="8px"
           borderStyle="dashed"
-          borderColor={isDragging ? "blue.400" : "gray.600"}
+          borderColor={isDragging ? themeColors.accent : "gray.600"}
           backgroundColor={isDragging ? "rgba(59,130,246,0.08)" : "transparent"}
           cursor="pointer"
           display="flex"

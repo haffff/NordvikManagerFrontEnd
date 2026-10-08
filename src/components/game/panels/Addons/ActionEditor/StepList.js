@@ -60,11 +60,11 @@ const Row = ({ step, index, def, selected, trace, onSelect, onDuplicate, onDelet
       style={{ transform: CSS.Transform.toString(transform), transition }}
       opacity={isDragging ? 0.5 : 1}
       bg={selected ? T.selected : T.raised}
-      borderWidth="1px" borderColor={selected ? "blue.500" : T.border} borderRadius="md"
+      borderWidth="1px" borderColor={selected ? T.selected : T.border} borderRadius="md"
       // className "group": Chakra 3's _groupHover (the Duplicate/Delete buttons below) needs it;
       // role="group" was Chakra 2's, and alone it left those buttons invisible.
       className="group" role="group" onClick={() => onSelect(step.id)} cursor="pointer"
-      _hover={{ borderColor: selected ? "blue.500" : "gray.500" }}
+      _hover={{ borderColor: selected ? T.selected : "gray.500" }}
     >
       <HStack px={2} py="5px" gap={2} minH="32px">
         <Box {...attributes} {...listeners} color={T.faint} cursor="grab" onClick={(e) => e.stopPropagation()} aria-label="Drag to reorder">
