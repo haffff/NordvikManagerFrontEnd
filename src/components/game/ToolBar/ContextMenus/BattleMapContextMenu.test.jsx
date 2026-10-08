@@ -18,11 +18,14 @@ vi.mock('../../../../contexts/PermissionsContext', () => ({
     hasEntityPermission: (type, id, bit) => type !== 'MapModel' || (mapPermission & bit) === bit,
   }),
 }));
-vi.mock('../../../uiComponents/hooks/useCustomLayers', () => ({ useCustomLayers: () => ({ layers: [] }) }));
+vi.mock('../../../uiComponents/hooks/useCustomLayers', () => ({
+  useCustomLayers: () => ({ layers: [{ key: 'l-tokens', layerId: 1, name: 'Tokens', kind: 'reserved-token' }, { key: 'l-gm', layerId: 7, name: 'GM layer', kind: 'custom' }] }),
+}));
 vi.mock('../../turnOrder/TurnOrderService', () => ({ TurnOrderService: { Add: vi.fn(() => Promise.resolve(true)) } }));
 
 import BattleMapContextMenu from './BattleMapContextMenu';
 import { TurnOrderService } from '../../turnOrder/TurnOrderService';
+import { ActiveTransportManager } from '../../../../helpers/transport';
 
 const canvasStub = { getActiveObjects: () => [], contextMenuLock: false, on: vi.fn(), off: vi.fn() };
 
@@ -116,5 +119,52 @@ describe('BattleMapContextMenu', () => {
     fireEvent.click(await screen.findByText('Add to turn order'));
 
     expect(TurnOrderService.Add).toHaveBeenCalledWith(expect.objectContaining({ elementIds: ['tok-1'] }));
+  });
+});
+
+describe('BattleMapContextMenu with several elements selected', () => {
+  beforeEach(() => { mapPermission = 31; vi.clearAllMocks(); });
+
+  const goblin = { id: 'tok-1', name: 'Goblin', isToken: true, tokenData: {}, layer: 1, set(p) { Object.assign(this, p); } };
+  const orc = { id: 'tok-2', name: 'Orc', isToken: true, tokenData: {}, layer: 1, set(p) { Object.assign(this, p); } };
+  const tree = { id: 'el-3', name: 'Tree', layer: 1, set(p) { Object.assign(this, p); } };
+
+  const openWith = async (selected) => {
+    const canvas = { ...canvasStub, getActiveObjects: () => selected, discardActiveObject: vi.fn(), requestRenderAll: vi.fn() };
+    renderWithProviders(
+      <BattleMapContextMenu battleMapId="bm" canvas={canvas}>
+        <canvas data-testid="map" />
+      </BattleMapContextMenu>
+    );
+    fireEvent.contextMenu(screen.getByTestId('map').closest('[data-part="context-trigger"]'));
+    return canvas;
+  };
+
+  it('offers options for the selection, not the empty-map menu', async () => {
+    await openWith([goblin, orc, tree]);
+
+    expect(await screen.findByText('3 selected')).toBeInTheDocument();
+    expect(screen.getByText('Delete')).toBeInTheDocument();
+    expect(screen.getByText('Move to layer')).toBeInTheDocument();
+    expect(screen.queryByText('Map Settings')).not.toBeInTheDocument();
+  });
+
+  it('adds every selected token to the turn order', async () => {
+    await openWith([goblin, orc, tree]);
+
+    fireEvent.click(await screen.findByText('Add to turn order'));
+
+    expect(TurnOrderService.Add).toHaveBeenCalledWith(expect.objectContaining({ elementIds: ['tok-1', 'tok-2'] }));
+  });
+
+  it('moves every selected element to another layer', async () => {
+    await openWith([goblin, orc, tree]);
+
+    fireEvent.click(await screen.findByText('GM layer'));
+
+    const moved = ActiveTransportManager.Send.mock.calls
+      .map(([cmd]) => cmd)
+      .filter((cmd) => cmd.command === 'element_update' && cmd.action === 'layer');
+    expect(moved.map((cmd) => [cmd.data.id, cmd.data.layer])).toEqual([['tok-1', 7], ['tok-2', 7], ['el-3', 7]]);
   });
 });

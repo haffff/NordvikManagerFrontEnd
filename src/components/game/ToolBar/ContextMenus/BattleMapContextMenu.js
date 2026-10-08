@@ -212,10 +212,16 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
   const isTokenControlsLocked = (obj) =>
     !!(obj?.lockScalingX || obj?.lockScalingY || obj?.lockRotation);
 
+  const selectedTokens = selectedObjects.filter((o) => o?.isToken);
+  // With several tokens: lock them all unless they all are, then unlock them all.
+  const allTokensLocked = selectedTokens.length > 0 && selectedTokens.every(isTokenControlsLocked);
+
   const ToggleTokenControlsLock = () => {
-    const obj = selectedObjects[0];
-    if (!obj) return;
-    const locked = !isTokenControlsLocked(obj);
+    const locked = !allTokensLocked;
+    selectedTokens.forEach((obj) => setTokenControlsLock(obj, locked));
+  };
+
+  const setTokenControlsLock = (obj, locked) => {
     obj.set({
       lockScalingX: locked,
       lockScalingY: locked,
@@ -235,15 +241,26 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
   };
 
   const SwitchLayer = (layer) => {
-    var dto = DTOConverter.ConvertToDTOMinified(selectedObjects[0], []);
-    dto.layer = layer;
-    dto.insideLayerIndex = 0;
-    WebSocketManagerInstance.Send({
-      command: "element_update",
-      data: dto,
-      action: "layer",
+    selectedObjects.forEach((obj) => {
+      // Only id and layer: no position, which inside a multi-selection is relative to it.
+      var dto = DTOConverter.ConvertToDTOMinified(obj, []);
+      dto.layer = layer;
+      dto.insideLayerIndex = 0;
+      WebSocketManagerInstance.Send({
+        command: "element_update",
+        data: dto,
+        action: "layer",
+      });
     });
+    // The elements may not be selectable on the layer shown any more.
+    if (selectedObjects.length > 1) {
+      canvas.discardActiveObject?.();
+      canvas.requestRenderAll?.();
+    }
   };
+
+  const AddToTurnOrder = () =>
+    TurnOrderService.Add({ mapId: currentMap?.id, elementIds: selectedTokens.map((t) => t.id) });
 
   const MoveUp = () => {
     if (!selectedObjects[0].insideLayerIndex) {
@@ -274,11 +291,11 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
   };
 
   const SetPermission = (playerId, bits) => {
-    const entityId = selectedObjects[0]?.id;
-    if (!entityId) return;
     const permissions = { [playerId]: bits };
-    const cmd = CommandFactory.CreateUpdatePermissionsCommand(entityId, 'ElementModel', permissions);
-    WebSocketManagerInstance.Send(cmd);
+    selectedObjects.forEach((obj) => {
+      if (!obj?.id) return;
+      WebSocketManagerInstance.Send(CommandFactory.CreateUpdatePermissionsCommand(obj.id, 'ElementModel', permissions));
+    });
     // Optimistic update so checkmark reflects the change immediately.
     setElementPermissions(prev => ({ ...prev, [playerId]: bits }));
   };
@@ -314,6 +331,59 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
   };
 
   width = width || 150;
+
+  // The permission checkmarks are fetched for a single selected element only.
+  const showChecks = selectedObjects.length === 1;
+
+  const layerMenu = (
+    <DropDownMenu submenu={true} width={width} name={"Move to layer"} icon={FaLayerGroup}>
+      {layers.filter((l) => l.kind !== "reserved-grid").map((l) => (
+        <DropDownItem
+          key={l.key}
+          width={width}
+          name={l.name}
+          onClick={() => SwitchLayer(l.layerId)}
+          icon={l.kind === "reserved-token" ? FaChess : l.kind === "reserved-map" ? FaMap : FaLayerGroup}
+        />
+      ))}
+    </DropDownMenu>
+  );
+
+  const permissionsMenu = (
+    <DropDownMenu
+      submenu={true}
+      width={width}
+      name={"Permissions"}
+      icon={<FaLock />}
+      gmOnly
+    >
+      {GetPlayersForPermissions().map((player) => (
+        <DropDownMenu
+          key={player.id}
+          submenu={true}
+          width={width}
+          name={player.name || player.id}
+          icon={showChecks ? adminIcon(player.id) : undefined}
+        >
+          <DropDownItem width={width} name={"See"}     icon={showChecks ? check(player.id, PERM_LEVEL.SEE) : undefined}     onClick={() => SetPermission(player.id, PERM_LEVEL.SEE)} />
+          <DropDownItem width={width} name={"Control"} icon={showChecks ? check(player.id, PERM_LEVEL.CONTROL) : undefined} onClick={() => SetPermission(player.id, PERM_LEVEL.CONTROL)} />
+          <DropDownItem width={width} name={"Edit"}    icon={showChecks ? check(player.id, PERM_LEVEL.EDIT) : undefined}    onClick={() => SetPermission(player.id, PERM_LEVEL.EDIT)} />
+          <DropDownItem width={width} name={"None"}    icon={showChecks ? check(player.id, PERM_LEVEL.NONE) : undefined}    onClick={() => SetPermission(player.id, PERM_LEVEL.NONE)} />
+        </DropDownMenu>
+      ))}
+      <DropDownMenu
+        submenu={true}
+        width={width}
+        name={"Everyone"}
+        icon={showChecks ? adminIcon(UtilityHelper.EmptyGuid) : undefined}
+      >
+        <DropDownItem width={width} name={"See"}     icon={showChecks ? check(UtilityHelper.EmptyGuid, PERM_LEVEL.SEE) : undefined}     onClick={() => SetPermission(UtilityHelper.EmptyGuid, PERM_LEVEL.SEE)} />
+        <DropDownItem width={width} name={"Control"} icon={showChecks ? check(UtilityHelper.EmptyGuid, PERM_LEVEL.CONTROL) : undefined} onClick={() => SetPermission(UtilityHelper.EmptyGuid, PERM_LEVEL.CONTROL)} />
+        <DropDownItem width={width} name={"Edit"}    icon={showChecks ? check(UtilityHelper.EmptyGuid, PERM_LEVEL.EDIT) : undefined}    onClick={() => SetPermission(UtilityHelper.EmptyGuid, PERM_LEVEL.EDIT)} />
+        <DropDownItem width={width} name={"None"}    icon={showChecks ? check(UtilityHelper.EmptyGuid, PERM_LEVEL.NONE) : undefined}    onClick={() => SetPermission(UtilityHelper.EmptyGuid, PERM_LEVEL.NONE)} />
+      </DropDownMenu>
+    </DropDownMenu>
+  );
 
   return (
     <MenuRoot onOpenChange={(d) => {
@@ -363,7 +433,7 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
                 width={width}
                 name={"Add to turn order"}
                 icon={FaListOl}
-                onClick={() => TurnOrderService.Add({ mapId: currentMap?.id, elementIds: [selectedObjects[0].id] })}
+                onClick={AddToTurnOrder}
               />
             )}
             <DropDownItem
@@ -400,24 +470,7 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
                 />
               </DropDownMenu>
             )}
-            {canEditMap && (
-              <DropDownMenu
-                submenu={true}
-                width={width}
-                name={"Move to layer"}
-                icon={FaLayerGroup}
-              >
-                {layers.filter((l) => l.kind !== "reserved-grid").map((l) => (
-                  <DropDownItem
-                    key={l.key}
-                    width={width}
-                    name={l.name}
-                    onClick={() => SwitchLayer(l.layerId)}
-                    icon={l.kind === "reserved-token" ? FaChess : l.kind === "reserved-map" ? FaMap : FaLayerGroup}
-                  />
-                ))}
-              </DropDownMenu>
-            )}
+            {canEditMap && layerMenu}
             <DropDownItem
               width={width}
               name={"Properties"}
@@ -438,48 +491,34 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
             {selectedObjects[0]?.isToken && (
               <DropDownItem
                 width={width}
-                name={
-                  isTokenControlsLocked(selectedObjects[0])
-                    ? "Unlock Scale/Rotate"
-                    : "Lock Scale/Rotate"
-                }
+                name={allTokensLocked ? "Unlock Scale/Rotate" : "Lock Scale/Rotate"}
                 onClick={ToggleTokenControlsLock}
-                icon={isTokenControlsLocked(selectedObjects[0]) ? FaLock : FaLockOpen}
+                icon={allTokensLocked ? FaLock : FaLockOpen}
               />
             )}
-            <DropDownMenu
-              submenu={true}
-              width={width}
-              name={"Permissions"}
-              icon={<FaLock />}
-              gmOnly
-            >
-              {GetPlayersForPermissions().map((player) => (
-                <DropDownMenu
-                  key={player.id}
-                  submenu={true}
-                  width={width}
-                  name={player.name || player.id}
-                  icon={adminIcon(player.id)}
-                >
-                  <DropDownItem width={width} name={"See"}     icon={check(player.id, PERM_LEVEL.SEE)}     onClick={() => SetPermission(player.id, PERM_LEVEL.SEE)} />
-                  <DropDownItem width={width} name={"Control"} icon={check(player.id, PERM_LEVEL.CONTROL)} onClick={() => SetPermission(player.id, PERM_LEVEL.CONTROL)} />
-                  <DropDownItem width={width} name={"Edit"}    icon={check(player.id, PERM_LEVEL.EDIT)}    onClick={() => SetPermission(player.id, PERM_LEVEL.EDIT)} />
-                  <DropDownItem width={width} name={"None"}    icon={check(player.id, PERM_LEVEL.NONE)}    onClick={() => SetPermission(player.id, PERM_LEVEL.NONE)} />
-                </DropDownMenu>
-              ))}
-              <DropDownMenu
-                submenu={true}
+            {permissionsMenu}
+          </>
+        ) : selectedObjects.length > 1 ? (
+          <>
+            <Heading size={"xs"} style={{ textAlign: "center" }}>
+              {selectedObjects.length} selected
+            </Heading>
+            <DropDownItem width={width} name={"Delete"} icon={FaTrash} onClick={HandleDelete} />
+            {selectedTokens.length > 0 && canEditMap && (
+              <DropDownItem width={width} name={"Add to turn order"} icon={FaListOl} onClick={AddToTurnOrder} />
+            )}
+            <DropDownItem width={width} name={"Copy"} icon={FaCopy} onClick={CopyElements} />
+            <DropDownItem width={width} name={"Paste"} icon={FaPaste} onClick={PasteElements} />
+            {canEditMap && layerMenu}
+            {selectedTokens.length > 0 && (
+              <DropDownItem
                 width={width}
-                name={"Everyone"}
-                icon={adminIcon(UtilityHelper.EmptyGuid)}
-              >
-                <DropDownItem width={width} name={"See"}     icon={check(UtilityHelper.EmptyGuid, PERM_LEVEL.SEE)}     onClick={() => SetPermission(UtilityHelper.EmptyGuid, PERM_LEVEL.SEE)} />
-                <DropDownItem width={width} name={"Control"} icon={check(UtilityHelper.EmptyGuid, PERM_LEVEL.CONTROL)} onClick={() => SetPermission(UtilityHelper.EmptyGuid, PERM_LEVEL.CONTROL)} />
-                <DropDownItem width={width} name={"Edit"}    icon={check(UtilityHelper.EmptyGuid, PERM_LEVEL.EDIT)}    onClick={() => SetPermission(UtilityHelper.EmptyGuid, PERM_LEVEL.EDIT)} />
-                <DropDownItem width={width} name={"None"}    icon={check(UtilityHelper.EmptyGuid, PERM_LEVEL.NONE)}    onClick={() => SetPermission(UtilityHelper.EmptyGuid, PERM_LEVEL.NONE)} />
-              </DropDownMenu>
-            </DropDownMenu>
+                name={allTokensLocked ? "Unlock Scale/Rotate" : "Lock Scale/Rotate"}
+                onClick={ToggleTokenControlsLock}
+                icon={allTokensLocked ? FaLock : FaLockOpen}
+              />
+            )}
+            {permissionsMenu}
           </>
         ) : (
           <>
