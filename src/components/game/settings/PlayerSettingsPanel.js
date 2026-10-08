@@ -10,6 +10,8 @@ import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import { PersonalStylesheetSettings } from "../theme/StylesheetSettings";
 import ResourceCacheSettings from "./ResourceCacheSettings";
 import AudioVolumeSettings from "./AudioVolumeSettings";
+import { Tabs } from "@chakra-ui/react";
+import { BasePanel } from "../../uiComponents/base/BasePanel";
 
 export const PlayerSettingsPanel = ({ player }) => {
   const [playerData, setPlayerData] = React.useState();
@@ -84,15 +86,31 @@ export const PlayerSettingsPanel = ({ player }) => {
 
   return (
     <Subscribable commandPrefix={"settings_player"} onMessage={updateSettings}>
-      <SettingsPanel
-        dto={playerData}
-        editableKeyLabelDict={editables}
-        onSave={sendSettingsUpdate}
-        normalize={true}
-      />
-      {isCurrentPlayer && <PersonalStylesheetSettings gameId={WebHelper.GameId} />}
-      {isCurrentPlayer && <AudioVolumeSettings />}
-      {isCurrentPlayer && <ResourceCacheSettings />}
+      {/* Tabs: the player form is full height (its Save button sits at the bottom),
+          so anything placed under it was clipped out of view. */}
+      <BasePanel>
+        <Tabs.Root defaultValue="player" size="md" variant="enclosed" lazyMount height="100%" display="flex" flexDirection="column">
+          <Tabs.List>
+            <Tabs.Trigger value="player">Player</Tabs.Trigger>
+            {isCurrentPlayer && <Tabs.Trigger value="browser">This browser</Tabs.Trigger>}
+          </Tabs.List>
+          <Tabs.Content value="player" flex="1" minHeight={0}>
+            <SettingsPanel
+              dto={playerData}
+              editableKeyLabelDict={editables}
+              onSave={sendSettingsUpdate}
+              normalize={true}
+            />
+          </Tabs.Content>
+          {isCurrentPlayer && (
+            <Tabs.Content value="browser" flex="1" minHeight={0} overflowY="auto">
+              <PersonalStylesheetSettings gameId={WebHelper.GameId} />
+              <AudioVolumeSettings />
+              <ResourceCacheSettings />
+            </Tabs.Content>
+          )}
+        </Tabs.Root>
+      </BasePanel>
     </Subscribable>
   );
 };

@@ -1,5 +1,5 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { screen, waitFor } from '@testing-library/react';
+import { screen, waitFor, fireEvent } from '@testing-library/react';
 import { renderWithProviders } from '../../../setupTests';
 
 vi.mock('@hlorenzi/react-dockable', () => ({ useContentContext: () => ({ setTitle: vi.fn(), setPreferredSize: vi.fn() }) }));
@@ -34,7 +34,9 @@ describe('PlayerSettingsPanel', () => {
     renderWithProviders(<PlayerSettingsPanel />);
 
     await waitFor(() => expect(screen.getByTestId('player-fields')).toHaveTextContent('Me'));
-    expect(screen.getByText('Sound volume')).toBeInTheDocument();
+    // Their own tab: under the full-height player form they were clipped out of view.
+    fireEvent.click(screen.getByRole('tab', { name: 'This browser' }));
+    expect(await screen.findByText('Sound volume')).toBeVisible();
     expect(screen.getByText('Personal stylesheets')).toBeInTheDocument();
     expect(screen.getByText('Offline cache')).toBeInTheDocument();
   });
@@ -43,6 +45,7 @@ describe('PlayerSettingsPanel', () => {
     renderWithProviders(<PlayerSettingsPanel player={other} />);
 
     await waitFor(() => expect(screen.getByTestId('player-fields')).toHaveTextContent('Other'));
+    expect(screen.queryByRole('tab', { name: 'This browser' })).not.toBeInTheDocument();
     expect(screen.queryByText('Sound volume')).not.toBeInTheDocument();
   });
 });
