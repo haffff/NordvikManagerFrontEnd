@@ -4,8 +4,11 @@ import { IoMdAdd } from "react-icons/io";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import { useCustomLayers } from "../../uiComponents/hooks/useCustomLayers";
+import { FaEye, FaEyeSlash, FaUserSecret } from "react-icons/fa";
+import { layerFlagUpdate, layerState } from "../../BattleMap/Helpers/layerVisibility";
 
-// One row for an existing custom layer: name (rename on blur), move up/down, remove.
+// One row for an existing custom layer: name (rename on blur), hide / GM only,
+// move up/down, remove.
 const LayerRow = React.memo(({ row, propertyId, canMoveUp, canMoveDown, onRemove, onMove }) => {
   const [name, setName] = React.useState(row.name);
   React.useEffect(() => { setName(row.name); }, [row.name]);
@@ -32,6 +35,7 @@ const LayerRow = React.memo(({ row, propertyId, canMoveUp, canMoveDown, onRemove
         onBlur={commitRename}
         onKeyDown={(e) => { if (e.key === "Enter") e.currentTarget.blur(); }}
       />
+      <LayerVisibilityButtons row={row} propertyId={propertyId} />
       <Button
         size="2xs"
         variant="ghost"
@@ -44,6 +48,36 @@ const LayerRow = React.memo(({ row, propertyId, canMoveUp, canMoveDown, onRemove
     </HStack>
   );
 });
+
+// Hidden (nobody sees it) and GM only (players don't; the GM sees it faded).
+const LayerVisibilityButtons = ({ row, propertyId }) => {
+  const state = layerState(row);
+  const setState = (next) => WebSocketManagerInstance.Send(layerFlagUpdate(propertyId, row, next));
+  return (
+    <>
+      <Button
+        size="2xs"
+        variant={state === "hidden" ? "subtle" : "ghost"}
+        aria-pressed={state === "hidden"}
+        aria-label={state === "hidden" ? `${row.name}: hidden (click to show)` : `${row.name}: visible (click to hide)`}
+        title={state === "hidden" ? "Hidden for everyone — click to show" : "Visible — click to hide for everyone"}
+        onClick={() => setState(state === "hidden" ? "visible" : "hidden")}
+      >
+        <Icon as={state === "hidden" ? FaEyeSlash : FaEye} />
+      </Button>
+      <Button
+        size="2xs"
+        variant={state === "gmOnly" ? "subtle" : "ghost"}
+        aria-pressed={state === "gmOnly"}
+        aria-label={state === "gmOnly" ? `${row.name}: GM only (click to make visible to players)` : `${row.name}: for everyone (click to make GM only)`}
+        title={state === "gmOnly" ? "GM only — click to show players too" : "Click to make GM only (players don't see it)"}
+        onClick={() => setState(state === "gmOnly" ? "visible" : "gmOnly")}
+      >
+        <Icon as={FaUserSecret} />
+      </Button>
+    </>
+  );
+};
 
 // A Grid/Token/Background row — shown so the GM can see where custom layers sit
 // relative to them, but never editable/movable/removable.
@@ -123,6 +157,9 @@ export const LayerListEditor = ({ gameId }) => {
 
       <Text fontSize="2xs" color="gray.500" mt={1}>
         Removing a layer moves any elements on it back to the Map layer.
+      </Text>
+      <Text fontSize="2xs" color="gray.500">
+        Hidden layers aren't drawn for anyone; GM-only layers are drawn only for the GM (faded).
       </Text>
     </Box>
   );

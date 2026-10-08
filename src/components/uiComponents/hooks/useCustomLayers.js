@@ -17,7 +17,16 @@ const RESERVED_ROWS = [
 
 const toCustomLayers = (value) =>
   (parseListValue(value) ?? [])
-    .map((item) => ({ key: item.id, id: item.id, name: item.fields?.name ?? "", layerId: Number(item.fields?.layerId), kind: "custom" }))
+    .map((item) => ({
+      key: item.id,
+      id: item.id,
+      name: item.fields?.name ?? "",
+      layerId: Number(item.fields?.layerId),
+      kind: "custom",
+      // See BattleMap/Helpers/layerVisibility.js
+      hidden: UtilityHelper.ParseBool(item.fields?.hidden) === true,
+      gmOnly: UtilityHelper.ParseBool(item.fields?.gmOnly) === true,
+    }))
     .filter((l) => Number.isFinite(l.layerId));
 
 // Topmost-first (descending layerId), matching ordinary layer-panel UX (e.g.

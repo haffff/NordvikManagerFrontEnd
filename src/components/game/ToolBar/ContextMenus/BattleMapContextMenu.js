@@ -42,6 +42,7 @@ import { RESERVED_LAYERS } from "../../../BattleMap/Constants/layers";
 import { useCustomLayers } from "../../../uiComponents/hooks/useCustomLayers";
 import { syncControlsVisibility } from "../../../BattleMap/Helpers/TokenControlsHelper";
 import { SearchInput } from "../../../uiComponents/SearchInput";
+import { LAYER_STATES, layerFlagUpdate, layerLabel, layerState } from "../../../BattleMap/Helpers/layerVisibility";
 
 export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) => {
   // Read when the menu opens: selecting on the canvas doesn't re-render this component,
@@ -56,7 +57,8 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
   const canPlaceTokens = canEditMap || hasEntityPermission(ENTITY_TYPES.MAP, currentMap?.id, PERM.CONTROL);
 
   const gameId = React.useMemo(() => ClientMediator.sendCommand("Game", "GetGameId"), []);
-  const { layers } = useCustomLayers(gameId);
+  const { layers, propertyId: layersPropertyId } = useCustomLayers(gameId);
+  const customLayers = layers.filter((l) => l.kind === "custom");
 
   // { [playerId]: bits } for the currently selected element
   const [elementPermissions, setElementPermissions] = React.useState({});
@@ -341,10 +343,29 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
         <DropDownItem
           key={l.key}
           width={width}
-          name={l.name}
+          name={layerLabel(l)}
           onClick={() => SwitchLayer(l.layerId)}
           icon={l.kind === "reserved-token" ? FaChess : l.kind === "reserved-map" ? FaMap : FaLayerGroup}
         />
+      ))}
+    </DropDownMenu>
+  );
+
+  // Visible / GM only / Hidden for each custom layer (see layerVisibility.js).
+  const layerVisibilityMenu = customLayers.length > 0 && (
+    <DropDownMenu gmOnly submenu={true} width={width} name={"Layers"} icon={<FaEye />}>
+      {customLayers.map((layer) => (
+        <DropDownMenu key={layer.key} submenu={true} width={width} name={layerLabel(layer)} icon={<FaLayerGroup />}>
+          {LAYER_STATES.map(({ state, label }) => (
+            <DropDownItem
+              key={state}
+              width={width}
+              name={label}
+              icon={layerState(layer) === state ? <FaCheckCircle style={{ color: 'var(--chakra-colors-green-400)' }} /> : undefined}
+              onClick={() => WebSocketManagerInstance.Send(layerFlagUpdate(layersPropertyId, layer, state))}
+            />
+          ))}
+        </DropDownMenu>
       ))}
     </DropDownMenu>
   );
@@ -582,6 +603,7 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
                 icon={<FaWrench/>}
               />
             </DropDownMenu>
+            {canEditMap && layerVisibilityMenu}
             {maps.length > 0 && canEditMap && (
               <SwitchMapSubmenu maps={maps} battleMapId={battleMapId} currentMapId={currentMap?.id} width={width} />
             )}

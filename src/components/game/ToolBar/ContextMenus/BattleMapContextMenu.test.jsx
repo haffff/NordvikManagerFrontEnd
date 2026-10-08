@@ -19,7 +19,14 @@ vi.mock('../../../../contexts/PermissionsContext', () => ({
   }),
 }));
 vi.mock('../../../uiComponents/hooks/useCustomLayers', () => ({
-  useCustomLayers: () => ({ layers: [{ key: 'l-tokens', layerId: 1, name: 'Tokens', kind: 'reserved-token' }, { key: 'l-gm', layerId: 7, name: 'GM layer', kind: 'custom' }] }),
+  useCustomLayers: () => ({
+    propertyId: 'prop-layers',
+    layers: [
+      { key: 'l-tokens', layerId: 1, name: 'Tokens', kind: 'reserved-token' },
+      { key: 'l-gm', id: 'gm', layerId: 7, name: 'GM layer', kind: 'custom' },
+      { key: 'l-secrets', id: 'secrets', layerId: 9, name: 'Secrets', kind: 'custom', gmOnly: true },
+    ],
+  }),
 }));
 vi.mock('../../turnOrder/TurnOrderService', () => ({ TurnOrderService: { Add: vi.fn(() => Promise.resolve(true)) } }));
 
@@ -166,5 +173,42 @@ describe('BattleMapContextMenu with several elements selected', () => {
       .map(([cmd]) => cmd)
       .filter((cmd) => cmd.command === 'element_update' && cmd.action === 'layer');
     expect(moved.map((cmd) => [cmd.data.id, cmd.data.layer])).toEqual([['tok-1', 7], ['tok-2', 7], ['el-3', 7]]);
+  });
+});
+
+describe('BattleMapContextMenu — hiding layers', () => {
+  beforeEach(() => { mapPermission = 31; vi.clearAllMocks(); });
+
+  const open = (selected = []) => {
+    const canvas = { ...canvasStub, getActiveObjects: () => selected, discardActiveObject: vi.fn(), requestRenderAll: vi.fn() };
+    renderWithProviders(
+      <BattleMapContextMenu battleMapId="bm" canvas={canvas}>
+        <canvas data-testid="map" />
+      </BattleMapContextMenu>
+    );
+    fireEvent.contextMenu(screen.getByTestId('map').closest('[data-part="context-trigger"]'));
+  };
+
+  it('sets a custom layer GM only or hidden from the map menu', async () => {
+    open();
+
+    expect(await screen.findByText('Layers')).toBeInTheDocument();
+    // One Visible / GM only / Hidden choice per custom layer: GM layer, then Secrets.
+    fireEvent.click(screen.getAllByText('Hidden')[0]);
+    fireEvent.click(screen.getAllByText('Visible')[1]);
+
+    const sent = ActiveTransportManager.Send.mock.calls.map(([cmd]) => cmd)
+      .filter((cmd) => cmd.command === 'property_list_item_update')
+      .map((cmd) => [cmd.data.propertyId, cmd.data.itemId, cmd.data.fields]);
+    expect(sent).toEqual([
+      ['prop-layers', 'gm', { hidden: 'true', gmOnly: 'false' }],
+      ['prop-layers', 'secrets', { hidden: 'false', gmOnly: 'false' }],
+    ]);
+  });
+
+  it('marks GM-only layers in Move to layer', async () => {
+    open([{ id: 'tok-1', name: 'Goblin', isToken: true, tokenData: {}, layer: 1 }]);
+
+    expect(await screen.findByText('Secrets (GM only)')).toBeInTheDocument();
   });
 });

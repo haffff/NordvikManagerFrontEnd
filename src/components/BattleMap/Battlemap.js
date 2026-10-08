@@ -20,6 +20,7 @@ import { PerformanceMonitor } from "../../helpers/PerformanceMonitor";
 import createLoadCanvas from './Handlers/LoadCanvas';
 import createHandleDrop from './Handlers/HandleDrop';
 import { useCanvasFitsPanel } from './Hooks/useCanvasFitsPanel';
+import { useLayerView } from './Hooks/useLayerView';
 import BasePanel from "../uiComponents/base/BasePanel";
 import { _entityPermissionSetter } from "../../contexts/PermissionsContext";
 import { ENTITY_TYPES, PERM } from "./Helpers/permissionBits";
@@ -52,6 +53,9 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
 
   // Make canvas existence a simple boolean so dependency array is stable
   const hasCanvas = !!(editor && editor.canvas);
+
+  // Hidden and GM-only custom layers: left out of / faded on this canvas.
+  useLayerView(editor?.canvas);
 
   // Reload handler so services can request a top-level reload that matches component behavior
   const ReloadBattleMap = React.useCallback(async () => {
