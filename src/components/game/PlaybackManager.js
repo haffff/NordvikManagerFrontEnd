@@ -4,7 +4,7 @@ import Subscribable from "../uiComponents/base/Subscribable";
 import { usePermissions } from "../../contexts/PermissionsContext";
 import ClientMediator from "../../ClientMediator";
 import { SYSTEM_ASSET_KEYS, playSystemSound } from "../../helpers/systemAssets";
-import { applyVolume, onVolumeChange } from "../../helpers/audioVolume";
+import { applyVolume, onVolumeChange, refreshVolume, setGmVolume } from "../../helpers/audioVolume";
 import PlaylistService from "./PlaylistService";
 
 // Always-mounted singleton (see Game.js) that owns actual audio playback for the
@@ -57,9 +57,10 @@ export const PlaybackManager = () => {
     if (audio.src) URL.revokeObjectURL(audio.src);
   };
 
-  // category: which of the player's volumes applies ("music" or "sounds").
-  const buildTrackElement = (trackId, { loop, seekFromUtc, onEnded, category = "music" }) => {
-    const audio = applyVolume(new Audio(), category);
+  // category: which of the player's volumes applies ("music" or "sounds");
+  // gmVolume: the GM's for this element (playlist or soundboard, times the file's own).
+  const buildTrackElement = (trackId, { loop, seekFromUtc, onEnded, category = "music", gmVolume = 1 }) => {
+    const audio = applyVolume(new Audio(), category, gmVolume);
     audio.__disposed = false;
     audio.loop = loop;
     if (onEnded) audio.addEventListener("ended", onEnded);
@@ -111,6 +112,8 @@ export const PlaybackManager = () => {
     WebHelper.postAsync("Playlist/StopPlaylist", { PlaylistId: playlistId });
   };
 
+  const trackGmVolume = (entry, trackId) => (entry.volume ?? 1) * (entry.trackVolumes?.[trackId] ?? 1);
+
   const startPlaylist = (data) => {
     teardownPlaylist(data.playlistId);
 
@@ -121,6 +124,9 @@ export const PlaybackManager = () => {
       currentTrackIndex: data.currentTrackIndex ?? 0,
       elements: {},
       endedTrackIds: new Set(),
+      // The GM's: the playlist's volume, and files with a volume of their own.
+      volume: data.volume ?? 1,
+      trackVolumes: data.trackVolumes ?? {},
     };
     playlistsRef.current[data.playlistId] = entry;
 
@@ -128,6 +134,7 @@ export const PlaybackManager = () => {
       entry.trackOrder.forEach((trackId) => {
         entry.elements[trackId] = buildTrackElement(trackId, {
           loop: data.repeat,
+          gmVolume: trackGmVolume(entry, trackId),
           seekFromUtc: data.currentTrackStartedAtUtc,
           onEnded: data.repeat
             ? undefined
@@ -143,6 +150,7 @@ export const PlaybackManager = () => {
         const fromIndex = entry.currentTrackIndex;
         entry.elements[trackId] = buildTrackElement(trackId, {
           loop: false,
+          gmVolume: trackGmVolume(entry, trackId),
           seekFromUtc: data.currentTrackStartedAtUtc,
           onEnded: () => advanceSequential(data.playlistId, fromIndex),
         });
@@ -177,10 +185,19 @@ export const PlaybackManager = () => {
       const fromIndex = entry.currentTrackIndex;
       entry.elements[trackId] = buildTrackElement(trackId, {
         loop: false,
+        gmVolume: trackGmVolume(entry, trackId),
         seekFromUtc: data.currentTrackStartedAtUtc,
         onEnded: () => advanceSequential(data.playlistId, fromIndex),
       });
     }
+  };
+
+  // The GM changed a playing playlist's volume.
+  const changePlaylistVolume = (data) => {
+    const entry = playlistsRef.current[data.playlistId];
+    if (!entry) return;
+    entry.volume = data.volume ?? 1;
+    Object.entries(entry.elements).forEach(([trackId, audio]) => setGmVolume(audio, trackGmVolume(entry, trackId)));
   };
 
   const onPlaylistEvent = React.useCallback((event) => {
@@ -206,6 +223,9 @@ export const PlaybackManager = () => {
       case "playlist_track_change":
         changeTrack(data);
         break;
+      case "playlist_volume":
+        changePlaylistVolume(data);
+        break;
       default:
         break;
     }
@@ -223,7 +243,7 @@ export const PlaybackManager = () => {
           safePlay(existing);
           break;
         }
-        const audio = buildTrackElement(data.resourceId, { loop: false, category: "sounds" });
+        const audio = buildTrackElement(data.resourceId, { loop: false, category: "sounds", gmVolume: data.volume ?? 1 });
         audio.addEventListener("ended", () => {
           if (audio.src) URL.revokeObjectURL(audio.src);
           delete soundsRef.current[data.resourceId];
@@ -260,7 +280,7 @@ export const PlaybackManager = () => {
       ...Object.values(soundsRef.current),
     ];
     playing.forEach((audio) => {
-      if (audio?.__volumeCategory === category) audio.volume = volume;
+      if (audio?.__volumeCategory === category) refreshVolume(audio);
     });
   }), []);
 

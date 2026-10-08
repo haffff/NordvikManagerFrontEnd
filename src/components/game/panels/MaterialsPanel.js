@@ -15,6 +15,7 @@ import UtilityHelper from '../../../helpers/UtilityHelper';
 import DTreeList from '../../uiComponents/treeList/DTreeList';
 import CollectionSyncer from '../../uiComponents/base/CollectionSyncer';
 import InputModal from '../../uiComponents/base/Modals/InputModal';
+import { resourceEditFields, resourceEditDto, resourceUpdateData } from './resourceEdit';
 import { ActiveTransportManager as WebSocketManagerInstance } from '../../../helpers/transport';
 import RefreshInfo from '../../uiComponents/treeList/RefreshInfoCard';
 import DockableHelper from '../../../helpers/DockableHelper';
@@ -262,6 +263,7 @@ export const MaterialsPanel = ({ state }) => {
     const [uploading, setUploading]     = React.useState(false);
     const [linkModalOpen, setLinkModalOpen] = React.useState(false);
     const onFolderRenameOpenRef         = React.useRef(null);
+    const editingAudioRef               = React.useRef(false);
     const treeRefreshRef                = React.useRef(null);
 
     const { hasEntityPermission, isGM } = usePermissions();
@@ -456,7 +458,7 @@ export const MaterialsPanel = ({ state }) => {
                             <>
                                 <DListItemButton icon={FaHashtag} label="Copy ID" onClick={() => copyId(item.id)} />
                                 <DListItemButton icon={FaLink} label="Copy link" onClick={() => copyLink(item.id)} />
-                                <DListItemButton icon={FaPen}  label="Edit"    onClick={() => onFolderRenameOpenRef.current({ name: item.name, key: item.key, id: item.id })} />
+                                <DListItemButton icon={FaPen}  label="Edit"    onClick={() => { editingAudioRef.current = item.mimeType?.startsWith("audio"); onFolderRenameOpenRef.current(resourceEditDto(item)); }} />
                                 {isGM && item.storage !== 1 && (
                                     <DListItemButton
                                         icon={FaExchangeAlt}
@@ -500,13 +502,10 @@ export const MaterialsPanel = ({ state }) => {
         <BasePanel onDragOver={(e) => e.preventDefault()} onDrop={handlePanelDrop}>
             <InputModal
                 title="Edit Resource"
-                getConfigDict={() => [
-                    { key: "name", label: "Resource Name", toolTip: "Name of Resource.", type: "string", required: true },
-                    { key: "key", label: "Key", toolTip: "Optional short identifier for looking this resource up directly from actions/queries (e.g. \"Apple\") instead of by its ID. Must be unique within this game — leave blank to clear it.", type: "string" },
-                ]}
+                getConfigDict={() => resourceEditFields(editingAudioRef.current)}
                 openRef={onFolderRenameOpenRef}
-                onCloseModal={({ name, key, id }, success) => {
-                    if (success) WebSocketManagerInstance.Send({ command: "resource_update", data: { id, name, key } });
+                onCloseModal={(dto, success) => {
+                    if (success) WebSocketManagerInstance.Send({ command: "resource_update", data: resourceUpdateData(dto) });
                 }}
             />
 

@@ -9,6 +9,7 @@ import DTreeList from "../../uiComponents/treeList/DTreeList";
 import DListItem from "../../uiComponents/base/List/DListItem";
 import DLabel from "../../uiComponents/base/Text/DLabel";
 import DListItemButton from "../../uiComponents/base/List/ListItemDetails/DListItemButton";
+import VolumeSlider from "../../uiComponents/VolumeSlider";
 import DListItemsButtonContainer from "../../uiComponents/base/List/DListItemsButtonContainer";
 import SettingsPanel from "../settings/SettingsPanel";
 import ClientMediator from "../../../ClientMediator";
@@ -36,9 +37,10 @@ const EDITABLE_DICT = [
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-const BoardCard = React.memo(({ board, isSelected, onSelect, onDelete }) => (
+const BoardCard = React.memo(({ board, isSelected, onSelect, onDelete, onVolume }) => (
   <DListItem isSelected={isSelected} onClick={() => onSelect(board)}>
     <DLabel>{board.name}</DLabel>
+    <VolumeSlider label={`Volume of ${board.name}`} value={board.volume ?? 1} onCommit={(volume) => onVolume?.(board, volume)} />
     <DListItemsButtonContainer>
     </DListItemsButtonContainer>
   </DListItem>
@@ -244,8 +246,18 @@ export const SoundboardPanel = () => {
 
   // Do not optimistically play locally — wait for the resulting sound_play broadcast,
   // same as PlaylistsPanel waits for playlist_notify before refetching.
+  // From the selected soundboard, so its volume applies.
   const handlePlay = (resource) => {
-    ClientMediator.sendCommandAsync("Playlist", "PlaySound", { resourceId: resource.id });
+    ClientMediator.sendCommandAsync("Playlist", "PlaySound", { resourceId: resource.id, soundboardId: selectedBoard?.id });
+  };
+
+  const handleVolume = async (board, volume) => {
+    const { status, body } = await ClientMediator.sendCommandAsync("Playlist", "SetVolume", { playlist: board, volume }) ?? {};
+    if (status < 200 || status >= 300) {
+      toaster.create({ title: "Failed to change the volume", description: body?.error, type: "error", duration: 5000 });
+      return;
+    }
+    await reloadAll();
   };
 
   const handleStop = (resource) => {
@@ -298,6 +310,7 @@ export const SoundboardPanel = () => {
                   isSelected={selectedId === b.id}
                   onSelect={(board) => setSelectedId(board.id)}
                   onDelete={handleDelete}
+                  onVolume={handleVolume}
                 />
               )}
             />

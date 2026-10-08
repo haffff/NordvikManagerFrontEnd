@@ -9,6 +9,7 @@ import DTreeList from "../../uiComponents/treeList/DTreeList";
 import DListItem from "../../uiComponents/base/List/DListItem";
 import DLabel from "../../uiComponents/base/Text/DLabel";
 import DListItemButton from "../../uiComponents/base/List/ListItemDetails/DListItemButton";
+import VolumeSlider from "../../uiComponents/VolumeSlider";
 import DListItemsButtonContainer from "../../uiComponents/base/List/DListItemsButtonContainer";
 import SettingsPanel from "../settings/SettingsPanel";
 import ClientMediator from "../../../ClientMediator";
@@ -45,7 +46,7 @@ const EDITABLE_DICT = [
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-const PlaylistCard = React.memo(({ playlist, isSelected, playbackStatus, onSelect, onPlay, onPause, onStop, onDelete }) => (
+const PlaylistCard = React.memo(({ playlist, isSelected, playbackStatus, onSelect, onPlay, onPause, onStop, onDelete, onVolume }) => (
   <DListItem isSelected={isSelected} onClick={() => onSelect(playlist)}>
     <DLabel>{playlist.name}</DLabel>
     {playbackStatus && (
@@ -53,6 +54,7 @@ const PlaylistCard = React.memo(({ playlist, isSelected, playbackStatus, onSelec
         {playbackStatus === "playing" ? "▶ playing" : "⏸ paused"}
       </Text>
     )}
+    <VolumeSlider label={`Volume of ${playlist.name}`} value={playlist.volume ?? 1} onCommit={(volume) => onVolume?.(playlist, volume)} />
     <DListItemsButtonContainer>
       <DListItemButton
         icon={FaPlay}
@@ -318,6 +320,16 @@ export const PlaylistsPanel = () => {
     await reloadAll();
   };
 
+  // Saved for everyone; heard at once while the playlist plays.
+  const handleVolume = async (playlist, volume) => {
+    const { status, body } = await ClientMediator.sendCommandAsync("Playlist", "SetVolume", { playlist, volume }) ?? {};
+    if (status < 200 || status >= 300) {
+      toaster.create({ title: "Failed to change the volume", description: body?.error, type: "error", duration: 5000 });
+      return;
+    }
+    await reloadAll();
+  };
+
   const handleSave = async (changes) => {
     if (!editorDto) return;
     const merged = { ...editorDto, ...changes };
@@ -388,6 +400,7 @@ export const PlaylistsPanel = () => {
                   onPause={handlePause}
                   onStop={handleStopPlayback}
                   onDelete={handleDelete}
+                  onVolume={handleVolume}
                 />
               )}
             />
