@@ -14,10 +14,31 @@ import { T } from "./editorTheme";
 // still type an id or a %variable% instead.
 const PICKER_TYPES = new Set(["audioresourceid", "resourceid", "playlistid", "mapid", "playerid", "layoutid"]);
 
+// The app's built-in menus, by the viewId an Add Menu Item step's Location names
+// (DropDownMenu viewIds in ToolBar/ and the map's context menu). A toolbar dropdown made
+// by Add Toolbar Button (its Menu Id) is a valid Location too — typed, not listed.
+export const MENU_LOCATIONS = [
+  { value: "game", label: "Game menu (default)" },
+  { value: "views", label: "View" },
+  { value: "views_battlemaps", label: "View → Battle Maps (GM)" },
+  { value: "layouts", label: "Layouts" },
+  { value: "settings", label: "Settings" },
+  { value: "addons", label: "Addons (GM)" },
+  { value: "addons_addons", label: "Addons → Addons (GM)" },
+  { value: "addons_views", label: "Addons → Views (GM)" },
+  { value: "addons_code", label: "Addons → Code (GM)" },
+  { value: "battlemap_add", label: "Map right-click → Add" },
+  { value: "battlemap", label: "Map right-click (empty space)" },
+  { value: "battlemap_element", label: "Map right-click on a token/element" },
+  { value: "cards_item", label: "Cards panel: right-click on a card" },
+].map(({ value, label }) => ({ value, label: `${label} · ${value}` }));
+
 // Arg types with a fixed set of choices (still typeable, e.g. as a %variable%).
 const FIXED_OPTIONS = {
   // Get Data's Type — the backend accepts these or "MapModel" etc.
   entitytype: ["Map", "Card", "Layout", "Action", "Element", "Property"].map((v) => ({ value: v, label: v })),
+  // Add Menu Item's Location.
+  menulocation: MENU_LOCATIONS,
 };
 
 const usePickerOptions = (type) => {

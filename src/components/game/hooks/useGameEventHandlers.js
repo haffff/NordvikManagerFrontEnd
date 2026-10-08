@@ -4,7 +4,8 @@ import DockableHelper from '../../../helpers/DockableHelper';
 import ClientMediator from '../../../ClientMediator';
 import { toaster } from '../../ui/toaster';
 import { DropDownItem } from '../../uiComponents/base/DDItems/DropDownItem';
-import { addMenuItem, addSubMenu } from "../../uiComponents/base/DDItems/menuItemsStore";
+import { addMenuItem, addSubMenu, getMenuContext } from "../../uiComponents/base/DDItems/menuItemsStore";
+import { addMapTool } from "../../BattleMap/mapToolsStore";
 
 /**
  * Custom hook for managing game-specific WebSocket event handlers
@@ -203,8 +204,10 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
       key: item.name,
       name: item.uiName || item.name,
       onClick: async () => {
+        // What the menu was opened on (a token, a card, ...), set by that menu when it opened.
+        const menuContext = getMenuContext(item.location || "game");
         const extraArgs = await resolveBattlemapAddContext(item);
-        ClientMediator.sendCommand("Action", "Run", { name: item.action, args: { ...item.actionArgs, ...extraArgs } });
+        ClientMediator.sendCommand("Action", "Run", { name: item.action, args: { ...item.actionArgs, ...menuContext, ...extraArgs } });
       },
     });
 
@@ -227,6 +230,23 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
       menuId: item.menuId,
       menuName: item.menuName,
       onClick: () => ClientMediator.sendCommand("Action", "Run", { name: item.action, args: item.actionArgs ?? undefined }),
+    });
+  }, []);
+
+  /**
+   * Backend → client: add an addon map tool to the Tools panel.
+   * Payload: { name, uiName, action, hint, target, stayActive, actionArgs, onlyOwner }
+   */
+  const HandleAddMapTool = useCallback((resp) => {
+    const tool = resp.data;
+    addMapTool({
+      name: tool.name,
+      uiName: tool.uiName,
+      action: tool.action,
+      hint: tool.hint,
+      target: tool.target,
+      stayActive: tool.stayActive,
+      actionArgs: tool.actionArgs ?? undefined,
     });
   }, []);
 
@@ -284,6 +304,7 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
     HandleViewShow,
     HandleAddMenuItem,
     HandleAddToolbarButton,
+    HandleAddMapTool,
     HandleFireClientMediator,
     HandleRunClientCommand,
     HandleOperationProgress,

@@ -212,6 +212,9 @@ class BMQueryService {
       if (canvas.rulerMode) {
         return "Ruler";
       }
+      if (canvas.actionTool) {
+        return "ActionTool";
+      }
     }
 
     // A representable value rather than bare undefined, so callers that render

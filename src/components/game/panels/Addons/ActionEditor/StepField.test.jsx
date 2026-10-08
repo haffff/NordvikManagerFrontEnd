@@ -24,3 +24,18 @@ describe('StepField entitytype', () => {
     }
   });
 });
+
+// Add Menu Item's Location was free text with no hint which menu ids exist; the backend
+// marks it 'menulocation' and the editor offers the app's menus.
+describe('StepField menulocation', () => {
+  it('offers the built-in menus, labelled', () => {
+    renderWithProviders(
+      <StepField arg={{ name: 'Location', type: 'menulocation' }} value="" onChange={vi.fn()} variables={[]} knownNames={[]} />
+    );
+
+    fireEvent.focus(screen.getByRole('textbox'));
+
+    expect(screen.getByText(/Map right-click → Add/)).toBeInTheDocument();
+    expect(screen.getByText(/Game menu/)).toBeInTheDocument();
+  });
+});

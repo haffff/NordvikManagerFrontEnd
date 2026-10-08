@@ -7,6 +7,8 @@ import { toaster } from "../../ui/toaster";
 import UtilityHelper from "../../../helpers/UtilityHelper";
 import ConeTypeInit from "../../uiComponents/fabricjs/ConeType";
 import { RESERVED_LAYERS } from "../Constants/layers";
+import * as React from "react";
+import ActionToolOverlay from "../Overlays/ActionToolOverlay";
 
 class BMService {
   _clipboard = undefined;
@@ -135,6 +137,13 @@ class BMService {
         args: [
           { name: 'enabled', type: 'boolean', required: true },
           { name: 'type', type: 'string', required: false },
+        ],
+      },
+      SetActionToolMode: {
+        description: 'Enables or disables an addon map tool (Add Map Tool step): while on, clicking the map runs the action of the tool with the click position and element.',
+        args: [
+          { name: 'enabled', type: 'boolean', required: true },
+          { name: 'tool', type: 'object', required: false },
         ],
       },
       DisableAllModes: {
@@ -857,8 +866,72 @@ class BMService {
     }
   }
 
+  // An addon map tool (Add Map Tool step). While active, a map click runs the tool's
+  // action (Behaviors/Client/ActionTool/OnMouseDownActionTool.js).
+  // tool: { name, uiName, action, hint, target: 'point'|'token'|'element', stayActive, actionArgs }
+  SetActionToolMode({ enabled, tool, isCommand }) {
+    if (isCommand && enabled === undefined) {
+      return "enabled is required.";
+    }
+
+    const canvas = this._canvas;
+
+    if (enabled) {
+      if (!tool?.name || !tool?.action) {
+        return "tool with name and action is required.";
+      }
+      if (canvas.modeLock) {
+        console.warn("Mode is locked, cannot change action tool mode.");
+        return;
+      }
+
+      canvas.modeLock = true;
+      canvas.contextMenuLock = true;
+      canvas.discardActiveObject();
+      canvas.actionTool = tool;
+      canvas.modeType = tool.name;
+      canvas.selection = false;
+      canvas.defaultCursor = "crosshair";
+      // Clicks still target objects (opt.target), but don't select or drag them.
+      canvas.getObjects().forEach((object) => {
+        object.set({ beforeActionToolSelectable: object.selectable, selectable: false });
+      });
+
+      this._addPopupAndOverlay(
+        React.createElement(ActionToolOverlay, { key: this.contextId + "_ActionTool", battleMapId: this.contextId, tool })
+      );
+
+      ClientMediator.fireEvent("BattleMap_ModeChanged", {
+        battleMapId: this.contextId,
+        mode: "ActionTool",
+        type: tool.name,
+      });
+    } else if (canvas.actionTool) {
+      canvas.modeLock = undefined;
+      canvas.contextMenuLock = undefined;
+      canvas.actionTool = undefined;
+      canvas.modeType = undefined;
+      canvas.selection = true;
+      canvas.defaultCursor = "default";
+      canvas.getObjects().forEach((object) => {
+        if (object.beforeActionToolSelectable === undefined) return;
+        object.set({ selectable: object.beforeActionToolSelectable, beforeActionToolSelectable: undefined });
+      });
+      canvas.requestRenderAll();
+
+      this._removePopupAndOverlay();
+
+      ClientMediator.fireEvent("BattleMap_ModeChanged", {
+        battleMapId: this.contextId,
+        mode: undefined,
+        type: undefined,
+      });
+    }
+  }
+
   DisableAllModes() {
     const canvas = this._canvas;
+    this.SetActionToolMode({ enabled: false });
     this.SetSimpleCreateMode({ enabled: false });
     this.SetFreeDrawMode({ enabled: false });
     this.UnsetTokenSelectMode({});
