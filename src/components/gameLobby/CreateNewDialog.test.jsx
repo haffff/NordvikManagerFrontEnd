@@ -45,7 +45,7 @@ describe('CreateNewDialog, add-ons', () => {
   it('a built-in add-on can be unticked', async () => {
     await openDialog();
 
-    await userEvent.click(checkbox('Basics'));
+    fireEvent.click(checkbox('Basics'));
 
     expect(checkbox('Basics')).not.toBeChecked();
     expect((await submit()).addonsSelected).toEqual([]);
@@ -54,7 +54,7 @@ describe('CreateNewDialog, add-ons', () => {
   it('a registry add-on can be ticked alongside', async () => {
     await openDialog();
 
-    await userEvent.click(checkbox('D&D 5E'));
+    fireEvent.click(checkbox('D&D 5E'));
 
     expect((await submit()).addonsSelected).toEqual(['basics', 'dnd5e']);
   });
