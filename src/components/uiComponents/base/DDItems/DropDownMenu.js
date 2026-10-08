@@ -23,6 +23,10 @@ import {
 
 const NO_ITEMS = Object.freeze([]);
 
+// The viewIds of the menus this one is nested in, so a runtime submenu that is
+// already an ancestor (A in B in A) isn't rendered again — that would never end.
+const AncestorMenus = React.createContext(NO_ITEMS);
+
 // Not scoped to a game/session on its own — MainApp remounts <Game key={gameID}>
 // on every game switch, but the item store survives that remount untouched. Without
 // clearing it on exit, an addon-added menu item from Game A (e.g. one that calls
@@ -44,6 +48,8 @@ export const DropDownMenu = ({
   viewId,
 }) => {
   const { isGM, isAdmin } = usePermissions();
+  const ancestors = React.useContext(AncestorMenus);
+  const path = React.useMemo(() => (viewId ? [...ancestors, viewId] : ancestors), [ancestors, viewId]);
   const additionalItems = React.useSyncExternalStore(
     subscribeMenuItems,
     () => (viewId ? getMenuItems(viewId) : NO_ITEMS)
@@ -79,10 +85,14 @@ export const DropDownMenu = ({
         </Button>
       </MenuTrigger>}
       <MenuContent>
-        {children}
-        {additionalItems.map((item) => item?.subMenu
-          ? <DropDownMenu key={item.key} viewId={item.subMenu.viewId} name={item.subMenu.name} submenu={true} />
-          : item)}
+        <AncestorMenus.Provider value={path}>
+          {children}
+          {additionalItems.map((item) => {
+            if (!item?.subMenu) return item;
+            if (path.includes(item.subMenu.viewId)) return null;
+            return <DropDownMenu key={item.key} viewId={item.subMenu.viewId} name={item.subMenu.name} submenu={true} />;
+          })}
+        </AncestorMenus.Provider>
       </MenuContent>
     </MenuRoot>
   );

@@ -33,8 +33,13 @@ export const addMenuItem = (viewId, element) => append(viewId, element);
  * Adds a submenu (itself a menu with viewId subMenuId) to the menu parentViewId.
  * Stored as a description, { key, subMenu: { viewId, name } }; DropDownMenu renders it.
  */
-export const addSubMenu = (parentViewId, subMenuId, subMenuName) =>
+export const addSubMenu = (parentViewId, subMenuId, subMenuName) => {
+  // An item in a submenu may name that submenu as both its location and its
+  // SubMenuId (dnd5e's "Card Settings" does): that's "put it in there", not
+  // "nest the menu in itself", which would render without end.
+  if (parentViewId === subMenuId) return;
   append(parentViewId, { key: subMenuId, subMenu: { viewId: subMenuId, name: subMenuName || subMenuId } });
+};
 
 /** On leaving a game: the next game starts without the previous one's items. */
 export const resetMenuItems = () => {

@@ -130,3 +130,36 @@ describe('DropDownMenu items added while the menu is not mounted', () => {
     expect(await screen.findByTestId('sub-note')).toBeInTheDocument();
   });
 });
+
+// dnd5e's "Card Settings" item says Location "5e_settings" AND SubMenuId "5e_settings":
+// a submenu inside itself. Rendering that nested menus without end and crashed the tab.
+describe('DropDownMenu submenus that would contain themselves', () => {
+  beforeEach(() => {
+    ClientMediator._clientsHashSet = {};
+    ClientMediator._clientPanelIndex = {};
+    resetPersistedMenuItems();
+  });
+
+  it('ignores a submenu added to itself', async () => {
+    const { addMenuItem, addSubMenu } = await import('./menuItemsStore');
+    addMenuItem('5e_settings', <div key="card_settings" data-testid="card-settings">Card Settings</div>);
+    addSubMenu('addons', '5e_settings', '5E Settings');
+    addSubMenu('5e_settings', '5e_settings', '5e_settings');
+
+    renderWithProviders(<DropDownMenu viewId="addons" name="Addons" />);
+
+    expect(await screen.findAllByText('5E Settings')).toHaveLength(1);
+    expect(screen.getAllByTestId('card-settings')).toHaveLength(1);
+  });
+
+  it('does not loop when two submenus contain each other', async () => {
+    const { addSubMenu } = await import('./menuItemsStore');
+    addSubMenu('a', 'b', 'B');
+    addSubMenu('b', 'a', 'A');
+
+    renderWithProviders(<DropDownMenu viewId="a" name="A" />);
+
+    expect(await screen.findAllByText('B')).toHaveLength(1);
+    expect(screen.queryAllByText('A', { selector: '[data-part="trigger-item"] *, [data-part="trigger-item"]' })).toHaveLength(0);
+  });
+});
