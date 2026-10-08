@@ -216,3 +216,26 @@ describe('CardAPI — Rolls (roll now, post later)', () => {
     await expect(api.Rolls.Finish({ rollId: 'gone', html: '<p></p>' })).rejects.toThrow('Unknown or expired roll.');
   });
 });
+
+describe('CardAPI — turn order', () => {
+  it('cards may read the turn order, not change it', async () => {
+    const ClientMediator = (await import('./ClientMediator')).default;
+    const fake = { panel: 'TurnOrder', id: 'TurnOrderTest', GetState: vi.fn(() => ({ round: 3 })), Next: vi.fn() };
+    ClientMediator.register(fake);
+    try {
+      ActiveWebHelper.getAsync.mockResolvedValue([]);
+      const api = await CardAPIFactory('card-turns');
+
+      expect(await api.ClientMediator.sendCommandAsync('TurnOrder', 'GetState', {})).toEqual({ round: 3 });
+      expect(await api.ClientMediator.sendCommandAsync('TurnOrder', 'Next', {})).toBeUndefined();
+      expect(fake.Next).not.toHaveBeenCalled();
+    } finally {
+      ClientMediator.unregister('TurnOrderTest');
+    }
+  });
+
+  it("cards receive turn order notices (to show whose turn it is)", async () => {
+    const { ALLOWED_WS_RECEIVE_PREFIXES } = await import('./CardAPI');
+    expect(ALLOWED_WS_RECEIVE_PREFIXES).toContain('turnorder_');
+  });
+});
