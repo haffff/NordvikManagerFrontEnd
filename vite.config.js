@@ -15,7 +15,9 @@ export default defineConfig(({ mode }) => {
   const isPlayer = ({ ...fileEnv, ...process.env }).REACT_APP_MODE === 'player'
 
   return {
-    base: isPlayer ? '/client/' : '/',
+    // Player builds use a relative base so the same build works both at /client/ (latest)
+    // and at /client/p<N>/ (frozen build per protocol version, see src/helpers/protocol.js).
+    base: isPlayer ? './' : '/',
     plugins: [react()],
 
     define: {

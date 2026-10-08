@@ -56,6 +56,16 @@ vi.mock('../../helpers/WebRTCWebHelper', () => ({
   default: webRTCWebHelperMock,
 }));
 
+const { protocolMock } = vi.hoisted(() => ({
+  protocolMock: {
+    PROTOCOL_VERSION: 1,
+    clientPathForProtocol: (n) => `/client/p${n}/`,
+    clientExistsForProtocol: vi.fn(),
+    navigateTo: vi.fn(),
+  },
+}));
+vi.mock('../../helpers/protocol', () => protocolMock);
+
 import WebRTCManagerInstance from './WebRTCManager';
 
 describe('WebRTCManager', () => {
@@ -104,6 +114,61 @@ describe('WebRTCManager', () => {
 
       expect(fakeDataChannel.close).not.toHaveBeenCalled();
       expect(WebRTCManagerInstance._dataChannel).toBe(fakeDataChannel);
+    });
+  });
+
+  // The GM backend's protocol arrives with session-info. A player client for another
+  // protocol must switch to the frozen build for it before opening the peer connection.
+  describe('SESSION_INFO protocol check', () => {
+    let startPeer;
+    beforeEach(() => {
+      startPeer = vi.spyOn(WebRTCManagerInstance, '_startPeerConnection').mockImplementation(() => {});
+    });
+    afterEach(() => {
+      startPeer.mockRestore();
+    });
+
+    const sessionInfo = (payload) => signalingHandlers.get('session-info')(payload);
+    const flush = () => new Promise((r) => setTimeout(r, 0));
+
+    it('connects normally when the GM protocol matches', async () => {
+      sessionInfo({ gmPeerId: 'gm-1', gmProtocol: 1 });
+      await flush();
+
+      expect(startPeer).toHaveBeenCalledTimes(1);
+      expect(protocolMock.navigateTo).not.toHaveBeenCalled();
+    });
+
+    it('connects normally when the GM sends no protocol', async () => {
+      sessionInfo({ gmPeerId: 'gm-1' });
+      await flush();
+
+      expect(startPeer).toHaveBeenCalledTimes(1);
+      expect(protocolMock.navigateTo).not.toHaveBeenCalled();
+    });
+
+    it('switches to the matching client build instead of connecting when the protocol differs', async () => {
+      protocolMock.clientExistsForProtocol.mockResolvedValue(true);
+
+      sessionInfo({ gmPeerId: 'gm-1', gmProtocol: 2 });
+      await flush();
+
+      expect(startPeer).not.toHaveBeenCalled();
+      expect(protocolMock.clientExistsForProtocol).toHaveBeenCalledWith(2);
+      expect(protocolMock.navigateTo).toHaveBeenCalledWith('/client/p2/?game=session-1');
+    });
+
+    it('reports a version mismatch when no client build exists for the GM protocol', async () => {
+      protocolMock.clientExistsForProtocol.mockResolvedValue(false);
+      const onError = WebRTCManagerInstance._onErrorCallback;
+
+      sessionInfo({ gmPeerId: 'gm-1', gmProtocol: 7 });
+      await flush();
+
+      expect(startPeer).not.toHaveBeenCalled();
+      expect(protocolMock.navigateTo).not.toHaveBeenCalled();
+      expect(onError).toHaveBeenCalledWith(expect.objectContaining({ isVersionMismatch: true }));
+      expect(onError.mock.calls[0][0].message).toMatch(/GM/);
     });
   });
 
