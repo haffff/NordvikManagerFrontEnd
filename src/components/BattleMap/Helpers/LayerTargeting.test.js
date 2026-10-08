@@ -56,4 +56,17 @@ describe('installLayerTargeting', () => {
 
     expect(c._checkTarget).toBe(patched);
   });
+
+  // Token UI (bars, the "open card" button) sits on its own TOKEN_UI layer (110)
+  // so it draws above every token, but it belongs to the token layer.
+  it('counts token UI as part of the token layer', () => {
+    const c = { ...canvas(), selectedLayer: 100 };
+    installLayerTargeting(c);
+    const openCard = { isTokenUI: true, layer: 110, visible: true, selectable: false };
+
+    expect(c._checkTarget({}, openCard, {})).toBe(true);
+
+    c.selectedLayer = -100; // working on the map layer
+    expect(c._checkTarget({}, openCard, {})).toBeFalsy();
+  });
 });
