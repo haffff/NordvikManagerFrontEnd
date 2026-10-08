@@ -8,6 +8,7 @@ import GridHelper from '../Helpers/GridHelper';
 import { syncControlsVisibility } from "../Helpers/TokenControlsHelper";
 import { fabric } from "fabric";
 import { RESERVED_LAYERS, compareLayers } from "../Constants/layers";
+import { installLayerTargeting } from "../Helpers/LayerTargeting";
 
 // Factory that creates a LoadCanvas async function bound to provided dependencies
 export default function createLoadCanvas(deps) {
@@ -55,6 +56,8 @@ export default function createLoadCanvas(deps) {
     editor.canvas.fireMiddleClick = true;
     editor.canvas.align = "left";
     editor.canvas.selectedLayer = oldSelectedLayer ?? RESERVED_LAYERS.TOKEN;
+    // Clicks only reach elements of the layer being worked on.
+    installLayerTargeting(editor.canvas);
     editor.canvas.defaultCursor = "default";
     editor.canvas.hoverCursor = "default";
 
