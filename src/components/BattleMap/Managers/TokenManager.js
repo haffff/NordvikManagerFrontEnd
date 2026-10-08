@@ -1163,6 +1163,10 @@ class TokenManager {
     }
 
     let mutated = false;
+    // A part shown or hidden (e.g. "Show bars" toggled) needs the map drawn again even
+    // when no value changed — on the GM's side their own clicks happen to redraw it,
+    // on a player's nothing did.
+    let visibilityChanged = false;
 
     // Token object's own deps
     if (
@@ -1193,11 +1197,14 @@ class TokenManager {
         element._maskVisible = maskVisible;
 
         // Restore visibility: hidden if disabled, control-only, prop-driven, or masked off
+        const wasVisible = element.visible;
         element.visible =
           element.enabled !== false &&
           !element.tokenData?.showOnTokenControl &&
           !hasPropVisibility &&
           maskVisible;
+
+        if (element.visible !== wasVisible) visibilityChanged = true;
 
         // Skip dep evaluation entirely for permanently-hidden elements;
         // prop-driven elements must still run so their visibility dep fires.
@@ -1217,6 +1224,7 @@ class TokenManager {
         // reset above (that's the whole point of hasPropVisibility) — but masking
         // off must still win over it, so re-apply the AND once more afterward.
         if (hasPropVisibility && !maskVisible) {
+          if (element.visible) visibilityChanged = true;
           element.visible = false;
         }
       }
@@ -1227,8 +1235,9 @@ class TokenManager {
     // driven visibility change) would correctly show/hide it but the auto-stack
     // above would never re-pack the row, leaving stale positions. This also
     // performs the render call UpdateTokenUIPositions itself does.
-    if (mutated) {
+    if (mutated || visibilityChanged) {
       this.UpdateTokenUIPositions({ object });
+      this._getCanvas()?.requestRenderAll();
     }
   }
 

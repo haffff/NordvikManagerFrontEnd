@@ -125,3 +125,48 @@ describe('TokenManager masking', () => {
     expect(bar.visible).toBe(true);
   });
 });
+
+// "Show bars" off on the GM's side didn't hide the bars on a player's screen: they
+// were hidden on the canvas objects, but nothing drew the canvas again (the GM's own
+// clicks happen to). Same when they're shown again.
+describe('TokenManager: showing / hiding a masked part redraws the map', () => {
+  const tokenWithBars = () => {
+    const bar = { tokenData: { maskGroup: 'bars' }, visible: true, set(k, v) { this[k] = v; } };
+    return { id: 'tok-1', additionalObjects: [bar], tokenData: {}, bar };
+  };
+
+  const managerWith = (token, maskValue) => {
+    const tm = new TokenManager();
+    const canvas = { getObjects: () => [token], requestRenderAll: vi.fn() };
+    tm._getCanvas = () => canvas;
+    tm._findObject = () => token;
+    tm._getSelectedMap = () => ({ id: 'map-1' });
+    ClientMediator.sendCommand.mockImplementation((panel, cmd) => (cmd === 'GetIsGM' ? false : undefined));
+    ClientMediator.sendCommandAsync.mockImplementation(async (panel, cmd, data) =>
+      cmd === 'GetByNames' && data.parentId === 'tok-1' ? [{ name: 'mask_bars_enabled', value: maskValue, entityName: 'ElementModel', parentId: 'tok-1' }] : []);
+    return { tm, canvas };
+  };
+
+  beforeEach(() => vi.clearAllMocks());
+
+  it('hides the bars and draws the map again', async () => {
+    const token = tokenWithBars();
+    const { tm, canvas } = managerWith(token, 'False');
+
+    await tm.UpdateTokenBasedOnProperties({ tokenId: 'tok-1' });
+
+    expect(token.bar.visible).toBe(false);
+    expect(canvas.requestRenderAll).toHaveBeenCalled();
+  });
+
+  it('shows them again and draws the map again', async () => {
+    const token = tokenWithBars();
+    token.bar.visible = false;
+    const { tm, canvas } = managerWith(token, 'True');
+
+    await tm.UpdateTokenBasedOnProperties({ tokenId: 'tok-1' });
+
+    expect(token.bar.visible).toBe(true);
+    expect(canvas.requestRenderAll).toHaveBeenCalled();
+  });
+});
