@@ -63,6 +63,13 @@ WebRTCManager.Start(sessionId)
   → flushes Send() queue + WebRTCWebHelper request queue
 ```
 
+### Protocol version (player builds per backend protocol)
+
+`src/protocol.json` holds the player↔backend protocol number (`PROTOCOL_VERSION` via `src/helpers/protocol.js`). The GM backend's number arrives as `gmProtocol` in `SESSION_INFO`; if it differs, `WebRTCManager._switchToProtocolClient` reloads into the frozen build at `/client/p<N>/?game=<centralSessionId>` before any peer connection (or reports `isVersionMismatch` if that build isn't deployed). Player builds use a relative Vite `base` so one build works at `/client/` and `/client/p<N>/`.
+
+- Bump `protocol.json` only for changes an older backend can't handle, together with the backend's `ProtocolVersion.Current` (CI checks they match).
+- Frozen older builds share the origin with the latest one, so they share **localStorage and IndexedDB** (e.g. `ResourceCache`, saved layouts). Stored formats must stay readable by older clients — when a format changes incompatibly, use a new key / DB name instead of rewriting the old one.
+
 ### State Management
 
 No Redux. State lives in local component state (`useState`), singleton managers (`ClientMediator`, `WebRTCManager`), refs (`useRef` heavily used in `Game.js`), and `DragOptimizationContext` (drag performance only).

@@ -12,6 +12,12 @@ import WebRTCWebHelperInstance from '../../helpers/WebRTCWebHelper';
 import TokenStore from '../../helpers/TokenStore';
 import CentralWebHelper from '../../helpers/CentralWebHelper';
 import WebHelper from '../../helpers/WebHelper';
+import {
+  PROTOCOL_VERSION,
+  clientPathForProtocol,
+  clientExistsForProtocol,
+  navigateTo,
+} from '../../helpers/protocol';
 
 const CENTRAL_URL = process.env.REACT_APP_CENTRAL_URL || '';
 const FALLBACK_STUN = process.env.REACT_APP_STUN_SERVER || 'stun:stun.l.google.com:19302';
@@ -160,7 +166,7 @@ class WebRTCManager {
       this._handleError(authErr);
     });
 
-    this._signaling.on(SIGNAL_EVENTS.SESSION_INFO, ({ gmPeerId }) => {
+    this._signaling.on(SIGNAL_EVENTS.SESSION_INFO, ({ gmPeerId, gmProtocol }) => {
       this._pendingAuth = false;
       if (!gmPeerId) {
         this._log('warn', 'GM backend not yet connected to session, retrying in 3s');
@@ -193,6 +199,12 @@ class WebRTCManager {
       if (this._gmPeerId) return; // already connecting
       this._log('log', `GM peer id: ${gmPeerId}`);
       this._gmPeerId = gmPeerId;
+      // The loop guard is our own protocol constant: the build we switch to has
+      // PROTOCOL_VERSION === gmProtocol, so it connects instead of switching again.
+      if (gmProtocol != null && gmProtocol !== PROTOCOL_VERSION) {
+        this._switchToProtocolClient(gmProtocol);
+        return;
+      }
       this._startPeerConnection();
     });
 
@@ -573,6 +585,25 @@ class WebRTCManager {
     this._onMessageEvents.forEach(({ name, method }) => {
       try { method(data); } catch (e) { this._log('error', `Subscriber ${name} error`, e); }
     });
+  }
+
+  // The GM backend speaks another protocol than this build. Reload into the frozen
+  // player build for it (same origin, so login cookies carry over; Central's join
+  // lets existing members back in without the game password).
+  async _switchToProtocolClient(gmProtocol) {
+    const sessionId = this._sessionId;
+    this._log('warn', `GM backend uses protocol ${gmProtocol}, this client ${PROTOCOL_VERSION} — switching client`);
+    if (await clientExistsForProtocol(gmProtocol)) {
+      this.Close();
+      navigateTo(`${clientPathForProtocol(gmProtocol)}?game=${encodeURIComponent(sessionId)}`);
+      return;
+    }
+    const err = new Error(
+      `This game's server (protocol ${gmProtocol}) isn't supported by this site (protocol ${PROTOCOL_VERSION}). ` +
+      'Ask the GM to update their NordvikManager server.'
+    );
+    err.isVersionMismatch = true;
+    this._handleError(err);
   }
 
   _handleError(err) {

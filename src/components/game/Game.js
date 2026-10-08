@@ -108,6 +108,8 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
   useGameApi({ state: dockState, gameState, CreateLayoutElement });
 
   const [connectionError, setConnectionError] = React.useState(null);
+  // GM backend speaks a protocol no deployed player client supports — retrying can't help.
+  const [versionMismatch, setVersionMismatch] = React.useState(false);
 
   // Initialize custom hooks
   const eventHandlers = useGameEventHandlers({ state: dockState, gameState, CreateLayoutElement });
@@ -165,6 +167,7 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
         if (err?.isAuthError) {
           onAuthFailure?.();
         } else {
+          setVersionMismatch(!!err?.isVersionMismatch);
           setConnectionError(err?.message || 'Connection error');
         }
       },
@@ -241,7 +244,7 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
               <Text fontSize="xs" color="red.200">
                 {connectionError || initError}
               </Text>
-              <Button
+              {!versionMismatch && <Button
                 size="xs"
                 colorPalette="blue"
                 variant="outline"
@@ -259,7 +262,7 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
                 }}
               >
                 Retry
-              </Button>
+              </Button>}
             </Flex>
           )}
           <Text fontSize="xs" color="gray.500">
