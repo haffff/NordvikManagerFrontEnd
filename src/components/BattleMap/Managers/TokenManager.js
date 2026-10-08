@@ -4,6 +4,7 @@ import DTOConverter from "../DTOConverter";
 import ClientMediator from "../../../ClientMediator";
 import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import UtilityHelper from "../../../helpers/UtilityHelper";
+import { resolveMaskSetting } from "../../../helpers/maskSettings";
 import TokenUIRules from "../../../helpers/TokenUIRules";
 import { extractPropNames, isExpressionDep, evaluate } from "../../../helpers/TokenExpressionEvaluator";
 import { SYSTEM_ASSET_KEYS } from "../../../helpers/systemAssets";
@@ -459,7 +460,7 @@ class TokenManager {
    * own JSON declares, at two scopes:
    *   - map-scoped  (MapModel, parentId = current map)   — the shared default
    *   - element-scoped (ElementModel, parentId = token.id) — optional per-token override
-   * Element-scoped wins when explicitly set; otherwise the map-scoped value
+   * Element-scoped wins when explicitly set (not "Not set"); otherwise the map-scoped value
    * applies; otherwise the group defaults to enabled / not-GM-only.
    */
   _maskPropertyNames(group) {
@@ -500,12 +501,8 @@ class TokenManager {
       const elGmOnly = elementProps.find((p) => p.name === gmOnlyKey)?.value;
       const mapGmOnly = mapProps.find((p) => p.name === gmOnlyKey)?.value;
 
-      const enabled = elEnabled !== undefined
-        ? UtilityHelper.ParseBool(elEnabled)
-        : mapEnabled !== undefined ? UtilityHelper.ParseBool(mapEnabled) : true;
-      const gmOnly = elGmOnly !== undefined
-        ? UtilityHelper.ParseBool(elGmOnly)
-        : mapGmOnly !== undefined ? UtilityHelper.ParseBool(mapGmOnly) : false;
+      const enabled = resolveMaskSetting(elEnabled, mapEnabled, true);
+      const gmOnly = resolveMaskSetting(elGmOnly, mapGmOnly, false);
 
       result.set(group, enabled && (!gmOnly || isGM));
     }

@@ -37,6 +37,8 @@ export const SettingsPanelWithPropertySettings = ({
                 let value = found?.value;
                 if (prop.type === "number")  value = parseFloat(value);
                 if (prop.type === "boolean") value = value === "true" || value === true || value === "True";
+                // A field can read the stored string itself (e.g. into one of its options).
+                if (prop.parse) value = prop.parse(value);
                 propValues[prop.key] = value;
             });
 

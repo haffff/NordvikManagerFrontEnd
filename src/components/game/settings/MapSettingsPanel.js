@@ -1,6 +1,6 @@
 import * as React from "react";
 import * as Dockable from "@hlorenzi/react-dockable";
-import { Tabs } from "@chakra-ui/react";
+import { Tabs, Text } from "@chakra-ui/react";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import Subscribable from "../../uiComponents/base/Subscribable";
@@ -10,6 +10,7 @@ import PropertiesSettingsPanel from "./PropertiesSettingsPanel";
 import { SettingsPanelWithPropertySettings } from "./SettingsPanelWithPropertySettings";
 import { toaster } from "../../ui/toaster";
 import ClientMediator from "../../../ClientMediator";
+import { maskSettingFields } from "../../../helpers/maskSettings";
 
 // A Map (MapModel) can be loaded into zero or more currently-open BattleMap panel
 // instances (TokenManager is per-panel, keyed by the panel's own contextId, not
@@ -45,28 +46,14 @@ export const MapSettingsPanel = ({ map }) => {
       .catch(() => setMaskGroups([]));
   }, [map?.id]);
 
-  // One Enabled + one GM Only boolean field per distinct maskGroup found among
-  // tokens actually on the map — zero hardcoded knowledge of what any addon's
-  // tokens declare; a different addon's tokens would surface entirely different
-  // rows here.
-  const maskEditables = React.useMemo(() => (maskGroups ?? []).flatMap((g) => [
-    {
-      key: `mask_${g.maskGroup}_enabled`,
-      property: true,
-      label: `${g.label} — Enabled`,
-      toolTip: `Show or hide "${g.label}" on every token on this map. A specific token's own settings can override this.`,
-      type: "boolean",
-      category: "Token Elements",
-    },
-    {
-      key: `mask_${g.maskGroup}_gmonly`,
-      property: true,
-      label: `${g.label} — GM Only`,
-      toolTip: `When enabled, "${g.label}" is only visible to the GM, even when shown above.`,
-      type: "boolean",
-      category: "Token Elements",
-    },
-  ]), [maskGroups]);
+  // A Visible + a GM Only setting per distinct maskGroup found among tokens actually
+  // on the map — zero hardcoded knowledge of what any addon's tokens declare; a
+  // different addon's tokens would surface entirely different rows here. Their own
+  // tab, since a map with many kinds of tokens makes a long list.
+  const maskEditables = React.useMemo(
+    () => maskSettingFields(maskGroups ?? [], { notSetMeans: "the default" }),
+    [maskGroups]
+  );
 
   const editables = [
     {
@@ -203,20 +190,36 @@ export const MapSettingsPanel = ({ map }) => {
         <Tabs.Root defaultValue={"settings"} size="md" variant="enclosed">
           <Tabs.List>
             <Tabs.Trigger value="settings">Settings</Tabs.Trigger>
+            <Tabs.Trigger value="tokenElements">Token Elements</Tabs.Trigger>
             <Tabs.Trigger value="permissions">Permissions</Tabs.Trigger>
             <Tabs.Trigger value="props">Properties</Tabs.Trigger>
           </Tabs.List>
           <Tabs.Content value="settings">
-            {/* Gated on maskGroups being resolved (not just `map`) — mask rows must
-                already be present in editableKeyLabelDict the FIRST time this mounts,
-                since SettingsPanelWithPropertySettings only fetches property values
-                once, keyed on dto.id, not on the dict changing later. */}
-            {maskGroups !== null && (
+            <SettingsPanelWithPropertySettings
+              entityName={"MapModel"}
+              dto={mapDto}
+              editableKeyLabelDict={editables}
+              onSave={sendSettingsUpdate}
+            />
+          </Tabs.Content>
+          <Tabs.Content value="tokenElements">
+            {/* Gated on maskGroups being resolved — the rows must already be in
+                editableKeyLabelDict the FIRST time this mounts, since
+                SettingsPanelWithPropertySettings only fetches property values once,
+                keyed on dto.id, not on the dict changing later. */}
+            {maskGroups?.length === 0 && (
+              <Text fontSize="sm" color="fg.muted" padding="8px">
+                No token on this map has elements that can be shown or hidden. Tokens are
+                read from the battle map, so the map has to be open.
+              </Text>
+            )}
+            {maskGroups?.length > 0 && (
               <SettingsPanelWithPropertySettings
                 entityName={"MapModel"}
                 dto={mapDto}
-                editableKeyLabelDict={[...editables, ...maskEditables]}
-                onSave={sendSettingsUpdate}
+                editableKeyLabelDict={maskEditables}
+                // Every field here is a property, saved by the panel itself.
+                onSave={() => {}}
               />
             )}
           </Tabs.Content>

@@ -11,6 +11,7 @@ import DButtonHorizontalContainer from "../../uiComponents/base/Containers/DButt
 import DropDownButton from "../../uiComponents/base/DDItems/DropDrownButton";
 import { toaster } from "../../ui/toaster";
 import ClientMediator from "../../../ClientMediator";
+import { maskSettingFields, maskSettingValue } from "../../../helpers/maskSettings";
 import { JsonEditor } from "../../uiComponents/JsonEditor";
 
 export const ElementSettingsPanel = ({ dto, battlemapId }) => {
@@ -231,24 +232,11 @@ export const ElementSettingsPanel = ({ dto, battlemapId }) => {
     return Array.from(found, ([maskGroup, label]) => ({ maskGroup, label }));
   }, [dto]);
 
-  const maskEditables = React.useMemo(() => maskableGroups.flatMap((g) => [
-    {
-      key: `mask_${g.maskGroup}_enabled`,
-      property: true,
-      label: `${g.label} — Enabled`,
-      toolTip: `Override this map's default for "${g.label}" on this one token. Leave unset to inherit the map-wide setting (see this map's own settings).`,
-      type: "boolean",
-      category: "Override",
-    },
-    {
-      key: `mask_${g.maskGroup}_gmonly`,
-      property: true,
-      label: `${g.label} — GM Only`,
-      toolTip: `Override this map's default GM-only setting for "${g.label}" on this one token.`,
-      type: "boolean",
-      category: "Override",
-    },
-  ]), [maskableGroups]);
+  // Overrides for this one token; "Not set" uses the map's own setting.
+  const maskEditables = React.useMemo(
+    () => maskSettingFields(maskableGroups, { category: "Override", notSetMeans: "this map's setting (see the map's Token Elements tab)" }),
+    [maskableGroups]
+  );
 
   // A dedicated small fetch instead of reusing SettingsPanelWithPropertySettings:
   // that component internally does `structuredClone(dto)` to build its merged
@@ -270,7 +258,7 @@ export const ElementSettingsPanel = ({ dto, battlemapId }) => {
       const propValues = { id: dto.id };
       maskKeys.forEach((key) => {
         const found = data?.find((x) => x.name === key);
-        propValues[key] = found?.value === "true" || found?.value === "True" || found?.value === true;
+        propValues[key] = maskSettingValue(found?.value);
       });
       setMaskDto(propValues);
     });
