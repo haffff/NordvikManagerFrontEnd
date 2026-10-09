@@ -6,9 +6,18 @@ import { ThemeProvider, useTheme } from 'next-themes'
 import * as React from 'react'
 import { LuMoon, LuSun } from 'react-icons/lu'
 
+// The app is dark-only (its palette, custom styles and theme addons are all dark),
+// so ignore the OS/browser setting; following it turned Chakra's surfaces white.
 export function ColorModeProvider(props) {
   return (
-    <ThemeProvider attribute='class' disableTransitionOnChange {...props} />
+    <ThemeProvider
+      attribute='class'
+      forcedTheme='dark'
+      defaultTheme='dark'
+      enableSystem={false}
+      disableTransitionOnChange
+      {...props}
+    />
   )
 }
 

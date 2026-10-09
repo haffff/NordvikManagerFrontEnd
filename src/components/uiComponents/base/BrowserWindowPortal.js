@@ -1,6 +1,7 @@
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
 import * as Dockable from '@hlorenzi/react-dockable';
+import { mirrorGameCss } from '../../../helpers/popoutGameCss';
 
 // No-op ContentContext so panels that call ctx.setTitle() / ctx.layoutContent.panel
 // don't crash when rendered outside a Dockable.Container.
@@ -66,7 +67,7 @@ export const BrowserWindowPortal = ({ children, title = 'Panel', contentId, onCl
         // Title is left empty here and set via the `.title` property right after
         // (not interpolated into this markup), so a title containing `<`/`&` is
         // always treated as plain text rather than parsed as HTML.
-        newWin.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title></title></head><body style="margin:0;padding:0;width:100vw;height:100vh;overflow:hidden;background:#1e1e1e;"></body></html>`);
+        newWin.document.write(`<!DOCTYPE html><html><head><meta charset="utf-8"/><title></title></head><body style="margin:0;padding:0;width:100vw;height:100vh;overflow:hidden;background:var(--nordvik-background-color, #1e1e1e);"></body></html>`);
         newWin.document.close();
         newWin.document.title = title;
 
@@ -102,6 +103,10 @@ export const BrowserWindowPortal = ({ children, title = 'Panel', contentId, onCl
         };
 
         copyStyles(document, newWin.document);
+
+        // The game's custom CSS (themes) is in the main document's adoptedStyleSheets,
+        // which the <style>/<link> copying above doesn't reach.
+        const disposeGameCss = mirrorGameCss(newWin);
 
         // ── Sync future style injections ────────────────────────────────────────
         // Vite, styled-components, and Chakra all inject <style> tags dynamically.
@@ -139,6 +144,7 @@ export const BrowserWindowPortal = ({ children, title = 'Panel', contentId, onCl
         return () => {
             observer.disconnect();
             htmlObserver.disconnect();
+            disposeGameCss();
             newWin.removeEventListener('beforeunload', handleUnload);
             closedByUs.current = true;
             if (!newWin.closed) {
