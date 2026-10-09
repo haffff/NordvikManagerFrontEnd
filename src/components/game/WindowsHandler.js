@@ -2,6 +2,7 @@ import { useDockable } from "@hlorenzi/react-dockable";
 import React, { useEffect, useMemo } from "react";
 import { createPortal } from "react-dom";
 import { Provider } from "../ui/provider";
+import { mirrorGameCss } from "../../helpers/popoutGameCss";
 
 export const WindowsHandler = () => {
   useEffect(() => {}, []);
@@ -27,9 +28,17 @@ export const NewWindow = ({ children, close, x, y }) => {
     document.head.querySelectorAll("meta, script, link, style").forEach((htmlElement) => {
       newWindow.current.document.head.appendChild(htmlElement.cloneNode(true));
     });
+    // The color-mode class (themes set their variables under .dark) and the game's custom CSS.
+    Array.from(document.documentElement.attributes).forEach((attr) => {
+      newWindow.current.document.documentElement.setAttribute(attr.name, attr.value);
+    });
+    const disposeGameCss = mirrorGameCss(newWindow.current);
 
     setLoaded(true);
-    return () => newWindow.current?.close();
+    return () => {
+      disposeGameCss();
+      newWindow.current?.close();
+    };
   }, []);
 
   if (newWindow.current === null) {
