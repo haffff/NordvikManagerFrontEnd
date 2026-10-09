@@ -36,12 +36,11 @@ vi.mock('../../helpers/TokenStore', () => ({
   },
 }));
 
-vi.mock('../../helpers/CentralWebHelper', () => ({
-  default: { postAsync: vi.fn() },
+const { centralWebHelperMock } = vi.hoisted(() => ({
+  centralWebHelperMock: { postAsync: vi.fn(), getAsync: vi.fn() },
 }));
-
-vi.mock('../../helpers/WebHelper', () => ({
-  default: { getAsync: vi.fn(() => Promise.resolve({})) },
+vi.mock('../../helpers/CentralWebHelper', () => ({
+  default: centralWebHelperMock,
 }));
 
 const { webRTCWebHelperMock } = vi.hoisted(() => ({
@@ -66,7 +65,7 @@ const { protocolMock } = vi.hoisted(() => ({
 }));
 vi.mock('../../helpers/protocol', () => protocolMock);
 
-import WebRTCManagerInstance from './WebRTCManager';
+import WebRTCManagerInstance, { iceServersFrom, describeIceServers } from './WebRTCManager';
 
 describe('WebRTCManager', () => {
   beforeEach(async () => {
@@ -276,6 +275,39 @@ describe('WebRTCManager', () => {
       WebRTCManagerInstance.Close();
 
       await expect(sending).rejects.toThrow(/closed/i);
+    });
+  });
+
+  describe('ICE servers', () => {
+    const turnConfig = {
+      iceServers: [
+        { urls: ['stun:stun.example.com:19302'] },
+        { urls: ['turn:turn.example.com:3478?transport=udp'], username: '1767226200:user-1', credential: 'top-secret=' },
+      ],
+      ttl: 86400,
+    };
+
+    it('loads them from Central ice-servers and uses them as-is', async () => {
+      centralWebHelperMock.getAsync.mockResolvedValueOnce(turnConfig);
+      WebRTCManagerInstance.Close();
+      await WebRTCManagerInstance.Start('session-1', vi.fn());
+
+      expect(centralWebHelperMock.getAsync).toHaveBeenCalledWith('ice-servers');
+      expect(WebRTCManagerInstance._iceServers).toEqual(turnConfig.iceServers);
+    });
+
+    it('falls back to STUN when the request fails or returns nothing', () => {
+      const fallback = [{ urls: 'stun:fallback:19302' }];
+      expect(iceServersFrom(undefined, fallback)).toBe(fallback);
+      expect(iceServersFrom({ iceServers: [] }, fallback)).toBe(fallback);
+      expect(iceServersFrom({ iceServers: 'nope' }, fallback)).toBe(fallback);
+    });
+
+    it('describes them for logging without credentials', () => {
+      const text = describeIceServers(turnConfig.iceServers);
+      expect(text).toContain('turn:turn.example.com:3478?transport=udp');
+      expect(text).not.toContain('top-secret=');
+      expect(text).not.toContain('user-1');
     });
   });
 });

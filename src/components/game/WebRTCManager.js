@@ -11,7 +11,6 @@ import SignalingClient, { SIGNAL_EVENTS } from '../../helpers/SignalingClient';
 import WebRTCWebHelperInstance from '../../helpers/WebRTCWebHelper';
 import TokenStore from '../../helpers/TokenStore';
 import CentralWebHelper from '../../helpers/CentralWebHelper';
-import WebHelper from '../../helpers/WebHelper';
 import {
   PROTOCOL_VERSION,
   clientPathForProtocol,
@@ -21,6 +20,20 @@ import {
 
 const CENTRAL_URL = process.env.REACT_APP_CENTRAL_URL || '';
 const FALLBACK_STUN = process.env.REACT_APP_STUN_SERVER || 'stun:stun.l.google.com:19302';
+// Debug switch: relay-only ICE, to verify the TURN path end to end.
+const FORCE_TURN = process.env.REACT_APP_FORCE_TURN === 'true';
+
+// Central's /api/ice-servers already returns an RTCIceServer[] (TURN entries carry
+// short-lived credentials), so it is used as-is; anything unusable falls back to STUN.
+export function iceServersFrom(result, fallback) {
+  const servers = result?.iceServers;
+  return Array.isArray(servers) && servers.length ? servers : fallback;
+}
+
+// URLs only — never log TURN usernames/credentials.
+export function describeIceServers(servers) {
+  return servers.flatMap((s) => [].concat(s.urls)).join(', ');
+}
 
 // Recursively lower-cases the first character of every object key.
 // Mirrors the same helper in WebRTCWebHelper — applied here so push messages
@@ -101,22 +114,11 @@ class WebRTCManager {
       return;
     }
 
-    // Fetch ICE server config from the GM backend /meta endpoint
-    try {
-      const meta = await WebHelper.getAsync('meta');
-      const iceServers = [];
-      if (meta?.stunServers?.length) {
-        iceServers.push({ urls: meta.stunServers });
-      }
-      if (meta?.turnServer) {
-        iceServers.push(meta.turnServer);
-      }
-      this._iceServers = iceServers.length ? iceServers : [{ urls: FALLBACK_STUN }];
-      this._log('log', `ICE servers loaded: ${JSON.stringify(this._iceServers)}`);
-    } catch (e) {
-      this._log('warn', 'Failed to fetch ICE config from /meta, using fallback STUN', e);
-      this._iceServers = [{ urls: FALLBACK_STUN }];
-    }
+    // Fetch ICE servers (STUN + TURN with credentials) from the Central Server
+    const result = await CentralWebHelper.getAsync('ice-servers');
+    this._iceServers = iceServersFrom(result, [{ urls: FALLBACK_STUN }]);
+    if (result) this._log('log', `ICE servers loaded: ${describeIceServers(this._iceServers)}`);
+    else this._log('warn', 'Failed to fetch ICE servers from Central, using fallback STUN');
 
     // Inject this manager into WebRTCWebHelper
     WebRTCWebHelperInstance.setTransport(this);
@@ -454,6 +456,7 @@ class WebRTCManager {
     this._log('log', `Creating RTCPeerConnection with ${this._iceServers?.length ?? 0} ICE server(s)`);
     const pc = new RTCPeerConnection({
       iceServers: this._iceServers ?? [{ urls: FALLBACK_STUN }],
+      ...(FORCE_TURN && { iceTransportPolicy: 'relay' }),
     });
     this._pc = pc;
 

@@ -103,7 +103,8 @@ Defined in `.env` (committed with dev defaults):
 REACT_APP_BASE_URL = "localhost:8214"
 REACT_APP_PROTOCOL = "https://"
 REACT_APP_CENTRAL_URL = ""        # central signaling/auth server
-REACT_APP_STUN_SERVER = ""        # defaults to stun:stun.l.google.com:19302
+REACT_APP_STUN_SERVER = ""        # fallback if Central /api/ice-servers fails; defaults to stun:stun.l.google.com:19302
+REACT_APP_FORCE_TURN = ""         # "true" = relay-only ICE (TURN testing)
 ```
 All custom env vars must be prefixed `REACT_APP_`.
 
