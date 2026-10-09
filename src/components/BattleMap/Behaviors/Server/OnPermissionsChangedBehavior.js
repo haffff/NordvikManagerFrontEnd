@@ -42,19 +42,6 @@ export class OnPermissionsChangedBehavior {
             obj.set('selectable', canControl(permission) && obj.layer == ClientMediator.sendCommand("BattleMap", "GetSelectedLayer", { contextId: battleMapId }));
             obj.set('visible', canSee(permission));
 
-            // Visual indicator: colored border if any non-GM player has control
-            const allPlayers = ClientMediator.sendCommand("Game", "GetPlayers") || [];
-            const controllingPlayer = allPlayers.find(
-                (p) => p.id !== currentPlayer.id && canControl(data.permissions?.[p.id] ?? PERM.NONE)
-            );
-            if (controllingPlayer) {
-                obj.set('stroke', controllingPlayer.color || '#ffffff');
-                obj.set('strokeWidth', 3);
-            } else {
-                obj.set('stroke', null);
-                obj.set('strokeWidth', 0);
-            }
-
             canvas.requestRenderAll();
         });
     }

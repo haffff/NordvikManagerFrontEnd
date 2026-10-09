@@ -72,10 +72,12 @@ export const CommandFactory = {
     CreateKickPlayerCommand: (id) => {
         return { command: "player_kick", data: id }
     },
+    // GM only. Without playerId it opens for every other player. The target goes in data:
+    // the server overwrites the command's own playerId with the sender's.
     CreateShowBattleMapCommand: (battleMapId, playerId) => {
-        const cmd = { command: "show_panel", data: { type: "Battlemap", syncId: battleMapId } };
-        if (playerId) cmd.playerId = playerId;
-        return cmd;
+        const data = { type: "Battlemap", syncId: battleMapId };
+        if (playerId) data.targetPlayerId = playerId;
+        return { command: "show_panel", data };
     },
     CreatePropertyRemoveCommand: (id) => {
         return { command: "property_remove", data: id }
