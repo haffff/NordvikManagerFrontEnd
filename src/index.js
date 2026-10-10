@@ -3,6 +3,7 @@ import ReactDOM from "react-dom/client";
 import "./index.css";
 import App from "./App";
 import reportWebVitals from "./reportWebVitals";
+import { installIframePointerGuard } from "./helpers/iframePointerGuard";
 import { defaultConfig, createSystem } from "@chakra-ui/react"
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
@@ -28,6 +29,7 @@ export const system = createSystem({
   },
 });
 
+installIframePointerGuard();
 root.render(<App />);
 
 // If you want to start measuring performance in your app, pass a function
