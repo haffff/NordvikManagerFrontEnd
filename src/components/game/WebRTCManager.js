@@ -60,6 +60,8 @@ const SEND_CHUNK_SIZE = 15_000; // bytes — safely under all major browser limi
 // send queue ("RTCDataChannel send queue is full") with a few large uploads.
 const BUFFER_HIGH = 1024 * 1024;
 const BUFFER_LOW = 256 * 1024;
+// How long the peer connection must stay 'failed' before it's reported as an error.
+const FAILED_GRACE_MS = 5000;
 
 class WebRTCManager {
   // Mirrors WebSocketManager properties used by Game.js / hooks
@@ -83,6 +85,7 @@ class WebRTCManager {
   _outgoing = [];           // large messages waiting to be chunked out, oldest first
   _pendingAuth = false;  // prevents concurrent re-authentication loops
   _iceServers = null;    // populated from /meta before peer connection starts
+  _failedTimer = null;   // pending 'WebRTC connection failed' report, cancelled if the connection recovers
 
   // ── Observability fields ──────────────────────────────────────────────────
   _traceId = null;          // short 8-char UUID prefix generated at Start(), shared with Central Server
@@ -274,6 +277,7 @@ class WebRTCManager {
 
   Close() {
     this._log('log', 'Closing');
+    clearTimeout(this._failedTimer);
     this._dataChannel?.close();
     this._pc?.close();
     this._signaling?.disconnect();
@@ -549,7 +553,14 @@ class WebRTCManager {
 
     pc.onconnectionstatechange = () => {
       this._log('log', `RTCPeerConnection state: ${pc.connectionState}`);
-      if (pc.connectionState === 'failed') this._handleError(new Error('WebRTC connection failed'));
+      clearTimeout(this._failedTimer);
+      // Chrome can report 'failed' before the GM backend's later candidates arrive (e.g. TURN
+      // refuses relaying to its first, private, candidate) and recover once they do.
+      if (pc.connectionState === 'failed') {
+        this._failedTimer = setTimeout(() => {
+          if (this._pc === pc && pc.connectionState === 'failed') this._handleError(new Error('WebRTC connection failed'));
+        }, FAILED_GRACE_MS);
+      }
     };
 
     try {
