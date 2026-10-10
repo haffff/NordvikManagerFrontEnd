@@ -36,12 +36,11 @@ vi.mock('../../helpers/TokenStore', () => ({
   },
 }));
 
-vi.mock('../../helpers/CentralWebHelper', () => ({
-  default: { postAsync: vi.fn() },
+const { centralWebHelperMock } = vi.hoisted(() => ({
+  centralWebHelperMock: { postAsync: vi.fn(), getAsync: vi.fn() },
 }));
-
-vi.mock('../../helpers/WebHelper', () => ({
-  default: { getAsync: vi.fn(() => Promise.resolve({})) },
+vi.mock('../../helpers/CentralWebHelper', () => ({
+  default: centralWebHelperMock,
 }));
 
 const { webRTCWebHelperMock } = vi.hoisted(() => ({
@@ -66,7 +65,7 @@ const { protocolMock } = vi.hoisted(() => ({
 }));
 vi.mock('../../helpers/protocol', () => protocolMock);
 
-import WebRTCManagerInstance from './WebRTCManager';
+import WebRTCManagerInstance, { iceServersFrom, describeIceServers } from './WebRTCManager';
 
 describe('WebRTCManager', () => {
   beforeEach(async () => {
@@ -276,6 +275,99 @@ describe('WebRTCManager', () => {
       WebRTCManagerInstance.Close();
 
       await expect(sending).rejects.toThrow(/closed/i);
+    });
+  });
+
+  // Chrome can report 'failed' before the GM backend's later candidates arrive (e.g. coturn
+  // refuses relaying to its first, private, candidate) and recover once they do.
+  describe('connection failure', () => {
+    let pc;
+    let onError;
+    const OriginalPeerConnection = globalThis.RTCPeerConnection;
+
+    beforeEach(async () => {
+      vi.useFakeTimers();
+      globalThis.RTCPeerConnection = class FakePeerConnection {
+        constructor() { pc = this; this.connectionState = 'new'; }
+        createDataChannel() { return { close: vi.fn() }; }
+        async createOffer() { return {}; }
+        async setLocalDescription() {}
+        close() {}
+      };
+      onError = vi.fn();
+      WebRTCManagerInstance.Close();
+      await WebRTCManagerInstance.Start('session-1', onError);
+      WebRTCManagerInstance._gmPeerId = 'gm-1';
+      await WebRTCManagerInstance._startPeerConnection();
+    });
+
+    afterEach(() => {
+      vi.useRealTimers();
+      globalThis.RTCPeerConnection = OriginalPeerConnection;
+    });
+
+    const setState = (state) => { pc.connectionState = state; pc.onconnectionstatechange(); };
+
+    it('reports an error when the connection stays failed', () => {
+      setState('failed');
+      expect(onError).not.toHaveBeenCalled();
+
+      vi.advanceTimersByTime(10_000);
+
+      expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: 'WebRTC connection failed' }));
+    });
+
+    it('does not report a failure the connection recovers from', () => {
+      setState('failed');
+      setState('connecting');
+      setState('connected');
+
+      vi.advanceTimersByTime(10_000);
+
+      expect(onError).not.toHaveBeenCalled();
+    });
+
+    it('does not report a failure after Close()', () => {
+      setState('failed');
+      WebRTCManagerInstance.Close();
+
+      vi.advanceTimersByTime(10_000);
+
+      expect(onError).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('ICE servers', () => {
+    const turnConfig = {
+      iceServers: [
+        { urls: ['stun:stun.example.com:19302'] },
+        { urls: ['turn:turn.example.com:3478?transport=udp'], username: '1767226200:user-1', credential: 'top-secret=' },
+      ],
+      ttl: 86400,
+    };
+
+    it('loads them from Central ice-servers and uses them as-is', async () => {
+      centralWebHelperMock.getAsync.mockResolvedValueOnce(turnConfig);
+      WebRTCManagerInstance.Close();
+      await WebRTCManagerInstance.Start('session-1', vi.fn());
+
+      // GM mode has no Central cookie, only the in-memory token handed over by the backend.
+      expect(centralWebHelperMock.getAsync).toHaveBeenCalledWith('ice-servers', 'fake-access-token');
+      expect(WebRTCManagerInstance._iceServers).toEqual(turnConfig.iceServers);
+    });
+
+    it('falls back to STUN when the request fails or returns nothing', () => {
+      const fallback = [{ urls: 'stun:fallback:19302' }];
+      expect(iceServersFrom(undefined, fallback)).toBe(fallback);
+      expect(iceServersFrom({ iceServers: [] }, fallback)).toBe(fallback);
+      expect(iceServersFrom({ iceServers: 'nope' }, fallback)).toBe(fallback);
+    });
+
+    it('describes them for logging without credentials', () => {
+      const text = describeIceServers(turnConfig.iceServers);
+      expect(text).toContain('turn:turn.example.com:3478?transport=udp');
+      expect(text).not.toContain('top-secret=');
+      expect(text).not.toContain('user-1');
     });
   });
 });

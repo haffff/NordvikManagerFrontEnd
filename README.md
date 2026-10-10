@@ -16,7 +16,8 @@ All custom env vars must be prefixed `REACT_APP_` (a holdover from the app's Cre
 - `REACT_APP_PROTOCOL` — `"http://"` or `"https://"`. Leave empty for a backend-served build.
 - `REACT_APP_CENTRAL_URL` — URL of the [Central server](https://github.com/haffff/NordvikManager-Central) used for login and WebRTC signaling. Point at a local instance for dev, or `nordvikmanager.pl` for production auth.
 - `REACT_APP_MODE` — `"gm"` or `"player"`. Usually left unset in favor of the `start_gm`/`start_player` scripts below.
-- `REACT_APP_STUN_SERVER` — optional; defaults to `stun:stun.l.google.com:19302`.
+- `REACT_APP_STUN_SERVER` — optional; fallback STUN server used when the Central server's ICE config (`/api/ice-servers`, incl. TURN) can't be fetched. Defaults to `stun:stun.l.google.com:19302`.
+- `REACT_APP_FORCE_TURN` — optional; `"true"` makes the player connect through the TURN relay only (`iceTransportPolicy: 'relay'`), for testing a TURN setup.
 
 ### Start of development server
 
