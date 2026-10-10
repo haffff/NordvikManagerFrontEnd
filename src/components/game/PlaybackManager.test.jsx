@@ -65,6 +65,8 @@ class FakeAudio {
   }
   removeEventListener() {}
   play() {
+    // FakeAudio.blocked: the browser's autoplay policy refuses until the player interacts.
+    if (FakeAudio.blocked) return Promise.reject(Object.assign(new Error('blocked'), { name: 'NotAllowedError' }));
     this.paused = false;
     return Promise.resolve();
   }
@@ -76,6 +78,7 @@ class FakeAudio {
   }
 }
 FakeAudio.instances = [];
+FakeAudio.blocked = false;
 
 /** A getMaterialAsync() call the test controls the resolution timing of. */
 function deferred() {
@@ -279,6 +282,55 @@ describe('PlaybackManager — playlists', () => {
     unmount();
 
     expect(FakeAudio.instances.every((a) => a.paused)).toBe(true);
+  });
+});
+
+// The browser refuses audio until the player clicks or presses a key on the page.
+describe('PlaybackManager — autoplay blocked', () => {
+  const click = () => document.dispatchEvent(new Event('pointerdown', { bubbles: true }));
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+  beforeEach(() => { FakeAudio.blocked = true; });
+  afterEach(() => { FakeAudio.blocked = false; click(); });
+
+  it('starts a refused playlist track on the first click, at the point it has reached by then', async () => {
+    const { findByText } = await mount();
+    subscriptions.playlist({
+      command: 'playlist_play',
+      data: { playlistId: 'p1', mode: 0, trackOrder: ['t1'], currentTrackIndex: 0, repeat: false, currentTrackStartedAtUtc: new Date(Date.now() - 30_000).toISOString() },
+    });
+    await flush();
+    const track = FakeAudio.instances[0];
+    expect(track.paused).toBe(true);
+    await findByText(/click anywhere to enable sound/i);
+
+    FakeAudio.blocked = false;
+    click();
+
+    expect(track.paused).toBe(false);
+    expect(track.currentTime).toBeGreaterThanOrEqual(30);
+  });
+
+  it('does not start a track the GM paused while it waited', async () => {
+    await mount();
+    subscriptions.playlist({ command: 'playlist_play', data: { playlistId: 'p1', mode: 0, trackOrder: ['t1'], currentTrackIndex: 0, repeat: false } });
+    await flush();
+
+    subscriptions.playlist({ command: 'playlist_pause', data: { playlistId: 'p1' } });
+    FakeAudio.blocked = false;
+    click();
+
+    expect(FakeAudio.instances[0].paused).toBe(true);
+  });
+
+  it('drops a refused sound effect instead of playing it late', async () => {
+    await mount();
+    subscriptions.sound({ command: 'sound_play', data: { resourceId: 'r1' } });
+    await flush();
+
+    FakeAudio.blocked = false;
+    click();
+
+    expect(FakeAudio.instances[0].paused).toBe(true);
   });
 });
 

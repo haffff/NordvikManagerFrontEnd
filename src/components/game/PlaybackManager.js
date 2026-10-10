@@ -6,6 +6,8 @@ import ClientMediator from "../../ClientMediator";
 import { SYSTEM_ASSET_KEYS, playSystemSound } from "../../helpers/systemAssets";
 import { applyVolume, fadeIn, fadeOut, onVolumeChange, refreshVolume, setGmVolume } from "../../helpers/audioVolume";
 import PlaylistService from "./PlaylistService";
+import { playOrWait, forgetWaiting } from "../../helpers/audioUnlock";
+import AudioUnlockNotice from "./AudioUnlockNotice";
 
 // Always-mounted singleton (see Game.js) that owns actual audio playback for the
 // soundboard and playlist player. It is not a panel — it keeps playing regardless of
@@ -53,6 +55,7 @@ export const PlaybackManager = () => {
   // transfer + up to 30s timeout leaves a wide window for this to happen).
   const disposeAudio = (audio) => {
     audio.__disposed = true;
+    forgetWaiting(audio);
     audio.pause();
     if (audio.src) URL.revokeObjectURL(audio.src);
   };
@@ -76,14 +79,13 @@ export const PlaybackManager = () => {
     audio.__disposed = false;
     audio.loop = loop;
     if (onEnded) audio.addEventListener("ended", onEnded);
-    if (seekFromUtc) {
-      audio.addEventListener("loadedmetadata", () => {
-        const elapsedSeconds = Math.max(0, (Date.now() - Date.parse(seekFromUtc)) / 1000);
-        if (Number.isFinite(elapsedSeconds) && elapsedSeconds < (audio.duration || Infinity)) {
-          audio.currentTime = elapsedSeconds;
-        }
-      });
-    }
+    const seekToNow = () => {
+      const elapsedSeconds = Math.max(0, (Date.now() - Date.parse(seekFromUtc)) / 1000);
+      if (Number.isFinite(elapsedSeconds) && elapsedSeconds < (audio.duration || Infinity)) {
+        audio.currentTime = elapsedSeconds;
+      }
+    };
+    if (seekFromUtc) audio.addEventListener("loadedmetadata", seekToNow);
     // Deliberately bypasses getResourceBlobAsync()'s in-memory session cache — it has no
     // eviction and is sized for repeated canvas image loads, not audio tracks. Tracks are
     // still kept between plays: getMaterialAsync goes through ResourceCache (in the browser,
@@ -95,7 +97,13 @@ export const PlaybackManager = () => {
         if (audio.__disposed || !(blob instanceof Blob)) return;
         audio.src = URL.createObjectURL(blob);
         if (fadeInOnStart) fadeIn(audio);
-        safePlay(audio);
+        // Music the autoplay policy refuses starts on the player's first click, where the
+        // others have got to by then. A sound effect is dropped: late, it's worse than none.
+        if (category !== "music") safePlay(audio);
+        else playOrWait(audio, () => {
+          if (seekFromUtc) seekToNow();
+          fadeIn(audio);
+        });
       })
       .catch((e) => console.warn("[PlaybackManager] failed to fetch track blob:", e?.message ?? e));
     return audio;
@@ -175,13 +183,16 @@ export const PlaybackManager = () => {
   const pausePlaylist = (playlistId) => {
     const entry = playlistsRef.current[playlistId];
     if (!entry) return;
-    Object.values(entry.elements).forEach((audio) => audio.pause());
+    Object.values(entry.elements).forEach((audio) => {
+      forgetWaiting(audio);
+      audio.pause();
+    });
   };
 
   const resumePlaylist = (playlistId) => {
     const entry = playlistsRef.current[playlistId];
     if (!entry) return;
-    Object.values(entry.elements).forEach((audio) => safePlay(audio));
+    Object.values(entry.elements).forEach((audio) => playOrWait(audio));
   };
 
   const changeTrack = (data) => {
@@ -322,6 +333,7 @@ export const PlaybackManager = () => {
       <Subscribable commandPrefix="playlist" onMessage={onPlaylistEvent} />
       <Subscribable commandPrefix="sound" onMessage={onSoundEvent} />
       <Subscribable commandPrefix="chat" onMessage={onChatMessage} />
+      <AudioUnlockNotice />
     </>
   );
 };
