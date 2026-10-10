@@ -11,6 +11,12 @@ body {
   overflow: hidden;
 }
 
+/* Set by helpers/iframePointerGuard.js while a mouse button pressed in the page is held,
+   so a panel drag/resize keeps following the cursor over sandboxed iframes. */
+body.nm_pointerHeld iframe {
+  pointer-events: none;
+}
+
 /* Spinning animation for WebSocket status */
 .fa-spin {
   animation: fa-spin 1s infinite linear;
