@@ -75,12 +75,14 @@ export const CentralWebHelper = {
       });
   },
 
-  getAsync: async (path) => {
+  // accessToken: optional, sent as a Bearer header for callers without a Central cookie
+  // (the GM browser only holds the token handed over by its backend).
+  getAsync: async (path, accessToken) => {
     try {
       const resp = await fetchWithRefresh(`${BASE_URL}/${path}`, {
         method: 'GET',
         credentials: 'include',
-        headers: DEFAULT_HEADERS,
+        headers: accessToken ? { ...DEFAULT_HEADERS, Authorization: `Bearer ${accessToken}` } : DEFAULT_HEADERS,
       });
       if (!resp.ok) return undefined;
       return safeJson(resp);

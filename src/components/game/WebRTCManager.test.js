@@ -292,7 +292,8 @@ describe('WebRTCManager', () => {
       WebRTCManagerInstance.Close();
       await WebRTCManagerInstance.Start('session-1', vi.fn());
 
-      expect(centralWebHelperMock.getAsync).toHaveBeenCalledWith('ice-servers');
+      // GM mode has no Central cookie, only the in-memory token handed over by the backend.
+      expect(centralWebHelperMock.getAsync).toHaveBeenCalledWith('ice-servers', 'fake-access-token');
       expect(WebRTCManagerInstance._iceServers).toEqual(turnConfig.iceServers);
     });
 

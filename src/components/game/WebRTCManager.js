@@ -115,7 +115,8 @@ class WebRTCManager {
     }
 
     // Fetch ICE servers (STUN + TURN with credentials) from the Central Server
-    const result = await CentralWebHelper.getAsync('ice-servers');
+    // Bearer token too: in GM mode there is no Central cookie, only the token from the backend.
+    const result = await CentralWebHelper.getAsync('ice-servers', TokenStore.getAccessToken());
     this._iceServers = iceServersFrom(result, [{ urls: FALLBACK_STUN }]);
     if (result) this._log('log', `ICE servers loaded: ${describeIceServers(this._iceServers)}`);
     else this._log('warn', 'Failed to fetch ICE servers from Central, using fallback STUN');
