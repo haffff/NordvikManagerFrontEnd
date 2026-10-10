@@ -16,13 +16,17 @@ import { baseCardCss, cardStyleLinks, onGameCssChange } from "../../../helpers/c
  * Returns a cleanup function.
  *
  * Security model:
- *  • All addon code runs inside a blob:-URL iframe with sandbox="allow-scripts"
- *    (no allow-same-origin → no access to parent cookies / localStorage / DOM).
+ *  • All addon code runs inside the app's sandbox page (public/sandbox.html) in an
+ *    iframe with sandbox="allow-scripts" (no allow-same-origin → null origin, no
+ *    access to parent cookies / localStorage / DOM). The page announces itself with
+ *    SANDBOX_HOST_READY and writes the card HTML sent in SANDBOX_LOAD into itself;
+ *    it's served with its own, looser CSP, so the app's own CSP can stay strict.
  *  • The iframe renders into a Shadow Root — addon CSS cannot leak out.
  *  • postMessage is the ONLY communication channel (structured-clone, no refs).
  *  • Every inbound CMD is validated against the CardAPI allowlist before execution.
  *
  * Protocol (parent → iframe):
+ *   SANDBOX_LOAD    { html }   (to the sandbox page, before the card exists)
  *   INIT            { cardId, additionalArguments }
  *   CMD_RESULT      { reqId, result, error? }
  *   PROPERTY_EVENT  { eventType, name, propData, global?, parentId? }
@@ -30,12 +34,13 @@ import { baseCardCss, cardStyleLinks, onGameCssChange } from "../../../helpers/c
  *   LOAD_RESOURCES  { scripts: string[], styles: string[] }
  *
  * Protocol (iframe → parent):
+ *   SANDBOX_HOST_READY {}      (the sandbox page, on every (re)load)
  *   SANDBOX_READY   {}
  *   CMD             { reqId, panel, command, data }
  *   WS_SEND         { command, data }
  *   CLOSE_PANEL     {}
  */
-function mountBridge(iframe, cardApi, cardId, additionalArguments, onClosePanel) {
+function mountBridge(iframe, html, cardApi, cardId, additionalArguments, onClosePanel) {
   let ready = false;
   const queue = [];
 
@@ -105,6 +110,14 @@ function mountBridge(iframe, cardApi, cardId, additionalArguments, onClosePanel)
     const { type, reqId, panel, command, data } = event.data ?? {};
 
     // ── Handshake ──────────────────────────────────────────────────────────
+    // The sandbox page loaded — first, or again after the browser reloaded the
+    // iframe (a docked panel moved in the DOM). Send the card; it says
+    // SANDBOX_READY once it has loaded, and messages wait until then.
+    if (type === "SANDBOX_HOST_READY") {
+      ready = false;
+      sendToFrame({ type: "SANDBOX_LOAD", html });
+      return;
+    }
     if (type === "SANDBOX_READY") {
       ready = true;
       sendToFrame({ type: "INIT", cardId, additionalArguments });
@@ -299,17 +312,14 @@ function mountBridge(iframe, cardApi, cardId, additionalArguments, onClosePanel)
 
 // ─── CardPanel ────────────────────────────────────────────────────────────────
 
+// public/sandbox.html, next to the app's own index.html (player builds live at
+// /client/ and /client/p<N>/, the GM app at /).
+const sandboxPageUrl = () => new URL("sandbox.html", document.baseURI).href;
+
 export const CardPanel = ({ id, name, data }) => {
   const panelId = useUUID();
   const iframeRef = React.useRef(null);
   const cleanupRef = React.useRef(null);
-  const sandboxUrlRef = React.useRef(null);
-  // The window whose URL/Blob created sandboxUrlRef.current — a blob: URL is only
-  // resolvable from the window that created it. Panels popped out into a separate
-  // OS window (BrowserWindowPortal) portal this component's iframe into a *different*
-  // Window/Document than the one this effect's code runs in, so `window.URL` (the
-  // main app window) would create a URL the popped-out iframe's window can't load.
-  const ownerWindowRef = React.useRef(null);
 
   const ctx = Dockable.useContentContext();
   ctx.setTitle(name);
@@ -353,7 +363,7 @@ export const CardPanel = ({ id, name, data }) => {
       // 3. Fetch additional resource metadata (including content) in parallel.
       //    ResourceMetadata returns { id, name, mimeType, data } where data is
       //    base64-encoded file content — same as the main resource above.
-      //    We inline CSS/JS directly into the blob rather than using <link>/<script src>
+      //    We inline CSS/JS directly into the card HTML rather than using <link>/<script src>
       //    because the sandboxed iframe (null origin, no allow-same-origin) cannot
       //    make credentialed HTTP requests, and resources are now served over WebRTC.
       const additionalMetas = await Promise.all(
@@ -368,20 +378,20 @@ export const CardPanel = ({ id, name, data }) => {
 
       // 4. Create a scoped CardAPI instance for this card
       const cardApi = await CardAPIFactory(id);
-      if (cancelled) { cardApi.destroy(); return; }      // 5. Build the final blob HTML.
+      if (cancelled) { cardApi.destroy(); return; }      // 5. Build the card's HTML for the sandbox page.
       //
       //    • Decode base64 main resource → raw HTML.
       //    • Inline CSS as <style> tags into <head> — content already fetched
       //      via WebRTC; no HTTP request needed from inside the iframe.
       //    • Inject the CardAPI bridge script + inline JS <script> tags before </body>.
-      //    • The iframe gets a blob: URL → null origin, so it cannot access
-      //      parent cookies / localStorage / DOM.
+      //    • The sandbox page is framed with sandbox="allow-scripts" → null
+      //      origin, so it cannot access parent cookies / localStorage / DOM.
 
       const rawHtml = mainResourceMeta?.data ? atob(mainResourceMeta.data) : "<html><body></body></html>";
 
       // The card HTML is a CRA (or similar) production build whose asset paths
-      // are root-relative (e.g. /static/js/main.abc.js).  When loaded as a
-      // blob: URL those paths resolve against the null origin and 404.
+      // are root-relative (e.g. /static/js/main.abc.js), which would resolve
+      // against the sandbox page's own server instead of the card server.
       // Fix: rewrite every root-relative src="/" and href="/" to an absolute
       // URL using the card server's origin (derived from WebHelper.ApiAddress).
       const cardOrigin = (() => {
@@ -434,21 +444,11 @@ export const CardPanel = ({ id, name, data }) => {
       const bodyInjection = SANDBOX_BRIDGE_SCRIPT + (jsScripts ? "\n" + jsScripts : "");
       iframeHtml = iframeHtml.includes("</body>")
         ? iframeHtml.replace("</body>", bodyInjection + "\n</body>")
-        : iframeHtml + bodyInjection;      // Revoke the previous blob URL before creating a new one (handles
-      // the case where load() runs twice before cleanup, e.g. StrictMode).
-      if (sandboxUrlRef.current) {
-        ownerWindowRef.current?.URL.revokeObjectURL(sandboxUrlRef.current);
-      }
-      // Create the blob in whichever window actually owns the iframe (see
-      // ownerWindowRef above) rather than this main window's global URL/Blob.
-      const ownerWindow = iframeRef.current.ownerDocument?.defaultView ?? window;
-      ownerWindowRef.current = ownerWindow;
-      sandboxUrlRef.current = ownerWindow.URL.createObjectURL(
-        new ownerWindow.Blob([iframeHtml], { type: "text/html" })
-      );
+        : iframeHtml + bodyInjection;
 
-      const iframe = iframeRef.current;      // 6. Mount the bridge BEFORE setting src so the message listener is
-      //    already registered when SANDBOX_READY arrives.
+      const iframe = iframeRef.current;
+      // 6. Mount the bridge BEFORE setting src so the message listener is
+      //    already registered when SANDBOX_HOST_READY / SANDBOX_READY arrive.
       //    SANDBOX_READY is sent by the iframe after window 'load' (i.e. after
       //    all defer scripts have run and registered their cardapi:ready
       //    listeners), so INIT → cardapi:ready fires at the right time.
@@ -467,7 +467,7 @@ export const CardPanel = ({ id, name, data }) => {
         );
         globalState.commit();
       };
-      const bridge = mountBridge(iframe, cardApi, id, additionalArguments, closePanel);
+      const bridge = mountBridge(iframe, iframeHtml, cardApi, id, additionalArguments, closePanel);
       // The theme (or its colours) changed while the card is open: restyle it in place.
       const stopStyles = appStyles
         ? onGameCssChange((theme) => bridge.post({ type: "APP_STYLES", base: baseCardCss(), theme }))
@@ -477,11 +477,9 @@ export const CardPanel = ({ id, name, data }) => {
         bridge();
       };
 
-      // Do NOT revoke the blob URL in onload — when the dockable panel is
-      // moved in the DOM the browser resets the iframe and re-navigates to
-      // the same blob URL.  We keep it alive for the full lifetime of the
-      // component and revoke it only on unmount (see cleanup below).
-      iframe.src = sandboxUrlRef.current;
+      // An absolute URL: a panel popped out to its own window (BrowserWindowPortal)
+      // has an about:blank document a relative one wouldn't resolve against.
+      iframe.src = sandboxPageUrl();
     };
 
     load();
@@ -490,10 +488,6 @@ export const CardPanel = ({ id, name, data }) => {
       cancelled = true;
       cleanupRef.current?.();
       cleanupRef.current = null;
-      if (sandboxUrlRef.current) {
-        ownerWindowRef.current?.URL.revokeObjectURL(sandboxUrlRef.current);
-        sandboxUrlRef.current = null;
-      }
     };
   }, [panelId, id]);
 
@@ -510,7 +504,7 @@ export const CardPanel = ({ id, name, data }) => {
          * Intentionally OMITTED (security):
          *   allow-same-origin   — omitting this means the iframe gets a null
          *                         origin; it cannot access parent localStorage,
-         *                         cookies, or DOM, even via blob: URL tricks.
+         *                         cookies, or DOM.
          *   allow-top-navigation
          *   allow-forms
          *   allow-popups

@@ -31,32 +31,67 @@ vi.mock('../../../helpers/transport', () => ({
 import { CardPanel } from './CardPanel';
 import { setAppliedGameCss } from '../../../helpers/cardAppStyles';
 
-// jsdom can't load blob: URLs; keep what the card page would have been.
-let pageHtml;
 const decode = (href) => new TextDecoder().decode(Uint8Array.from(atob(href.split(',')[1]), (c) => c.charCodeAt(0)));
 const linkHref = (html, id) => html.match(new RegExp(`id="${id}" href="([^"]+)"`))?.[1];
 
+// Renders a card and waits until its iframe points at the sandbox page.
+async function openCard(name = 'Note') {
+  const { container } = render(<CardPanel id="card-1" name={name} />);
+  const frame = container.querySelector('iframe');
+  await waitFor(() => expect(frame.getAttribute('src')).toBeTruthy());
+  const posted = vi.spyOn(frame.contentWindow, 'postMessage');
+  const fromFrame = (data) => act(() => window.dispatchEvent(new MessageEvent('message', { data, source: frame.contentWindow })));
+  // The sandbox page announces itself; the card's HTML is sent in reply.
+  const hostReady = () => {
+    fromFrame({ type: 'SANDBOX_HOST_READY' });
+    return posted.mock.calls.filter(([m]) => m.type === 'SANDBOX_LOAD').at(-1)?.[0].html;
+  };
+  return { frame, posted, fromFrame, hostReady };
+}
+
+describe('CardPanel, sandbox page', () => {
+  it('loads the card into the sandbox page shipped with the app, not a blob: URL', async () => {
+    URL.createObjectURL = vi.fn();
+    const { frame } = await openCard();
+
+    expect(frame.getAttribute('src')).toBe(new URL('sandbox.html', document.baseURI).href);
+    expect(frame.getAttribute('sandbox')).toBe('allow-scripts');
+    expect(URL.createObjectURL).not.toHaveBeenCalled();
+  });
+
+  it('sends the card HTML, with the CardAPI bridge, once the sandbox page is ready', async () => {
+    const { hostReady } = await openCard();
+
+    const html = hostReady();
+
+    expect(html).toContain('<p>card</p>');
+    expect(html).toContain('window.CardAPI = CardAPI');
+  });
+
+  it('sends it again when the page reloads (a docked panel moved in the DOM), and initialises the card again', async () => {
+    const { posted, fromFrame, hostReady } = await openCard();
+    hostReady();
+    fromFrame({ type: 'SANDBOX_READY' });
+
+    expect(hostReady()).toContain('<p>card</p>');
+    expect(posted.mock.calls.filter(([m]) => m.type === 'SANDBOX_LOAD')).toHaveLength(2);
+    fromFrame({ type: 'SANDBOX_READY' });
+    expect(posted.mock.calls.filter(([m]) => m.type === 'INIT')).toHaveLength(2);
+  });
+});
+
 describe('CardPanel, app styles', () => {
   beforeEach(() => {
-    pageHtml = null;
     server.appStyles = undefined;
     setAppliedGameCss('.nm_basePanel { color: gold; }');
-    URL.createObjectURL = vi.fn((blob) => {
-      const reader = new FileReader();
-      reader.onload = () => { pageHtml = reader.result; };
-      reader.readAsText(blob);
-      return 'blob:card';
-    });
-    URL.revokeObjectURL = vi.fn();
   });
 
   afterEach(() => setAppliedGameCss(''));
 
   it('a card whose template opts in gets the app base before its CSS and the theme after', async () => {
     server.appStyles = 'true';
-    render(<CardPanel id="card-1" name="Note" />);
+    const pageHtml = (await openCard()).hostReady();
 
-    await waitFor(() => expect(pageHtml).toBeTruthy());
     const base = pageHtml.indexOf('id="nm-app-base"');
     const own = pageHtml.indexOf(`base64,${b64('.card{}')}`);
     const theme = pageHtml.indexOf('id="nm-app-theme"');
@@ -68,9 +103,8 @@ describe('CardPanel, app styles', () => {
   });
 
   it('other cards keep only their own styles', async () => {
-    render(<CardPanel id="card-1" name="Sheet" />);
+    const pageHtml = (await openCard('Sheet')).hostReady();
 
-    await waitFor(() => expect(pageHtml).toBeTruthy());
     expect(pageHtml).not.toContain('id="nm-app-base"');
     expect(pageHtml).not.toContain('id="nm-app-theme"');
     expect(pageHtml).toContain(`base64,${b64('.card{}')}`);
@@ -78,12 +112,10 @@ describe('CardPanel, app styles', () => {
 
   it("an opted-in card is sent the new styles when the game's theme changes", async () => {
     server.appStyles = 'true';
-    const { container } = render(<CardPanel id="card-1" name="Note" />);
-    await waitFor(() => expect(pageHtml).toBeTruthy());
-    const frame = container.querySelector('iframe');
-    const posted = vi.spyOn(frame.contentWindow, 'postMessage');
+    const { posted, fromFrame, hostReady } = await openCard();
+    hostReady();
     // the page says it's ready, so messages are no longer queued
-    act(() => window.dispatchEvent(new MessageEvent('message', { data: { type: 'SANDBOX_READY' }, source: frame.contentWindow })));
+    fromFrame({ type: 'SANDBOX_READY' });
 
     act(() => setAppliedGameCss('.nm_basePanel { color: teal; }'));
 
