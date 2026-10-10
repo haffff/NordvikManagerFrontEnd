@@ -2,7 +2,6 @@ import * as React from "react";
 import { Tabs, Box, Button, HStack, Icon, Text } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
-import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import Subscribable from "../../uiComponents/base/Subscribable";
 import SecuritySettingsPanel from "./SecuritySettingsPanel";
 import PropertiesSettingsPanel from "./PropertiesSettingsPanel";
@@ -96,12 +95,17 @@ export const CardSettingsPanel = ({ cardId }) => {
       dtoToSave[key] = dtoToSend[key];
     });
 
-    let command = CommandFactory.CreateGameSettingsCommand(dtoToSave);
-    WebSocketManagerInstance.Send(command);
+    // A card update (never "settings_game": that renames the game).
+    WebSocketManagerInstance.Send({ command: "card_update", data: dtoToSave });
   };
   const updateSettings = (event) => {
-    if (event.data?.id !== dto?.id) return;
+    if (!event.data?.id || event.data.id !== dto?.id) return;
 
+    setDto((prev) => ({ ...prev, ...event.data }));
+    if (event.data.name) ctx.setTitle(`Card Settings - ${event.data.name}`);
+
+    // Card updates also come from others (and token value changes); only confirm our own save.
+    if (event.playerId !== ClientMediator.sendCommand("Game", "GetCurrentPlayer")?.id) return;
     toaster.create({
       description: "Card settings saved.",
       type: "success",
@@ -218,7 +222,7 @@ export const CardSettingsPanel = ({ cardId }) => {
       </Tabs.Root>
 
       <Subscribable
-        commandPrefix={"settings_card"}
+        commandPrefix={"card_update"}
         onMessage={updateSettings}
       />
     </BasePanel>
