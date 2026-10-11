@@ -40,9 +40,11 @@ import ResourceImage from "../../uiComponents/ResourceImage";
 const SettingFieldCard = ({ fieldKey, editable, disabled, validationError, children }) => (
   <Card.Root
     key={fieldKey}
+    data-testid={`setting-card-${fieldKey}`}
     style={{
-      backgroundColor: "rgba(40,40,40,0.5)",
-      color: "white",
+      // Game themes set these (a light theme would show grey boxes otherwise).
+      backgroundColor: "var(--nordvik-surface-card, rgba(40,40,40,0.5))",
+      color: "var(--nordvik-text-color, white)",
       opacity: disabled ? 0.5 : 1,
       transition: "opacity 0.15s ease",
     }}
