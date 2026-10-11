@@ -28,7 +28,7 @@ importers:
         version: 11.14.0(@types/react@18.3.28)(react@18.3.1)
       '@hlorenzi/react-dockable':
         specifier: github:haffff/react-dockable-expanded#looks-changes
-        version: https://codeload.github.com/haffff/react-dockable-expanded/tar.gz/15e3e42d35dbf61f7a1abbb9e85423403a588bd9(react@18.3.1)(styled-components@6.3.12(react-dom@18.3.1(react@18.3.1))(react@18.3.1))
+        version: https://codeload.github.com/haffff/react-dockable-expanded/tar.gz/6fde15a68f7b90f61fd9628f0782cb0127a0b666(react@18.3.1)(styled-components@6.3.12(react-dom@18.3.1(react@18.3.1))(react@18.3.1))
       '@react-icons/all-files':
         specifier: ^4.1.0
         version: 4.1.0(react@18.3.1)
@@ -1113,8 +1113,8 @@ packages:
   '@floating-ui/utils@0.2.11':
     resolution: {integrity: sha512-RiB/yIh78pcIxl6lLMG0CgBXAZ2Y0eVHqMPYugu+9U0AeT6YBeiJpf7lbdJNIugFP5SIjwNRgo4DhR1Qxi26Gg==}
 
-  '@hlorenzi/react-dockable@https://codeload.github.com/haffff/react-dockable-expanded/tar.gz/15e3e42d35dbf61f7a1abbb9e85423403a588bd9':
-    resolution: {tarball: https://codeload.github.com/haffff/react-dockable-expanded/tar.gz/15e3e42d35dbf61f7a1abbb9e85423403a588bd9}
+  '@hlorenzi/react-dockable@https://codeload.github.com/haffff/react-dockable-expanded/tar.gz/6fde15a68f7b90f61fd9628f0782cb0127a0b666':
+    resolution: {tarball: https://codeload.github.com/haffff/react-dockable-expanded/tar.gz/6fde15a68f7b90f61fd9628f0782cb0127a0b666}
     version: 0.1.0
     peerDependencies:
       react: ^17.0.2
@@ -5163,7 +5163,7 @@ snapshots:
 
   '@floating-ui/utils@0.2.11': {}
 
-  '@hlorenzi/react-dockable@https://codeload.github.com/haffff/react-dockable-expanded/tar.gz/15e3e42d35dbf61f7a1abbb9e85423403a588bd9(react@18.3.1)(styled-components@6.3.12(react-dom@18.3.1(react@18.3.1))(react@18.3.1))':
+  '@hlorenzi/react-dockable@https://codeload.github.com/haffff/react-dockable-expanded/tar.gz/6fde15a68f7b90f61fd9628f0782cb0127a0b666(react@18.3.1)(styled-components@6.3.12(react-dom@18.3.1(react@18.3.1))(react@18.3.1))':
     dependencies:
       react: 18.3.1
       react-icons: 5.6.0(react@18.3.1)
