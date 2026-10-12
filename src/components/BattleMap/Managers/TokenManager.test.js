@@ -65,7 +65,7 @@ describe('TokenManager.CreateToken', () => {
   });
 
   it('places a token from a definition, with no card', async () => {
-    WebHelper.getMaterialAsync.mockResolvedValue(JSON.stringify(definition));
+    WebHelper.getMaterialAsync.mockResolvedValue(JSON.stringify({ ...definition, prefix: 'Thing' }));
 
     manager().CreateToken({ token: 'basics_token_generic.json', position: { x: 10, y: 20 } });
 
@@ -96,7 +96,8 @@ describe('TokenManager.CreateToken', () => {
     const { data } = await sentElement();
     expect(data.cardId).toBe('card-1');
     expect(data.tokenData.cardId).toBe('card-1');
-    expect(data.name).toBe('pc Vex');
+    // The template's prefix is not part of the name.
+    expect(data.name).toBe('Vex');
     expect(data.tokenData.propDeps).toContainEqual(expect.objectContaining({ dtoProperty: 'tokenImage', source: 'card' }));
   });
 
@@ -111,7 +112,7 @@ describe('TokenManager.CreateToken', () => {
 
     const { data } = await sentElement();
     expect(WebHelper.getAsync).toHaveBeenCalledWith('materials/getcard?id=card-1');
-    expect(data.name).toBe('token Goblin');
+    expect(data.name).toBe('Goblin');
   });
 
   it("uses the card's name when character_name is blank", async () => {
@@ -125,7 +126,7 @@ describe('TokenManager.CreateToken', () => {
     manager().CreateToken({ cardId: 'card-1', position: { x: 0, y: 0 } });
 
     const { data } = await sentElement();
-    expect(data.name).toBe('token New Character');
+    expect(data.name).toBe('New Character');
   });
 
   it("doesn't fetch the card when character_name is set", async () => {

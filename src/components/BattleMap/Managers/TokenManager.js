@@ -1313,9 +1313,8 @@ class TokenManager {
     }
 
     const token = JSON.parse(tokenRaw);
-    const tokenName = cardId
-      ? `${token.prefix ?? "token"} ${inputs.displayName}`
-      : token.prefix ?? "Token";
+    // Named after the character / card; a token template's "prefix" is no longer used.
+    const tokenName = cardId ? inputs.displayName : "Token";
     const tokenSize = inputs.tokenSize ?? (parseInt(token.size, 10) || 1);
 
     // Convert the raw resource ID to a full URL so fabric.util.loadImage
