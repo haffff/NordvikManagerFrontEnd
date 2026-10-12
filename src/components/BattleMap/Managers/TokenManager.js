@@ -1423,9 +1423,17 @@ class TokenManager {
       return null;
     }
 
+    // Characters keep their name in character_name; other cards (e.g. 5e monsters and
+    // items) only have the card's own name.
+    let displayName = findPropValue(properties, "character_name")?.trim();
+    if (!displayName) {
+      const card = await WebHelper.getAsync(`materials/getcard?id=${cardId}`);
+      displayName = card?.name?.trim() || "Token";
+    }
+
     return {
       tokenId,
-      displayName: findPropValue(properties, "character_name", "Token"),
+      displayName,
       tokenSize: parseInt(findPropValue(properties, "drop_token_size", "1"), 10) || 1,
       tokenImageId: findPropValue(properties, "tokenImage"),
       imageSource: "card",
