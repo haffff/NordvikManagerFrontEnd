@@ -18,3 +18,67 @@
     --dockable-buttonHoverBkg: var(--nordvik-dock-button-hover, #3a3a3a);
     --dockable-scrollbarColor: var(--nordvik-dock-scrollbar, #555555);
 }
+
+/* Minimized floating windows, as chips in the status bar (MinimizedWindowsBar). */
+.nm_minimizedWindows {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+.nm_minimizedWindow {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 6px;
+    max-width: 200px;
+    height: 22px;
+    padding: 0 4px 0 10px;
+    border: 1px solid var(--nordvik-dock-border, #333333);
+    border-bottom: 2px solid var(--nordvik-dock-accent, var(--nordvik-accent, #bd1818));
+    border-radius: 4px;
+    background-color: var(--nordvik-dock-tab, #272727);
+    color: var(--nordvik-dock-tab-text, #e8e8e8);
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.1s ease;
+}
+
+.nm_minimizedWindow:hover,
+.nm_minimizedWindow:focus-visible {
+    background-color: var(--nordvik-dock-button-hover, #3a3a3a);
+}
+
+.nm_minimizedWindow_title {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.nm_minimizedWindow_count {
+    opacity: 0.6;
+}
+
+.nm_minimizedWindow_close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    color: inherit;
+    opacity: 0.6;
+    cursor: pointer;
+}
+
+.nm_minimizedWindow_close:hover {
+    opacity: 1;
+    background-color: rgba(255, 255, 255, 0.1);
+}
