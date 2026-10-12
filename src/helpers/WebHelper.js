@@ -134,6 +134,50 @@ export const WebHelper = {
     }
   },
 
+  // Like postAsync: resolves the raw Response, or undefined on a network error.
+  putAsync: async (adress, body) => {
+    let address = WebHelper.addGameId(`${WebHelper.ApiAddress}/${adress}`);
+    try {
+      return await fetch(address, {
+        body: JSON.stringify(body),
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", withCredentials: true },
+      });
+    } catch (e) {
+      console.error(`WebHelper.putAsync: network error for ${address}`, e);
+      return undefined;
+    }
+  },
+
+  // Fetches a file and hands it to the browser as a download. Resolves true on success.
+  downloadFileAsync: async (adress, fileName) => {
+    let address = WebHelper.addGameId(`${WebHelper.ApiAddress}/${adress}`);
+    try {
+      const result = await fetch(address, {
+        method: "GET",
+        credentials: "include",
+        headers: { withCredentials: true },
+      });
+      if (!result.ok) {
+        console.warn(`WebHelper.downloadFileAsync: HTTP ${result.status} for ${address}`);
+        return false;
+      }
+      const href = URL.createObjectURL(await result.blob());
+      const link = document.createElement("a");
+      link.href = href;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(href);
+      return true;
+    } catch (e) {
+      console.error(`WebHelper.downloadFileAsync: network error for ${address}`, e);
+      return false;
+    }
+  },
+
   get: (adress, onok, onerror, onException) => {
     let address = WebHelper.addGameId(`${WebHelper.ApiAddress}/${adress}`);
     fetch(address, {
