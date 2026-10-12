@@ -260,7 +260,10 @@ export const BackupSettingsTab = () => {
                         variant="ghost"
                         aria-label={`Download ${backup.name}`}
                         title="Download"
-                        onClick={() => WebHelper.downloadFileAsync(`backup/${backup.name}/download`, backup.name)}
+                        onClick={async () => {
+                          if (!(await WebHelper.downloadFileAsync(`backup/${backup.name}/download`, backup.name)))
+                            toaster.create({ title: "Could not download the backup", type: "error" });
+                        }}
                       >
                         <FaDownload />
                       </IconButton>

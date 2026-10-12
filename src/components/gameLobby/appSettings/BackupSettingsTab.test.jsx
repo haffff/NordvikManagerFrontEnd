@@ -109,6 +109,16 @@ describe('BackupSettingsTab', () => {
     expect(WebHelper.downloadFileAsync).toHaveBeenCalledWith(`backup/${MANUAL}/download`, MANUAL);
   });
 
+  it('shows an error when a download fails', async () => {
+    WebHelper.downloadFileAsync.mockResolvedValue(false);
+    renderWithProviders(<BackupSettingsTab />);
+    await screen.findByText(MANUAL);
+
+    fireEvent.click(screen.getByRole('button', { name: `Download ${MANUAL}` }));
+
+    await waitFor(() => expect(toaster.create).toHaveBeenCalledWith(expect.objectContaining({ type: 'error' })));
+  });
+
   it('uploads a backup file as multipart form data to restore it', async () => {
     WebHelper.postAsync.mockResolvedValue({ ok: true, json: async () => ({ backupName: 'x.zip' }) });
     renderWithProviders(<BackupSettingsTab />);
