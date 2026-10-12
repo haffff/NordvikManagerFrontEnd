@@ -11,6 +11,7 @@ export const AddonsManagePanel = ({ state }) => {
   const [addons, setAddons] = React.useState([]);
   const [repository, setRepository] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
+  const [repositoryError, setRepositoryError] = React.useState(false);
 
   const ctx = Dockable.useContentContext();
   ctx.setTitle("Addons");
@@ -19,15 +20,23 @@ export const AddonsManagePanel = ({ state }) => {
     handleReload();
   }, []);
 
+  // A request over WebRTC that gets no answer rejects (it times out) instead of resolving
+  // undefined, so each list is loaded on its own and loading always ends — one slow or
+  // failed list used to leave the whole panel spinning until the page was refreshed.
   const handleReload = async () => {
     setLoading(true);
-    const [installed, repo] = await Promise.all([
-      WebHelper.getAsync("addon/installed"),
-      WebHelper.getAsync("addon/repository"),
-    ]);
-    setAddons(Array.isArray(installed) ? installed : []);
-    setRepository(Array.isArray(repo) ? repo : []);
-    setLoading(false);
+    try {
+      const [installed, repo] = await Promise.allSettled([
+        WebHelper.getAsync("addon/installed"),
+        WebHelper.getAsync("addon/repository"),
+      ]);
+      if (installed.status === "fulfilled") setAddons(Array.isArray(installed.value) ? installed.value : []);
+      const repoOk = repo.status === "fulfilled" && Array.isArray(repo.value);
+      setRepository(repoOk ? repo.value : []);
+      setRepositoryError(!repoOk);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -43,6 +52,7 @@ export const AddonsManagePanel = ({ state }) => {
             <BrowseAddonsTab
               handleReload={handleReload}
               repository={repository}
+              repositoryError={repositoryError}
               addons={addons}
               loading={loading}
             />
