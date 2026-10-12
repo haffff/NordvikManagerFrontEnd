@@ -156,3 +156,28 @@ describe('TurnOrderPanel', () => {
     await waitFor(() => expect(ClientMediator.sendCommand).toHaveBeenCalledWith('BattleMap', 'FocusElement', { contextId: 'bm-1', elementId: 't1' }));
   });
 });
+
+describe('TurnOrderPanel, when is my turn', () => {
+  const mine = (id) => entries.filter((e) => !e.hidden).map((e) => ({ ...e, controlled: e.id === id }));
+
+  it('tells a player how many turns until theirs', () => {
+    // visible order: Hero (current), Lair action — the player's token is two turns away
+    show(playerState({ entries: [...mine('none'), { id: 'e4', name: 'Rogue', controlled: true }] }));
+    expect(screen.getByText('Your turn in 2 turns')).toBeInTheDocument();
+  });
+
+  it("says when they're up next", () => {
+    show(playerState({ entries: mine('e3') }));
+    expect(screen.getByText("You're up next")).toBeInTheDocument();
+  });
+
+  it("says when it's their turn", () => {
+    show(playerState({ canEndTurn: true, entries: mine('e1') }));
+    expect(screen.getByText("It's your turn")).toBeInTheDocument();
+  });
+
+  it('shows nothing to the GM or to a player with no token in the order', () => {
+    show(gmState);
+    expect(screen.queryByText(/your turn|up next/i)).toBeNull();
+  });
+});
