@@ -46,6 +46,13 @@ const ROWS = [
     kind: "audio",
     accept: SUPPORTED_AUDIO_MIME_TYPES,
   },
+  {
+    key: SYSTEM_ASSET_KEYS.TURN_SOUND,
+    label: "Your turn sound",
+    description: "Played for a player when the turn order reaches a token they control.",
+    kind: "audio",
+    accept: SUPPORTED_AUDIO_MIME_TYPES,
+  },
 ];
 
 const dataUrlToBase64 = (dataUrl) => dataUrl.slice(dataUrl.indexOf(",") + 1);
@@ -188,8 +195,8 @@ const AssetRow = ({ row }) => {
 };
 
 // GM-only per-game overrides for the small set of well-known "system" assets
-// (see src/helpers/systemAssets.js) — placeholder images and the chat notification
-// sound. Uploading stores a Resource keyed by that well-known key (Materials/
+// (see src/helpers/systemAssets.js) — placeholder images and the chat / your-turn
+// sounds. Uploading stores a Resource keyed by that well-known key (Materials/
 // CreateResource + Materials/ResourceData), same mechanism the rest of the Resource
 // system already uses for named keys like "emptyImage".
 export const SystemAssetsSettingsPanel = () => (

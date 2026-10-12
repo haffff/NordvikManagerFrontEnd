@@ -4,7 +4,7 @@
 export const AUDIO_CATEGORIES = Object.freeze([
   { key: "music", label: "Music", description: "Playlists the GM plays." },
   { key: "sounds", label: "Sound effects", description: "Soundboard sounds." },
-  { key: "notifications", label: "Notifications", description: "The new chat message sound." },
+  { key: "notifications", label: "Notifications", description: "The new chat message and your-turn sounds." },
 ]);
 
 const STORAGE_KEY = "nm_audio_volume";

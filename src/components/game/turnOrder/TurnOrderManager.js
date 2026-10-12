@@ -2,8 +2,22 @@ import * as React from "react";
 import ClientMediator from "../../../ClientMediator";
 import { ActiveTransportManager as Transport } from "../../../helpers/transport";
 import UtilityHelper from "../../../helpers/UtilityHelper";
+import { playSystemSound, SYSTEM_ASSET_KEYS } from "../../../helpers/systemAssets";
 import TurnOrderService, { activeMapId } from "./TurnOrderService";
 import { getTurnOrderState, setTurnOrderState } from "./turnOrderStore";
+
+/**
+ * Whether `next` is a new turn of this player's: on the same map as before, the turn
+ * moved on (another entry, or a new round), and the player may end it — i.e. the current
+ * token is theirs. Not on load or a map switch, and never for the GM, who may end every turn.
+ */
+export const isNewTurnForPlayer = (previous, next, isGM) =>
+  !isGM &&
+  !!previous &&
+  !!next?.canEndTurn &&
+  next.currentEntryId != null &&
+  previous.mapId === next.mapId &&
+  (previous.currentEntryId !== next.currentEntryId || previous.round !== next.round);
 
 /**
  * Always mounted in the game (beside PlaybackManager): registers the "TurnOrder"
@@ -11,7 +25,10 @@ import { getTurnOrderState, setTurnOrderState } from "./turnOrderStore";
  * in turnOrderStore, firing "TurnOrder:Changed" (with the state) for panels, the
  * battle map and addons. Renders nothing.
  */
-export const TurnOrderManager = () => {
+export const TurnOrderManager = ({ isGM = false }) => {
+  const isGMRef = React.useRef(isGM);
+  isGMRef.current = isGM;
+
   React.useEffect(() => {
     ClientMediator.register(TurnOrderService);
     return () => ClientMediator.unregister(TurnOrderService.id);
@@ -20,6 +37,8 @@ export const TurnOrderManager = () => {
   React.useEffect(() => {
     let disposed = false;
     let request = 0;
+    // What this mount last saw (the store outlives a game, so it can't tell "new turn").
+    let previous = null;
 
     // Only the latest refresh may write (a slower earlier one must not overwrite it).
     const refresh = async () => {
@@ -28,6 +47,9 @@ export const TurnOrderManager = () => {
       const next = mapId ? await TurnOrderService.GetState({ mapId }).catch(() => null) : null;
       if (disposed || mine !== request) return;
       setTurnOrderState(next);
+      // Like the chat sound: plays the GM's uploaded "Your turn" sound, if there is one.
+      if (isNewTurnForPlayer(previous, next, isGMRef.current)) playSystemSound(SYSTEM_ASSET_KEYS.TURN_SOUND);
+      previous = next;
       ClientMediator.fireEvent("TurnOrder:Changed", next);
     };
 

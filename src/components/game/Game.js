@@ -211,7 +211,7 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
       <Subscribable onMessage={eventHandlers.HandleOperationProgress} commandPrefix={"operation_"} />
       <GameStylesheets gameId={resolvedGameId} />
       <PlaybackManager />
-      <TurnOrderManager />
+      <TurnOrderManager isGM={isGM} />
       <RequestInputManager />
       <LayoutAutoSaveManager state={state} battlemapsRef={battleMapContexts} />
       <MainToolbar
