@@ -28,6 +28,7 @@ import { OnMouseMovePopupLocationUpdateClientBehavior } from "./Client/OnMouseMo
 import { OnMouseDownSimpleCreateClientBehavior } from "./Client/SimpleCreate/OnMouseDownSimpleCreate";
 import { OnMouseUpSimpleCreateClientBehavior } from "./Client/SimpleCreate/OnMouseUpSimpleCreate";
 import { OnMouseMoveSimpleCreateClientBehavior } from "./Client/SimpleCreate/OnMouseMoveSimpleCreate";
+import { OnSelectionStopFreeDrawClientBehavior } from "./Client/Draw/OnSelectionStopFreeDraw";
 import { OnPathCreatedFreeDrawClientBehavior } from "./Client/Draw/OnPathCreatedFreeDraw";
 import { OnMouseDownMeasureStartClientBehavior } from "./Client/Measure/OnMouseDownMeasureStart";
 import { OnMouseUpMeasureEndsClientBehavior } from "./Client/Measure/OnMouseUpMeasureEnds";
@@ -58,10 +59,12 @@ export const BehaviorDictionaryClient = {
   "object:modified": [new OnNativeObjectModifiedClientBehavior()],
   "object:moving": [new OnObjectMoveHideTokenUIClientBehavior()],
   "selection:created": [
-    new OnTokenSelectedClientBehavior()
+    new OnTokenSelectedClientBehavior(),
+    new OnSelectionStopFreeDrawClientBehavior(),
   ],
   "selection:updated": [
     new OnTokenSelectedClientBehavior(),
+    new OnSelectionStopFreeDrawClientBehavior(),
     new OnObjectDeselectedDisableGridEdit(),
   ],
   "selection:cleared": [
