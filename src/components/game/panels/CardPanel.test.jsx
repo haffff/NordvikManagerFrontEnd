@@ -136,8 +136,6 @@ describe('CardPanel, app styles', () => {
 
 describe('CardPanel, closing from the card', () => {
   beforeEach(() => {
-    URL.createObjectURL = vi.fn(() => 'blob:card');
-    URL.revokeObjectURL = vi.fn();
     dock.calls = [];
   });
 
@@ -155,7 +153,7 @@ describe('CardPanel, closing from the card', () => {
     DockableHelper.getGlobalState.mockReturnValue({ ref: { current: state }, commit });
 
     const { container } = render(<CardPanel id="card-1" name="Monster creator" />);
-    await waitFor(() => expect(container.querySelector('iframe')?.src).toBe('blob:card'));
+    await waitFor(() => expect(container.querySelector('iframe')?.src).toBe(new URL('sandbox.html', document.baseURI).href));
     const frame = container.querySelector('iframe');
 
     act(() => window.dispatchEvent(new MessageEvent('message', { data: { type: 'CLOSE_PANEL' }, source: frame.contentWindow })));
