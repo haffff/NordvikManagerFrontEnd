@@ -102,6 +102,10 @@ class BMQueryService {
         description: 'Returns the current snap-align mode string (e.g. "grid", "object").',
         args: [],
       },
+      GetSketchOptions: {
+        description: 'Returns the sketch-mode options ({ visibleToOthers }), or undefined when not sketching.',
+        args: [],
+      },
       GetMeasureOptions: {
         description: 'Returns the full measure-mode options object (units, distancePerSquare, etc.).',
         args: [],
@@ -195,6 +199,10 @@ class BMQueryService {
 
   GetMeasureOptions() {
     return this._canvas.measure;
+  }
+
+  GetSketchOptions() {
+    return this._canvas.freeDrawSketch;
   }
 
   GetCurrentMode() {

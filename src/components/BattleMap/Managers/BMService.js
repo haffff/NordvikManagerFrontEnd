@@ -9,6 +9,7 @@ import ConeTypeInit from "../../uiComponents/fabricjs/ConeType";
 import { RESERVED_LAYERS } from "../Constants/layers";
 import * as React from "react";
 import ActionToolOverlay from "../Overlays/ActionToolOverlay";
+import { cleanSketches, undoSketch } from "../Behaviors/Client/Draw/sketches";
 
 class BMService {
   _clipboard = undefined;
@@ -121,15 +122,19 @@ class BMService {
         args: [{ name: 'enabled', type: 'boolean', required: true }],
       },
       SetFreeDrawMode: {
-        description: 'Enables or disables freehand pencil-draw mode.',
-        args: [{ name: 'enabled', type: 'boolean', required: true }],
+        description: 'Enables or disables freehand pencil-draw mode. With sketch: true the strokes are sketches — previews shown to the others (unless visibleToOthers is false) and never saved — so it needs no Edit on the map.',
+        args: [
+          { name: 'enabled', type: 'boolean', required: true },
+          { name: 'sketch', type: 'boolean', required: false },
+          { name: 'visibleToOthers', type: 'boolean', required: false },
+        ],
       },
       SetSimpleCreateMode: {
-        description: 'Enables or disables simple-click-to-place creation mode for a canvas element.',
+        description: 'Enables or disables simple-click-to-place creation mode for a canvas element. withSizing sizes it by dragging: "box" (corner to corner; true means the same), "radius" (circle, from its center) or "fontSize" (text, the dragged height); without it the element is placed at its own size.',
         args: [
           { name: 'enabled', type: 'boolean', required: true },
           { name: 'type', type: 'string', required: false },
-          { name: 'withSizing', type: 'boolean', required: false },
+          { name: 'withSizing', type: 'string|boolean', required: false },
         ],
       },
       SetMeasureMode: {
@@ -151,8 +156,16 @@ class BMService {
         args: [],
       },
       CleanPreviews: {
-        description: 'Removes all preview objects belonging to the current player from the canvas.',
+        description: "Removes the current player's preview objects (measurements) from the canvas. Sketches stay; see CleanSketches.",
         args: [],
+      },
+      UndoSketch: {
+        description: "Removes the current player's last sketch, for everyone.",
+        args: [],
+      },
+      CleanSketches: {
+        description: "Removes the current player's sketches for everyone; with everyone: true (GM) every sketch and measurement preview on the map.",
+        args: [{ name: 'everyone', type: 'boolean', required: false }],
       },
     };
   }
@@ -549,7 +562,7 @@ class BMService {
     }
   }
 
-  SetFreeDrawMode({ enabled, overlayContent, popupContent, isCommand, brush }) {
+  SetFreeDrawMode({ enabled, overlayContent, popupContent, isCommand, brush, sketch, visibleToOthers }) {
     if (isCommand && enabled === undefined) {
       return "enabled is required.";
     }
@@ -565,6 +578,7 @@ class BMService {
       canvas.modeLock = true;
       canvas.discardActiveObject();
       canvas.freeDrawMode = true;
+      canvas.freeDrawSketch = sketch ? { visibleToOthers: visibleToOthers !== false } : undefined;
       canvas.selection = false;
 
       this.SetDragMode({ enabled: false });
@@ -594,11 +608,14 @@ class BMService {
       ClientMediator.fireEvent("BattleMap_ModeChanged", {
         battleMapId: this.contextId,
         mode: "Draw",
+        type: sketch ? "Sketch" : undefined,
       });
     } else {
       if (canvas.freeDrawMode) {
         canvas.modeLock = undefined;
         canvas.freeDrawMode = undefined;
+        // The sketches themselves stay on the map; only drawing new ones stops.
+        canvas.freeDrawSketch = undefined;
         canvas.selection = true;
 
         canvas.isDrawingMode = false;
@@ -943,8 +960,9 @@ class BMService {
   CleanPreviews() {
     const currentPlayer = ClientMediator.sendCommand("Game", "GetCurrentPlayer");
     const canvas = this._canvas;
+    // Sketches are previews too, but they're notes: only Undo/CleanSketches remove them.
     const filteredObjects = canvas.getObjects().filter(
-      (object) => object.previewId && object.playerId === currentPlayer.id
+      (object) => object.previewId && !object.sketch && object.playerId === currentPlayer.id
     );
 
     filteredObjects.forEach((object) => {
@@ -963,6 +981,14 @@ class BMService {
     }
 
     canvas.requestRenderAll();
+  }
+
+  UndoSketch() {
+    undoSketch(this._canvas, this.contextId);
+  }
+
+  CleanSketches({ everyone } = {}) {
+    cleanSketches(this._canvas, this.contextId, { everyone: !!everyone });
   }
 
   _addPopupAndOverlay(overlayContent, popupContent) {
