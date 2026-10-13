@@ -1,4 +1,5 @@
 import { fabric } from "fabric";
+import { sizingKind } from "./sizing";
 
 export class OnMouseDownSimpleCreateClientBehavior {
   Handle(opt, canvas, map, battleMapId) {
@@ -25,6 +26,11 @@ export class OnMouseDownSimpleCreateClientBehavior {
           top: canvasCoords.y,
           selectable: false,
         });
+
+        // A circle grows from the pressed point, so it starts as a dot centred there.
+        if (sizingKind(canvas.withSizing) === "radius") {
+          object.set({ originX: "center", originY: "center", radius: 0 });
+        }
 
         canvas.add(object);
         canvas.previewObject = object;

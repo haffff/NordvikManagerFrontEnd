@@ -13,7 +13,6 @@ export const AddCircleOptions = ({ battleMapId }) => {
   const [fillColor, setFillColor] = useState("rgba(0,0,0,1)");
   const [strokeColor, setStrokeColor] = useState("rgba(0,0,0,1)");
   const [lineWidth, setLineWidth] = useState(1);
-  const [radius, setRadius] = useState(1);
   useEffect(() => {
     let element = ClientMediator.sendCommand("BattleMap", "GetCreateElement", {
       contextId: battleMapId,
@@ -22,7 +21,6 @@ export const AddCircleOptions = ({ battleMapId }) => {
     if (element) {
       setFillColor(element.fill);
       setStrokeColor(element.stroke);
-      setRadius(element.radius ?? 100);
     }
     return () => {};
   }, []);
@@ -78,19 +76,6 @@ export const AddCircleOptions = ({ battleMapId }) => {
 
             handleUpdate("strokeWidth", e.target.value);
             setLineWidth(e.target.value);
-          }}
-        />
-      </Stack>
-      <Stack alignItems={"center"}>
-        <Text fontSize={"10px"}>Radius</Text>
-        <Input
-          type={"number"}
-          width={"75px"}
-          variant={"outline"}
-          value={radius}
-          onChange={(e) => {
-            handleUpdate("radius", e.target.value);
-            setRadius(e.target.value);
           }}
         />
       </Stack>

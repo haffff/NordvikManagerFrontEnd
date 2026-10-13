@@ -249,7 +249,7 @@ export const ToolsPanel = ({ battleMapId }) => {
       height: 21,
     });
 
-    sendCreateMode(obj, true, "Rectangle",
+    sendCreateMode(obj, "box", "Rectangle",
       <AddShapeOptions key={_battleMapId + "_Rectangle"} battleMapId={_battleMapId} />
     );
   };
@@ -268,7 +268,7 @@ export const ToolsPanel = ({ battleMapId }) => {
       height: 100,
       radius: 100,
     });
-    sendCreateMode(obj, false, "Circle",
+    sendCreateMode(obj, "radius", "Circle",
       <AddCircleOptions key={_battleMapId + "_Circle"} battleMapId={_battleMapId} />
     );
   };
@@ -285,7 +285,7 @@ export const ToolsPanel = ({ battleMapId }) => {
       stroke: "rgba(0,0,0,1)",
       text: "Text",
     });
-    sendCreateMode(obj, false, "Text",
+    sendCreateMode(obj, "fontSize", "Text",
       <AddTextOptions key={_battleMapId + "_Text"} battleMapId={_battleMapId} />
     );
   };

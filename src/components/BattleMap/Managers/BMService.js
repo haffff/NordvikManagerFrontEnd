@@ -125,11 +125,11 @@ class BMService {
         args: [{ name: 'enabled', type: 'boolean', required: true }],
       },
       SetSimpleCreateMode: {
-        description: 'Enables or disables simple-click-to-place creation mode for a canvas element.',
+        description: 'Enables or disables simple-click-to-place creation mode for a canvas element. withSizing sizes it by dragging: "box" (corner to corner; true means the same), "radius" (circle, from its center) or "fontSize" (text, the dragged height); without it the element is placed at its own size.',
         args: [
           { name: 'enabled', type: 'boolean', required: true },
           { name: 'type', type: 'string', required: false },
-          { name: 'withSizing', type: 'boolean', required: false },
+          { name: 'withSizing', type: 'string|boolean', required: false },
         ],
       },
       SetMeasureMode: {
