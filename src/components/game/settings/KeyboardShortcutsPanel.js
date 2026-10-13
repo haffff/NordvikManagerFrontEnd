@@ -23,6 +23,7 @@ import {
   isValidBindingValue,
 } from "../KeyBoardEventsManager";
 import CommandExecutionHelper, { parseCommandString } from "../../../helpers/CommandExecutionHelper";
+import { DOCK_MODIFIERS, setDockModifier, useDockModifier } from "../../../helpers/dockSettings";
 import { toaster } from "../../ui/toaster";
 
 const actionIdFor = (panel, command) => `${panel}.${command}`;
@@ -46,6 +47,41 @@ const argSummary = (args) =>
     .join(", ");
 
 const hasArgs = (args) => Object.keys(args ?? {}).length > 0;
+
+const dockModifierLabel = (modifier) => (modifier === "None" ? "Always" : modifier);
+
+// Per-browser, saved as soon as it's picked — it isn't one of the account bindings
+// the Save button below sends to the server.
+const DockModifierSetting = () => {
+  const dockModifier = useDockModifier();
+  return (
+    <Stack gap={1}>
+      <HStack px={1}>
+        <Heading size="sm" color="gray.300">Window Management</Heading>
+        <Separator flex="1" borderColor="whiteAlpha.200" />
+      </HStack>
+      <HStack justify="space-between" px={2} py={1}>
+        <Text fontSize="sm">Dock windows while holding</Text>
+        <HStack gap={1}>
+          {DOCK_MODIFIERS.map((modifier) => (
+            <Button
+              key={modifier}
+              size="xs"
+              variant={dockModifier === modifier ? "solid" : "outline"}
+              aria-pressed={dockModifier === modifier}
+              onClick={() => setDockModifier(modifier)}
+            >
+              {dockModifierLabel(modifier)}
+            </Button>
+          ))}
+        </HStack>
+      </HStack>
+      <Text fontSize="xs" color="gray.400" px={2}>
+        Without this key a dragged window just floats. This setting is saved in this browser only.
+      </Text>
+    </Stack>
+  );
+};
 
 // The canonical binding string / row key: "panel.command" for argless bindings,
 // "panel.command --a=1 --b=2" (sorted) otherwise.
@@ -344,6 +380,8 @@ export const KeyboardShortcutsPanel = () => {
   return (
     <BasePanel>
       <Flex direction="column" flex="1" width="100%" overflowY="auto" overflowX="hidden" p={2} gap={2}>
+        <DockModifierSetting />
+
         <Text fontSize="xs" color="gray.400" px={1}>
           These bindings are tied to your account, not this game — they'll follow you into every game you join.
         </Text>

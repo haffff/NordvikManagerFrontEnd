@@ -22,6 +22,8 @@ import PlaybackManager from "./PlaybackManager";
 import TurnOrderManager from "./turnOrder/TurnOrderManager";
 import RequestInputManager from "./RequestInputManager";
 import LayoutAutoSaveManager from "./LayoutAutoSaveManager";
+import MinimizedWindowsBar from "./MinimizedWindowsBar";
+import { useDockModifier } from "../../helpers/dockSettings";
 import GameStylesheets from "./theme/GameStylesheets";
 import themeColors from "../../helpers/themeColors";
 import "../../stylesheets/dock.css";
@@ -54,6 +56,7 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
   // this, except Dockable.Container and LayoutAutoSaveManager, which need the live
   // state (updateToken) to follow each commit.
   const dockState = useStableDockState(state);
+  const dockModifier = useDockModifier();
 
   // Set the global dockable state for other components to access drag state
   React.useEffect(() => {
@@ -221,7 +224,7 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
         battlemapsRef={battleMapContexts}
         forceRefreshGame={forceUpdate}
       />      <Flex className="nm_dock" style={{ height: "100%", overflow: "hidden" }}>
-      <Dockable.Container state={state} onPopOut={DockableHelper.getPopOutHandler()} />
+      <Dockable.Container state={state} dockModifier={dockModifier} onPopOut={DockableHelper.getPopOutHandler()} />
       </Flex><QuickCommandDialog state={dockState} openRef={quickCommandDialogOpenRef} />
       
       {portaledPanels}
@@ -240,6 +243,7 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
       >
         <Flex justify="space-between" align="center" gap={2}>
           <WebSocketStatus showDetails={true} compact={true} />
+          {!(connectionError || initError) && <MinimizedWindowsBar state={state} />}
           {(connectionError || initError) && (
             <Flex align="center" gap={2} flex={1} justify="center">
               <Text fontSize="xs" color="red.200">
