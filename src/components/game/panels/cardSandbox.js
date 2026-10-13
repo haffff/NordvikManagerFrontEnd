@@ -7,7 +7,9 @@
  * Security model
  * ──────────────
  * • The main resource is ALWAYS a text/html file supplied by the card author.
- * • It runs inside a cross-origin iframe (blob: URL + sandbox="allow-scripts").
+ * • It runs inside a cross-origin iframe: the app's sandbox page
+ *   (public/sandbox.html, sandbox="allow-scripts"), which writes the card HTML
+ *   into itself.
  * • The iframe has NO allow-same-origin → it has a null origin and cannot
  *   access the parent page's cookies, localStorage, or DOM at all.
  * • The iframe boundary IS the isolation boundary. The sandbox host may still
@@ -193,8 +195,8 @@ export const SANDBOX_BRIDGE_SCRIPT = `<script>
   window.CardAPI = CardAPI;
 
   // ── Inbound message handler ───────────────────────────────────────────────
-  // Trust the sender of the first message (guaranteed to be the host bridge —
-  // nothing else can know this blob: URL) rather than comparing against
+  // Trust the sender of the first message (the host bridge — only the window
+  // that framed this page can reach it) rather than comparing against
   // \`parent\`. For a docked panel those are the same window, but a panel
   // popped out to a separate OS window (BrowserWindowPortal) physically embeds
   // this iframe in that window's document — making it this iframe's DOM

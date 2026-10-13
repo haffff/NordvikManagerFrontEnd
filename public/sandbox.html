@@ -1,0 +1,29 @@
+<!doctype html>
+<html>
+<head>
+<meta charset="utf-8">
+<title>Card</title>
+<!--
+  Card sandbox (see src/components/game/panels/CardPanel.js). Framed with
+  sandbox="allow-scripts", so it runs with a null origin. It tells the host it's
+  ready, and replaces itself with the card HTML the host sends back. The Central
+  Server serves this file with a looser CSP than the app (inline and data:
+  scripts), which the card then runs under; the app keeps its strict one.
+-->
+<script>
+(function () {
+  'use strict';
+  window.addEventListener('message', function onLoad(event) {
+    var msg = event.data;
+    if (!msg || msg.type !== 'SANDBOX_LOAD' || typeof msg.html !== 'string') return;
+    window.removeEventListener('message', onLoad);
+    document.open();
+    document.write(msg.html);
+    document.close();
+  });
+  parent.postMessage({ type: 'SANDBOX_HOST_READY' }, '*');
+})();
+</script>
+</head>
+<body></body>
+</html>
