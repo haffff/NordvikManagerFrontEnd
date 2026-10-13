@@ -18,6 +18,7 @@ import {
   FaSquare,
   FaPlay,
   FaMagic,
+  FaPencilAlt,
 } from "react-icons/fa";
 import ClientMediator from "../../../../ClientMediator";
 import UtilityHelper from "../../../../helpers/UtilityHelper";
@@ -31,6 +32,7 @@ import { AddTextOptions } from "./AddTextOptions";
 import { DrawOptions } from "./DrawOptions";
 import { MeasureOptions } from "./MeasureOptions";
 import { MeasureConeOptions } from "./MeasureConeOptions";
+import { SketchOptions } from "./SketchOptions";
 import { Box, For, Separator } from "@chakra-ui/react";
 import { DWrapItem } from "../../../uiComponents/base/DWrapItem";
 import { useCustomLayers } from "../../../uiComponents/hooks/useCustomLayers";
@@ -127,6 +129,14 @@ export const ToolsPanel = ({ battleMapId }) => {
       },
     ] : []),
     { type: "label", name: "Measure" },
+    // Sketches are previews, not map elements, so anyone may draw them.
+    {
+      type: "option",
+      icon: <FaPencilAlt />,
+      name: "Sketch",
+      onClick: () => handleSketch(),
+      selected: mode === "Draw_Sketch",
+    },
     {
       type: "option",
       icon: <FaRuler />,
@@ -306,6 +316,27 @@ export const ToolsPanel = ({ battleMapId }) => {
       contextId: _battleMapId,
       overlayContent: <DrawOptions key={_battleMapId + "_Draw"} battleMapId={_battleMapId} />,
       enabled: true,
+      brush: brush,
+    });
+  };
+
+  const handleSketch = () => {
+    if (mode === "Draw_Sketch") {
+      clearMode();
+      return;
+    }
+
+    clearMode();
+
+    const brush = new fabric.PencilBrush();
+    brush.color = playerColor;
+    brush.width = 3;
+
+    ClientMediator.sendCommand("BattleMap", "SetFreeDrawMode", {
+      contextId: _battleMapId,
+      overlayContent: <SketchOptions key={_battleMapId + "_Sketch"} battleMapId={_battleMapId} />,
+      enabled: true,
+      sketch: true,
       brush: brush,
     });
   };
