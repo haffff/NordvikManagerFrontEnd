@@ -465,6 +465,9 @@ export const CardPanel = ({ id, name, data }) => {
           ctx.layoutContent.panel,
           ctx.layoutContent.content.contentId
         );
+        // Drop the window too once it's empty, as the dock's own tab/window close does —
+        // otherwise a floating card window stays open with nothing in it.
+        Dockable.coallesceEmptyPanels(globalState.ref.current);
         globalState.commit();
       };
       const bridge = mountBridge(iframe, cardApi, id, additionalArguments, closePanel);

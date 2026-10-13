@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Button } from "@chakra-ui/react";
+import { Button, Tabs } from "@chakra-ui/react";
 import {
   DialogBackdrop,
   DialogBody,
@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogRoot,
 } from "../ui/dialog";
+import { BackupSettingsTab } from "./appSettings/BackupSettingsTab";
 
 export const AppSettingsDialog = ({ openRef }) => {
   const [open, setOpen] = React.useState(false);
@@ -27,7 +28,14 @@ export const AppSettingsDialog = ({ openRef }) => {
         <DialogCloseTrigger />
         <DialogHeader>Application Settings</DialogHeader>
         <DialogBody>
-          {/* TODO: add app settings fields */}
+          <Tabs.Root defaultValue="backups" lazyMount size="md" variant="enclosed">
+            <Tabs.List>
+              <Tabs.Trigger value="backups">Backups</Tabs.Trigger>
+            </Tabs.List>
+            <Tabs.Content value="backups">
+              <BackupSettingsTab />
+            </Tabs.Content>
+          </Tabs.Root>
         </DialogBody>
         <DialogFooter>
           <Button variant="outline" onClick={() => setOpen(false)}>Close</Button>

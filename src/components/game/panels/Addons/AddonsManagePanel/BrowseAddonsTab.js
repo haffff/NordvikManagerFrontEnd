@@ -1,5 +1,5 @@
 import React, { useState, useMemo } from "react";
-import { Badge, Box, Flex, Input, Spinner, Text } from "@chakra-ui/react";
+import { Badge, Box, Button, Flex, Input, Spinner, Text } from "@chakra-ui/react";
 import { FaArrowUp, FaCheck, FaDownload, FaExternalLinkAlt } from "react-icons/fa";
 import { ActiveWebHelper as WebHelper } from "../../../../../helpers/transport";
 import { toaster } from "../../../../ui/toaster";
@@ -11,7 +11,7 @@ import DListItemButton from "../../../../uiComponents/base/List/ListItemDetails/
 import DListItemsButtonContainer from "../../../../uiComponents/base/List/DListItemsButtonContainer";
 import DLabel from "../../../../uiComponents/base/Text/DLabel";
 
-export const BrowseAddonsTab = ({ repository, addons, handleReload, loading }) => {
+export const BrowseAddonsTab = ({ repository, repositoryError, addons, handleReload, loading }) => {
   const [search, setSearch] = useState("");
   const [installing, setInstalling] = useState(null);
 
@@ -70,6 +70,15 @@ export const BrowseAddonsTab = ({ repository, addons, handleReload, loading }) =
     return (
       <Flex height="100%" align="center" justify="center">
         <Spinner />
+      </Flex>
+    );
+  }
+
+  if (repositoryError) {
+    return (
+      <Flex height="100%" direction="column" align="center" justify="center" gap={3}>
+        <Text>Couldn't load the addon list from the server.</Text>
+        <Button size="sm" onClick={handleReload}>Retry</Button>
       </Flex>
     );
   }

@@ -32,7 +32,7 @@ export const TurnOrderService = {
 
   $meta: {
     GetState: {
-      description: "Returns (async) the turn order of a map as this player may see it: { mapId, round, currentEntryId, currentHidden, canEndTurn, canEdit, entries: [{ id, name, initiative, elementId, hidden }] }.",
+      description: "Returns (async) the turn order of a map as this player may see it: { mapId, round, currentEntryId, currentHidden, canEndTurn, canEdit, entries: [{ id, name, initiative, elementId, hidden, controlled }] } (controlled: this player controls the entry's token).",
       args: [mapIdArg],
     },
     Add: {

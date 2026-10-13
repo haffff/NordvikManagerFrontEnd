@@ -7,6 +7,13 @@ import ClientMediator from "../../../ClientMediator";
 import themeColors from "../../../helpers/themeColors";
 import { TurnOrderService } from "../turnOrder/TurnOrderService";
 import { useTurnOrder } from "../turnOrder/turnOrderStore";
+import { turnsUntilYours } from "../turnOrder/turnsUntilYours";
+
+const untilYoursLabel = (turns) => {
+  if (turns === 0) return "It's your turn";
+  if (turns === 1) return "You're up next";
+  return `Your turn in ${turns} turns`;
+};
 
 const showOnMap = async (elementId) => {
   const battleMapId = await ClientMediator.sendCommandAsync("Game", "GetActiveBattleMapId");
@@ -56,6 +63,8 @@ export const TurnOrderPanel = () => {
 
   const { canEdit, canEndTurn } = state;
   const entries = state.entries ?? [];
+  // For players: the GM runs every turn, so it means nothing to them.
+  const untilYours = canEdit ? null : turnsUntilYours(state);
 
   const onDrop = (targetId) => {
     const from = dragged.current;
@@ -92,6 +101,12 @@ export const TurnOrderPanel = () => {
             )}
           </HStack>
         </HStack>
+
+        {untilYours !== null && (
+          <Text fontSize="sm" color={untilYours === 0 ? themeColors.accent : themeColors.textMuted}>
+            {untilYoursLabel(untilYours)}
+          </Text>
+        )}
 
         <Box className="nm_list" flex="1" overflowY="auto">
           {state.currentHidden && (

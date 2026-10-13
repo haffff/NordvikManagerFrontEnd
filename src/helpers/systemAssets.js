@@ -13,9 +13,10 @@ export const SYSTEM_ASSET_KEYS = Object.freeze({
   EMPTY_TOKEN_IMAGE: "emptyTokenImage",
   EMPTY_AVATAR_IMAGE: "emptyAvatarImage",
   CHAT_MESSAGE_SOUND: "chatMessageSound",
+  TURN_SOUND: "turnSound",
 });
 
-// key -> bundled fallback asset. CHAT_MESSAGE_SOUND intentionally has no bundled
+// key -> bundled fallback asset. The sounds (CHAT_MESSAGE_SOUND, TURN_SOUND) intentionally have no bundled
 // default yet — picking a notification sound is a product/content decision, not
 // something to synthesize here. Drop a file at src/assets/system/chat-message.mp3
 // and add it here to enable one; until then only a GM-uploaded override plays.
@@ -75,7 +76,7 @@ export async function playSystemSound(key) {
   try {
     const url = await resolveSystemAssetUrl(key);
     if (!url) return;
-    // System sounds (the chat message sound) follow the player's "notifications" volume.
+    // System sounds (chat message, your turn) follow the player's "notifications" volume.
     const audio = applyVolume(new Audio(url), "notifications");
     if (audio.volume === 0) return;
     audio.play()?.catch((e) => {

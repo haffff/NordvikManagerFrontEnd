@@ -2,9 +2,16 @@ import React from 'react';
 import { act, render, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
-const { server } = vi.hoisted(() => ({ server: { appStyles: undefined } }));
+const { server, dock } = vi.hoisted(() => ({
+  server: { appStyles: undefined },
+  dock: { layoutContent: null, calls: [] },
+}));
 
-vi.mock('@hlorenzi/react-dockable', () => ({ useContentContext: () => ({ setTitle: vi.fn(), layoutContent: null }) }));
+vi.mock('@hlorenzi/react-dockable', () => ({
+  useContentContext: () => ({ setTitle: vi.fn(), layoutContent: dock.layoutContent }),
+  removeContent: vi.fn((...args) => dock.calls.push(['removeContent', ...args])),
+  coallesceEmptyPanels: vi.fn((...args) => dock.calls.push(['coallesceEmptyPanels', ...args])),
+}));
 vi.mock('../../uiComponents/base/BasePanel', () => ({ BasePanel: ({ children }) => <div>{children}</div> }));
 vi.mock('../../uiComponents/hooks/useUUID', () => ({ default: () => 'panel-1' }));
 vi.mock('../../../helpers/DockableHelper', () => ({ default: { getGlobalState: vi.fn() } }));
@@ -29,6 +36,7 @@ vi.mock('../../../helpers/transport', () => ({
 }));
 
 import { CardPanel } from './CardPanel';
+import DockableHelper from '../../../helpers/DockableHelper';
 import { setAppliedGameCss } from '../../../helpers/cardAppStyles';
 
 // jsdom can't load blob: URLs; keep what the card page would have been.
@@ -91,5 +99,39 @@ describe('CardPanel, app styles', () => {
       expect.objectContaining({ type: 'APP_STYLES', theme: '.nm_basePanel { color: teal; }', base: expect.stringContaining('.nm_basePanel') }),
       '*',
     );
+  });
+});
+
+describe('CardPanel, closing from the card', () => {
+  beforeEach(() => {
+    URL.createObjectURL = vi.fn(() => 'blob:card');
+    URL.revokeObjectURL = vi.fn();
+    dock.calls = [];
+  });
+
+  afterEach(() => {
+    dock.layoutContent = null;
+  });
+
+  // Regression: Api.Close() (e.g. the 5e monster creator's exit) removed the card but
+  // left its now-empty window open, so the panel looked cleared instead of closed.
+  it('Api.Close removes the card and then the empty window', async () => {
+    const panel = { contentList: [] };
+    dock.layoutContent = { panel, content: { contentId: 7 } };
+    const state = {};
+    const commit = vi.fn(() => dock.calls.push(['commit']));
+    DockableHelper.getGlobalState.mockReturnValue({ ref: { current: state }, commit });
+
+    const { container } = render(<CardPanel id="card-1" name="Monster creator" />);
+    await waitFor(() => expect(container.querySelector('iframe')?.src).toBe('blob:card'));
+    const frame = container.querySelector('iframe');
+
+    act(() => window.dispatchEvent(new MessageEvent('message', { data: { type: 'CLOSE_PANEL' }, source: frame.contentWindow })));
+
+    expect(dock.calls).toEqual([
+      ['removeContent', state, panel, 7],
+      ['coallesceEmptyPanels', state],
+      ['commit'],
+    ]);
   });
 });

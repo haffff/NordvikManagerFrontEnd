@@ -24,7 +24,13 @@ vi.mock('../../../ClientMediator', () => ({
   },
 }));
 
+vi.mock('../../../helpers/systemAssets', () => ({
+  SYSTEM_ASSET_KEYS: { TURN_SOUND: 'turnSound' },
+  playSystemSound: vi.fn(),
+}));
+
 import ClientMediator from '../../../ClientMediator';
+import { playSystemSound } from '../../../helpers/systemAssets';
 import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
 import { TurnOrderManager } from './TurnOrderManager';
 import { getTurnOrderState } from './turnOrderStore';
@@ -85,5 +91,93 @@ describe('TurnOrderManager', () => {
     expect(ws.size).toBe(0);
     expect(events).toHaveLength(0);
     expect(ClientMediator.unregister).toHaveBeenCalled();
+  });
+});
+
+describe('TurnOrderManager, your-turn sound', () => {
+  // As a player sees it: canEndTurn is true when the current token is theirs.
+  const turn = (currentEntryId, { round = 1, mine = false, mapId = 'map-1' } = {}) => ({
+    mapId,
+    round,
+    currentEntryId,
+    canEndTurn: mine,
+    entries: [{ id: 'e1', name: 'Hero' }, { id: 'e2', name: 'Goblin' }],
+  });
+
+  const advanceTo = async (next) => {
+    const calls = WebHelper.getAsync.mock.calls.length;
+    WebHelper.getAsync.mockResolvedValue(next);
+    emit('turnorder_advance', { mapId: next.mapId });
+    await waitFor(() => expect(WebHelper.getAsync.mock.calls.length).toBeGreaterThan(calls));
+    await waitFor(() => expect(getTurnOrderState()).toEqual(next));
+  };
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    ws.clear();
+    events.length = 0;
+  });
+
+  it("plays when the turn passes to the player's token", async () => {
+    WebHelper.getAsync.mockResolvedValue(turn('e2'));
+    render(<TurnOrderManager />);
+    await waitFor(() => expect(getTurnOrderState()?.currentEntryId).toBe('e2'));
+
+    await advanceTo(turn('e1', { mine: true }));
+
+    expect(playSystemSound).toHaveBeenCalledTimes(1);
+    expect(playSystemSound).toHaveBeenCalledWith('turnSound');
+  });
+
+  it("plays again on the player's next turn, also when they're the only one (new round)", async () => {
+    WebHelper.getAsync.mockResolvedValue(turn('e1', { mine: true }));
+    render(<TurnOrderManager />);
+    await waitFor(() => expect(getTurnOrderState()?.currentEntryId).toBe('e1'));
+
+    await advanceTo(turn('e1', { round: 2, mine: true }));
+
+    expect(playSystemSound).toHaveBeenCalledTimes(1);
+  });
+
+  it("is quiet on someone else's turn", async () => {
+    WebHelper.getAsync.mockResolvedValue(turn('e1', { mine: true }));
+    render(<TurnOrderManager />);
+    await waitFor(() => expect(getTurnOrderState()?.currentEntryId).toBe('e1'));
+
+    await advanceTo(turn('e2'));
+
+    expect(playSystemSound).not.toHaveBeenCalled();
+  });
+
+  it('is quiet when the game loads, or the player switches maps, in the middle of their turn', async () => {
+    WebHelper.getAsync.mockResolvedValue(turn('e1', { mine: true }));
+    render(<TurnOrderManager />);
+    await waitFor(() => expect(getTurnOrderState()?.currentEntryId).toBe('e1'));
+
+    WebHelper.getAsync.mockResolvedValue(turn('e1', { mine: true, mapId: 'map-2' }));
+    emit('map_change', { mapId: 'map-2' });
+    await waitFor(() => expect(getTurnOrderState()?.mapId).toBe('map-2'));
+
+    expect(playSystemSound).not.toHaveBeenCalled();
+  });
+
+  it('is quiet when the same turn is just refetched', async () => {
+    WebHelper.getAsync.mockResolvedValue(turn('e1', { mine: true }));
+    render(<TurnOrderManager />);
+    await waitFor(() => expect(getTurnOrderState()?.currentEntryId).toBe('e1'));
+
+    await advanceTo(turn('e1', { mine: true }));
+
+    expect(playSystemSound).not.toHaveBeenCalled();
+  });
+
+  it('is quiet for the GM, who can end every turn', async () => {
+    WebHelper.getAsync.mockResolvedValue(turn('e2', { mine: true }));
+    render(<TurnOrderManager isGM />);
+    await waitFor(() => expect(getTurnOrderState()?.currentEntryId).toBe('e2'));
+
+    await advanceTo(turn('e1', { mine: true }));
+
+    expect(playSystemSound).not.toHaveBeenCalled();
   });
 });
