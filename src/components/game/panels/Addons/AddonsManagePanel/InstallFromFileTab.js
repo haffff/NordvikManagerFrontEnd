@@ -5,6 +5,7 @@ import { ActiveWebHelper as WebHelper } from "../../../../../helpers/transport";
 import { toaster } from "../../../../ui/toaster";
 import UtilityHelper from "../../../../../helpers/UtilityHelper";
 import ProgressToastManager from "../../../../../helpers/ProgressToastManager";
+import addonOpLog from "../../../../../helpers/addonOpLog";
 import themeColors from "../../../../../helpers/themeColors";
 
 export const InstallFromFileTab = ({ handleReload }) => {
@@ -31,11 +32,13 @@ export const InstallFromFileTab = ({ handleReload }) => {
     const fileName = file.name;
     try {
       const b64 = await UtilityHelper.ConvertBlobToB64(file);
+      addonOpLog(`installFromFile "${fileName}" (${b64.length} base64 chars) clicked`);
       const { status, body } = await WebHelper.postAsync("addon/installFromFile", {
         fileName,
         data: b64,
         mimeType: file.type || "application/zip",
       });
+      addonOpLog(`installFromFile "${fileName}" answered ${status}`, body);
       if (status >= 200 && status < 300 && body?.operationId) {
         setFile(null);
         // Reload the addon list once the install finishes — the toast itself tracks progress.

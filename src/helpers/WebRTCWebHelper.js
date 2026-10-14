@@ -5,6 +5,7 @@
 import WebHelper from './WebHelper';
 import ResourceCache from './ResourceCache';
 import UtilityHelper from './UtilityHelper';
+import addonOpLog, { isAddonOpPath } from './addonOpLog';
 
 const REQUEST_TIMEOUT_MS = 30000;
 
@@ -85,7 +86,11 @@ class WebRTCWebHelper {
   // Called by WebRTCManager when an api-response arrives on the data channel
   handleApiResponse({ id, status, body }) {
     const entry = this._pending.get(id);
-    if (!entry) return;
+    if (!entry) {
+      addonOpLog(`api-response id=${id} status=${status} arrived for no pending request (timed out or reset already)`);
+      return;
+    }
+    if (entry.trace) addonOpLog(`api-response ${entry.trace} → ${status}`, body);
     clearTimeout(entry.timeoutHandle);
     this._pending.delete(id);
     entry.resolve({ status, body: _camelizeKeys(body) });
@@ -108,7 +113,10 @@ class WebRTCWebHelper {
   _dispatch({ message, resolve, reject, timeoutHandle, onProgress }) {
     clearTimeout(timeoutHandle); // the wait for the channel (if queued) is over
     const id = message.id;
-    this._pending.set(id, { resolve, reject, timeoutHandle: null });
+    const trace = message.method !== 'GET' && isAddonOpPath(message.path)
+      ? `${message.method} ${message.path} id=${id}` : null;
+    if (trace) addonOpLog(`sending ${trace}`);
+    this._pending.set(id, { resolve, reject, timeoutHandle: null, trace });
     let sending;
     try {
       sending = this._transport.sendRaw(message, { onProgress });
@@ -119,12 +127,15 @@ class WebRTCWebHelper {
       () => {
         const entry = this._pending.get(id);
         if (!entry) return; // already answered or reset
+        if (trace) addonOpLog(`sent ${trace}, waiting up to ${REQUEST_TIMEOUT_MS / 1000}s for the answer`);
         entry.timeoutHandle = setTimeout(() => {
+          if (trace) addonOpLog(`TIMEOUT ${trace}: no answer from the server`);
           this._pending.delete(id);
           reject(new Error(`WebRTC API timeout: ${message.method} ${message.path}`));
         }, REQUEST_TIMEOUT_MS);
       },
       (err) => {
+        if (trace) addonOpLog(`send FAILED ${trace}: ${err?.message}`);
         if (this._pending.delete(id)) reject(err);
       }
     );
@@ -158,6 +169,8 @@ class WebRTCWebHelper {
         this._dispatch({ message, resolve, reject, timeoutHandle, onProgress });
       } else {
         console.log(`[WebRTCWebHelper] queued: ${method} ${normalizedPath} (transport=${!!this._transport}, channelReady=${this._transport?.isChannelReady() ?? false})`);
+        if (method !== 'GET' && isAddonOpPath(normalizedPath))
+          addonOpLog(`queued ${method} ${normalizedPath} id=${id}: data channel not open yet`);
         // Queue until channel opens; transport will call flushQueue()
         this._queue.push({ message, resolve, reject, timeoutHandle, onProgress });
         // Safety net: channel may have opened between the isChannelReady() check above and
