@@ -58,4 +58,37 @@ describe('TokenManager.UpdateTokenUIPositions', () => {
     expect(b.additionalObjects[0].left).toBeCloseTo(500);
     expect(b.additionalObjects[0].top).toBeCloseTo(394);
   });
+
+  // Status icons ("right-top") are hidden while the token is dragged and shown again
+  // after the drop; they're repositioned in between, so they must still line up then.
+  const withIcons = (count) => {
+    const t = token(300, 200);
+    t.additionalObjects = Array.from({ length: count }, () => {
+      const icon = new fabric.Rect({ width: 16, height: 16, strokeWidth: 0 });
+      icon.tokenData = { anchor: 'right-top', offsetX: 0, offsetY: 0 };
+      return icon;
+    });
+    return t;
+  };
+
+  it('lines up status icons side by side', () => {
+    const canvas = { requestRenderAll: vi.fn(), renderAll: vi.fn() };
+    const t = withIcons(3);
+
+    manager(canvas).UpdateTokenUIPositions({ object: t });
+
+    expect(t.additionalObjects.map((i) => i.left)).toEqual([350, 368, 386]);
+  });
+
+  it('keeps status icons lined up when repositioned while hidden for a drag', () => {
+    const canvas = { requestRenderAll: vi.fn(), renderAll: vi.fn() };
+    const t = withIcons(3);
+    t.additionalObjects[1].visible = false; // switched off: no slot
+    t.additionalObjects.forEach((i) => i.set({ visibleBeforeDrag: i.visible, visible: false }));
+
+    manager(canvas).UpdateTokenUIPositions({ object: t });
+
+    expect(t.additionalObjects[0].left).toBe(350);
+    expect(t.additionalObjects[2].left).toBe(368);
+  });
 });

@@ -1495,7 +1495,9 @@ class TokenManager {
       let running = 0;
       for (const element of token.additionalObjects) {
         if (element?.tokenData?.anchor !== "right-top") continue;
-        if (element.visible === false) continue;
+        // While the token is dragged its UI is hidden, with the real visibility kept in
+        // visibleBeforeDrag — repositioning then must not pile every icon onto one slot.
+        if ((element.visibleBeforeDrag ?? element.visible) === false) continue;
         rightTopStackOffset.set(element, running);
         running += (element.getScaledWidth?.() ?? element.width ?? 0) + RIGHT_TOP_GAP;
       }
