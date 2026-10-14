@@ -4,24 +4,16 @@ import {
   Flex,
   Icon,
   IconButton,
-  Input,
   Separator,
   Text,
   Textarea,
-  createListCollection,
 } from "@chakra-ui/react";
-import {
-  SelectContent,
-  SelectItem,
-  SelectRoot,
-  SelectTrigger,
-  SelectValueText,
-} from "../../ui/select";
 import * as Dockable from "@hlorenzi/react-dockable";
-import { FaSearch, FaPaperPlane, FaTimes, FaDiceD20 } from "react-icons/fa";
+import { FaSearch, FaPaperPlane, FaDiceD20 } from "react-icons/fa";
 import { Tooltip } from "../../ui/tooltip";
 import { PopoverRoot, PopoverTrigger, PopoverContent, PopoverBody } from "../../ui/popover";
 import DiceRoller from "../dice/DiceRoller";
+import ChatSearch from "../chat/ChatSearch";
 
 import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
@@ -341,94 +333,6 @@ const EmptyChat = React.memo(() => (
   </Flex>
 ));
 
-// ── SearchBar ─────────────────────────────────────────────────────────────────
-const SearchBar = React.memo(({ filter, setFilter, from, setFrom, players, onClose }) => {
-  const playerItems = React.useMemo(
-    () => [{ id: "", name: "Anyone" }, ...players],
-    [players]
-  );
-
-  const collection = React.useMemo(
-    () =>
-      createListCollection({
-        items: playerItems,
-        itemToString: (i) => i.name,
-        itemToValue:  (i) => i.id,
-      }),
-    [playerItems]
-  );
-
-  return (
-    <Box borderTopWidth="1px" borderColor={BORDER_CLR} bg={BG_RAISED} px="10px" py="8px">
-      <Flex direction="row" alignItems="center" gap="6px" mb="6px">
-        <Text
-          fontSize="11px"
-          color={TEXT_MUTED}
-          textTransform="uppercase"
-          letterSpacing="0.05em"
-          flex={1}
-        >
-          Search
-        </Text>
-        <Tooltip content="Close search" openDelay={300}>
-          <IconButton
-            size="xs"
-            variant="ghost"
-            color={TEXT_MUTED}
-            aria-label="Close search"
-            onClick={onClose}
-          >
-            <Icon as={FaTimes} />
-          </IconButton>
-        </Tooltip>
-      </Flex>
-
-      <Flex direction="column" gap="6px">
-        {/* Text filter */}
-        <Flex direction="column" gap="2px">
-          <Text fontSize="11px" color={TEXT_MUTED}>Contains</Text>
-          <Input
-            size="sm"
-            placeholder="Filter messages…"
-            value={filter ?? ""}
-            onChange={(e) => setFilter(e.target.value || undefined)}
-            bg={BG_SURFACE}
-            borderColor={BORDER_CLR}
-            color="var(--nordvik-text-color)"
-            _placeholder={{ color: TEXT_MUTED }}
-          />
-        </Flex>
-
-        {/* From player */}
-        <Flex direction="column" gap="2px">
-          <Text fontSize="11px" color={TEXT_MUTED}>From</Text>
-          <SelectRoot
-            size="sm"
-            value={from ? [from] : [""]}
-            onValueChange={(details) => setFrom(details.value[0] || undefined)}
-            collection={collection}
-          >
-            <SelectTrigger
-              bg={BG_SURFACE}
-              borderColor={BORDER_CLR}
-              color="var(--nordvik-text-color)"
-            >
-              <SelectValueText placeholder="Anyone" />
-            </SelectTrigger>
-            <SelectContent>
-              {playerItems.map((p) => (
-                <SelectItem key={p.id} item={p}>
-                  {p.name}
-                </SelectItem>
-              ))}
-            </SelectContent>
-          </SelectRoot>
-        </Flex>
-      </Flex>
-    </Box>
-  );
-});
-
 // ── ChatPanel ─────────────────────────────────────────────────────────────────
 export const ChatPanel = () => {
   // Click-to-roll dice builder for players who don't know the /r syntax.
@@ -443,6 +347,7 @@ export const ChatPanel = () => {
   const [from,            setFrom           ] = React.useState(undefined);
   const [searchOpen,      setSearchOpen     ] = React.useState(false);
   const [loading,         setLoading        ] = React.useState(true);
+  const searchActive = !!(filter || from);
 
   // Stable refs so callbacks never go stale
   const loadedPagesRef = React.useRef(0);
@@ -630,17 +535,6 @@ export const ChatPanel = () => {
     [handleSend, handleAutocompleteKeyDown]
   );
 
-  // ── Toggle search panel; clear filters when closing ─────────────────────────
-  const toggleSearch = React.useCallback(() => {
-    setSearchOpen((prev) => {
-      if (prev) {
-        setFilter(undefined);
-        setFrom(undefined);
-      }
-      return !prev;
-    });
-  }, []);
-
   // ── Render ───────────────────────────────────────────────────────────────────
   return (
     <>
@@ -682,18 +576,6 @@ export const ChatPanel = () => {
           )}
         </Flex>
 
-        {/* Collapsible search bar */}
-        {searchOpen && (
-          <SearchBar
-            filter={filter}
-            setFilter={setFilter}
-            from={from}
-            setFrom={setFrom}
-            players={players}
-            onClose={toggleSearch}
-          />
-        )}
-
         <Separator borderColor={BORDER_CLR} />        {/* Compose area */}
         <Flex
           direction="row"
@@ -706,21 +588,47 @@ export const ChatPanel = () => {
         >
           {/* Command autocomplete list — floats above the compose row */}
           <CommandSuggestionList {...suggestionListProps} />
-          <Tooltip content={searchOpen ? "Close search" : "Search messages"} openDelay={300}>
-            <IconButton
-              size="sm"
-              variant={searchOpen ? "solid" : "ghost"}
-              aria-label="Toggle search"
-              onClick={toggleSearch}
-              alignSelf="flex-end"
-              mb="1px"
-              mr="4px"
-              flexShrink={0}
-              color={searchOpen ? "white" : TEXT_MUTED}
-            >
-              <Icon as={FaSearch} />
-            </IconButton>
-          </Tooltip>
+          {/* Search — a popover like the dice roller's; the search stays on after it closes */}
+          <PopoverRoot
+            open={searchOpen}
+            onOpenChange={(e) => setSearchOpen(e.open)}
+            positioning={{ placement: "top-start" }}
+            lazyMount
+          >
+            <PopoverTrigger asChild>
+              <IconButton
+                size="sm"
+                variant={searchOpen ? "solid" : "ghost"}
+                aria-label="Search messages"
+                title={searchActive ? "Search messages (filtered)" : "Search messages"}
+                alignSelf="flex-end"
+                mb="1px"
+                mr="4px"
+                flexShrink={0}
+                position="relative"
+                color={searchOpen || searchActive ? "white" : TEXT_MUTED}
+              >
+                <Icon as={FaSearch} />
+                {searchActive && (
+                  <Box
+                    as="span"
+                    data-testid="chat-search-active"
+                    position="absolute"
+                    top="2px"
+                    right="2px"
+                    boxSize="8px"
+                    borderRadius="full"
+                    bg={themeColors.accent}
+                  />
+                )}
+              </IconButton>
+            </PopoverTrigger>
+            <PopoverContent width="auto" bg={BG_RAISED} borderColor={BORDER_CLR}>
+              <PopoverBody p={0}>
+                <ChatSearch filter={filter} setFilter={setFilter} from={from} setFrom={setFrom} players={players} />
+              </PopoverBody>
+            </PopoverContent>
+          </PopoverRoot>
 
           <Textarea
             ref={textareaRef}

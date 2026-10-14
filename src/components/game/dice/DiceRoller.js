@@ -4,6 +4,7 @@ import { FaMinus, FaPlus } from "react-icons/fa";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import { ActiveTransportManager } from "../../../helpers/transport";
 import themeColors from "../../../helpers/themeColors";
+import SectionLabel from "../../uiComponents/base/SectionLabel";
 import {
   DIE_TYPES,
   emptyDiceState,
@@ -19,12 +20,6 @@ import {
 // live, so the syntax is learnt along the way. Used in the chat popover and DiceRollerPanel.
 
 const dieLabel = (die) => (die === "F" ? "dF" : `d${die}`);
-
-const SectionLabel = ({ children }) => (
-  <Text fontSize="2xs" textTransform="uppercase" letterSpacing="0.06em" color={themeColors.textMuted} mb={1}>
-    {children}
-  </Text>
-);
 
 // A disabled control explains itself: the reason replaces the control's hint text.
 const Hint = ({ availability }) =>
