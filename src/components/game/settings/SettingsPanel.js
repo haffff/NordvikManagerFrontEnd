@@ -70,6 +70,33 @@ const SettingFieldCard = ({ fieldKey, editable, disabled, validationError, child
   </Card.Root>
 );
 
+// ─── Segmented choice ──────────────────────────────────────────────────────────
+
+// A short fixed choice as a row of buttons, all options in view (like the dice
+// roller's Normal / Advantage / Disadvantage).
+const SegmentedField = ({ options, value, disabled, onChange }) => {
+  const [current, setCurrent] = React.useState(value);
+  return (
+    <HStack gap={1} wrap="wrap">
+      {options.map((option) => (
+        <Button
+          key={option.value}
+          size="xs"
+          variant={current === option.value ? "solid" : "outline"}
+          aria-pressed={current === option.value}
+          disabled={disabled}
+          onClick={() => {
+            setCurrent(option.value);
+            onChange(option.value);
+          }}
+        >
+          {option.label}
+        </Button>
+      ))}
+    </HStack>
+  );
+};
+
 // ─── Input factory ─────────────────────────────────────────────────────────────
 
 const buildInput = (editable, key, value, validationError, disabled, OnChange) => {
@@ -112,6 +139,16 @@ const buildInput = (editable, key, value, validationError, disabled, OnChange) =
         </SelectRoot>
       );
     }
+
+    case "segmented":
+      return (
+        <SegmentedField
+          options={editable.options}
+          value={value}
+          disabled={disabled}
+          onChange={(v) => OnChange(key, v)}
+        />
+      );
 
     case "number": {
       const parts = [
