@@ -27,6 +27,7 @@ const ALLOWED_COMMANDS = Object.freeze({
   "Game.GetPlayers": true,
   "Game.GetCurrentPlayer": true,
   "Game.GetGameId": true,
+  "Game.GetIsGM": true, // e.g. to keep GM-only entries out of a player's lists
 
   // BattleMap read-only
   "BattleMap.GetSelectedMap": true,
