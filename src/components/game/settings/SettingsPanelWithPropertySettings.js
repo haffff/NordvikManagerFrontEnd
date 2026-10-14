@@ -3,6 +3,7 @@ import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
 import SettingsPanel from './SettingsPanel';
 import ClientMediator from '../../../ClientMediator';
 import { ActiveTransportManager as WebSocketManagerInstance } from '../../../helpers/transport';
+import { propertyNamesOf, readPropertyFields, splitPropertyValues } from '../../../helpers/propertyFields';
 
 export const SettingsPanelWithPropertySettings = ({
     dto,
@@ -24,25 +25,11 @@ export const SettingsPanelWithPropertySettings = ({
 
     React.useEffect(() => {
         WebHelper.get("properties/QueryProperties?parentIds=" + dto.id, (data) => {
-            const propsEditable = editableKeyLabelDict.filter((x) => x.property);
-            const propsEditableKeys = propsEditable.map((x) => x.key);
-            const relevantProps = data.filter((x) => propsEditableKeys.includes(x.name));
-
-            setProperties(relevantProps);
+            const names = propertyNamesOf(editableKeyLabelDict);
+            setProperties(data.filter((x) => names.includes(x.name)));
 
             // Build a merged snapshot: dto fields + property values (never mutate the incoming dto)
-            const propValues = {};
-            propsEditable.forEach((prop) => {
-                const found = data.find((x) => x.name === prop.key);
-                let value = found?.value;
-                if (prop.type === "number")  value = parseFloat(value);
-                if (prop.type === "boolean") value = value === "true" || value === true || value === "True";
-                // A field can read the stored string itself (e.g. into one of its options).
-                if (prop.parse) value = prop.parse(value);
-                propValues[prop.key] = value;
-            });
-
-            setMergedDto({ ...structuredClone(dto), ...propValues });
+            setMergedDto({ ...structuredClone(dto), ...readPropertyFields(editableKeyLabelDict, data) });
         });
     // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [dto.id]);
@@ -53,30 +40,26 @@ export const SettingsPanelWithPropertySettings = ({
         // property was created in a previous session and isn't in propertiesRef.
         const freshData = await WebHelper.getAsync("properties/QueryProperties?parentIds=" + mergedDto.id);
         if (freshData) {
-            const propsEditable = editableKeyLabelDict.filter((x) => x.property);
-            const propsEditableKeys = propsEditable.map((x) => x.key);
-            const freshProps = freshData.filter((x) => propsEditableKeys.includes(x.name));
+            const names = propertyNamesOf(editableKeyLabelDict);
+            const freshProps = freshData.filter((x) => names.includes(x.name));
             setProperties(freshProps);
             propertiesRef.current = freshProps;
         }
 
-        const remaining = { ...dtoToUpdate };
+        // A field kept in several properties is written out into each of them.
+        const { properties: propertyValues, rest: remaining } = splitPropertyValues(editableKeyLabelDict, dtoToUpdate);
         const propsToUpdate = [];
 
-        Object.keys(remaining).forEach((key) => {
-            const existingProp = propertiesRef.current.find((x) => x.name === key);
+        Object.entries(propertyValues).forEach(([name, value]) => {
+            const existingProp = propertiesRef.current.find((x) => x.name === name);
             if (existingProp) {
-                propsToUpdate.push({ ...existingProp, value: remaining[key]?.toString() ?? "" });
-                delete remaining[key];
+                propsToUpdate.push({ ...existingProp, value: value?.toString() ?? "" });
                 return;
             }
-            if (editableKeyLabelDict.find((x) => x.key === key)?.property) {
-                WebSocketManagerInstance.Send({
-                    command: "property_add",
-                    data: { name: key, value: remaining[key], parentId: mergedDto.id, EntityName: entityName },
-                });
-                delete remaining[key];
-            }
+            WebSocketManagerInstance.Send({
+                command: "property_add",
+                data: { name, value, parentId: mergedDto.id, EntityName: entityName },
+            });
         });
 
         if (propsToUpdate.length > 0) {

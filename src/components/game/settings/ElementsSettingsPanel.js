@@ -11,7 +11,8 @@ import DButtonHorizontalContainer from "../../uiComponents/base/Containers/DButt
 import DropDownButton from "../../uiComponents/base/DDItems/DropDrownButton";
 import { toaster } from "../../ui/toaster";
 import ClientMediator from "../../../ClientMediator";
-import { maskSettingFields, maskSettingValue } from "../../../helpers/maskSettings";
+import { maskSettingFields } from "../../../helpers/maskSettings";
+import { propertyNamesOf, readPropertyFields, splitPropertyValues } from "../../../helpers/propertyFields";
 import { JsonEditor } from "../../uiComponents/JsonEditor";
 
 export const ElementSettingsPanel = ({ dto, battlemapId }) => {
@@ -253,33 +254,29 @@ export const ElementSettingsPanel = ({ dto, battlemapId }) => {
       setMaskDto(null);
       return;
     }
-    const maskKeys = maskEditables.map((e) => e.key);
     WebHelper.get("properties/QueryProperties?parentIds=" + dto.id, (data) => {
-      const propValues = { id: dto.id };
-      maskKeys.forEach((key) => {
-        const found = data?.find((x) => x.name === key);
-        propValues[key] = maskSettingValue(found?.value);
-      });
-      setMaskDto(propValues);
+      setMaskDto({ id: dto.id, ...readPropertyFields(maskEditables, data) });
     });
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [dto.id, maskableGroups.length]);
 
   const saveMaskSettings = async (dtoToSend) => {
-    const maskKeys = maskEditables.map((e) => e.key);
+    const names = propertyNamesOf(maskEditables);
     const freshData = await WebHelper.getAsync("properties/QueryProperties?parentIds=" + dto.id);
-    const freshProps = (freshData ?? []).filter((p) => maskKeys.includes(p.name));
+    const freshProps = (freshData ?? []).filter((p) => names.includes(p.name));
 
+    // Each choice is kept as two properties on the token.
+    const { properties } = splitPropertyValues(maskEditables, dtoToSend);
     const propsToUpdate = [];
-    Object.keys(dtoToSend).forEach((key) => {
-      const existing = freshProps.find((p) => p.name === key);
-      const value = dtoToSend[key]?.toString() ?? "";
+    Object.entries(properties).forEach(([name, raw]) => {
+      const existing = freshProps.find((p) => p.name === name);
+      const value = raw?.toString() ?? "";
       if (existing) {
         propsToUpdate.push({ ...existing, value });
       } else {
         WebSocketManagerInstance.Send({
           command: "property_add",
-          data: { name: key, value, parentId: dto.id, EntityName: "ElementModel" },
+          data: { name, value, parentId: dto.id, EntityName: "ElementModel" },
         });
       }
     });

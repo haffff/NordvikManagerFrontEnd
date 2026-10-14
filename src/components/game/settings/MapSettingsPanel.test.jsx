@@ -87,7 +87,7 @@ describe('MapSettingsPanel — token elements', () => {
 
     fireEvent.click(screen.getByRole('tab', { name: 'Token Elements' }));
     const masks = await screen.findByTestId('mask-settings');
-    expect(masks.dataset.keys).toBe('mask_hp_enabled,mask_hp_gmonly');
+    expect(masks.dataset.keys).toBe('mask_hp_mode');
   });
 
   it('explains when there is nothing to set', async () => {

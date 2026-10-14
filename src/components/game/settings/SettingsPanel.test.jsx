@@ -1,5 +1,5 @@
-import { describe, it, expect } from 'vitest';
-import { screen } from '@testing-library/react';
+import { describe, it, expect, vi } from 'vitest';
+import { screen, fireEvent } from '@testing-library/react';
 import { renderWithProviders } from '../../../setupTests';
 import SettingsPanel from './SettingsPanel';
 
@@ -18,5 +18,41 @@ describe('SettingsPanel field cards', () => {
     const card = screen.getByTestId('setting-card-name');
     expect(card).toHaveAttribute('style', expect.stringContaining('var(--nordvik-surface-card, rgba(40,40,40,0.5))'));
     expect(card).toHaveAttribute('style', expect.stringContaining('var(--nordvik-text-color, white)'));
+  });
+});
+
+// A short fixed choice shown as a row of joined buttons, all options visible at once.
+describe('SettingsPanel segmented field', () => {
+  const field = {
+    key: 'mask_hp_mode',
+    label: 'HP bar',
+    type: 'segmented',
+    options: [
+      { value: 'notset', label: 'Not set' },
+      { value: 'visible', label: 'Visible' },
+      { value: 'hidden', label: 'Hidden' },
+    ],
+  };
+
+  it('shows every option and marks the current one', () => {
+    renderWithProviders(
+      <SettingsPanel dto={{ id: 'x', mask_hp_mode: 'visible' }} editableKeyLabelDict={[field]} />
+    );
+
+    expect(screen.getByRole('button', { name: 'Visible' })).toHaveAttribute('aria-pressed', 'true');
+    expect(screen.getByRole('button', { name: 'Not set' })).toHaveAttribute('aria-pressed', 'false');
+    expect(screen.getByRole('button', { name: 'Hidden' })).toHaveAttribute('aria-pressed', 'false');
+  });
+
+  it('saves the picked option', () => {
+    const onSave = vi.fn();
+    renderWithProviders(
+      <SettingsPanel dto={{ id: 'x', mask_hp_mode: 'visible' }} editableKeyLabelDict={[field]} onSave={onSave} saveOnLeave />
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: 'Hidden' }));
+
+    expect(screen.getByRole('button', { name: 'Hidden' })).toHaveAttribute('aria-pressed', 'true');
+    expect(onSave).toHaveBeenLastCalledWith({ mask_hp_mode: 'hidden' });
   });
 });
