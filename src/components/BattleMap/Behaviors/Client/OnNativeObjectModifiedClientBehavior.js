@@ -36,6 +36,8 @@ function snapScale(target, transform, map, alignMode) {
       offset: alignMode === "center" ? map.gridSize / 2 : 0,
       moveX: transform.action === "scaleY" ? null : movingEdge(transform.originX, "left", "right"),
       moveY: transform.action === "scaleX" ? null : movingEdge(transform.originY, "top", "bottom"),
+      // A corner keeps the proportions (no stretched images); a side handle changes one side.
+      keepRatio: transform.action === "scale",
     }
   );
   target.set({ left: box.left, top: box.top, scaleX: box.width / target.width, scaleY: box.height / target.height });

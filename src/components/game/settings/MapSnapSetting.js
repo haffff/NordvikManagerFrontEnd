@@ -57,7 +57,8 @@ export const MapSnapSetting = () => {
       })}
       <Text fontSize="xs" color="gray.400" px={2}>
         With the grid shown and alignment on. "Snap" snaps unless the key is held; "Only while holding" snaps only while it
-        is. Scaling snaps the dragged edges onto grid lines. Saved in this browser only.
+        is. Scaling snaps the dragged edges onto grid lines; from a corner it keeps the proportions (one side lands on the
+        grid, the other follows). Saved in this browser only.
       </Text>
     </Stack>
   );
