@@ -239,3 +239,22 @@ describe('CardAPI — turn order', () => {
     expect(ALLOWED_WS_RECEIVE_PREFIXES).toContain('turnorder_');
   });
 });
+
+describe('CardAPI — GM check', () => {
+  // Addons hide GM-only content (e.g. hidden homebrew) from players' lists.
+  it('cards may ask whether the viewer is the GM, not change the game', async () => {
+    const ClientMediator = (await import('./ClientMediator')).default;
+    const fake = { panel: 'Game', id: 'GameGmTest', GetIsGM: vi.fn(() => true), DeleteGame: vi.fn() };
+    ClientMediator.register(fake);
+    try {
+      ActiveWebHelper.getAsync.mockResolvedValue([]);
+      const api = await CardAPIFactory('card-gm');
+
+      expect(await api.ClientMediator.sendCommandAsync('Game', 'GetIsGM', {})).toBe(true);
+      expect(await api.ClientMediator.sendCommandAsync('Game', 'DeleteGame', {})).toBeUndefined();
+      expect(fake.DeleteGame).not.toHaveBeenCalled();
+    } finally {
+      ClientMediator.unregister('GameGmTest');
+    }
+  });
+});
