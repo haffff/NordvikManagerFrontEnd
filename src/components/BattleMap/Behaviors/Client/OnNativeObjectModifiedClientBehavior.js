@@ -3,12 +3,64 @@ import { ActiveTransportManager as WebSocketManagerInstance } from "../../../../
 import DTOConverter from "../../DTOConverter";
 import CommandFactory from "../../Factories/CommandFactory";
 import { fabric } from "fabric";
+import { getSnapSettings, shouldSnapNow } from "../../../../helpers/mapSnapSettings";
+import { snapScaledBox } from "../../Helpers/gridSnap";
+
+const SCALE_ACTIONS = ["scale", "scaleX", "scaleY"];
+
+// The keys held: at release (event.e), or when the drag started (event.transform).
+const heldKeys = (event) => {
+  const e = event.e ?? {};
+  const t = event.transform ?? {};
+  return {
+    altKey: !!(e.altKey || t.altKey),
+    shiftKey: !!(e.shiftKey || t.shiftKey),
+    ctrlKey: !!(e.ctrlKey || t.ctrlKey),
+    metaKey: !!(e.metaKey || t.metaKey),
+  };
+};
+
+// Which edges the handle being dragged moves: the transform's origin is the fixed side.
+const movingEdge = (origin, start, end) => (origin === start ? end : origin === end ? start : "both");
+
+// Scaling a single, unrotated, top-left-origin element: its dragged edges land on grid lines.
+function snapScale(target, transform, map, alignMode) {
+  if (target.type === "activeSelection" || (target.angle ?? 0) % 360 !== 0) return;
+  if ((target.originX ?? "left") !== "left" || (target.originY ?? "top") !== "top") return;
+  if (!(target.width > 0) || !(target.height > 0)) return;
+
+  const box = snapScaledBox(
+    { left: target.left, top: target.top, width: target.width * target.scaleX, height: target.height * target.scaleY },
+    {
+      gridSize: map.gridSize,
+      offset: alignMode === "center" ? map.gridSize / 2 : 0,
+      moveX: transform.action === "scaleY" ? null : movingEdge(transform.originX, "left", "right"),
+      moveY: transform.action === "scaleX" ? null : movingEdge(transform.originY, "top", "bottom"),
+      // A corner keeps the proportions (no stretched images); a side handle changes one side.
+      keepRatio: transform.action === "scale",
+    }
+  );
+  target.set({ left: box.left, top: box.top, scaleX: box.width / target.width, scaleY: box.height / target.height });
+  target.setCoords?.();
+}
 
 export class OnNativeObjectModifiedClientBehavior {
   Handle(event, canvas, map, battleMapId) {
     var renderGrid = map.gridVisible;
     const isMultiSelect = event.target.type === "activeSelection";
-    const shouldSnap = renderGrid && canvas.alignMode !== "none" && !event.transform?.altKey;
+    const action = event.transform?.action;
+    const gridOn = renderGrid && canvas.alignMode !== "none";
+    const snapSettings = getSnapSettings();
+    const keys = heldKeys(event);
+    const isScale = SCALE_ACTIONS.includes(action);
+
+    if (gridOn && isScale && shouldSnapNow(snapSettings.scale, keys)) {
+      snapScale(event.target, event.transform, map, canvas.alignMode);
+    }
+
+    // Only a move: snapping the position after a rotation would shift the element here
+    // while only its angle is sent.
+    const shouldSnap = gridOn && action === "drag" && shouldSnapNow(snapSettings.move, keys);
 
     if (shouldSnap) {
       var gridSize = map.gridSize;
@@ -102,7 +154,10 @@ export class OnNativeObjectModifiedClientBehavior {
           target.isBeingDragged = true;
           break;
         case "scale":
-          dto = DTOConverter.ConvertToDTOMinified(target, ["scaleX", "scaleY"]);
+        case "scaleX":
+        case "scaleY":
+          // Position too: scaling from a top or left handle (or onto the grid) moves it.
+          dto = DTOConverter.ConvertToDTOMinified(target, ["left", "top", "scaleX", "scaleY"]);
           break;
         case "rotate":
           dto = DTOConverter.ConvertToDTOMinified(target, ["angle"]);

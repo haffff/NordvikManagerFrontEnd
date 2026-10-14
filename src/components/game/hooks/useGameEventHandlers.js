@@ -1,6 +1,7 @@
 import React, { useCallback } from 'react';
 import UtilityHelper from '../../../helpers/UtilityHelper';
 import DockableHelper from '../../../helpers/DockableHelper';
+import addonOpLog from '../../../helpers/addonOpLog';
 import ClientMediator from '../../../ClientMediator';
 import { toaster } from '../../ui/toaster';
 import { DropDownItem } from '../../uiComponents/base/DDItems/DropDownItem';
@@ -278,6 +279,7 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
    * Payload: { id, current?, total?, message?, title?, description? }
    */
   const HandleOperationProgress = useCallback((resp) => {
+    addonOpLog(`received ${resp.command} op=${resp.data?.id}`, resp.data);
     switch (resp.command) {
       case "operation_progress":
         ClientMediator.fireEvent("Progress:Update", resp.data);

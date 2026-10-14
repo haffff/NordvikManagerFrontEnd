@@ -1,13 +1,24 @@
 import { fabric } from 'fabric';
+import ClientMediator from '../../../../ClientMediator';
+
+// Collapsed status icons (see TokenManager.UpdateTokenUIPositions) unfold while the
+// token is the only one selected.
+const setIconsExpanded = (token, expanded, battleMapId) => {
+    if (!!token._iconsExpanded === expanded) return;
+    token._iconsExpanded = expanded;
+    ClientMediator.sendCommand("BattleMap_Token", "UpdateTokenUIPositions", { object: token, contextId: battleMapId });
+};
 
 export class OnTokenSelectedClientBehavior {
-    Handle(event, canvas, map) {
+    Handle(event, canvas, map, battleMapId) {
         let oldSelections = event.deselected;
         oldSelections?.forEach(element => {
             let isToken = element.tokenData !== undefined;
             if (!isToken) {
                 return;
             }
+
+            setIconsExpanded(element, false, battleMapId);
 
             if (element && element.additionalObjects) {
                 let objects = element.additionalObjects.filter(x => x?.tokenData?.showOnTokenControl);
@@ -33,6 +44,8 @@ export class OnTokenSelectedClientBehavior {
         if (!token || !token.tokenData) {
             return;
         }
+
+        setIconsExpanded(token, true, battleMapId);
 
         // _maskVisible is computed by TokenManager.UpdateTokenBasedOnProperties from
         // this element's maskGroup (map-wide toggle, with an optional per-token

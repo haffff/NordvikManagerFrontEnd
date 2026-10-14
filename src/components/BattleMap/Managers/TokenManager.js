@@ -27,6 +27,26 @@ const CREATE_TOKEN_PROPS = [
   "player_owner",
 ];
 
+/** Status icons ("right-top") shown before the rest collapse into "+N" — tokenData.maxStatusIcons overrides. */
+const DEFAULT_MAX_STATUS_ICONS = 3;
+
+// Collapsed status icons are hidden apart from `visible`, which property deps, masks
+// and drag hiding all set — they'd otherwise undo it, or it them. Hidden this way an
+// element is neither drawn nor clickable.
+function setOverflowHidden(element, hidden) {
+  if (hidden && !element._overflowPatched) {
+    element._overflowPatched = true;
+    const { isNotVisible, containsPoint } = element;
+    element.isNotVisible = function () {
+      return !!this._overflowHidden || isNotVisible.call(this);
+    };
+    element.containsPoint = function (...args) {
+      return !this._overflowHidden && containsPoint.apply(this, args);
+    };
+  }
+  element._overflowHidden = hidden;
+}
+
 const GUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Returns true if value is a bare GUID, false if it's a named/scoped key. */
@@ -1439,6 +1459,25 @@ class TokenManager {
     };
   }
 
+  // The small "+N" after the status icons, counting the collapsed ones.
+  _createOverflowMarker(likeIcon) {
+    const size = likeIcon?.getScaledHeight?.() || 16;
+    const marker = new fabric.Text("", {
+      fontSize: Math.max(8, Math.round(size * 0.6)),
+      fontWeight: "bold",
+      fill: "white",
+      stroke: "rgba(0,0,0,0.8)",
+      strokeWidth: 2,
+      paintFirst: "stroke",
+      selectable: false,
+      evented: false,
+    });
+    marker.layer = TOKEN_UI_LAYER;
+    marker.isTokenUI = true;
+    marker.tokenData = { anchor: "right-top", overflowMarker: true };
+    return marker;
+  }
+
   // ── UI positioning ──────────────────────────────────────────────────────
 
   /**
@@ -1492,10 +1531,40 @@ class TokenManager {
     const RIGHT_TOP_GAP = 2;
     const rightTopStackOffset = new Map();
     {
+      // While the token is dragged its UI is hidden, with the real visibility kept in
+      // visibleBeforeDrag — repositioning then must not pile every icon onto one slot.
+      const icons = token.additionalObjects.filter(
+        (element) =>
+          element?.tokenData?.anchor === "right-top" &&
+          !element.tokenData.overflowMarker &&
+          (element.visibleBeforeDrag ?? element.visible) !== false
+      );
+
+      // More icons than fit: the first ones, then a small "+N" right after them —
+      // all of them while the token is selected on its own (OnTokenSelectedBehavior).
+      const max = token.tokenData?.maxStatusIcons;
+      const limit = Number.isInteger(max) && max >= 1 ? max : DEFAULT_MAX_STATUS_ICONS;
+      const collapse = icons.length > limit && !token._iconsExpanded;
+      const kept = collapse ? icons.slice(0, limit) : icons;
+      for (const icon of icons) setOverflowHidden(icon, !kept.includes(icon));
+
+      let marker = token.additionalObjects.find((e) => e?.tokenData?.overflowMarker);
+      if (collapse && !marker) {
+        marker = this._createOverflowMarker(icons[0]);
+        token.additionalObjects.push(marker);
+        canvas.add(marker);
+      }
+      if (marker) setOverflowHidden(marker, !collapse);
+      if (collapse) {
+        marker.set("text", `+${icons.length - limit}`);
+        // Centred on the icon row.
+        const rowHeight = kept[0].getScaledHeight?.() ?? kept[0].height ?? 0;
+        const ownHeight = marker.getScaledHeight?.() ?? marker.height ?? 0;
+        marker.tokenData.offsetY = (kept[0].tokenData?.offsetY ?? 0) + (rowHeight - ownHeight) / 2;
+      }
+
       let running = 0;
-      for (const element of token.additionalObjects) {
-        if (element?.tokenData?.anchor !== "right-top") continue;
-        if (element.visible === false) continue;
+      for (const element of collapse ? [...kept, marker] : icons) {
         rightTopStackOffset.set(element, running);
         running += (element.getScaledWidth?.() ?? element.width ?? 0) + RIGHT_TOP_GAP;
       }

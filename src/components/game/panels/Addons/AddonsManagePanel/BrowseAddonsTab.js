@@ -5,6 +5,7 @@ import { ActiveWebHelper as WebHelper } from "../../../../../helpers/transport";
 import { toaster } from "../../../../ui/toaster";
 import ClientMediator from "../../../../../ClientMediator";
 import ProgressToastManager from "../../../../../helpers/ProgressToastManager";
+import addonOpLog from "../../../../../helpers/addonOpLog";
 import DList from "../../../../uiComponents/base/List/DList";
 import DListItem from "../../../../uiComponents/base/List/DListItem";
 import DListItemButton from "../../../../uiComponents/base/List/ListItemDetails/DListItemButton";
@@ -28,7 +29,9 @@ export const BrowseAddonsTab = ({ repository, repositoryError, addons, handleRel
   const install = async (addon) => {
     setInstalling(addon.key);
     try {
+      addonOpLog(`install "${addon.key}" clicked`);
       const { status, body } = await WebHelper.postAsync("addon/install", { key: addon.key });
+      addonOpLog(`install "${addon.key}" answered ${status}`, body);
       if (status >= 200 && status < 300 && body?.operationId) {
         const opId = body.operationId;
         ProgressToastManager.track(opId, { title: `Installing "${addon.name}"…` })
@@ -43,6 +46,7 @@ export const BrowseAddonsTab = ({ repository, repositoryError, addons, handleRel
         }
       }
     } catch (e) {
+      addonOpLog(`install "${addon.key}" request failed: ${e.message}`);
       toaster.create({ title: "Installation failed", description: e.message, type: "error", duration: 6000 });
     } finally {
       setInstalling(null);

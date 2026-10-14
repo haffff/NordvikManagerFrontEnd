@@ -4,6 +4,7 @@ import { FaMinus, FaPlus } from "react-icons/fa";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import { ActiveTransportManager } from "../../../helpers/transport";
 import themeColors from "../../../helpers/themeColors";
+import SectionLabel from "../../uiComponents/base/SectionLabel";
 import {
   DIE_TYPES,
   emptyDiceState,
@@ -19,12 +20,6 @@ import {
 // live, so the syntax is learnt along the way. Used in the chat popover and DiceRollerPanel.
 
 const dieLabel = (die) => (die === "F" ? "dF" : `d${die}`);
-
-const SectionLabel = ({ children }) => (
-  <Text fontSize="2xs" textTransform="uppercase" letterSpacing="0.06em" color={themeColors.textMuted} mb={1}>
-    {children}
-  </Text>
-);
 
 // A disabled control explains itself: the reason replaces the control's hint text.
 const Hint = ({ availability }) =>
@@ -46,6 +41,7 @@ const Select = ({ label, value, onChange, disabled, children, width = "auto" }) 
 export const DiceRoller = ({ onRolled }) => {
   const [state, setState] = React.useState(emptyDiceState);
   const [showMore, setShowMore] = React.useState(false);
+  const [gmOnly, setGmOnly] = React.useState(false);
 
   const update = (patch) => setState((s) => ({ ...s, ...patch }));
   const changeDie = (die, delta) =>
@@ -60,7 +56,7 @@ export const DiceRoller = ({ onRolled }) => {
 
   const roll = () => {
     if (!formula) return;
-    ActiveTransportManager.Send(CommandFactory.CreateChatSendCommand(toChatCommand(formula)));
+    ActiveTransportManager.Send(CommandFactory.CreateChatSendCommand(toChatCommand(formula, { gmOnly })));
     onRolled?.(formula);
   };
 
@@ -288,13 +284,24 @@ export const DiceRoller = ({ onRolled }) => {
         mb={2}
       >
         <Text data-testid="dice-formula" fontFamily="mono" fontSize="sm">
-          {formula ? toChatCommand(formula) : "/r …"}
+          {formula ? toChatCommand(formula, { gmOnly }) : `${gmOnly ? "/gr" : "/r"} …`}
         </Text>
         <Text fontSize="2xs" color={themeColors.textMuted}>
           {describeFormula(state)}
           {formula ? " — you can also type this in chat." : ""}
         </Text>
       </Box>
+
+      <Button
+        size="xs"
+        variant={gmOnly ? "solid" : "outline"}
+        aria-pressed={gmOnly}
+        title="Only you and the GM see the result"
+        mb={2}
+        onClick={() => setGmOnly((v) => !v)}
+      >
+        GM only
+      </Button>
 
       <Button width="100%" size="sm" colorPalette="green" disabled={!formula} onClick={roll}>
         Roll

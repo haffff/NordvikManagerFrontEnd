@@ -24,6 +24,7 @@ import {
 } from "../KeyBoardEventsManager";
 import CommandExecutionHelper, { parseCommandString } from "../../../helpers/CommandExecutionHelper";
 import { DOCK_MODIFIERS, setDockModifier, useDockModifier } from "../../../helpers/dockSettings";
+import { MapSnapSetting } from "./MapSnapSetting";
 import { toaster } from "../../ui/toaster";
 
 const actionIdFor = (panel, command) => `${panel}.${command}`;
@@ -381,6 +382,7 @@ export const KeyboardShortcutsPanel = () => {
     <BasePanel>
       <Flex direction="column" flex="1" width="100%" overflowY="auto" overflowX="hidden" p={2} gap={2}>
         <DockModifierSetting />
+        <MapSnapSetting />
 
         <Text fontSize="xs" color="gray.400" px={1}>
           These bindings are tied to your account, not this game — they'll follow you into every game you join.

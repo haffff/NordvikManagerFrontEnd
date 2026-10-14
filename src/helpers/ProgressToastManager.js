@@ -1,5 +1,6 @@
 import { toaster } from '../components/ui/toaster';
 import ClientMediator from '../ClientMediator';
+import addonOpLog from './addonOpLog';
 
 /**
  * Generic "operation progress" toast, built on top of the existing Chakra toaster.
@@ -94,11 +95,13 @@ const ProgressToastManager = {
       if (failed) throw new Error(data?.description || data?.title || 'Operation failed');
       return data;
     };
+    addonOpLog(`track op=${id} "${startOptions.title ?? ''}"${finished.has(id) ? ' (already finished)' : ''}`);
     if (finished.has(id)) return Promise.resolve(finished.get(id)).then(settle);
 
     const outcome = new Promise((resolve, reject) => {
       const done = (failed) => (data) => {
         if (data?.id !== id) return;
+        addonOpLog(`op=${id} ${failed ? 'FAILED' : 'complete'}`, data);
         ClientMediator.off(onComplete);
         ClientMediator.off(onFailed);
         clearTimeout(timer);
@@ -107,6 +110,7 @@ const ProgressToastManager = {
       const onComplete = ClientMediator.on('Progress:Complete', done(false));
       const onFailed = ClientMediator.on('Progress:Failed', done(true));
       const timer = setTimeout(() => {
+        addonOpLog(`op=${id} TIMED OUT after ${timeout / 1000}s: no completion or failure arrived`);
         ClientMediator.off(onComplete);
         ClientMediator.off(onFailed);
         reject(new Error('Operation timed out'));
