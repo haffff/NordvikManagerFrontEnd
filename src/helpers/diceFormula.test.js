@@ -125,4 +125,8 @@ describe('toChatCommand', () => {
   it('prefixes the formula with /r', () => {
     expect(toChatCommand('2d20kh1+5')).toBe('/r 2d20kh1+5');
   });
+
+  it('uses /gr for a roll only the GM sees', () => {
+    expect(toChatCommand('1d20+5', { gmOnly: true })).toBe('/gr 1d20+5');
+  });
 });

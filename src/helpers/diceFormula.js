@@ -109,4 +109,5 @@ export function describeFormula(state) {
   return parts.join(', ');
 }
 
-export const toChatCommand = (formula) => `/r ${formula}`;
+// /gr: a roll only the roller and the GM see.
+export const toChatCommand = (formula, { gmOnly = false } = {}) => `${gmOnly ? '/gr' : '/r'} ${formula}`;
