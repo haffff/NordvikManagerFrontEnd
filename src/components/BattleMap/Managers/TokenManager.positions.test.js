@@ -92,42 +92,52 @@ describe('TokenManager.UpdateTokenUIPositions', () => {
     expect(t.additionalObjects[2].left).toBe(368);
   });
 
-  // More status icons than fit: the first ones, then "…" in the last slot; all of them
-  // while the token is selected.
+  // More status icons than fit: the first ones, then a small "+N" right after them;
+  // all of them while the token is selected.
   const shown = (t) =>
     t.additionalObjects.filter((o) => !o.tokenData?.overflowMarker && !o.isNotVisible());
   const marker = (t) => t.additionalObjects.find((o) => o.tokenData?.overflowMarker);
+  // jsdom can't measure fabric text, so the label is a 10×10 stand-in here.
+  const iconManager = (canvas) => {
+    const tm = manager(canvas);
+    tm._createOverflowMarker = () => {
+      const label = new fabric.Rect({ width: 10, height: 10, strokeWidth: 0 });
+      label.tokenData = { anchor: 'right-top', overflowMarker: true };
+      return label;
+    };
+    return tm;
+  };
+  const iconCanvas = () => ({ requestRenderAll: vi.fn(), renderAll: vi.fn(), add: vi.fn() });
 
-  it('collapses more than 3 status icons into 2 and a "…" marker', () => {
-    const canvas = { requestRenderAll: vi.fn(), renderAll: vi.fn(), add: vi.fn() };
+  it('shows 3 status icons and "+2" right after them when there are 5', () => {
+    const canvas = iconCanvas();
     const t = withIcons(5);
     const icons = [...t.additionalObjects];
 
-    manager(canvas).UpdateTokenUIPositions({ object: t });
+    iconManager(canvas).UpdateTokenUIPositions({ object: t });
 
-    expect(shown(t)).toEqual(icons.slice(0, 2));
-    expect(marker(t)).toBeDefined();
+    expect(shown(t)).toEqual(icons.slice(0, 3));
     expect(canvas.add).toHaveBeenCalledWith(marker(t));
     expect(marker(t).isNotVisible()).toBe(false);
-    expect(marker(t).left).toBe(386);
+    expect(marker(t).text).toBe('+2');
+    expect(marker(t).left).toBe(404);
+    expect(marker(t).top).toBe(203); // centred on the icon row
     // Hidden icons can't be clicked either.
     expect(icons[3].containsPoint(new fabric.Point(icons[3].left + 8, icons[3].top + 8))).toBe(false);
   });
 
   it('shows 3 status icons without a marker', () => {
-    const canvas = { requestRenderAll: vi.fn(), renderAll: vi.fn(), add: vi.fn() };
     const t = withIcons(3);
 
-    manager(canvas).UpdateTokenUIPositions({ object: t });
+    iconManager(iconCanvas()).UpdateTokenUIPositions({ object: t });
 
     expect(shown(t)).toHaveLength(3);
     expect(marker(t)?.isNotVisible() ?? true).toBe(true);
   });
 
   it('shows every status icon while the token is selected, and collapses again after', () => {
-    const canvas = { requestRenderAll: vi.fn(), renderAll: vi.fn(), add: vi.fn() };
     const t = withIcons(5);
-    const tm = manager(canvas);
+    const tm = iconManager(iconCanvas());
     tm.UpdateTokenUIPositions({ object: t });
 
     t._iconsExpanded = true;
@@ -138,26 +148,37 @@ describe('TokenManager.UpdateTokenUIPositions', () => {
 
     t._iconsExpanded = false;
     tm.UpdateTokenUIPositions({ object: t });
-    expect(shown(t)).toHaveLength(2);
-  });
-
-  it('counts only icons that are turned on', () => {
-    const canvas = { requestRenderAll: vi.fn(), renderAll: vi.fn(), add: vi.fn() };
-    const t = withIcons(4);
-    t.additionalObjects[0].visible = false;
-
-    manager(canvas).UpdateTokenUIPositions({ object: t });
-
     expect(shown(t)).toHaveLength(3);
   });
 
-  it('lets the token template change how many fit', () => {
-    const canvas = { requestRenderAll: vi.fn(), renderAll: vi.fn(), add: vi.fn() };
+  it('updates the count when icons change', () => {
     const t = withIcons(5);
-    t.tokenData = { maxStatusIcons: 5 };
+    const tm = iconManager(iconCanvas());
+    tm.UpdateTokenUIPositions({ object: t });
 
-    manager(canvas).UpdateTokenUIPositions({ object: t });
+    t.additionalObjects[4].visible = false;
+    tm.UpdateTokenUIPositions({ object: t });
 
-    expect(shown(t)).toHaveLength(5);
+    expect(marker(t).text).toBe('+1');
+  });
+
+  it('counts only icons that are turned on', () => {
+    const t = withIcons(4);
+    t.additionalObjects[0].visible = false;
+
+    iconManager(iconCanvas()).UpdateTokenUIPositions({ object: t });
+
+    expect(shown(t)).toHaveLength(3);
+    expect(marker(t)?.isNotVisible() ?? true).toBe(true);
+  });
+
+  it('lets the token template change how many fit', () => {
+    const t = withIcons(5);
+    t.tokenData = { maxStatusIcons: 4 };
+
+    iconManager(iconCanvas()).UpdateTokenUIPositions({ object: t });
+
+    expect(shown(t)).toHaveLength(4);
+    expect(marker(t).text).toBe('+1');
   });
 });

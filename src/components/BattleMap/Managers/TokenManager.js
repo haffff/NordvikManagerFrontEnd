@@ -27,7 +27,7 @@ const CREATE_TOKEN_PROPS = [
   "player_owner",
 ];
 
-/** Status icons ("right-top") shown before the rest collapse into "…" — tokenData.maxStatusIcons overrides. */
+/** Status icons ("right-top") shown before the rest collapse into "+N" — tokenData.maxStatusIcons overrides. */
 const DEFAULT_MAX_STATUS_ICONS = 3;
 
 // Collapsed status icons are hidden apart from `visible`, which property deps, masks
@@ -1459,20 +1459,19 @@ class TokenManager {
     };
   }
 
-  // The "…" standing in for collapsed status icons, sized like the first icon.
+  // The small "+N" after the status icons, counting the collapsed ones.
   _createOverflowMarker(likeIcon) {
     const size = likeIcon?.getScaledHeight?.() || 16;
-    const dot = (x) =>
-      new fabric.Circle({ left: x, top: size / 2, radius: size / 10, fill: "white", originX: "center", originY: "center" });
-    const marker = new fabric.Group(
-      [
-        new fabric.Rect({ left: 0, top: 0, width: size, height: size, rx: size / 4, ry: size / 4, fill: "rgba(0,0,0,0.6)" }),
-        dot(size * 0.25),
-        dot(size * 0.5),
-        dot(size * 0.75),
-      ],
-      { selectable: false, evented: false }
-    );
+    const marker = new fabric.Text("", {
+      fontSize: Math.max(8, Math.round(size * 0.6)),
+      fontWeight: "bold",
+      fill: "white",
+      stroke: "rgba(0,0,0,0.8)",
+      strokeWidth: 2,
+      paintFirst: "stroke",
+      selectable: false,
+      evented: false,
+    });
     marker.layer = TOKEN_UI_LAYER;
     marker.isTokenUI = true;
     marker.tokenData = { anchor: "right-top", overflowMarker: true };
@@ -1541,12 +1540,12 @@ class TokenManager {
           (element.visibleBeforeDrag ?? element.visible) !== false
       );
 
-      // More icons than fit: the first ones, then a "…" marker in the last slot —
+      // More icons than fit: the first ones, then a small "+N" right after them —
       // all of them while the token is selected on its own (OnTokenSelectedBehavior).
       const max = token.tokenData?.maxStatusIcons;
       const limit = Number.isInteger(max) && max >= 1 ? max : DEFAULT_MAX_STATUS_ICONS;
       const collapse = icons.length > limit && !token._iconsExpanded;
-      const kept = collapse ? icons.slice(0, limit - 1) : icons;
+      const kept = collapse ? icons.slice(0, limit) : icons;
       for (const icon of icons) setOverflowHidden(icon, !kept.includes(icon));
 
       let marker = token.additionalObjects.find((e) => e?.tokenData?.overflowMarker);
@@ -1556,6 +1555,13 @@ class TokenManager {
         canvas.add(marker);
       }
       if (marker) setOverflowHidden(marker, !collapse);
+      if (collapse) {
+        marker.set("text", `+${icons.length - limit}`);
+        // Centred on the icon row.
+        const rowHeight = kept[0].getScaledHeight?.() ?? kept[0].height ?? 0;
+        const ownHeight = marker.getScaledHeight?.() ?? marker.height ?? 0;
+        marker.tokenData.offsetY = (kept[0].tokenData?.offsetY ?? 0) + (rowHeight - ownHeight) / 2;
+      }
 
       let running = 0;
       for (const element of collapse ? [...kept, marker] : icons) {
