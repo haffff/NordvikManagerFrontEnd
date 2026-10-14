@@ -118,4 +118,16 @@ describe('DiceRoller', () => {
 
     expect(formula()).toBe('/r 10d10!cs>7');
   });
+
+  it('sends the roll to the GM only when asked', () => {
+    renderWithProviders(<DiceRoller />);
+
+    fireEvent.click(screen.getByRole('button', { name: 'Add d20' }));
+    fireEvent.change(screen.getByLabelText('Modifier'), { target: { value: '5' } });
+    fireEvent.click(screen.getByRole('button', { name: 'GM only' }));
+    expect(formula()).toBe('/gr 1d20+5');
+
+    fireEvent.click(screen.getByRole('button', { name: 'Roll' }));
+    expect(sendMock).toHaveBeenCalledWith({ command: 'chat_push', data: '/gr 1d20+5' });
+  });
 });

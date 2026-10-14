@@ -26,6 +26,8 @@ import UtilityHelper from "../../../helpers/UtilityHelper";
 import CommandExecutionHelper from "../../../helpers/CommandExecutionHelper";
 import ChatMessageParser from "../../../helpers/ChatMessageParser";
 import themeColors from "../../../helpers/themeColors";
+import { describePrivacy } from "../../../helpers/chatPrivacy";
+import { getChatSuggestions } from "../../../helpers/chatAutocomplete";
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 const BG_SURFACE = themeColors.surface;
@@ -133,7 +135,7 @@ const CommandSuggestionList = React.memo(
           const isActive = i === activeIndex;
           return (
             <Flex
-              key={`${s.panel}.${s.command}`}
+              key={s.key ?? `${s.panel}.${s.command}`}
               px="10px"
               py="6px"
               alignItems="baseline"
@@ -146,7 +148,7 @@ const CommandSuggestionList = React.memo(
               onMouseDown={(e) => { e.preventDefault(); onSelect(s); }}
             >
               <Text fontSize="12px" color="rgb(160,190,255)" fontFamily="mono" flexShrink={0}>
-                {s.panel}.{s.command}
+                {s.label ?? `${s.panel}.${s.command}`}
               </Text>
               {s.description && (
                 <Text fontSize="11px" color={TEXT_MUTED} overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
@@ -165,7 +167,7 @@ const CommandSuggestionList = React.memo(
  * Hook that drives command autocompletion.
  * Returns { listProps, handleKeyDown, argHint } to be spread / consumed by ChatPanel.
  */
-function useCommandAutocomplete(message, setMessage, textareaRef) {
+function useCommandAutocomplete(message, setMessage, textareaRef, players, meId) {
   const [suggestions,  setSuggestions ] = React.useState([]);
   const [activeIndex,  setActiveIndex ] = React.useState(0);
   const [argHint,      setArgHint     ] = React.useState(null);
@@ -176,8 +178,11 @@ function useCommandAutocomplete(message, setMessage, textareaRef) {
     const parsed = parseCommandInput(message);
 
     if (!parsed) {
-      setSuggestions([]);
+      // Chat commands ("/gr", "/w" …) and player names after "/w ".
+      const chatSuggestions = getChatSuggestions(message, { players, meId }) ?? [];
+      setSuggestions(chatSuggestions);
       setArgHint(null);
+      setActiveIndex(0);
       return;
     }
 
@@ -215,13 +220,13 @@ function useCommandAutocomplete(message, setMessage, textareaRef) {
       setArgHint(null);
       setActiveIndex(0);
     }
-  }, [message]);
+  }, [message, players, meId]);
 
   const open = suggestions.length > 0 || argHint !== null;
 
   const applySelection = React.useCallback(
     (suggestion) => {
-      setMessage(`${CMD_PREFIX}${suggestion.panel}.${suggestion.command} `);
+      setMessage(suggestion.insert ?? `${CMD_PREFIX}${suggestion.panel}.${suggestion.command} `);
       setSuggestions([]);
       setActiveIndex(0);
       // Move cursor to end on next tick
@@ -274,10 +279,12 @@ function useCommandAutocomplete(message, setMessage, textareaRef) {
 // Renders one message bubble. The sender attribution row appears below the
 // last consecutive message in each player's run (i.e. when nextItem is from
 // a different player).
-const ChatBubble = React.memo(({ item, nextItem, players, currentPlayerId }) => {
+const ChatBubble = React.memo(({ item, nextItem, players, currentPlayerId, gmId, onWhisper }) => {
   const player     = players.find((y) => y.id === item.playerId);
   const isSelf     = player !== undefined && player.id === currentPlayerId;
   const showSender = item.playerId !== nextItem?.playerId;
+  // Whisper / GM roll — seen only by the sender, the recipient and the GM.
+  const privacy    = describePrivacy(item, { players, meId: currentPlayerId, gmId });
 
   let content;
   try {
@@ -287,6 +294,11 @@ const ChatBubble = React.memo(({ item, nextItem, players, currentPlayerId }) => 
   }
   return (
     <Flex direction="column" gap="4px">
+      {privacy && (
+        <Text className="nm_chatPrivacy" fontSize="11px" color={themeColors.accentText} fontStyle="italic" mx="10px" mb="-2px">
+          {privacy.label}
+        </Text>
+      )}
       {/* Bubble */}
       <Box
         className={isSelf ? "nm_chatMessage nm_chatMessage_own" : "nm_chatMessage"}
@@ -296,7 +308,8 @@ const ChatBubble = React.memo(({ item, nextItem, players, currentPlayerId }) => 
         borderRadius="6px"
         bg={isSelf ? themeColors.chatOwn : BG_RAISED}
         borderWidth="1px"
-        borderColor={isSelf ? themeColors.chatOwnBorder : BORDER_CLR}
+        borderStyle={privacy ? "dashed" : "solid"}
+        borderColor={privacy ? themeColors.accent : isSelf ? themeColors.chatOwnBorder : BORDER_CLR}
         fontSize="13px"
         color="var(--nordvik-text-color)"
         wordBreak="break-word"
@@ -307,9 +320,26 @@ const ChatBubble = React.memo(({ item, nextItem, players, currentPlayerId }) => 
       {/* Sender label — only on the last message in a consecutive run */}          {showSender && (
             <Flex direction="row" alignItems="center" gap="6px" px="8px" mt="2px" mb="10px">
           {player && <PlayerAvatar size="20px" player={player} />}
-          <Text fontSize="11px" color={TEXT_MUTED} fontStyle="italic">
-            {player?.name ?? "[Unknown]"}
-          </Text>
+          {player && !isSelf && onWhisper ? (
+            // Click a name to whisper back.
+            <Text
+              as="button"
+              type="button"
+              fontSize="11px"
+              color={TEXT_MUTED}
+              fontStyle="italic"
+              cursor="pointer"
+              title={`Whisper to ${player.name}`}
+              _hover={{ textDecoration: "underline", color: "var(--nordvik-text-color)" }}
+              onClick={() => onWhisper(player.name)}
+            >
+              {player.name}
+            </Text>
+          ) : (
+            <Text fontSize="11px" color={TEXT_MUTED} fontStyle="italic">
+              {player?.name ?? "[Unknown]"}
+            </Text>
+          )}
         </Flex>
       )}
     </Flex>
@@ -343,6 +373,7 @@ export const ChatPanel = () => {
   const [loadedPages,     setLoadedPages    ] = React.useState(0);
   const [players,         setPlayers        ] = React.useState([]);
   const [currentPlayerId, setCurrentPlayerId] = React.useState(undefined);
+  const [gmId,            setGmId           ] = React.useState(undefined);
   const [filter,          setFilter         ] = React.useState(undefined);
   const [from,            setFrom           ] = React.useState(undefined);
   const [searchOpen,      setSearchOpen     ] = React.useState(false);
@@ -359,7 +390,7 @@ export const ChatPanel = () => {
   const {
     suggestionListProps,
     handleAutocompleteKeyDown,
-  } = useCommandAutocomplete(message, setMessage, textareaRef);
+  } = useCommandAutocomplete(message, setMessage, textareaRef, players, currentPlayerId);
 
   React.useLayoutEffect(() => { loadedPagesRef.current = loadedPages; }, [loadedPages]);
   React.useLayoutEffect(() => { filterRef.current      = filter;      }, [filter]);
@@ -385,6 +416,7 @@ export const ChatPanel = () => {
         setItems(stampKeys(chatItems));
         setPlayers(allPlayers ?? []);
         setCurrentPlayerId(currentPlayer?.id);
+        setGmId(ClientMediator.sendCommand("Game", "GetOwner", {}));
       } catch (err) {
         console.error("[ChatPanel] Load failed:", err);
       } finally {
@@ -437,6 +469,15 @@ export const ChatPanel = () => {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter, from]);
+
+  // ── Reply: "/w Name " in the box, ready to type ────────────────────────────
+  const startWhisper = React.useCallback((name) => {
+    setMessage(`/w ${name} `);
+    requestAnimationFrame(() => {
+      const el = textareaRef.current;
+      if (el) { el.focus(); el.selectionStart = el.selectionEnd = el.value.length; }
+    });
+  }, []);
 
   // ── Incoming WS chat message ────────────────────────────────────────────────
   const onChatMessage = React.useCallback((event) => {
@@ -565,6 +606,8 @@ export const ChatPanel = () => {
                 nextItem={items[i + 1]}
                 players={players}
                 currentPlayerId={currentPlayerId}
+                gmId={gmId}
+                onWhisper={startWhisper}
               />
             ))
           )}
