@@ -212,6 +212,8 @@ export const CardsPanel = ({ state }) => {
         collection={panels}
         setCollection={setPanels}
         commandPrefix={"card"}
+        // The server files the new card in the folder tree but only announces the card.
+        onAdd={() => treeRefreshRef.current?.()}
       />
       <CollectionSyncer
         collection={templates}
