@@ -13,7 +13,7 @@ import {
   HiChevronLeft,
   HiChevronRight,
   HiMiniEllipsisHorizontal,
-} from 'react-icons/hi2'
+} from '../uiComponents/icons/extraIcons'
 import { LinkButton } from './link-button'
 
 const [RootPropsProvider, useRootProps] = createContext({

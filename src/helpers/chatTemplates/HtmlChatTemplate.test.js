@@ -64,10 +64,42 @@ describe('buildMessageDocument', () => {
       '.a{color:red}</style><script>alert(2)</script>'
     );
     expect(doc).not.toMatch(/<script>alert\(1\)/);
-    expect(doc).not.toMatch(/<meta http-equiv/);
+    expect(doc).not.toMatch(/http-equiv="refresh"/);
     expect(doc).not.toMatch(/<base /);
     expect(doc).not.toMatch(/<iframe/);
     expect(doc).toContain('.a{color:red}<\\/style>');
+  });
+});
+
+describe('buildMessageDocument: outside resources', () => {
+  it('opens the head with a CSP that limits outside hosts to the sandbox allowlist', () => {
+    const doc = buildMessageDocument('<p>x</p>', [], '');
+    const head = doc.slice(doc.indexOf('<head>'));
+    expect(head).toMatch(/^<head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none';/);
+    // Imported Roll20 roll templates load their artwork from GitHub (e.g. Blades in the Dark).
+    expect(head).toMatch(/img-src 'self' data: blob: https:\/\/raw\.githubusercontent\.com/);
+    expect(head).toMatch(/style-src 'unsafe-inline' [^;"]*https:\/\/fonts\.googleapis\.com/);
+    expect(head).toMatch(/font-src data: [^;"]*https:\/\/fonts\.gstatic\.com/);
+    expect(head).not.toMatch(/https:(?!\/\/)/);
+    expect(head).not.toMatch(/https:\/\/(?!raw\.githubusercontent\.com|api\.github\.com|fonts\.googleapis\.com|fonts\.gstatic\.com)/);
+  });
+
+  it("uses the GM's host list when given one, dropping invalid entries", () => {
+    const doc = buildMessageDocument('<p>x</p>', [], '', ['https://cdn.example.com', 'https://a.com" x="', 'http://b.com']);
+    const csp = doc.match(/Content-Security-Policy" content="([^"]*)"/)[1];
+    expect(csp).toContain("img-src 'self' data: blob: https://cdn.example.com;");
+    expect(csp).not.toMatch(/githubusercontent|a\.com|b\.com/);
+  });
+
+  it('allows no outside host when the GM allowed none', () => {
+    const doc = buildMessageDocument('<p>x</p>', [], '', []);
+    expect(doc).toContain("img-src 'self' data: blob:;");
+  });
+
+  it('drops <link> elements from the message', () => {
+    const doc = buildMessageDocument('<link rel="stylesheet" href="https://evil.test/a.css"><p>ok</p>', [], '');
+    expect(doc).not.toMatch(/<link/);
+    expect(doc).toContain('<p>ok</p>');
   });
 });
 

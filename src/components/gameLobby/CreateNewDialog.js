@@ -13,7 +13,10 @@ import {
   Text,
   Textarea,
 } from "@chakra-ui/react";
-import { FaGlobe, FaLink, FaLock, FaPlus } from "react-icons/fa";
+import { FaGlobe } from "@react-icons/all-files/fa/FaGlobe";
+import { FaLink } from "@react-icons/all-files/fa/FaLink";
+import { FaLock } from "@react-icons/all-files/fa/FaLock";
+import { FaPlus } from "@react-icons/all-files/fa/FaPlus";
 import { Checkbox } from "../ui/checkbox";
 import {
   DialogBackdrop,
@@ -25,6 +28,7 @@ import {
   DialogRoot,
 } from "../ui/dialog";
 import WebHelper from "../../helpers/WebHelper";
+import { safeExternalUrl } from "../../helpers/safeUrl";
 
 const EMPTY_FORM = (publicGamesAllowed) => ({
   passwordRequired: false,
@@ -235,8 +239,8 @@ export const CreateNewDialog = ({ OnSuccess, publicGamesAllowed = true }) => {
                               )}
                             </Text>
                           </Checkbox>
-                          {addon.website && (
-                            <a href={addon.website} target="_blank" rel="noopener noreferrer">
+                          {safeExternalUrl(addon.website) && (
+                            <a href={safeExternalUrl(addon.website)} target="_blank" rel="noopener noreferrer">
                               <Icon as={FaLink} color="blue.400" boxSize={3} />
                             </a>
                           )}

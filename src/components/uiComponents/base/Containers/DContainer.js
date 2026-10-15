@@ -1,7 +1,7 @@
 import { Flex, IconButton, Stack } from '@chakra-ui/react';
 import * as React from 'react';
 import DListItemButton from '../List/ListItemDetails/DListItemButton';
-import { FaMinus } from 'react-icons/fa';
+import { FaMinus } from '@react-icons/all-files/fa/FaMinus';
 import DLabel from '../Text/DLabel';
 import themeColors from "../../../../helpers/themeColors";
 

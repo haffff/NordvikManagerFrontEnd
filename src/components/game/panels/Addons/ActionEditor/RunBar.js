@@ -1,6 +1,8 @@
 import * as React from "react";
 import { Box, Button, HStack, IconButton, Input, Spinner, Text } from "@chakra-ui/react";
-import { FaPlay, FaPlus, FaTimes } from "react-icons/fa";
+import { FaPlay } from "@react-icons/all-files/fa/FaPlay";
+import { FaPlus } from "@react-icons/all-files/fa/FaPlus";
+import { FaTimes } from "@react-icons/all-files/fa/FaTimes";
 import { T } from "./editorTheme";
 
 // Arguments to run the action with, as name/value rows. Rows are pre-filled from the

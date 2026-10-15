@@ -1,7 +1,6 @@
 import * as React from "react";
 import { Box, HStack, Text } from "@chakra-ui/react";
-import CodeMirror from "@uiw/react-codemirror";
-import { javascript } from "@codemirror/lang-javascript";
+import { JsCodeEditor } from "../../../../uiComponents/JsCodeEditor";
 import { Switch } from "../../../../ui/switch";
 import CommandExecutionHelper from "../../../../../helpers/CommandExecutionHelper";
 import { TokenInput } from "./TokenInput";
@@ -89,12 +88,11 @@ export const StepField = ({ arg, value, onChange, onBlur, variables, knownNames,
       <Box>
         <Label arg={arg} />
         <Box borderWidth="1px" borderColor={T.border} borderRadius="md" overflow="hidden" fontSize="13px">
-          <CodeMirror
+          <JsCodeEditor
             value={value ?? ""}
             theme="dark"
             minHeight="120px"
             maxHeight="420px"
-            extensions={[javascript()]}
             basicSetup={{ foldGutter: false, highlightActiveLine: false }}
             onChange={(v) => onChange(v)}
             onBlur={onBlur}

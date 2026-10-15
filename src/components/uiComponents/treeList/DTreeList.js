@@ -4,7 +4,12 @@ import Subscribable from '../base/Subscribable';
 import { ActiveTransportManager as WebSocketManagerInstance } from '../../../helpers/transport';
 import InputModal from '../base/Modals/InputModal';
 import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
-import { FaEdit, FaFolder, FaMinusCircle, FaPlus, FaSync, FaTrashAlt } from 'react-icons/fa';
+import { FaEdit } from '@react-icons/all-files/fa/FaEdit';
+import { FaFolder } from '@react-icons/all-files/fa/FaFolder';
+import { FaMinusCircle } from '@react-icons/all-files/fa/FaMinusCircle';
+import { FaPlus } from '@react-icons/all-files/fa/FaPlus';
+import { FaSync } from '@react-icons/all-files/fa/FaSync';
+import { FaTrashAlt } from '@react-icons/all-files/fa/FaTrashAlt';
 import {
     DialogRoot, DialogContent, DialogHeader, DialogTitle,
     DialogBody, DialogFooter,

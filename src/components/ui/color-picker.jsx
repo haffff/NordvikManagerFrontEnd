@@ -9,7 +9,7 @@ import {
   VStack,
 } from '@chakra-ui/react'
 import * as React from 'react'
-import { LuCheck, LuPipette } from 'react-icons/lu'
+import { LuCheck, LuPipette } from '../uiComponents/icons/extraIcons'
 
 export const ColorPickerTrigger = React.forwardRef(
   function ColorPickerTrigger(props, ref) {

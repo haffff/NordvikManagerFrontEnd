@@ -249,3 +249,44 @@ describe('WebRTCWebHelper.getMaterialAsync caching', () => {
     expect(ResourceCache.put).not.toHaveBeenCalled();
   });
 });
+
+// A request queued while the channel was closed that times out has already been
+// reported as failed; sending it once the channel opens would run it anyway, and a
+// retried POST would then run twice.
+describe('WebRTCWebHelper queued request timeout', () => {
+  let transport;
+  beforeEach(() => {
+    vi.useFakeTimers();
+    WebRTCWebHelperInstance._pending = new Map();
+    WebRTCWebHelperInstance._queue = [];
+    transport = { ready: false, isChannelReady: () => transport.ready, sendRaw: vi.fn(() => Promise.resolve()) };
+    WebRTCWebHelperInstance.setTransport(transport);
+  });
+  afterEach(() => {
+    vi.useRealTimers();
+    WebRTCWebHelperInstance.setTransport(null);
+  });
+
+  it('is never sent after it timed out', async () => {
+    const request = WebRTCWebHelperInstance.postAsync('elements/add', { a: 1 });
+    const outcome = request.then(() => 'sent', (e) => e.message);
+
+    await vi.advanceTimersByTimeAsync(31_000);
+    transport.ready = true;
+    WebRTCWebHelperInstance.flushQueue();
+
+    expect(transport.sendRaw).not.toHaveBeenCalled();
+    expect(WebRTCWebHelperInstance._queue).toHaveLength(0);
+    expect(await outcome).toMatch(/timeout/);
+  });
+
+  it('is still sent when the channel opens in time', async () => {
+    WebRTCWebHelperInstance.postAsync('elements/add', { a: 1 });
+
+    await vi.advanceTimersByTimeAsync(5_000);
+    transport.ready = true;
+    WebRTCWebHelperInstance.flushQueue();
+
+    expect(transport.sendRaw).toHaveBeenCalledTimes(1);
+  });
+});

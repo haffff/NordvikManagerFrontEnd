@@ -9,13 +9,17 @@
   ready, and replaces itself with the card HTML the host sends back. The Central
   Server serves this file with a looser CSP than the app (inline and data:
   scripts), which the card then runs under; the app keeps its strict one.
+  The host frames it as sandbox.html#<nonce> and sends that nonce with the card,
+  so another card's frame (which can't read this URL) can't load one into it.
 -->
 <script>
 (function () {
   'use strict';
+  var nonce = location.hash.slice(1);
   window.addEventListener('message', function onLoad(event) {
     var msg = event.data;
     if (!msg || msg.type !== 'SANDBOX_LOAD' || typeof msg.html !== 'string') return;
+    if (!nonce || msg.nonce !== nonce) return;
     window.removeEventListener('message', onLoad);
     document.open();
     document.write(msg.html);

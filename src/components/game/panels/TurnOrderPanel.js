@@ -1,7 +1,17 @@
 import * as React from "react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import { Box, Button, Flex, HStack, IconButton, Input, Text } from "@chakra-ui/react";
-import { FaChessPawn, FaEye, FaEyeSlash, FaFlag, FaGripVertical, FaPlay, FaSortAmountDown, FaStepBackward, FaStepForward, FaTimes, FaUndo } from "react-icons/fa";
+import { FaChessPawn } from "@react-icons/all-files/fa/FaChessPawn";
+import { FaEye } from "@react-icons/all-files/fa/FaEye";
+import { FaEyeSlash } from "@react-icons/all-files/fa/FaEyeSlash";
+import { FaFlag } from "@react-icons/all-files/fa/FaFlag";
+import { FaGripVertical } from "@react-icons/all-files/fa/FaGripVertical";
+import { FaPlay } from "@react-icons/all-files/fa/FaPlay";
+import { FaSortAmountDown } from "@react-icons/all-files/fa/FaSortAmountDown";
+import { FaStepBackward } from "@react-icons/all-files/fa/FaStepBackward";
+import { FaStepForward } from "@react-icons/all-files/fa/FaStepForward";
+import { FaTimes } from "@react-icons/all-files/fa/FaTimes";
+import { FaUndo } from "@react-icons/all-files/fa/FaUndo";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
 import ClientMediator from "../../../ClientMediator";
 import themeColors from "../../../helpers/themeColors";

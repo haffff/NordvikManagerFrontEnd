@@ -29,6 +29,7 @@ vi.mock('../../../helpers/transport', () => ({
         return { mimeType: 'text/html', data: b64('<html><head></head><body><p>card</p></body></html>') };
       }
       if (path === 'materials/ResourceMetadata?id=css1') return { mimeType: 'text/css', data: b64('.card{}') };
+      if (path === 'security/sandboxorigins') return { origins: ['https://cdn.example.com'] };
       return null;
     }),
   },
@@ -62,7 +63,7 @@ describe('CardPanel, sandbox page', () => {
     URL.createObjectURL = vi.fn();
     const { frame } = await openCard();
 
-    expect(frame.getAttribute('src')).toBe(new URL('sandbox.html', document.baseURI).href);
+    expect(frame.getAttribute('src')).toMatch(new RegExp('^' + new URL('sandbox.html', document.baseURI).href.replace(/[.?]/g, '\$&') + '#[0-9a-f-]{36}$'));
     expect(frame.getAttribute('sandbox')).toBe('allow-scripts');
     expect(URL.createObjectURL).not.toHaveBeenCalled();
   });
@@ -76,6 +77,16 @@ describe('CardPanel, sandbox page', () => {
     expect(html).toContain('window.CardAPI = CardAPI');
   });
 
+  // The GM's host list (backend Security:SandboxAllowedOrigins) applies to the card even
+  // on a player's client, whose sandbox page comes from the Central Server.
+  it("limits the card to the GM's allowed hosts with a CSP first in its <head>", async () => {
+    const { hostReady } = await openCard();
+
+    const html = hostReady();
+
+    expect(html).toMatch(/<head><meta http-equiv="Content-Security-Policy" content="[^"]*connect-src 'self' https:\/\/cdn\.example\.com/);
+  });
+
   it('sends it again when the page reloads (a docked panel moved in the DOM), and initialises the card again', async () => {
     const { posted, fromFrame, hostReady } = await openCard();
     hostReady();
@@ -85,6 +96,36 @@ describe('CardPanel, sandbox page', () => {
     expect(posted.mock.calls.filter(([m]) => m.type === 'SANDBOX_LOAD')).toHaveLength(2);
     fromFrame({ type: 'SANDBOX_READY' });
     expect(posted.mock.calls.filter(([m]) => m.type === 'INIT')).toHaveLength(2);
+  });
+});
+
+// Every message the host sends carries a per-frame nonce, taken from the sandbox page's
+// URL fragment. Another card's frame can't read that URL, so it can't feed this frame
+// a card or fake CardAPI results.
+describe('CardPanel, sandbox nonce', () => {
+  it('frames the sandbox page with a fresh nonce and sends it with every message', async () => {
+    const { frame, posted, fromFrame, hostReady } = await openCard();
+    const nonce = frame.getAttribute('src').split('#')[1];
+
+    hostReady();
+    fromFrame({ type: 'SANDBOX_READY' });
+
+    expect(posted.mock.calls.length).toBeGreaterThan(1);
+    for (const [message] of posted.mock.calls) expect(message.nonce).toBe(nonce);
+  });
+
+  it('builds the nonce into the CardAPI bridge', async () => {
+    const { frame, hostReady } = await openCard();
+    const nonce = frame.getAttribute('src').split('#')[1];
+
+    expect(hostReady()).toContain(JSON.stringify(nonce));
+  });
+
+  it('gives each open card its own nonce', async () => {
+    const a = await openCard('A');
+    const b = await openCard('B');
+
+    expect(a.frame.getAttribute('src')).not.toBe(b.frame.getAttribute('src'));
   });
 });
 
@@ -153,7 +194,7 @@ describe('CardPanel, closing from the card', () => {
     DockableHelper.getGlobalState.mockReturnValue({ ref: { current: state }, commit });
 
     const { container } = render(<CardPanel id="card-1" name="Monster creator" />);
-    await waitFor(() => expect(container.querySelector('iframe')?.src).toBe(new URL('sandbox.html', document.baseURI).href));
+    await waitFor(() => expect(container.querySelector('iframe')?.src.startsWith(new URL('sandbox.html', document.baseURI).href + '#')).toBe(true));
     const frame = container.querySelector('iframe');
 
     act(() => window.dispatchEvent(new MessageEvent('message', { data: { type: 'CLOSE_PANEL' }, source: frame.contentWindow })));

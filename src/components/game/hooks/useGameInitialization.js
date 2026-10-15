@@ -7,10 +7,9 @@ import { PropertiesManagerInstance } from '../../../CardAPI';
 import ActionService from '../ActionService';
 import { ActiveWebHelper as WebHelper, ActiveTransportManager as WebSocketManagerInstance } from '../../../helpers/transport';
 import DockableHelper from '../../../helpers/DockableHelper';
-import CardAPI from '../../../CardAPI';
-import ScriptAPI from '../../../ScriptAPI';
 import { _entityPermissionSetter } from '../../../contexts/PermissionsContext';
 import { ENTITY_TYPES, PERM } from '../../BattleMap/Helpers/permissionBits';
+import { resetSandboxOrigins } from '../../../helpers/sandboxOrigins';
 
 // Global flags to prevent duplicate game initialization
 let gameInitializationInProgress = false;
@@ -151,8 +150,6 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
       ClientMediator.register(ActionService);
       WebSocketManagerInstance.Send({ command: 'player_list' });
 
-      window.CreateCardAPI = CardAPI;
-      window.ScriptAPI = ScriptAPI;
       DockableHelper.State = state;
       WebSocketManagerInstance.Send({ command: 'client_loaded' });
 
@@ -188,6 +185,8 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
       gameInitGeneration++;
       gameInitializationInProgress = false;
       gameInitialized = false;
+      // The next game may be another GM's backend, with its own allowed hosts.
+      resetSandboxOrigins();
       setInitError(null);
       console.log('Game initialization state reset');
     },

@@ -13,8 +13,11 @@ import {
   Separator,
   Spinner,
 } from '@chakra-ui/react';
-import { FaLock, FaUsers, FaChevronLeft, FaChevronRight } from 'react-icons/fa';
-import { IoMdLogOut } from 'react-icons/io';
+import { FaLock } from '@react-icons/all-files/fa/FaLock';
+import { FaUsers } from '@react-icons/all-files/fa/FaUsers';
+import { FaChevronLeft } from '@react-icons/all-files/fa/FaChevronLeft';
+import { FaChevronRight } from '@react-icons/all-files/fa/FaChevronRight';
+import { IoMdLogOut } from '@react-icons/all-files/io/IoMdLogOut';
 import CentralWebHelper from '../../helpers/CentralWebHelper';
 
 const PUBLIC_SESSIONS_PAGE_SIZE = 10;

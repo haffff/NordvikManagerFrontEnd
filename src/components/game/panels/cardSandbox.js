@@ -20,6 +20,9 @@
  *   Because the iframe is cross-origin, those styles never affect the parent.
  * • The only communication channel is postMessage (structured-clone; no
  *   function refs can cross the boundary).
+ * • Every parent → sandbox message carries a per-frame nonce (the sandbox page's
+ *   URL fragment, built into this script). Another card's frame can't read that
+ *   URL, so it can't post this card fake results.
  *
  * postMessage protocol (parent → sandbox)
  * ─────────────────────────────────────────
@@ -36,13 +39,45 @@
  *   { type: "CLOSE_PANEL" }
  */
 
+import { validOrigins } from "../../../helpers/sandboxOrigins";
+
+// The card's own CSP, from the GM's host list (helpers/sandboxOrigins.js). It goes first
+// in <head>, before the card's styles and scripts, and only tightens the sandbox page's
+// header policy: on a player's client that header comes from the Central Server and
+// allows any https: host, so this is what holds card code to the GM's list.
+//
+// The card is parsed (DOMParser runs no scripts) rather than searched for "<head>", so
+// the policy lands in the head the browser will actually build — not inside a comment
+// or a script string, and before a script that comes ahead of a late <head> tag.
+export function withCardCsp(html, origins) {
+  const allow = validOrigins(origins).map((o) => " " + o).join("");
+  const doc = new DOMParser().parseFromString(html, "text/html");
+  const meta = doc.createElement("meta");
+  meta.setAttribute("http-equiv", "Content-Security-Policy");
+  meta.setAttribute(
+    "content",
+    `connect-src 'self'${allow}; img-src 'self' data: blob:${allow}; ` +
+      `style-src 'self' 'unsafe-inline' data:${allow}; font-src 'self' data:${allow}`
+  );
+  doc.head.prepend(meta);
+  // Without a doctype the card renders in quirks mode, as it would on its own.
+  return (doc.doctype ? "<!DOCTYPE html>" : "") + doc.documentElement.outerHTML;
+}
+
+const NONCE_PLACEHOLDER = '__NM_SANDBOX_NONCE__';
+
 /**
- * The CardAPI bootstrap <script> block.
- * Injected verbatim into the card's HTML just before </body>.
+ * The CardAPI bootstrap <script> block for a frame with this nonce.
+ * Injected into the card's HTML just before </body>.
  */
-export const SANDBOX_BRIDGE_SCRIPT = `<script>
+export const sandboxBridgeScript = (nonce) => BRIDGE_TEMPLATE.replace(NONCE_PLACEHOLDER, JSON.stringify(String(nonce)));
+
+const BRIDGE_TEMPLATE = `<script>
 (function () {
   'use strict';
+
+  // Messages from the host carry this; anything else is ignored.
+  const _nonce = ${NONCE_PLACEHOLDER};
 
   // ── RPC state ─────────────────────────────────────────────────────────────
   let _reqCounter = 0;
@@ -195,23 +230,13 @@ export const SANDBOX_BRIDGE_SCRIPT = `<script>
   window.CardAPI = CardAPI;
 
   // ── Inbound message handler ───────────────────────────────────────────────
-  // Trust the sender of the first message (the host bridge — only the window
-  // that framed this page can reach it) rather than comparing against
-  // \`parent\`. For a docked panel those are the same window, but a panel
-  // popped out to a separate OS window (BrowserWindowPortal) physically embeds
-  // this iframe in that window's document — making it this iframe's DOM
-  // \`parent\` — while the host's JS (and thus every postMessage it sends) still
-  // runs in the main app window's realm. \`event.source\` reflects the caller's
-  // realm, not the DOM tree, so it never equals \`parent\` in that case and every
-  // inbound message was silently dropped.
-  let _trustedSource = null;
+  // Accept only messages carrying this frame's nonce. Checking \`event.source\`
+  // against \`parent\` doesn't work for a panel popped out to its own window
+  // (BrowserWindowPortal): the iframe's DOM parent is that window, while the
+  // host's postMessage calls come from the main app window's realm.
   window.addEventListener('message', (event) => {
-    if (_trustedSource === null) {
-      _trustedSource = event.source;
-    } else if (event.source !== _trustedSource) {
-      return;
-    }
     const msg = event.data ?? {};
+    if (msg.nonce !== _nonce) return;
 
     switch (msg.type) {
       case 'INIT':

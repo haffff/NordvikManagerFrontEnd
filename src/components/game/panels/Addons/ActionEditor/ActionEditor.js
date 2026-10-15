@@ -2,7 +2,12 @@ import * as React from "react";
 import {
   Badge, Box, Button, createListCollection, Field, Flex, For, HStack, IconButton, Input, Tabs, Text,
 } from "@chakra-ui/react";
-import { FaBolt, FaFileExport, FaRedo, FaSave, FaTrash, FaUndo } from "react-icons/fa";
+import { FaBolt } from "@react-icons/all-files/fa/FaBolt";
+import { FaFileExport } from "@react-icons/all-files/fa/FaFileExport";
+import { FaRedo } from "@react-icons/all-files/fa/FaRedo";
+import { FaSave } from "@react-icons/all-files/fa/FaSave";
+import { FaTrash } from "@react-icons/all-files/fa/FaTrash";
+import { FaUndo } from "@react-icons/all-files/fa/FaUndo";
 import { Switch } from "../../../../ui/switch";
 import { SelectContent, SelectItem, SelectItemGroup, SelectRoot, SelectTrigger, SelectValueText } from "../../../../ui/select";
 import { StepList } from "./StepList";

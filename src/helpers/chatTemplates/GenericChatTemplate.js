@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Box, Text } from "@chakra-ui/react";
 import themeColors from "../themeColors";
+import { asText } from "./asText";
 
 // ── Design tokens (kept local so the file is self-contained) ──────────────────
 const BG_CARD    = themeColors.surfaceRaised;
@@ -15,7 +16,8 @@ const CLR_MUTED  = themeColors.textMuted;
 export const GenericChatTemplate = ({ object }) => {
   if (!object?.title && !object?.message) return null;
 
-  const { title, message } = object;
+  const title   = asText(object.title);
+  const message = asText(object.message);
   const chatColor       = object.color;
   const chatBorderColor = object.borderColor;
 

@@ -1,7 +1,7 @@
 import { Icon, IconButton } from "@chakra-ui/react";
 
 import * as React from "react";
-import { FaPlus } from "react-icons/fa";
+import { FaPlus } from "@react-icons/all-files/fa/FaPlus";
 import { Tooltip } from "../../../../ui/tooltip";
 
 export const DListItemButton = ({

@@ -1,7 +1,14 @@
 import * as React from 'react';
 import { Checkbox, Table } from '@chakra-ui/react'
 import { Icon } from '@chakra-ui/react'
-import { FaSquare, FaCircle, FaWindowMinimize, FaMousePointer, FaHandPaper, FaShapes, FaTextHeight, FaImage } from 'react-icons/fa'
+import { FaSquare } from '@react-icons/all-files/fa/FaSquare';
+import { FaCircle } from '@react-icons/all-files/fa/FaCircle';
+import { FaWindowMinimize } from '@react-icons/all-files/fa/FaWindowMinimize';
+import { FaMousePointer } from '@react-icons/all-files/fa/FaMousePointer';
+import { FaHandPaper } from '@react-icons/all-files/fa/FaHandPaper';
+import { FaShapes } from '@react-icons/all-files/fa/FaShapes';
+import { FaTextHeight } from '@react-icons/all-files/fa/FaTextHeight';
+import { FaImage } from '@react-icons/all-files/fa/FaImage';
 
 export const ObjectsList = ({ game, map, canvasEditor }) => {
     const [selectedItem, setSelectedItem] = React.useState(undefined);

@@ -2,6 +2,8 @@ import React from "react";
 import ReactDOM from "react-dom/client";
 import "./index.css";
 import App from "./App";
+import { ErrorBoundary } from "./components/uiComponents/base/ErrorBoundary";
+import { RootErrorFallback } from "./components/RootErrorFallback";
 import reportWebVitals from "./reportWebVitals";
 import { installIframePointerGuard } from "./helpers/iframePointerGuard";
 import { defaultConfig, createSystem } from "@chakra-ui/react"
@@ -30,7 +32,11 @@ export const system = createSystem({
 });
 
 installIframePointerGuard();
-root.render(<App />);
+root.render(
+  <ErrorBoundary name="app" fallback={() => <RootErrorFallback />}>
+    <App />
+  </ErrorBoundary>
+);
 
 // If you want to start measuring performance in your app, pass a function
 // to log results (for example: reportWebVitals(console.log))

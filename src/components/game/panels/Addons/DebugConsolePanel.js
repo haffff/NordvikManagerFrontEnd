@@ -11,16 +11,15 @@ import {
 } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import { JSONTree } from "react-json-tree";
-import {
-  FaBroom,
-  FaBug,
-  FaEye,
-  FaPlay,
-  FaSkull,
-  FaStop,
-  FaTerminal,
-} from "react-icons/fa";
-import { MdSkipNext, MdInput } from "react-icons/md";
+import { FaBroom } from "@react-icons/all-files/fa/FaBroom";
+import { FaBug } from "@react-icons/all-files/fa/FaBug";
+import { FaEye } from "@react-icons/all-files/fa/FaEye";
+import { FaPlay } from "@react-icons/all-files/fa/FaPlay";
+import { FaSkull } from "@react-icons/all-files/fa/FaSkull";
+import { FaStop } from "@react-icons/all-files/fa/FaStop";
+import { FaTerminal } from "@react-icons/all-files/fa/FaTerminal";
+import { MdSkipNext } from "@react-icons/all-files/md/MdSkipNext";
+import { MdInput } from "@react-icons/all-files/md/MdInput";
 
 import { Tooltip } from "../../../ui/tooltip";
 import Subscribable from "../../../uiComponents/base/Subscribable";

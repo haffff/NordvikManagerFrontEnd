@@ -4,7 +4,8 @@ import useUUID from "../../uiComponents/hooks/useUUID";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
 import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
-import { SANDBOX_BRIDGE_SCRIPT } from "./cardSandbox";
+import { sandboxBridgeScript, withCardCsp } from "./cardSandbox";
+import { loadSandboxOrigins } from "../../../helpers/sandboxOrigins";
 import CardAPIFactory, { ALLOWED_WS_RECEIVE_PREFIXES } from "../../../CardAPI";
 import DockableHelper from "../../../helpers/DockableHelper";
 import { baseCardCss, cardStyleLinks, onGameCssChange } from "../../../helpers/cardAppStyles";
@@ -40,12 +41,14 @@ import { baseCardCss, cardStyleLinks, onGameCssChange } from "../../../helpers/c
  *   WS_SEND         { command, data }
  *   CLOSE_PANEL     {}
  */
-function mountBridge(iframe, html, cardApi, cardId, additionalArguments, onClosePanel) {
+function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, onClosePanel) {
   let ready = false;
   const queue = [];
 
+  // Every message carries the frame's nonce (see cardSandbox.js); the sandbox
+  // page and the bridge ignore anything without it.
   const sendToFrame = (msg) => {
-    iframe.contentWindow?.postMessage(msg, "*");
+    iframe.contentWindow?.postMessage({ ...msg, nonce }, "*");
   };
 
   const flush = () => {
@@ -441,10 +444,18 @@ export const CardPanel = ({ id, name, data }) => {
         : rebasedHtml;
 
       // Inject bridge + JS scripts before </body> (append if tag absent)
-      const bodyInjection = SANDBOX_BRIDGE_SCRIPT + (jsScripts ? "\n" + jsScripts : "");
+      // A fresh nonce per load: it goes in the sandbox page's URL fragment, which
+      // other frames can't read, and into the bridge, which checks it.
+      const nonce = crypto.randomUUID();
+      const bodyInjection = sandboxBridgeScript(nonce) + (jsScripts ? "\n" + jsScripts : "");
       iframeHtml = iframeHtml.includes("</body>")
         ? iframeHtml.replace("</body>", bodyInjection + "\n</body>")
         : iframeHtml + bodyInjection;
+
+      // Hold the card to the GM's allowed hosts (see withCardCsp).
+      const origins = await loadSandboxOrigins();
+      if (cancelled) { cardApi.destroy(); return; }
+      iframeHtml = withCardCsp(iframeHtml, origins);
 
       const iframe = iframeRef.current;
       // 6. Mount the bridge BEFORE setting src so the message listener is
@@ -470,7 +481,7 @@ export const CardPanel = ({ id, name, data }) => {
         Dockable.coallesceEmptyPanels(globalState.ref.current);
         globalState.commit();
       };
-      const bridge = mountBridge(iframe, iframeHtml, cardApi, id, additionalArguments, closePanel);
+      const bridge = mountBridge(iframe, iframeHtml, nonce, cardApi, id, additionalArguments, closePanel);
       // The theme (or its colours) changed while the card is open: restyle it in place.
       const stopStyles = appStyles
         ? onGameCssChange((theme) => bridge.post({ type: "APP_STYLES", base: baseCardCss(), theme }))
@@ -482,7 +493,7 @@ export const CardPanel = ({ id, name, data }) => {
 
       // An absolute URL: a panel popped out to its own window (BrowserWindowPortal)
       // has an about:blank document a relative one wouldn't resolve against.
-      iframe.src = sandboxPageUrl();
+      iframe.src = `${sandboxPageUrl()}#${nonce}`;
     };
 
     load();

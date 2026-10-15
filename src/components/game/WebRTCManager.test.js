@@ -30,17 +30,17 @@ vi.mock('../../helpers/SignalingClient', () => ({
 vi.mock('../../helpers/TokenStore', () => ({
   default: {
     getAccessToken: vi.fn(() => 'fake-access-token'),
-    getRefreshToken: vi.fn(() => 'fake-refresh-token'),
     setAccessToken: vi.fn(),
-    setTokens: vi.fn(),
   },
 }));
 
-const { centralWebHelperMock } = vi.hoisted(() => ({
+const { centralWebHelperMock, refreshAccessTokenMock } = vi.hoisted(() => ({
   centralWebHelperMock: { postAsync: vi.fn(), getAsync: vi.fn() },
+  refreshAccessTokenMock: vi.fn(),
 }));
 vi.mock('../../helpers/CentralWebHelper', () => ({
   default: centralWebHelperMock,
+  refreshAccessToken: refreshAccessTokenMock,
 }));
 
 const { webRTCWebHelperMock } = vi.hoisted(() => ({
@@ -66,6 +66,7 @@ const { protocolMock } = vi.hoisted(() => ({
 vi.mock('../../helpers/protocol', () => protocolMock);
 
 import WebRTCManagerInstance, { iceServersFrom, describeIceServers } from './WebRTCManager';
+import TokenStore from '../../helpers/TokenStore';
 
 describe('WebRTCManager', () => {
   beforeEach(async () => {
@@ -168,6 +169,77 @@ describe('WebRTCManager', () => {
       expect(protocolMock.navigateTo).not.toHaveBeenCalled();
       expect(onError).toHaveBeenCalledWith(expect.objectContaining({ isVersionMismatch: true }));
       expect(onError.mock.calls[0][0].message).toMatch(/GM/);
+    });
+
+    it.each([['../../evil'], [2.5], [-1], [0], ['2']])('never switches for a GM protocol that is not a positive integer (%s)', async (gmProtocol) => {
+      protocolMock.clientExistsForProtocol.mockResolvedValue(true);
+
+      sessionInfo({ gmPeerId: 'gm-1', gmProtocol });
+      await flush();
+
+      expect(protocolMock.clientExistsForProtocol).not.toHaveBeenCalled();
+      expect(protocolMock.navigateTo).not.toHaveBeenCalled();
+    });
+  });
+
+  // The refresh token is an httpOnly cookie now; the shared CentralWebHelper helper
+  // does the refresh (one at a time, across tabs).
+  describe('access token', () => {
+    it('refreshes through the shared helper when there is no access token', async () => {
+      TokenStore.getAccessToken.mockReturnValueOnce(null);
+      refreshAccessTokenMock.mockResolvedValue(true);
+
+      await WebRTCManagerInstance._ensureAccessToken();
+
+      expect(refreshAccessTokenMock).toHaveBeenCalledTimes(1);
+      expect(centralWebHelperMock.postAsync).not.toHaveBeenCalled();
+    });
+
+    it('asks the user to log in again when the refresh fails', async () => {
+      TokenStore.getAccessToken.mockReturnValueOnce(null);
+      refreshAccessTokenMock.mockResolvedValue(false);
+
+      await expect(WebRTCManagerInstance._ensureAccessToken()).rejects.toThrow(/log in again/i);
+    });
+  });
+
+  // Chunked messages from the data channel: bad indices or totals must not
+  // assemble a message early or allocate huge buffers.
+  describe('chunk reassembly', () => {
+    let dispatched;
+    const chunk = (chunkId, index, total, data) => WebRTCManagerInstance._handleChannelMessage({ data: JSON.stringify({ type: 'chunk', chunkId, index, total, data }) });
+    beforeEach(() => {
+      dispatched = vi.spyOn(WebRTCManagerInstance, '_dispatchToSubscribers').mockImplementation(() => {});
+    });
+    afterEach(() => dispatched.mockRestore());
+
+    it('assembles a message once every chunk has arrived', () => {
+      chunk('c1', 1, 2, '":1}');
+      chunk('c1', 0, 2, '{"a');
+      expect(dispatched).toHaveBeenCalledWith({ a: 1 });
+    });
+
+    it('does not count a repeated chunk twice', () => {
+      chunk('c2', 0, 2, '{"a');
+      chunk('c2', 0, 2, '{"a');
+      expect(dispatched).not.toHaveBeenCalled();
+      chunk('c2', 1, 2, '":2}');
+      expect(dispatched).toHaveBeenCalledWith({ a: 2 });
+    });
+
+    it('ignores chunks with an index outside the message', () => {
+      chunk('c3', 0, 2, '{"a');
+      chunk('c3', 5, 2, 'x');
+      chunk('c3', -1, 2, 'x');
+      expect(dispatched).not.toHaveBeenCalled();
+      expect(WebRTCManagerInstance._chunkBuffer.get('c3').received).toBe(1);
+    });
+
+    it('ignores a chunk claiming an absurd total', () => {
+      chunk('c4', 0, 1e9, 'x');
+      chunk('c5', 0, 'many', 'x');
+      expect(WebRTCManagerInstance._chunkBuffer.has('c4')).toBe(false);
+      expect(WebRTCManagerInstance._chunkBuffer.has('c5')).toBe(false);
     });
   });
 

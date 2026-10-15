@@ -1,6 +1,8 @@
 import * as React from "react";
 import { Box, Button, Flex, HStack, Input, Text } from "@chakra-ui/react";
-import { FaChevronDown, FaChevronRight, FaSearch } from "react-icons/fa";
+import { FaChevronDown } from "@react-icons/all-files/fa/FaChevronDown";
+import { FaChevronRight } from "@react-icons/all-files/fa/FaChevronRight";
+import { FaSearch } from "@react-icons/all-files/fa/FaSearch";
 import { ActiveWebHelper as WebHelper } from "../../../../../helpers/transport";
 import { T } from "./editorTheme";
 

@@ -23,7 +23,7 @@ vi.mock('../helpers/WebHelper', () => ({
 }));
 
 vi.mock('../helpers/TokenStore', () => ({
-  default: { setTokens: vi.fn(), getRefreshToken: vi.fn(() => 'refresh'), clear: vi.fn() },
+  default: { setAccessToken: vi.fn(), clear: vi.fn() },
 }));
 
 const { transportCloseMock, isConnectedMock } = vi.hoisted(() => ({

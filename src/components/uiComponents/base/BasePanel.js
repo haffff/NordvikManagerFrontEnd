@@ -1,12 +1,13 @@
-import { Flex, Heading } from '@chakra-ui/react';
+import { Button, Flex, Heading, Text } from '@chakra-ui/react';
 import * as React from 'react';
-import { MdOpenWith } from 'react-icons/md';
+import { MdOpenWith } from '@react-icons/all-files/md/MdOpenWith';
 import '../../../stylesheets/panel.css';
 import DockableHelper from '../../../helpers/DockableHelper';
 import * as Dockable from "@hlorenzi/react-dockable";
 import { useDragOptimization } from './DragOptimizationContext';
 import { HelpIcon } from './HelpIcon';
 import LayoutHelper from "../../../helpers/LayoutCloneHelper";
+import { ErrorBoundary } from './ErrorBoundary';
 
 // ── Drag overlay ──────────────────────────────────────────────────────────────
 // Consumes the drag context and renders the overlay + visibility wrapper.
@@ -49,6 +50,15 @@ const DragOverlay = React.memo(({ children, currentPanel }) => {
     );
 });
 
+// Shown in place of a panel body that threw while rendering — the rest of the
+// game (and the panel's own header) keeps working.
+const PanelError = ({ reset }) => (
+    <Flex direction="column" align="center" justify="center" gap="8px" padding="16px" flex={1} textAlign="center">
+        <Text fontSize="13px">This panel ran into a problem.</Text>
+        <Button size="xs" variant="outline" onClick={reset}>Retry</Button>
+    </Flex>
+);
+
 // ── Base panel ────────────────────────────────────────────────────────────────
 
 const BasePanelComponent = (props) => {
@@ -76,7 +86,9 @@ const BasePanelComponent = (props) => {
                         <HelpIcon text={helpText} docUrl={docUrl} />
                     </Flex>
                 )}
-                {children}
+                <ErrorBoundary name={panelKey ?? 'panel'} fallback={({ reset }) => <PanelError reset={reset} />}>
+                    {children}
+                </ErrorBoundary>
             </DragOverlay>
         </Flex>
     );

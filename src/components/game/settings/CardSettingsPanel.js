@@ -9,7 +9,7 @@ import { BasePanel } from "../../uiComponents/base/BasePanel";
 import { SettingsPanelWithPropertySettings } from "./SettingsPanelWithPropertySettings";
 import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import { toaster } from "../../ui/toaster";
-import { FaArrowUp } from "react-icons/fa";
+import { FaArrowUp } from "@react-icons/all-files/fa/FaArrowUp";
 import ClientMediator from "../../../ClientMediator";
 
 export const CardSettingsPanel = ({ cardId }) => {

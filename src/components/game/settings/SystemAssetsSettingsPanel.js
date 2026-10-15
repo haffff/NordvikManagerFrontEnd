@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Box, Button, Flex, Icon, Stack, Text } from "@chakra-ui/react";
-import { FaUpload, FaUndo } from "react-icons/fa";
+import { FaUpload } from "@react-icons/all-files/fa/FaUpload";
+import { FaUndo } from "@react-icons/all-files/fa/FaUndo";
 import { toaster } from "../../ui/toaster";
 import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import UtilityHelper from "../../../helpers/UtilityHelper";

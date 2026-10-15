@@ -12,7 +12,12 @@ import {
   Table,
   Text,
 } from "@chakra-ui/react";
-import { FaDownload, FaFileUpload, FaHistory, FaSave, FaTrash, FaUndo } from "react-icons/fa";
+import { FaDownload } from "@react-icons/all-files/fa/FaDownload";
+import { FaFileUpload } from "@react-icons/all-files/fa/FaFileUpload";
+import { FaHistory } from "@react-icons/all-files/fa/FaHistory";
+import { FaSave } from "@react-icons/all-files/fa/FaSave";
+import { FaTrash } from "@react-icons/all-files/fa/FaTrash";
+import { FaUndo } from "@react-icons/all-files/fa/FaUndo";
 
 import WebHelper from "../../../helpers/WebHelper";
 import { toaster } from "../../ui/toaster";

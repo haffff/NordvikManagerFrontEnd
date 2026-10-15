@@ -1,6 +1,6 @@
 import { Box, Button, Flex, HStack, Input, Spinner, Text } from "@chakra-ui/react";
 import React, { useState, useEffect } from "react";
-import { FaSearch } from "react-icons/fa";
+import { FaSearch } from "@react-icons/all-files/fa/FaSearch";
 import DynamicIcon from "./DynamicIcon";
 import { ICON_PACK_LOADERS } from "../../../helpers/ReactIconPackLoaders";
 import themeColors from "../../../helpers/themeColors";

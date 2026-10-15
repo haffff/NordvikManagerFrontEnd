@@ -33,7 +33,8 @@ export const PlayerRegisterForm = ({ code, requiresCode, onBack, OnSuccess }) =>
     }
     setLoading(true);
     try {
-      const resp = await CentralWebHelper.postAsync('user/register', form);
+      // Central keeps the refresh token in an httpOnly cookie (never in page storage).
+      const resp = await CentralWebHelper.postAsync('user/register', { ...form, refreshMode: 'cookie' });
       if (!resp) { setErrors(['Connection error. Please try again.']); return; }
 
       const data = await resp.json().catch(() => ({}));
@@ -47,7 +48,8 @@ export const PlayerRegisterForm = ({ code, requiresCode, onBack, OnSuccess }) =>
         return;
       }
 
-      TokenStore.setTokens(data.accessToken, data.refreshToken);
+      TokenStore.clear(); // drops a refresh token an older build stored
+      TokenStore.setAccessToken(data.accessToken);
       toaster.create({
         title: 'Account created.',
         description: "You're now logged in.",

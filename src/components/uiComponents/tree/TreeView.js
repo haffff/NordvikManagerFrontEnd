@@ -1,6 +1,8 @@
 import * as React from "react";
 import { Box, Flex } from "@chakra-ui/react";
-import { FaChevronDown, FaChevronRight, FaGripVertical } from "react-icons/fa";
+import { FaChevronDown } from "@react-icons/all-files/fa/FaChevronDown";
+import { FaChevronRight } from "@react-icons/all-files/fa/FaChevronRight";
+import { FaGripVertical } from "@react-icons/all-files/fa/FaGripVertical";
 import themeColors from "../../../helpers/themeColors";
 import UtilityHelper from "../../../helpers/UtilityHelper";
 import { flattenVisible } from "./treeModel";

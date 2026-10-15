@@ -15,9 +15,11 @@ export const PlayerLoginPanel = ({ OnSuccess, onRegister }) => {
     setError(false);
     CentralWebHelper.post(
       'user/login',
-      form,
+      // Central keeps the refresh token in an httpOnly cookie (never in page storage).
+      { ...form, refreshMode: 'cookie' },
       (result) => {
-        TokenStore.setTokens(result.accessToken, result.refreshToken);
+        TokenStore.clear(); // drops a refresh token an older build stored
+        TokenStore.setAccessToken(result.accessToken);
         setLoading(false);
         OnSuccess();
       },

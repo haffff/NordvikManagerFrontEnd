@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Badge, Box, Button, Flex, HStack, Input, Text } from "@chakra-ui/react";
-import { FaExchangeAlt } from "react-icons/fa";
+import { FaExchangeAlt } from "@react-icons/all-files/fa/FaExchangeAlt";
 import { StepField } from "./StepField";
 import { StepPicker } from "./StepPicker";
 import { T, categoryColor } from "./editorTheme";

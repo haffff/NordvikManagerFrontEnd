@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Box, Button, Flex, HStack, Input, NativeSelect, Text } from "@chakra-ui/react";
-import { FaMinus, FaPlus } from "react-icons/fa";
+import { FaMinus } from "@react-icons/all-files/fa/FaMinus";
+import { FaPlus } from "@react-icons/all-files/fa/FaPlus";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import { ActiveTransportManager } from "../../../helpers/transport";
 import themeColors from "../../../helpers/themeColors";

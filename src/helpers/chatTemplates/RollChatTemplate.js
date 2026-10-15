@@ -2,6 +2,7 @@ import * as React from "react";
 import { Box, Button, Flex, Text } from "@chakra-ui/react";
 import ClientMediator from "../../ClientMediator";
 import themeColors from "../themeColors";
+import { asText } from "./asText";
 
 // ── Design tokens (kept local so the file is self-contained) ──────────────────
 const BG_CARD    = themeColors.surfaceRaised;
@@ -147,7 +148,9 @@ const ActionButtons = ({ actions }) => {
 export const RollChatTemplate = ({ object }) => {
   if (!object?.roll) return null;
 
-  const { title, roll, message, actions } = object;
+  const { roll, actions } = object;
+  const title   = asText(object.title);
+  const message = asText(object.message);
   const chatColor       = object.color;
   const chatBorderColor = object.borderColor;
   const { rolled, result, dices, successCount, failureCount } = roll;

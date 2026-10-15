@@ -8,20 +8,18 @@ import {
   Spinner,
   Text,
 } from "@chakra-ui/react";
-import {
-  FaCode,
-  FaFile,
-  FaImage,
-  FaMinus,
-  FaMusic,
-  FaStickyNote,
-  FaChevronDown,
-  FaChevronUp,
-  FaArrowUp,
-  FaArrowDown,
-  FaSync,
-  FaUpload,
-} from "react-icons/fa";
+import { FaCode } from "@react-icons/all-files/fa/FaCode";
+import { FaFile } from "@react-icons/all-files/fa/FaFile";
+import { FaImage } from "@react-icons/all-files/fa/FaImage";
+import { FaMinus } from "@react-icons/all-files/fa/FaMinus";
+import { FaMusic } from "@react-icons/all-files/fa/FaMusic";
+import { FaStickyNote } from "@react-icons/all-files/fa/FaStickyNote";
+import { FaChevronDown } from "@react-icons/all-files/fa/FaChevronDown";
+import { FaChevronUp } from "@react-icons/all-files/fa/FaChevronUp";
+import { FaArrowUp } from "@react-icons/all-files/fa/FaArrowUp";
+import { FaArrowDown } from "@react-icons/all-files/fa/FaArrowDown";
+import { FaSync } from "@react-icons/all-files/fa/FaSync";
+import { FaUpload } from "@react-icons/all-files/fa/FaUpload";
 import { ActiveWebHelper as WebHelper } from "../../helpers/transport";
 import DListItem from "./base/List/DListItem";
 import DListItemsButtonContainer from "./base/List/DListItemsButtonContainer";

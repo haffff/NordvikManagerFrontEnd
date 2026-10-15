@@ -1,12 +1,13 @@
 import * as React from "react";
-import { FaMailBulk, FaTerminal } from "react-icons/fa";
+import { FaMailBulk } from "@react-icons/all-files/fa/FaMailBulk";
+import { FaTerminal } from "@react-icons/all-files/fa/FaTerminal";
 import { DropDownItem } from "../../uiComponents/base/DDItems/DropDownItem";
 import { DropDownMenu } from "../../uiComponents/base/DDItems/DropDownMenu";
 import ToolBar from "./ToolBar";
 import SettingsMenu from "./ToolBarMenus/SettingsMenu";
 import ViewsMenu from "./ToolBarMenus/ViewsMenu";
 import LayoutsMenu from "./ToolBarMenus/LayoutsMenu";
-import { IoIosExit } from "react-icons/io";
+import { IoIosExit } from "@react-icons/all-files/io/IoIosExit";
 import UtilityHelper from "../../../helpers/UtilityHelper";
 import AddonsMenu from "./ToolBarMenus/AddonsMenu";
 import ClientMediator from "../../../ClientMediator";

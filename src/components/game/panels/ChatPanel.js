@@ -9,7 +9,9 @@ import {
   Textarea,
 } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
-import { FaSearch, FaPaperPlane, FaDiceD20 } from "react-icons/fa";
+import { FaSearch } from "@react-icons/all-files/fa/FaSearch";
+import { FaPaperPlane } from "@react-icons/all-files/fa/FaPaperPlane";
+import { FaDiceD20 } from "@react-icons/all-files/fa/FaDiceD20";
 import { Tooltip } from "../../ui/tooltip";
 import { PopoverRoot, PopoverTrigger, PopoverContent, PopoverBody } from "../../ui/popover";
 import DiceRoller from "../dice/DiceRoller";
@@ -24,7 +26,7 @@ import PlayerAvatar from "../../uiComponents/PlayerAvatar";
 import ClientMediator from "../../../ClientMediator";
 import UtilityHelper from "../../../helpers/UtilityHelper";
 import CommandExecutionHelper from "../../../helpers/CommandExecutionHelper";
-import ChatMessageParser from "../../../helpers/ChatMessageParser";
+import { ChatMessageContent } from "../../../helpers/chatTemplates/ChatMessageContent";
 import themeColors from "../../../helpers/themeColors";
 import { describePrivacy } from "../../../helpers/chatPrivacy";
 import { getChatSuggestions } from "../../../helpers/chatAutocomplete";
@@ -35,7 +37,6 @@ const BG_RAISED  = themeColors.surfaceRaised;
 const BORDER_CLR = themeColors.border;
 const TEXT_MUTED = themeColors.textMuted;
 
-const ChatParser = new ChatMessageParser();
 
 // Live-pushed chat messages (chat_push) carry no persisted id, and history loaded
 // from battlemap/getchat gets prepended/appended around them as the user scrolls —
@@ -286,12 +287,6 @@ const ChatBubble = React.memo(({ item, nextItem, players, currentPlayerId, gmId,
   // Whisper / GM roll — seen only by the sender, the recipient and the GM.
   const privacy    = describePrivacy(item, { players, meId: currentPlayerId, gmId });
 
-  let content;
-  try {
-    content = ChatParser.ParseMessage(item.data);
-  } catch {
-    content = item.data;
-  }
   return (
     <Flex direction="column" gap="4px">
       {privacy && (
@@ -314,7 +309,7 @@ const ChatBubble = React.memo(({ item, nextItem, players, currentPlayerId, gmId,
         color="var(--nordvik-text-color)"
         wordBreak="break-word"
       >
-        {content}
+        <ChatMessageContent item={item} />
       </Box>
 
       {/* Sender label — only on the last message in a consecutive run */}          {showSender && (

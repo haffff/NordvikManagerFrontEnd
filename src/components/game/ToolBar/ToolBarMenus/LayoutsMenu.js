@@ -2,7 +2,7 @@ import * as React from "react";
 import LayoutHelper from "../../../../helpers/LayoutCloneHelper";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../../helpers/transport";
 import CommandFactory from "../../../BattleMap/Factories/CommandFactory";
-import { FaBook } from "react-icons/fa";
+import { FaBook } from "@react-icons/all-files/fa/FaBook";
 import LayoutsManagerPanel from "../../panels/LayoutsManagerPanel";
 import DropDownMenu from "../../../uiComponents/base/DDItems/DropDownMenu";
 import DropDownItem from "../../../uiComponents/base/DDItems/DropDownItem";

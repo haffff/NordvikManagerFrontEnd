@@ -2,8 +2,10 @@ import { Flex, Input, Stack, Text } from "@chakra-ui/react";
 import React, { useEffect, useState } from "react";
 import DListItemButton from "../../../uiComponents/base/List/ListItemDetails/DListItemButton";
 import DListItemToggleButton from "../../../uiComponents/base/List/ListItemDetails/DListItemToggleButton";
-import { IoMdClose } from "react-icons/io";
-import { FaClock, FaEye, FaTrash } from "react-icons/fa";
+import { IoMdClose } from "@react-icons/all-files/io/IoMdClose";
+import { FaClock } from "@react-icons/all-files/fa/FaClock";
+import { FaEye } from "@react-icons/all-files/fa/FaEye";
+import { FaTrash } from "@react-icons/all-files/fa/FaTrash";
 import ClientMediator from "../../../../ClientMediator";
 
 export const MeasureConeOptions = ({ battleMapId }) => {

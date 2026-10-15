@@ -1,6 +1,8 @@
 import React, { useRef, useState } from "react";
 import { Box, Button, Flex, HStack, Input, Separator, Text } from "@chakra-ui/react";
-import { FaFile, FaLink, FaUpload } from "react-icons/fa";
+import { FaFile } from "@react-icons/all-files/fa/FaFile";
+import { FaLink } from "@react-icons/all-files/fa/FaLink";
+import { FaUpload } from "@react-icons/all-files/fa/FaUpload";
 import { ActiveWebHelper as WebHelper } from "../../../../../helpers/transport";
 import { toaster } from "../../../../ui/toaster";
 import UtilityHelper from "../../../../../helpers/UtilityHelper";

@@ -12,15 +12,13 @@ import {
   Stack,
   Text,
 } from "@chakra-ui/react";
-import {
-  FaBan,
-  FaChevronDown,
-  FaExternalLinkAlt,
-  FaLockOpen,
-  FaTrash,
-  FaUser,
-  FaUserSlash,
-} from "react-icons/fa";
+import { FaBan } from "@react-icons/all-files/fa/FaBan";
+import { FaChevronDown } from "@react-icons/all-files/fa/FaChevronDown";
+import { FaExternalLinkAlt } from "@react-icons/all-files/fa/FaExternalLinkAlt";
+import { FaLockOpen } from "@react-icons/all-files/fa/FaLockOpen";
+import { FaTrash } from "@react-icons/all-files/fa/FaTrash";
+import { FaUser } from "@react-icons/all-files/fa/FaUser";
+import { FaUserSlash } from "@react-icons/all-files/fa/FaUserSlash";
 import WebHelper from "../../helpers/WebHelper";
 import CentralWebHelper from "../../helpers/CentralWebHelper";
 import { toaster } from "../ui/toaster";

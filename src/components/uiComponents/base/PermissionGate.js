@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Tooltip } from '@chakra-ui/react';
-import { FaLock } from 'react-icons/fa';
+import { FaLock } from '@react-icons/all-files/fa/FaLock';
 import { usePermissions, ROLES } from '../../../contexts/PermissionsContext';
 
 /**

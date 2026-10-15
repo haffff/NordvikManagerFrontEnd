@@ -1,5 +1,12 @@
 import * as React from 'react';
-import { FaCheckCircle, FaLock, FaMap, FaMapSigns, FaPlus, FaRegCheckCircle, FaShieldAlt, FaTrash } from 'react-icons/fa';
+import { FaCheckCircle } from '@react-icons/all-files/fa/FaCheckCircle';
+import { FaLock } from '@react-icons/all-files/fa/FaLock';
+import { FaMap } from '@react-icons/all-files/fa/FaMap';
+import { FaMapSigns } from '@react-icons/all-files/fa/FaMapSigns';
+import { FaPlus } from '@react-icons/all-files/fa/FaPlus';
+import { FaRegCheckCircle } from '@react-icons/all-files/fa/FaRegCheckCircle';
+import { FaShieldAlt } from '@react-icons/all-files/fa/FaShieldAlt';
+import { FaTrash } from '@react-icons/all-files/fa/FaTrash';
 import MapSelector from '../../panels/MapSelector';
 import { ActiveWebHelper as WebHelper } from '../../../../helpers/transport';
 import DockableHelper from '../../../../helpers/DockableHelper';

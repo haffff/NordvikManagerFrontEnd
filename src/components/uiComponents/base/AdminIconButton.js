@@ -1,6 +1,7 @@
 import { Icon, IconButton, Tooltip } from '@chakra-ui/react';
 import * as React from 'react';
-import { FaCog, FaPlus } from 'react-icons/fa';
+import { FaCog } from '@react-icons/all-files/fa/FaCog';
+import { FaPlus } from '@react-icons/all-files/fa/FaPlus';
 
 import "./../../../stylesheets/panel.css";
 

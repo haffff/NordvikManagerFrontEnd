@@ -1,6 +1,8 @@
 import * as React from "react";
 import { Box, Button, Flex, Icon, Text } from "@chakra-ui/react";
-import { FaChevronDown, FaChevronUp, FaMinus } from "react-icons/fa";
+import { FaChevronDown } from "@react-icons/all-files/fa/FaChevronDown";
+import { FaChevronUp } from "@react-icons/all-files/fa/FaChevronUp";
+import { FaMinus } from "@react-icons/all-files/fa/FaMinus";
 import ClientMediator from "../../ClientMediator";
 import DListItem from "./base/List/DListItem";
 import DListItemsButtonContainer from "./base/List/DListItemsButtonContainer";

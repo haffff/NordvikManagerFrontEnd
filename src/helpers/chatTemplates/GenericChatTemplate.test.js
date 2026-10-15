@@ -27,4 +27,10 @@ describe('GenericChatTemplate', () => {
     renderWithProviders(<GenericChatTemplate object={{ title: 'Only a title' }} />);
     expect(screen.getByText('Only a title')).toBeInTheDocument();
   });
+
+  it('shows non-text title and message fields as text instead of crashing', () => {
+    renderWithProviders(<GenericChatTemplate object={{ title: { x: 1 }, message: ['a'] }} />);
+    expect(screen.getByText('{"x":1}')).toBeInTheDocument();
+    expect(screen.getByText('["a"]')).toBeInTheDocument();
+  });
 });

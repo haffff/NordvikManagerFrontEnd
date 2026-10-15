@@ -10,7 +10,11 @@ import {
   Text,
 } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
-import { FaHtml5, FaMinus, FaPlus, FaLayerGroup, FaArrowDown } from "react-icons/fa";
+import { FaHtml5 } from "@react-icons/all-files/fa/FaHtml5";
+import { FaMinus } from "@react-icons/all-files/fa/FaMinus";
+import { FaPlus } from "@react-icons/all-files/fa/FaPlus";
+import { FaLayerGroup } from "@react-icons/all-files/fa/FaLayerGroup";
+import { FaArrowDown } from "@react-icons/all-files/fa/FaArrowDown";
 import { toaster } from "../../../ui/toaster";
 import { BasePanel } from "../../../uiComponents/base/BasePanel";
 import CollectionSyncer from "../../../uiComponents/base/CollectionSyncer";

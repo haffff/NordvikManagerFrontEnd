@@ -10,8 +10,9 @@ import {
 } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import { JSONTree } from "react-json-tree";
-import { FaBroom, FaEye } from "react-icons/fa";
-import { MdRefresh } from "react-icons/md";
+import { FaBroom } from "@react-icons/all-files/fa/FaBroom";
+import { FaEye } from "@react-icons/all-files/fa/FaEye";
+import { MdRefresh } from "@react-icons/all-files/md/MdRefresh";
 import { Tooltip } from "../../../ui/tooltip";
 import { BasePanel } from "../../../uiComponents/base/BasePanel";
 import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
