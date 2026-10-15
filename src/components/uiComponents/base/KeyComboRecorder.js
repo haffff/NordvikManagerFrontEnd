@@ -1,6 +1,6 @@
 import * as React from "react";
 import { Button, HStack, IconButton } from "@chakra-ui/react";
-import { FaUndo } from "react-icons/fa";
+import { FaUndo } from "@react-icons/all-files/fa/FaUndo";
 import { CreateActionName, setComboRecording } from "../../game/KeyBoardEventsManager";
 
 // Modifier-only keydowns don't finalize a combo — wait for a real key.

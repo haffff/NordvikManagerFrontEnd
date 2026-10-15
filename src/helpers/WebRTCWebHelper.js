@@ -6,6 +6,7 @@ import WebHelper from './WebHelper';
 import ResourceCache from './ResourceCache';
 import UtilityHelper from './UtilityHelper';
 import addonOpLog, { isAddonOpPath } from './addonOpLog';
+import { debugLog } from './debugLog';
 
 const REQUEST_TIMEOUT_MS = 30000;
 
@@ -52,7 +53,7 @@ class WebRTCWebHelper {
 
   // Called by WebRTCManager once, passing itself as transport
   setTransport(transport) {
-    console.log('[WebRTCWebHelper] setTransport called, queued:', this._queue.length);
+    debugLog('[WebRTCWebHelper] setTransport called, queued:', this._queue.length);
     this._transport = transport;
   }
 
@@ -99,10 +100,10 @@ class WebRTCWebHelper {
   // Called by WebRTCManager when data channel opens — flush queued requests
   flushQueue() {
     const channelReady = this._transport?.isChannelReady() ?? false;
-    console.log(`[WebRTCWebHelper] flushQueue: ${this._queue.length} queued, transport=${!!this._transport}, channelReady=${channelReady}`);
+    debugLog(`[WebRTCWebHelper] flushQueue: ${this._queue.length} queued, transport=${!!this._transport}, channelReady=${channelReady}`);
     const items = this._queue.splice(0);
     for (const item of items) {
-      console.log(`[WebRTCWebHelper] flushing ${item.message.method} ${item.message.path}`);
+      debugLog(`[WebRTCWebHelper] flushing ${item.message.method} ${item.message.path}`);
       this._dispatch(item);
     }
   }
@@ -161,14 +162,17 @@ class WebRTCWebHelper {
     return new Promise((resolve, reject) => {
       const timeoutHandle = setTimeout(() => {
         this._pending.delete(id);
+        // Still waiting for the channel: drop it, so flushQueue never sends a
+        // request the caller was already told failed.
+        this._queue = this._queue.filter((item) => item.message.id !== id);
         reject(new Error(`WebRTC API timeout: ${method} ${normalizedPath}`));
       }, REQUEST_TIMEOUT_MS);
 
       if (this._transport?.isChannelReady()) {
-        console.log(`[WebRTCWebHelper] send immediate: ${method} ${normalizedPath}`);
+        debugLog(`[WebRTCWebHelper] send immediate: ${method} ${normalizedPath}`);
         this._dispatch({ message, resolve, reject, timeoutHandle, onProgress });
       } else {
-        console.log(`[WebRTCWebHelper] queued: ${method} ${normalizedPath} (transport=${!!this._transport}, channelReady=${this._transport?.isChannelReady() ?? false})`);
+        debugLog(`[WebRTCWebHelper] queued: ${method} ${normalizedPath} (transport=${!!this._transport}, channelReady=${this._transport?.isChannelReady() ?? false})`);
         if (method !== 'GET' && isAddonOpPath(normalizedPath))
           addonOpLog(`queued ${method} ${normalizedPath} id=${id}: data channel not open yet`);
         // Queue until channel opens; transport will call flushQueue()

@@ -258,3 +258,27 @@ describe('CardAPI — GM check', () => {
     }
   });
 });
+
+// Properties.Global takes parentId from card code; it must stay one query value.
+describe('CardAPI — Properties.Global query encoding', () => {
+  beforeEach(() => {
+    ActiveWebHelper.getAsync.mockReset();
+    ActiveWebHelper.getAsync.mockResolvedValue([]);
+  });
+
+  it.each([
+    ['Get', (api, id) => api.Properties.Global.Get(id, 'hp')],
+    ['GetMany', (api, id) => api.Properties.Global.GetMany(id, ['hp'])],
+    ['GetProperties', (api, id) => api.Properties.Global.GetProperties(id)],
+  ])('%s encodes the parentId', async (_name, call) => {
+    const api = await CardAPIFactory('card-x');
+    ActiveWebHelper.getAsync.mockClear();
+
+    await call(api, 'a&names=secret');
+
+    const path = ActiveWebHelper.getAsync.mock.calls.at(-1)[0];
+    const params = new URLSearchParams(path.split('?')[1]);
+    expect(params.get('parentIds')).toBe('a&names=secret');
+    expect(params.getAll('names').length).toBeLessThanOrEqual(1);
+  });
+});

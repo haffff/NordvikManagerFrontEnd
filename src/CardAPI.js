@@ -491,7 +491,7 @@ class CardAPI {
     Global: {
       Get: async (parentId, propertyName) => {
         const fetched = await WebHelper.getAsync(
-          `properties/QueryProperties?parentIds=${parentId}&names=${encodeURIComponent(propertyName)}`
+          `properties/QueryProperties?parentIds=${encodeURIComponent(parentId)}&names=${encodeURIComponent(propertyName)}`
         );
         return fetched?.[0] ?? null;
       },
@@ -499,7 +499,7 @@ class CardAPI {
       GetMany: async (parentId, propertyNames) => {
         const names = Array.isArray(propertyNames) ? propertyNames : [propertyNames];
         const fetched = await WebHelper.getAsync(
-          `properties/QueryProperties?parentIds=${parentId}&names=${names.map(encodeURIComponent).join(",")}`
+          `properties/QueryProperties?parentIds=${encodeURIComponent(parentId)}&names=${names.map(encodeURIComponent).join(",")}`
         );
         return fetched ?? [];
       },
@@ -510,7 +510,7 @@ class CardAPI {
 
       GetProperties: async (parentId) => {
         const fetched = await WebHelper.getAsync(
-          `properties/QueryProperties?parentIds=${parentId}`
+          `properties/QueryProperties?parentIds=${encodeURIComponent(parentId)}`
         );
         return fetched ?? [];
       },
@@ -947,7 +947,7 @@ class PropertiesManager {
     if (isCommand && !parentId) return "--parentId is required";
 
     const properties = await WebHelper.getAsync(
-      `properties/QueryProperties?parentIds=${parentId}`
+      `properties/QueryProperties?parentIds=${encodeURIComponent(parentId)}`
     );
     properties?.forEach((x) => { this._propertyCache[x.id] = x; });
     return properties;
@@ -957,7 +957,7 @@ class PropertiesManager {
     if (isCommand && !parentId) return "--parentId is required";
 
     const properties = await WebHelper.getAsync(
-      `properties/QueryProperties?parentIds=${parentId}`
+      `properties/QueryProperties?parentIds=${encodeURIComponent(parentId)}`
     );
     properties?.forEach((x) => { this._propertyCache[x.id] = x; });
     return properties ?? [];
@@ -974,7 +974,7 @@ class PropertiesManager {
     if (isCommand && !parentId) return "--parentId is required";
 
     const properties = await WebHelper.getAsync(
-      `properties/QueryProperties?parentIds=${parentId}`
+      `properties/QueryProperties?parentIds=${encodeURIComponent(parentId)}`
     );
     properties?.forEach((x) => { this._propertyCache[x.id] = x; });
   }
@@ -1002,7 +1002,7 @@ class PropertiesManager {
 
     const missing = namesArr.filter((n) => !cached.find((c) => c.name === n));
     const fetched = await WebHelper.getAsync(
-      `properties/QueryProperties?parentIds=${parentId}&names=${missing.join(",")}`
+      `properties/QueryProperties?parentIds=${encodeURIComponent(parentId)}&names=${missing.map(encodeURIComponent).join(",")}`
     );
     fetched?.forEach((x) => { this._propertyCache[x.id] = x; });
 
@@ -1019,7 +1019,7 @@ class PropertiesManager {
     }
 
     const properties = await WebHelper.getAsync(
-      `properties/QueryProperties?parentIds=${parentId}&prefix=${prefix}`
+      `properties/QueryProperties?parentIds=${encodeURIComponent(parentId)}&prefix=${encodeURIComponent(prefix)}`
     );
     properties?.forEach((x) => { this._propertyCache[x.id] = x; });
     return properties;
@@ -1040,7 +1040,7 @@ class PropertiesManager {
 
     const missing = idsArr.filter((id) => !this._propertyCache[id]);
     const fetched = await WebHelper.getAsync(
-      `properties/QueryProperties?parentIds=${parentId}&ids=${missing.join(",")}`
+      `properties/QueryProperties?parentIds=${encodeURIComponent(parentId)}&ids=${missing.join(",")}`
     );
     fetched?.forEach((x) => { this._propertyCache[x.id] = x; });
 

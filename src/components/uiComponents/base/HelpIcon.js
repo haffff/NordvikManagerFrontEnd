@@ -1,6 +1,6 @@
 import * as React from 'react';
 import { Flex, Icon } from '@chakra-ui/react';
-import { FaInfoCircle } from 'react-icons/fa';
+import { FaInfoCircle } from '@react-icons/all-files/fa/FaInfoCircle';
 import { Tooltip } from '../../ui/tooltip';
 
 // Resolves a doc link against the Central server's Docusaurus site

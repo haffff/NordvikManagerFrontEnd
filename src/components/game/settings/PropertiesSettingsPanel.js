@@ -3,8 +3,11 @@ import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import Subscribable from "../../uiComponents/base/Subscribable";
 import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
-import { IoMdAdd } from "react-icons/io";
-import { FaLock, FaLockOpen, FaChevronDown, FaChevronRight } from "react-icons/fa";
+import { IoMdAdd } from "@react-icons/all-files/io/IoMdAdd";
+import { FaLock } from "@react-icons/all-files/fa/FaLock";
+import { FaLockOpen } from "@react-icons/all-files/fa/FaLockOpen";
+import { FaChevronDown } from "@react-icons/all-files/fa/FaChevronDown";
+import { FaChevronRight } from "@react-icons/all-files/fa/FaChevronRight";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
 import {
   Badge,

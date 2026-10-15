@@ -4,7 +4,7 @@ import Subscribable from '../base/Subscribable';
 import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
 import DListItem from '../base/List/DListItem';
 import DynamicIcon from '../icons/DynamicIcon';
-import { FaFolder } from 'react-icons/fa';
+import { FaFolder } from '@react-icons/all-files/fa/FaFolder';
 import { TreeView } from '../tree/TreeView';
 import { buildTree, splitMatch } from '../tree/treeModel';
 import { useRememberedOpenFolders } from '../tree/useRememberedOpenFolders';

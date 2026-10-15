@@ -2,10 +2,14 @@ import { Flex, Input, Stack, Text } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 import DListItemButton from "../../../uiComponents/base/List/ListItemDetails/DListItemButton";
 import DListItemToggleButton from "../../../uiComponents/base/List/ListItemDetails/DListItemToggleButton";
-import { IoMdClose } from "react-icons/io";
-import { FaEye, FaTrash, FaUndo, FaUsersSlash } from "react-icons/fa";
+import { IoMdClose } from "@react-icons/all-files/io/IoMdClose";
+import { FaEye } from "@react-icons/all-files/fa/FaEye";
+import { FaTrash } from "@react-icons/all-files/fa/FaTrash";
+import { FaUndo } from "@react-icons/all-files/fa/FaUndo";
+import { FaUsersSlash } from "../../../uiComponents/icons/extraIcons";
 import ClientMediator from "../../../../ClientMediator";
-import { MdBrush, MdLineWeight } from "react-icons/md";
+import { MdBrush } from "@react-icons/all-files/md/MdBrush";
+import { MdLineWeight } from "@react-icons/all-files/md/MdLineWeight";
 import { DColorPicker } from "../../../uiComponents/settingsComponents/ColorPicker";
 
 /**

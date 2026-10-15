@@ -1,7 +1,8 @@
 import * as React from "react";
 import { Badge, Box, Button, Flex, HStack, Heading, IconButton, Stack, Text } from "@chakra-ui/react";
 import { Checkbox } from "../../ui/checkbox";
-import { FaSlidersH, FaList } from "react-icons/fa";
+import { FaSlidersH } from "@react-icons/all-files/fa/FaSlidersH";
+import { FaList } from "@react-icons/all-files/fa/FaList";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import Subscribable from "../../uiComponents/base/Subscribable";

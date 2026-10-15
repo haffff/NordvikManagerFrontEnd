@@ -3,30 +3,28 @@ import * as Dockable from "@hlorenzi/react-dockable";
 import { BasePanel } from "../../../uiComponents/base/BasePanel";
 import useBMName from "../../../uiComponents/hooks/useBattleMapName";
 import DListItem from "../../../uiComponents/base/List/DListItem";
-import {
-  FaBorderNone,
-  FaBox,
-  FaChess,
-  FaCircle,
-  FaDotCircle,
-  FaHandPaper,
-  FaLayerGroup,
-  FaMap,
-  FaMousePointer,
-  FaPaintBrush,
-  FaRuler,
-  FaSquare,
-  FaPlay,
-  FaMagic,
-  FaPencilAlt,
-} from "react-icons/fa";
+import { FaBorderNone } from "@react-icons/all-files/fa/FaBorderNone";
+import { FaBox } from "@react-icons/all-files/fa/FaBox";
+import { FaChess } from "@react-icons/all-files/fa/FaChess";
+import { FaCircle } from "@react-icons/all-files/fa/FaCircle";
+import { FaDotCircle } from "@react-icons/all-files/fa/FaDotCircle";
+import { FaHandPaper } from "@react-icons/all-files/fa/FaHandPaper";
+import { FaLayerGroup } from "@react-icons/all-files/fa/FaLayerGroup";
+import { FaMap } from "@react-icons/all-files/fa/FaMap";
+import { FaMousePointer } from "@react-icons/all-files/fa/FaMousePointer";
+import { FaPaintBrush } from "@react-icons/all-files/fa/FaPaintBrush";
+import { FaRuler } from "@react-icons/all-files/fa/FaRuler";
+import { FaSquare } from "@react-icons/all-files/fa/FaSquare";
+import { FaPlay } from "@react-icons/all-files/fa/FaPlay";
+import { FaMagic } from "@react-icons/all-files/fa/FaMagic";
+import { FaPencilAlt } from "@react-icons/all-files/fa/FaPencilAlt";
 import ClientMediator from "../../../../ClientMediator";
 import UtilityHelper from "../../../../helpers/UtilityHelper";
 import DLabel from "../../../uiComponents/base/Text/DLabel";
 import { useDimensions } from "../../../uiComponents/hooks/useDimensions";
 import { fabric } from "fabric";
 import { AddShapeOptions } from "./AddShapeOptions";
-import { MdTextFields } from "react-icons/md";
+import { MdTextFields } from "@react-icons/all-files/md/MdTextFields";
 import { AddCircleOptions } from "./AddCircleOptions";
 import { AddTextOptions } from "./AddTextOptions";
 import { DrawOptions } from "./DrawOptions";

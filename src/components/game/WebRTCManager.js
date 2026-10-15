@@ -10,7 +10,8 @@
 import SignalingClient, { SIGNAL_EVENTS } from '../../helpers/SignalingClient';
 import WebRTCWebHelperInstance from '../../helpers/WebRTCWebHelper';
 import TokenStore from '../../helpers/TokenStore';
-import CentralWebHelper from '../../helpers/CentralWebHelper';
+import { debugLog } from '../../helpers/debugLog';
+import CentralWebHelper, { refreshAccessToken } from '../../helpers/CentralWebHelper';
 import {
   PROTOCOL_VERSION,
   clientPathForProtocol,
@@ -55,6 +56,8 @@ function _camelizeKeys(obj) {
 // WebRTC data channels have a browser-imposed max message size (~256 KB in Chrome).
 // Anything larger (e.g. base64 file uploads) must be split into chunks.
 const SEND_CHUNK_SIZE = 15_000; // bytes — safely under all major browser limits
+// Incoming chunked messages claiming more parts than this are dropped (~300 MB).
+const MAX_INCOMING_CHUNKS = 20_000;
 // Chunked messages are fed in only while the channel's send buffer is below this,
 // and resume once it drains to LOW. Pushing everything at once overflowed Chrome's
 // send queue ("RTCDataChannel send queue is full") with a few large uploads.
@@ -207,8 +210,11 @@ class WebRTCManager {
       this._gmPeerId = gmPeerId;
       // The loop guard is our own protocol constant: the build we switch to has
       // PROTOCOL_VERSION === gmProtocol, so it connects instead of switching again.
-      if (gmProtocol != null && gmProtocol !== PROTOCOL_VERSION) {
-        this._switchToProtocolClient(gmProtocol);
+      // Only a positive integer can name a build (it goes into the /client/p<N>/ path).
+      const protocol = Number.isInteger(gmProtocol) && gmProtocol > 0 ? gmProtocol : null;
+      if (gmProtocol != null && protocol == null) this._log('warn', `Ignoring invalid GM protocol: ${JSON.stringify(gmProtocol)}`);
+      if (protocol != null && protocol !== PROTOCOL_VERSION) {
+        this._switchToProtocolClient(protocol);
         return;
       }
       this._startPeerConnection();
@@ -440,21 +446,19 @@ class WebRTCManager {
   // single connection attempt can be grepped as a correlated unit.
   _log(level, msg, ...args) {
     const prefix = `[WebRTC|${this._traceId ?? '?'}]`;
+    // Connection tracing only in dev builds or with localStorage.nm_debug set.
+    if (level === 'log') {
+      debugLog(prefix, msg, ...args);
+      return;
+    }
     // eslint-disable-next-line no-console
     console[level](prefix, msg, ...args);
   }
 
   async _ensureAccessToken() {
     if (TokenStore.getAccessToken()) return;
-
-    const refreshToken = TokenStore.getRefreshToken();
-    if (!refreshToken) throw new Error('No refresh token available. Please log in again.');
-
-    const resp = await CentralWebHelper.postAsync('user/refresh', { refreshToken });
-    if (!resp || !resp.ok) throw new Error('Token refresh failed. Please log in again.');
-
-    const data = await resp.json();
-    TokenStore.setTokens(data.accessToken, data.refreshToken);
+    // The refresh token is an httpOnly cookie; the shared helper refreshes one at a time.
+    if (!(await refreshAccessToken())) throw new Error('Token refresh failed. Please log in again.');
   }
 
   async _startPeerConnection() {
@@ -489,49 +493,7 @@ class WebRTCManager {
       this._log('error', 'Data channel error', e);
     };
 
-    dc.onmessage = (event) => {
-      try {
-        const data = JSON.parse(event.data);
-
-        // Reassemble chunked messages
-        if (data?.type === 'chunk') {
-          const { chunkId, index, total, data: slice } = data;
-          if (!this._chunkBuffer.has(chunkId)) {
-            // If a chunk is ever lost, this entry would otherwise sit in the map
-            // forever — drop it after a generous timeout so it can't accumulate.
-            const staleTimeout = setTimeout(() => {
-              if (this._chunkBuffer.has(chunkId)) {
-                this._log('warn', `Dropping incomplete chunked message ${chunkId} (timed out)`);
-                this._chunkBuffer.delete(chunkId);
-              }
-            }, 60_000);
-            this._chunkBuffer.set(chunkId, { parts: new Array(total), received: 0, total, staleTimeout });
-          }
-          const entry = this._chunkBuffer.get(chunkId);
-          entry.parts[index] = slice;
-          entry.received++;
-          if (entry.received < entry.total) return; // wait for remaining chunks
-          clearTimeout(entry.staleTimeout);
-          this._chunkBuffer.delete(chunkId);
-          const assembled = JSON.parse(entry.parts.join(''));
-          if (assembled?.type === 'api-response') {
-            WebRTCWebHelperInstance.handleApiResponse(assembled);
-          } else {
-            this._dispatchToSubscribers(_camelizeKeys(assembled));
-          }
-          return;
-        }
-
-        // Route api-responses to WebRTCWebHelper; everything else to subscribers
-        if (data?.type === 'api-response') {
-          WebRTCWebHelperInstance.handleApiResponse(data);
-        } else {
-          this._dispatchToSubscribers(_camelizeKeys(data));
-        }
-      } catch (e) {
-        this._log('error', 'Failed to parse data channel message', e);
-      }
-    };
+    dc.onmessage = (event) => this._handleChannelMessage(event);
 
     pc.onicecandidate = ({ candidate }) => {
       if (candidate && this._gmPeerId) {
@@ -576,6 +538,58 @@ class WebRTCManager {
 
   // Normalises a raw ICE candidate object and adds it to the peer connection.
   // SIPSorcery omits the 'candidate:' prefix and can send null sdpMid — both are fixed here.
+  // One data channel message: a whole message, or one chunk of a large one.
+  _handleChannelMessage(event) {
+    try {
+      const data = JSON.parse(event.data);
+
+      // Reassemble chunked messages
+      if (data?.type === 'chunk') {
+        const { chunkId, index, total, data: slice } = data;
+        if (!Number.isInteger(total) || total < 1 || total > MAX_INCOMING_CHUNKS) {
+          this._log('warn', `Dropping chunk with invalid total ${JSON.stringify(total)}`);
+          return;
+        }
+        if (!this._chunkBuffer.has(chunkId)) {
+          // If a chunk is ever lost, this entry would otherwise sit in the map
+          // forever — drop it after a generous timeout so it can't accumulate.
+          const staleTimeout = setTimeout(() => {
+            if (this._chunkBuffer.has(chunkId)) {
+              this._log('warn', `Dropping incomplete chunked message ${chunkId} (timed out)`);
+              this._chunkBuffer.delete(chunkId);
+            }
+          }, 60_000);
+          this._chunkBuffer.set(chunkId, { parts: new Array(total), received: 0, total, staleTimeout });
+        }
+        const entry = this._chunkBuffer.get(chunkId);
+        // Only a new slot inside this message counts — a repeat or a stray index
+        // must not complete it early.
+        if (!Number.isInteger(index) || index < 0 || index >= entry.total || entry.parts[index] !== undefined) return;
+        entry.parts[index] = slice;
+        entry.received++;
+        if (entry.received < entry.total) return; // wait for remaining chunks
+        clearTimeout(entry.staleTimeout);
+        this._chunkBuffer.delete(chunkId);
+        const assembled = JSON.parse(entry.parts.join(''));
+        if (assembled?.type === 'api-response') {
+          WebRTCWebHelperInstance.handleApiResponse(assembled);
+        } else {
+          this._dispatchToSubscribers(_camelizeKeys(assembled));
+        }
+        return;
+      }
+
+      // Route api-responses to WebRTCWebHelper; everything else to subscribers
+      if (data?.type === 'api-response') {
+        WebRTCWebHelperInstance.handleApiResponse(data);
+      } else {
+        this._dispatchToSubscribers(_camelizeKeys(data));
+      }
+    } catch (e) {
+      this._log('error', 'Failed to parse data channel message', e);
+    }
+  }
+
   _applyIceCandidate(candidate) {
     const candidateStr = candidate.candidate ?? '';
     const normalizedInit = {

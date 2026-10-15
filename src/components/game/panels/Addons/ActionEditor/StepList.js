@@ -3,7 +3,14 @@ import { Badge, Box, Flex, HStack, IconButton, Spinner, Text } from "@chakra-ui/
 import { DndContext, PointerSensor, KeyboardSensor, closestCenter, useSensor, useSensors } from "@dnd-kit/core";
 import { SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
-import { FaCopy, FaGripVertical, FaPlus, FaTrash, FaCheck, FaTimes, FaStop, FaExternalLinkAlt } from "react-icons/fa";
+import { FaCopy } from "@react-icons/all-files/fa/FaCopy";
+import { FaGripVertical } from "@react-icons/all-files/fa/FaGripVertical";
+import { FaPlus } from "@react-icons/all-files/fa/FaPlus";
+import { FaTrash } from "@react-icons/all-files/fa/FaTrash";
+import { FaCheck } from "@react-icons/all-files/fa/FaCheck";
+import { FaTimes } from "@react-icons/all-files/fa/FaTimes";
+import { FaStop } from "@react-icons/all-files/fa/FaStop";
+import { FaExternalLinkAlt } from "@react-icons/all-files/fa/FaExternalLinkAlt";
 import { Tooltip } from "../../../../ui/tooltip";
 import { summarizeStep, shortValue, humanizeArgName } from "./stepSummary";
 import { T, categoryColor } from "./editorTheme";

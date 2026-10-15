@@ -83,7 +83,7 @@ export const MainApp = ({ onAuthRequired }) => {
             // Store the Central Server access token so WebRTCManager can use it
             // for signaling — obtained via the GM backend (same-origin, no CORS)
             if (centralAccessToken) {
-                TokenStore.setTokens(centralAccessToken, TokenStore.getRefreshToken());
+                TokenStore.setAccessToken(centralAccessToken);
             }
 
             setCentralSessionId(csId);

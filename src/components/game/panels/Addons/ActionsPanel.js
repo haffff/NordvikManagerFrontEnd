@@ -1,7 +1,12 @@
 import * as React from "react";
 import { Badge, Box, Button, Flex, HStack, Input, Spinner, Text } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
-import { FaBolt, FaChevronDown, FaChevronRight, FaPlay, FaPlus, FaSearch } from "react-icons/fa";
+import { FaBolt } from "@react-icons/all-files/fa/FaBolt";
+import { FaChevronDown } from "@react-icons/all-files/fa/FaChevronDown";
+import { FaChevronRight } from "@react-icons/all-files/fa/FaChevronRight";
+import { FaPlay } from "@react-icons/all-files/fa/FaPlay";
+import { FaPlus } from "@react-icons/all-files/fa/FaPlus";
+import { FaSearch } from "@react-icons/all-files/fa/FaSearch";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../../helpers/transport";
 import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import ClientMediator from "../../../../ClientMediator";

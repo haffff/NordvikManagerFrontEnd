@@ -1,6 +1,6 @@
 import * as React from "react";
 import * as Dockable from "@hlorenzi/react-dockable";
-import { IoClose } from "react-icons/io5";
+import { IoClose } from "@react-icons/all-files/io5/IoClose";
 
 // The minimized floating windows, as chips in the status bar. Takes the live dock
 // state (not useStableDockState's) so it re-renders on each commit and sees panels

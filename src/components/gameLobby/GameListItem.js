@@ -14,17 +14,15 @@ import {
   Text,
   Textarea,
 } from "@chakra-ui/react";
-import { IoMdMore } from "react-icons/io";
-import {
-  FaCopy,
-  FaEdit,
-  FaLink,
-  FaLock,
-  FaSave,
-  FaTrash,
-  FaUnlock,
-  FaUsers,
-} from "react-icons/fa";
+import { IoMdMore } from "@react-icons/all-files/io/IoMdMore";
+import { FaCopy } from "@react-icons/all-files/fa/FaCopy";
+import { FaEdit } from "@react-icons/all-files/fa/FaEdit";
+import { FaLink } from "@react-icons/all-files/fa/FaLink";
+import { FaLock } from "@react-icons/all-files/fa/FaLock";
+import { FaSave } from "@react-icons/all-files/fa/FaSave";
+import { FaTrash } from "@react-icons/all-files/fa/FaTrash";
+import { FaUnlock } from "@react-icons/all-files/fa/FaUnlock";
+import { FaUsers } from "@react-icons/all-files/fa/FaUsers";
 
 import WebHelper from "../../helpers/WebHelper";
 import React from "react";

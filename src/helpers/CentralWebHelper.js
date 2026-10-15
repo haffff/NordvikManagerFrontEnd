@@ -8,27 +8,45 @@ const DEFAULT_HEADERS = {
   'Content-Type': 'application/json',
 };
 
-// Attempts to exchange the stored refresh token for a new access token (cookie).
-// Returns true on success, false if the refresh token is missing or rejected.
-async function tryRefresh() {
-  const refreshToken = TokenStore.getRefreshToken();
-  if (!refreshToken) return false;
+// Exchanges the refresh token (an httpOnly cookie Central set at login) for a new
+// access token. Central rotates the refresh token on every use, so two refreshes at
+// once would revoke each other's token: calls in this tab share one request, and tabs
+// take turns through a Web Lock (each finds the cookie the previous one left).
+// Resolves true on success. Only a 401/403 ends the session — a 5xx, 429 or network
+// error leaves it alone, so a hiccup at Central doesn't log anyone out.
+let refreshInFlight = null;
 
+export function refreshAccessToken() {
+  if (!refreshInFlight) {
+    refreshInFlight = withRefreshLock(requestRefresh).finally(() => {
+      refreshInFlight = null;
+    });
+  }
+  return refreshInFlight;
+}
+
+function withRefreshLock(fn) {
+  const locks = typeof navigator !== 'undefined' ? navigator.locks : undefined;
+  return locks?.request ? locks.request('nm-central-refresh', fn) : fn();
+}
+
+async function requestRefresh() {
   try {
     const resp = await fetch(`${BASE_URL}/user/refresh`, {
       method: 'POST',
       credentials: 'include',
       headers: DEFAULT_HEADERS,
-      body: JSON.stringify({ refreshToken }),
+      body: JSON.stringify({ refreshMode: 'cookie' }),
     });
 
-    if (!resp.ok) {
+    if (resp.status === 401 || resp.status === 403) {
       TokenStore.clear();
       return false;
     }
+    if (!resp.ok) return false;
 
     const data = await resp.json();
-    TokenStore.setTokens(data.accessToken, data.refreshToken);
+    TokenStore.setAccessToken(data.accessToken);
     return true;
   } catch {
     return false;
@@ -40,7 +58,7 @@ async function fetchWithRefresh(url, options) {
   const resp = await fetch(url, options);
   if (resp.status !== 401) return resp;
 
-  const refreshed = await tryRefresh();
+  const refreshed = await refreshAccessToken();
   if (!refreshed) return resp;
 
   return fetch(url, options);

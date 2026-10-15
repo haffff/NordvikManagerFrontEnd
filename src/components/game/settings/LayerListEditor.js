@@ -1,10 +1,12 @@
 import * as React from "react";
 import { Badge, Box, Button, HStack, Icon, Input, NativeSelect, Text } from "@chakra-ui/react";
-import { IoMdAdd } from "react-icons/io";
+import { IoMdAdd } from "@react-icons/all-files/io/IoMdAdd";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import { useCustomLayers } from "../../uiComponents/hooks/useCustomLayers";
-import { FaEye, FaEyeSlash, FaUserSecret } from "react-icons/fa";
+import { FaEye } from "@react-icons/all-files/fa/FaEye";
+import { FaEyeSlash } from "@react-icons/all-files/fa/FaEyeSlash";
+import { FaUserSecret } from "@react-icons/all-files/fa/FaUserSecret";
 import { layerFlagUpdate, layerState } from "../../BattleMap/Helpers/layerVisibility";
 
 // One row for an existing custom layer: name (rename on blur), hide / GM only,

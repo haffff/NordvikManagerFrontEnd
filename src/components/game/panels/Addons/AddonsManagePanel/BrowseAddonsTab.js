@@ -1,6 +1,9 @@
 import React, { useState, useMemo } from "react";
 import { Badge, Box, Button, Flex, Input, Spinner, Text } from "@chakra-ui/react";
-import { FaArrowUp, FaCheck, FaDownload, FaExternalLinkAlt } from "react-icons/fa";
+import { FaArrowUp } from "@react-icons/all-files/fa/FaArrowUp";
+import { FaCheck } from "@react-icons/all-files/fa/FaCheck";
+import { FaDownload } from "@react-icons/all-files/fa/FaDownload";
+import { FaExternalLinkAlt } from "@react-icons/all-files/fa/FaExternalLinkAlt";
 import { ActiveWebHelper as WebHelper } from "../../../../../helpers/transport";
 import { toaster } from "../../../../ui/toaster";
 import ClientMediator from "../../../../../ClientMediator";
@@ -11,6 +14,7 @@ import DListItem from "../../../../uiComponents/base/List/DListItem";
 import DListItemButton from "../../../../uiComponents/base/List/ListItemDetails/DListItemButton";
 import DListItemsButtonContainer from "../../../../uiComponents/base/List/DListItemsButtonContainer";
 import DLabel from "../../../../uiComponents/base/Text/DLabel";
+import { safeExternalUrl } from "../../../../../helpers/safeUrl";
 
 export const BrowseAddonsTab = ({ repository, repositoryError, addons, handleReload, loading }) => {
   const [search, setSearch] = useState("");
@@ -135,11 +139,11 @@ export const BrowseAddonsTab = ({ repository, repositoryError, addons, handleRel
                   </Flex>
                 </Flex>
                 <DListItemsButtonContainer>
-                  {addon.repositoryUrl && (
+                  {safeExternalUrl(addon.repositoryUrl) && (
                     <DListItemButton
                       label="Open repository"
                       icon={FaExternalLinkAlt}
-                      onClick={() => window.open(addon.repositoryUrl, "_blank")}
+                      onClick={() => window.open(safeExternalUrl(addon.repositoryUrl), "_blank", "noopener,noreferrer")}
                     />
                   )}
                   {isInstalled && !isUpdate && (

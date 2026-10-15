@@ -1,6 +1,6 @@
 import { Button } from "@chakra-ui/react";
 import * as React from "react";
-import { IoIosArrowDropdown } from "react-icons/io";
+import { IoIosArrowDropdown } from "@react-icons/all-files/io/IoIosArrowDropdown";
 import DropDownButton from "./DropDrownButton";
 import ClientMediator from "../../../../ClientMediator";
 import { resetMapTools } from "../../../BattleMap/mapToolsStore";
@@ -13,7 +13,8 @@ import {
   MenuTriggerItem,
   MenuRoot,
 } from "../../../ui/menu";
-import { FaAngleDown, FaArrowDown } from "react-icons/fa";
+import { FaAngleDown } from "@react-icons/all-files/fa/FaAngleDown";
+import { FaArrowDown } from "@react-icons/all-files/fa/FaArrowDown";
 import {
   addMenuItem,
   addSubMenu,

@@ -1,28 +1,26 @@
 import * as React from "react";
 import { DropDownMenu } from "../../../uiComponents/base/DDItems/DropDownMenu";
 import { DropDownItem } from "../../../uiComponents/base/DDItems/DropDownItem";
-import {
-  FaArrowAltCircleDown,
-  FaArrowAltCircleUp,
-  FaChess,
-  FaCheckCircle,
-  FaCog,
-  FaCopy,
-  FaEye,
-  FaLayerGroup,
-  FaLock,
-  FaLockOpen,
-  FaMap,
-  FaObjectUngroup,
-  FaPaste,
-  FaPlus,
-  FaShieldAlt,
-  FaTags,
-  FaTrash,
-  FaWrench,
-  FaRegCheckCircle,
-  FaListOl,
-} from "react-icons/fa";
+import { FaArrowAltCircleDown } from "@react-icons/all-files/fa/FaArrowAltCircleDown";
+import { FaArrowAltCircleUp } from "@react-icons/all-files/fa/FaArrowAltCircleUp";
+import { FaChess } from "@react-icons/all-files/fa/FaChess";
+import { FaCheckCircle } from "@react-icons/all-files/fa/FaCheckCircle";
+import { FaCog } from "@react-icons/all-files/fa/FaCog";
+import { FaCopy } from "@react-icons/all-files/fa/FaCopy";
+import { FaEye } from "@react-icons/all-files/fa/FaEye";
+import { FaLayerGroup } from "@react-icons/all-files/fa/FaLayerGroup";
+import { FaLock } from "@react-icons/all-files/fa/FaLock";
+import { FaLockOpen } from "@react-icons/all-files/fa/FaLockOpen";
+import { FaMap } from "@react-icons/all-files/fa/FaMap";
+import { FaObjectUngroup } from "@react-icons/all-files/fa/FaObjectUngroup";
+import { FaPaste } from "@react-icons/all-files/fa/FaPaste";
+import { FaPlus } from "@react-icons/all-files/fa/FaPlus";
+import { FaShieldAlt } from "@react-icons/all-files/fa/FaShieldAlt";
+import { FaTags } from "@react-icons/all-files/fa/FaTags";
+import { FaTrash } from "@react-icons/all-files/fa/FaTrash";
+import { FaWrench } from "@react-icons/all-files/fa/FaWrench";
+import { FaRegCheckCircle } from "@react-icons/all-files/fa/FaRegCheckCircle";
+import { FaListOl } from "@react-icons/all-files/fa/FaListOl";
 import Loadable from "../../../uiComponents/base/Loadable";
 import Subscribable from "../../../uiComponents/base/Subscribable";
 import CollectionSyncer from "../../../uiComponents/base/CollectionSyncer";

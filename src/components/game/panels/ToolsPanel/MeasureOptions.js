@@ -1,12 +1,18 @@
 import { Flex, IconButton, Input, Stack, Text } from "@chakra-ui/react";
 import React, { useEffect, useState } from "react";
 import DListItemButton from "../../../uiComponents/base/List/ListItemDetails/DListItemButton";
-import { IoMdClose, IoMdExit } from "react-icons/io";
+import { IoMdClose } from "@react-icons/all-files/io/IoMdClose";
+import { IoMdExit } from "@react-icons/all-files/io/IoMdExit";
 import ClientMediator from "../../../../ClientMediator";
-import { MdCircle, MdLineWeight, MdTextIncrease } from "react-icons/md";
-import { MdOutlineFormatColorFill } from "react-icons/md";
-import { MdBorderColor } from "react-icons/md";
-import { FaClock, FaCogs, FaEye, FaTimes, FaTrash } from "react-icons/fa";
+import { MdLineWeight } from "@react-icons/all-files/md/MdLineWeight";
+import { MdCircle, MdTextIncrease } from "../../../uiComponents/icons/extraIcons";
+import { MdOutlineFormatColorFill } from "../../../uiComponents/icons/extraIcons";
+import { MdBorderColor } from "@react-icons/all-files/md/MdBorderColor";
+import { FaClock } from "@react-icons/all-files/fa/FaClock";
+import { FaCogs } from "@react-icons/all-files/fa/FaCogs";
+import { FaEye } from "@react-icons/all-files/fa/FaEye";
+import { FaTimes } from "@react-icons/all-files/fa/FaTimes";
+import { FaTrash } from "@react-icons/all-files/fa/FaTrash";
 import DList from "../../../uiComponents/base/List/DList";
 import DListItemToggleButton from "../../../uiComponents/base/List/ListItemDetails/DListItemToggleButton";
 

@@ -1,8 +1,15 @@
 import * as React from "react";
 import { Badge, Box, For, Heading, HStack, Stack, Text } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
-import { FaCheck, FaEdit, FaPlus, FaSave, FaShareAlt, FaUserFriends, FaUsers, FaWrench } from "react-icons/fa";
-import { IoIosRemoveCircleOutline } from "react-icons/io";
+import { FaCheck } from "@react-icons/all-files/fa/FaCheck";
+import { FaEdit } from "@react-icons/all-files/fa/FaEdit";
+import { FaPlus } from "@react-icons/all-files/fa/FaPlus";
+import { FaSave } from "@react-icons/all-files/fa/FaSave";
+import { FaShareAlt } from "@react-icons/all-files/fa/FaShareAlt";
+import { FaUserFriends } from "@react-icons/all-files/fa/FaUserFriends";
+import { FaUsers } from "@react-icons/all-files/fa/FaUsers";
+import { FaWrench } from "@react-icons/all-files/fa/FaWrench";
+import { IoIosRemoveCircleOutline } from "@react-icons/all-files/io/IoIosRemoveCircleOutline";
 import Subscribable from "../../uiComponents/base/Subscribable";
 import LayoutSettingsPanel from "../settings/LayoutSettingsPanel";
 import LayoutHelper from "../../../helpers/LayoutCloneHelper";

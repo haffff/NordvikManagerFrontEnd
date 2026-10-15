@@ -1,6 +1,10 @@
 import React from 'react';
 import { Flex, Text, Badge, IconButton } from '@chakra-ui/react';
-import { FaWifi, FaExclamationTriangle, FaSpinner, FaPlug, FaRedo } from 'react-icons/fa';
+import { FaWifi } from '@react-icons/all-files/fa/FaWifi';
+import { FaExclamationTriangle } from '@react-icons/all-files/fa/FaExclamationTriangle';
+import { FaSpinner } from '@react-icons/all-files/fa/FaSpinner';
+import { FaPlug } from '@react-icons/all-files/fa/FaPlug';
+import { FaRedo } from '@react-icons/all-files/fa/FaRedo';
 import { Tooltip } from '../ui/tooltip';
 import { useWebSocketConnection } from './hooks/useWebSocketConnection';
 

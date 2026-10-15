@@ -1,7 +1,14 @@
 import * as React from "react";
 import { Box, Button, Flex, HStack, Icon, Stack, Text } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
-import { FaChevronLeft, FaChevronRight, FaMinus, FaMusic, FaPause, FaPlay, FaPlus, FaStop } from "react-icons/fa";
+import { FaChevronLeft } from "@react-icons/all-files/fa/FaChevronLeft";
+import { FaChevronRight } from "@react-icons/all-files/fa/FaChevronRight";
+import { FaMinus } from "@react-icons/all-files/fa/FaMinus";
+import { FaMusic } from "@react-icons/all-files/fa/FaMusic";
+import { FaPause } from "@react-icons/all-files/fa/FaPause";
+import { FaPlay } from "@react-icons/all-files/fa/FaPlay";
+import { FaPlus } from "@react-icons/all-files/fa/FaPlus";
+import { FaStop } from "@react-icons/all-files/fa/FaStop";
 import { toaster } from "../../ui/toaster";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
 import Subscribable from "../../uiComponents/base/Subscribable";

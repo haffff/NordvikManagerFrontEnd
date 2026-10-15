@@ -7,10 +7,21 @@ import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
 import { BasePanel } from '../../uiComponents/base/BasePanel';
 import DContainer from '../../uiComponents/base/Containers/DContainer';
 import DListItemButton from '../../uiComponents/base/List/ListItemDetails/DListItemButton';
-import {
-    FaArrowLeft, FaCode, FaDatabase, FaExchangeAlt, FaExternalLinkAlt, FaFile, FaFolder,
-    FaHashtag, FaHdd, FaLink, FaMinusCircle, FaMusic, FaPen, FaPlus, FaUpload,
-} from 'react-icons/fa';
+import { FaArrowLeft } from '@react-icons/all-files/fa/FaArrowLeft';
+import { FaCode } from '@react-icons/all-files/fa/FaCode';
+import { FaDatabase } from '@react-icons/all-files/fa/FaDatabase';
+import { FaExchangeAlt } from '@react-icons/all-files/fa/FaExchangeAlt';
+import { FaExternalLinkAlt } from '@react-icons/all-files/fa/FaExternalLinkAlt';
+import { FaFile } from '@react-icons/all-files/fa/FaFile';
+import { FaFolder } from '@react-icons/all-files/fa/FaFolder';
+import { FaHashtag } from '@react-icons/all-files/fa/FaHashtag';
+import { FaHdd } from '@react-icons/all-files/fa/FaHdd';
+import { FaLink } from '@react-icons/all-files/fa/FaLink';
+import { FaMinusCircle } from '@react-icons/all-files/fa/FaMinusCircle';
+import { FaMusic } from '@react-icons/all-files/fa/FaMusic';
+import { FaPen } from '@react-icons/all-files/fa/FaPen';
+import { FaPlus } from '@react-icons/all-files/fa/FaPlus';
+import { FaUpload } from '@react-icons/all-files/fa/FaUpload';
 import UtilityHelper from '../../../helpers/UtilityHelper';
 import DTreeList from '../../uiComponents/treeList/DTreeList';
 import CollectionSyncer from '../../uiComponents/base/CollectionSyncer';

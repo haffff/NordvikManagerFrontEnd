@@ -100,6 +100,17 @@ export function evaluate(expression, propsMap, type) {
     rawArgs.forEach((rawArg, i) => {
       const paramName = argMap?.[i];
       if (!paramName) return;
+      // Math's operation is an expression: each %prop% becomes a variable holding the
+      // property as a number, so a property's text is never evaluated as math.
+      if (ruleName === "Math" && paramName === "operation") {
+        const scope = {};
+        ruleParams.operation = rawArg.replace(/%(\w+)%/g, (_, name) => {
+          scope[`p_${name}`] = Number(propsMap.get(name) ?? NaN);
+          return `p_${name}`;
+        });
+        ruleParams.scope = scope;
+        return;
+      }
       // Substitute %prop% inside each arg before parsing
       const substituted = rawArg.replace(/%(\w+)%/g, (_, name) => propsMap.get(name) ?? "");
       ruleParams[paramName] = parseArgValue(substituted);

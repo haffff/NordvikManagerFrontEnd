@@ -1,5 +1,7 @@
 import * as React from "react";
-import { FaCheckCircle, FaExchangeAlt, FaPlus } from "react-icons/fa";
+import { FaCheckCircle } from "@react-icons/all-files/fa/FaCheckCircle";
+import { FaExchangeAlt } from "@react-icons/all-files/fa/FaExchangeAlt";
+import { FaPlus } from "@react-icons/all-files/fa/FaPlus";
 import { DropDownMenu } from "../../../uiComponents/base/DDItems/DropDownMenu";
 import { DropDownItem } from "../../../uiComponents/base/DDItems/DropDownItem";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../../helpers/transport";

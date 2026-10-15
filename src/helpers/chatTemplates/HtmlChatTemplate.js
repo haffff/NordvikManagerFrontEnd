@@ -2,6 +2,7 @@ import * as React from "react";
 import { Box, Text } from "@chakra-ui/react";
 import { loadCssMaterial } from "../customStyles";
 import themeColors from "../themeColors";
+import { DEFAULT_SANDBOX_ORIGINS, loadSandboxOrigins, validOrigins } from "../sandboxOrigins";
 
 // Renders the backend's "Html" chat template (HtmlChatTemplate.cs, posted via
 // RollsController.Finish): sender-supplied HTML — e.g. an imported Roll20
@@ -27,6 +28,12 @@ const BG_CARD = themeColors.surfaceRaised;
 const BORDER_CLR = themeColors.border;
 const CLR_TITLE = themeColors.text;
 const PLACEHOLDER_HEIGHT = 48;
+// Only the GM's allowed hosts (helpers/sandboxOrigins.js) — imported Roll20 roll
+// templates load artwork from GitHub, for one.
+const messageCsp = (origins) => {
+  const allow = validOrigins(origins).map((o) => " " + o).join("");
+  return `default-src 'none'; img-src 'self' data: blob:${allow}; style-src 'unsafe-inline'${allow}; font-src data:${allow}`;
+};
 
 // Fetched over the game connection once per key per client (shared with the
 // game's custom stylesheets, see helpers/customStyles.js).
@@ -44,11 +51,12 @@ function describeRoll(roll) {
   return { crit, fumble, title: detail ? `${roll.result} (${detail})` : String(roll?.result ?? "") };
 }
 
-export function buildMessageDocument(html, rolls, css) {
+export function buildMessageDocument(html, rolls, css, origins = DEFAULT_SANDBOX_ORIGINS) {
   const doc = new DOMParser().parseFromString(`<body>${html ?? ""}</body>`, "text/html");
   // Scripts couldn't run anyway (no allow-scripts); these could still
-  // redirect or re-base the frame, so they're dropped outright.
-  doc.querySelectorAll("script, meta, base, iframe, object, embed").forEach((el) => el.remove());
+  // redirect or re-base the frame, or load from another host, so they're
+  // dropped outright.
+  doc.querySelectorAll("script, meta, base, iframe, object, embed, link").forEach((el) => el.remove());
   // Inline handlers and javascript: URLs couldn't run either, but each one
   // makes the browser log "Blocked script execution in 'about:srcdoc'" —
   // drop them so a message never tries to run anything at all.
@@ -83,6 +91,11 @@ export function buildMessageDocument(html, rolls, css) {
   const safeCss = String(css ?? "").replace(/<\/style/gi, "<\\/style");
   return (
     "<!doctype html><html><head><meta charset=\"utf-8\">" +
+    // Only the allowlisted hosts may be loaded from — an <img> or a CSS
+    // url()/@import/@font-face elsewhere would tell that host who is reading
+    // the chat. A CSP can only tighten, and the sender's own <meta> tags are
+    // removed above.
+    `<meta http-equiv="Content-Security-Policy" content="${messageCsp(origins)}">` +
     // Links are inert: with no allow-scripts/allow-popups, clicking one would
     // navigate the message's own iframe away (e.g. a Roll20 template's
     // [Reroll](~ability) link) and leave it blank.
@@ -122,8 +135,8 @@ const SandboxedHtml = ({ html, rolls, cssResourceKey }) => {
   React.useEffect(() => {
     if (!visible) return undefined;
     let cancelled = false;
-    loadCss(cssResourceKey).then((css) => {
-      if (!cancelled) setSrcDoc(buildMessageDocument(html, rolls, css));
+    Promise.all([loadCss(cssResourceKey), loadSandboxOrigins()]).then(([css, origins]) => {
+      if (!cancelled) setSrcDoc(buildMessageDocument(html, rolls, css, origins));
     });
     return () => {
       cancelled = true;

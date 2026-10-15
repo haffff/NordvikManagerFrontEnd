@@ -1,4 +1,3 @@
-import { Image } from "@chakra-ui/react";
 import { ChatTemplateDefintions } from "./chatTemplates/ChatTemplateDefinitions";
 
 export default class ChatMessageParser {

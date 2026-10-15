@@ -1,6 +1,6 @@
 import { Button, Center, Flex, HStack, Icon, Stack } from '@chakra-ui/react';
 import * as React from 'react';
-import { FaPlus } from 'react-icons/fa';
+import { FaPlus } from '@react-icons/all-files/fa/FaPlus';
 
 export const DButtonHorizontalContainer = ({children}) => {
     

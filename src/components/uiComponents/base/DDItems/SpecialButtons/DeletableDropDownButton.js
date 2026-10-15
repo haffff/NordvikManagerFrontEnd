@@ -9,8 +9,8 @@ import {
   Stack,
 } from "@chakra-ui/react";
 import * as React from "react";
-import { FaArrowLeft } from "react-icons/fa";
-import { IoMdClose } from "react-icons/io";
+import { FaArrowLeft } from "@react-icons/all-files/fa/FaArrowLeft";
+import { IoMdClose } from "@react-icons/all-files/io/IoMdClose";
 import { MenuItem } from "../../../../ui/menu";
 
 export const DeletableDropDownButton = ({

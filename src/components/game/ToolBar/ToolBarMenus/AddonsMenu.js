@@ -1,10 +1,14 @@
 import * as React from 'react';
 
-import { FaCode, FaHammer, FaList, FaWpforms } from 'react-icons/fa';
+import { FaCode } from '@react-icons/all-files/fa/FaCode';
+import { FaHammer } from '@react-icons/all-files/fa/FaHammer';
+import { FaList } from '@react-icons/all-files/fa/FaList';
+import { FaWpforms } from '@react-icons/all-files/fa/FaWpforms';
 import DebugConsolePanel from '../../panels/Addons/DebugConsolePanel';
 import EventLogPanel from '../../panels/Addons/EventLogPanel';
 import ActionsPanel from '../../panels/Addons/ActionsPanel';
-import { IoMdDocument, IoMdFolder } from 'react-icons/io';
+import { IoMdDocument } from '@react-icons/all-files/io/IoMdDocument';
+import { IoMdFolder } from '@react-icons/all-files/io/IoMdFolder';
 import CustomViewsPanel from '../../panels/Addons/CustomViewsPanel';
 import AddonsManagePanel from '../../panels/Addons/AddonsManagePanel';
 import TemplatesPanel from '../../panels/Addons/TemplatesPanel';

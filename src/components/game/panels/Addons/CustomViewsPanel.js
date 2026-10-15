@@ -10,7 +10,9 @@ import {
   Text,
 } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
-import { FaCode, FaMinus, FaPlus } from "react-icons/fa";
+import { FaCode } from "@react-icons/all-files/fa/FaCode";
+import { FaMinus } from "@react-icons/all-files/fa/FaMinus";
+import { FaPlus } from "@react-icons/all-files/fa/FaPlus";
 import { BasePanel } from "../../../uiComponents/base/BasePanel";
 import CollectionSyncer from "../../../uiComponents/base/CollectionSyncer";
 import DTreeList from "../../../uiComponents/treeList/DTreeList";

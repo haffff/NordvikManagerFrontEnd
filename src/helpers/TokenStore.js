@@ -1,29 +1,21 @@
-const REFRESH_KEY = 'nm_central_refresh_token';
+// Older builds kept the refresh token here. It's now an httpOnly cookie that Central
+// sets (refreshMode "cookie"), out of reach of page scripts; this key is only removed.
+const LEGACY_REFRESH_KEY = 'nm_central_refresh_token';
 
 // Access token lives in memory only (short-lived, not persisted across reloads).
-// Refresh token lives in localStorage so it survives reloads.
 let _accessToken = null;
 
 const TokenStore = {
-  // Access token (in-memory)
   getAccessToken: () => _accessToken,
-  setAccessToken: (token) => { _accessToken = token; },
-
-  // Refresh token (localStorage)
-  getRefreshToken: () => localStorage.getItem(REFRESH_KEY),
-  setRefreshToken: (token) => localStorage.setItem(REFRESH_KEY, token),
-
-  // Set both at once (after login or refresh)
-  setTokens: (accessToken, refreshToken) => {
-    _accessToken = accessToken;
-    if (refreshToken != null) {
-      localStorage.setItem(REFRESH_KEY, refreshToken);
-    }
-  },
+  setAccessToken: (token) => { _accessToken = token ?? null; },
 
   clear: () => {
     _accessToken = null;
-    localStorage.removeItem(REFRESH_KEY);
+    try {
+      localStorage.removeItem(LEGACY_REFRESH_KEY);
+    } catch {
+      /* storage unavailable — nothing stored there either */
+    }
   },
 };
 

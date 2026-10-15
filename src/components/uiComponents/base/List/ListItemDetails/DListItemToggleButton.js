@@ -2,7 +2,7 @@ import {
   Icon,
 } from "@chakra-ui/react";
 import * as React from "react";
-import { FaPlus } from "react-icons/fa";
+import { FaPlus } from "@react-icons/all-files/fa/FaPlus";
 import DListItemButton from "./DListItemButton";
 
 export const DListItemToggleButton = ({

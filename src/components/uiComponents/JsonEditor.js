@@ -1,6 +1,10 @@
 import * as React from "react";
-import { JsonEditor as JsonEditorLib } from "jsoneditor-react";
+import { Box } from "@chakra-ui/react";
 import "./JsonEditor.css";
+
+// jsoneditor is large and only a few settings/debug panels use it, so it loads on
+// first use instead of with the main bundle.
+const JsonEditorLib = React.lazy(() => import("jsoneditor-react").then((m) => ({ default: m.JsonEditor })));
 
 /**
  * Thin shared wrapper around jsoneditor-react's <Editor>, used in place of the
@@ -24,6 +28,7 @@ import "./JsonEditor.css";
  */
 export const JsonEditor = ({ value, onChange, readOnly = false }) => (
   <div className="nm_json_editor_wrapper">
+    <React.Suspense fallback={<Box flex={1} />}>
     <JsonEditorLib
       value={value}
       mode={readOnly ? "view" : "tree"}
@@ -35,6 +40,7 @@ export const JsonEditor = ({ value, onChange, readOnly = false }) => (
         style: { flex: 1, minHeight: 0, display: "flex", flexDirection: "column" },
       }}
     />
+    </React.Suspense>
   </div>
 );
 

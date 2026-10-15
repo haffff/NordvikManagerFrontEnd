@@ -2,7 +2,7 @@
 
 import { AbsoluteCenter, Menu as ChakraMenu, Portal } from '@chakra-ui/react'
 import * as React from 'react'
-import { LuCheck, LuChevronRight } from 'react-icons/lu'
+import { LuCheck, LuChevronRight } from '../uiComponents/icons/extraIcons'
 
 export const MenuContent = React.forwardRef(function MenuContent(props, ref) {
   const { portalled = true, portalRef, ...rest } = props

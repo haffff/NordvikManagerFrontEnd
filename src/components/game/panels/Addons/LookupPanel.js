@@ -7,7 +7,7 @@ import DContainer from '../../../uiComponents/base/Containers/DContainer';
 import DListItem from '../../../uiComponents/base/List/DListItem';
 import DText from '../../../uiComponents/base/Text/DText';
 import DListItemButton from '../../../uiComponents/base/List/ListItemDetails/DListItemButton';
-import { FaEye } from 'react-icons/fa';
+import { FaEye } from '@react-icons/all-files/fa/FaEye';
 import DLabel from '../../../uiComponents/base/Text/DLabel';
 import { JsonEditor } from '../../../uiComponents/JsonEditor';
 import { BasePanel } from '../../../uiComponents/base/BasePanel';

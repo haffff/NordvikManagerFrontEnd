@@ -11,7 +11,8 @@ import {
   Spinner,
   Text,
 } from "@chakra-ui/react";
-import { FaArrowUp, FaTrash } from "react-icons/fa";
+import { FaArrowUp } from "@react-icons/all-files/fa/FaArrowUp";
+import { FaTrash } from "@react-icons/all-files/fa/FaTrash";
 import { ActiveWebHelper as WebHelper } from "../../../../../helpers/transport";
 import { toaster } from "../../../../ui/toaster";
 import addonOpLog from "../../../../../helpers/addonOpLog";
@@ -22,6 +23,7 @@ import DList from "../../../../uiComponents/base/List/DList";
 import DListItem from "../../../../uiComponents/base/List/DListItem";
 import DLabel from "../../../../uiComponents/base/Text/DLabel";
 import { DUIBox } from "../../../../uiComponents/base/List/DUIBox";
+import { safeExternalUrl } from "../../../../../helpers/safeUrl";
 
 export const BrowseInstalledTab = ({ handleReload, addons, loading }) => {
   const [search, setSearch] = useState("");
@@ -153,10 +155,10 @@ export const BrowseInstalledTab = ({ handleReload, addons, loading }) => {
                   <Text>{currentSelected.license}</Text>
                 </Flex>
               )}
-              {currentSelected.website && (
+              {safeExternalUrl(currentSelected.website) && (
                 <Flex gap="8px">
                   <Text opacity={0.5} minWidth="90px">Website</Text>
-                  <a href={currentSelected.website} target="_blank" rel="noreferrer">
+                  <a href={safeExternalUrl(currentSelected.website)} target="_blank" rel="noopener noreferrer">
                     <Text color="blue.300" textDecoration="underline">{currentSelected.website}</Text>
                   </a>
                 </Flex>

@@ -4,7 +4,9 @@ import PlayerSettingsPanel from '../../settings/PlayerSettingsPanel';
 import KeyboardShortcutsPanel from '../../settings/KeyboardShortcutsPanel';
 import CreateDropDownButton from '../../../uiComponents/base/DDItems/SpecialButtons/CreateDropDownButton';
 import DropDownMenu from '../../../uiComponents/base/DDItems/DropDownMenu';
-import { FaUser, FaWrench, FaKeyboard } from 'react-icons/fa';
+import { FaUser } from '@react-icons/all-files/fa/FaUser';
+import { FaWrench } from '@react-icons/all-files/fa/FaWrench';
+import { FaKeyboard } from '@react-icons/all-files/fa/FaKeyboard';
 
 export const SettingsMenu = ({ Dockable,
     state,

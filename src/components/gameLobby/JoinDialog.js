@@ -6,7 +6,8 @@ import {
   Button,
   Icon,
 } from "@chakra-ui/react";
-import { FaEye, FaEyeSlash } from "react-icons/fa";
+import { FaEye } from "@react-icons/all-files/fa/FaEye";
+import { FaEyeSlash } from "@react-icons/all-files/fa/FaEyeSlash";
 import { InputGroup } from "../ui/input-group";
 import WebHelper from "../../helpers/WebHelper";
 import UtilityHelper from "../../helpers/UtilityHelper";

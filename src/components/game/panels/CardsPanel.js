@@ -13,10 +13,10 @@ import { usePermissions } from "../../../contexts/PermissionsContext";
 import { ENTITY_TYPES, PERM } from "../../BattleMap/Helpers/permissionBits";
 import CollectionSyncer from "../../uiComponents/base/CollectionSyncer";
 import DListItemButton from "../../uiComponents/base/List/ListItemDetails/DListItemButton";
-import { FaMinusCircle } from "react-icons/fa";
+import { FaMinusCircle } from "@react-icons/all-files/fa/FaMinusCircle";
 import { Box, Flex, Image, Text } from "@chakra-ui/react";
 import CardSettingsPanel from "../settings/CardSettingsPanel";
-import { GiGears } from "react-icons/gi";
+import { GiGears } from "@react-icons/all-files/gi/GiGears";
 import DTreeListItem from "../../uiComponents/base/List/DTreeListItem";
 
 // Right-click on a card: addon items in "cards_item" get the card's id as %cardId%.
