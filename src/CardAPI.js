@@ -5,24 +5,11 @@ import UtilityHelper from "./helpers/UtilityHelper";
 // ─── Security: allowlists ─────────────────────────────────────────────────────
 
 /**
- * Commands that card addons are permitted to execute via ClientMediator.
- * Format: "Panel.Command" → true
- *
- * Anything not listed here is BLOCKED — addons cannot call Game.DeleteGame,
- * BattleMap.DeleteAllElements, etc.
+ * Panel commands card code may call through CardAPI.ClientMediator.
+ * Format: "Panel.Command" → true. Panels named addon_* (registered by cards, see
+ * ClientMediator.register below) are callable too. Anything else is refused.
  */
-const ALLOWED_COMMANDS = Object.freeze({
-  // Properties (scoped to own card by the API — parentId is forced)
-  "Properties.GetByNames": true,
-  "Properties.Add": true,
-  "Properties.Update": true,
-  "Properties.Remove": true,
-  "Properties.GetProperties": true,
-  "Properties.ListAdd": true,
-  "Properties.ListRemove": true,
-  "Properties.ListUpdate": true,
-  "Properties.ListReorder": true,
-
+export const CARD_COMMANDS = Object.freeze({
   // Read-only game queries
   "Game.GetPlayers": true,
   "Game.GetCurrentPlayer": true,
@@ -35,15 +22,40 @@ const ALLOWED_COMMANDS = Object.freeze({
   // Turn order read-only (whose turn it is, e.g. to show "your turn" on a sheet)
   "TurnOrder.GetState": true,
 
-  // Chat (sending only — receiving is via WS subscription)
+  // Chat (sending only — receiving is via WS subscription). Sent to the server as a
+  // chat message, never through the chat panel: there "/c" runs local commands.
   "Chat.SendMessage": true,
 });
 
 /**
- * WebSocket commands that card addons are permitted to send to the server.
- * Anything prefixed with "custom_" is always allowed (addon namespace).
+ * Property commands CardAPI's own Properties methods send (parentId already forced to
+ * the card, or explicit for Properties.Global). Not callable from card code.
  */
-const ALLOWED_WS_COMMANDS = Object.freeze({
+const INTERNAL_COMMANDS = Object.freeze({
+  "Properties.GetByNames": true,
+  "Properties.Add": true,
+  "Properties.Update": true,
+  "Properties.Remove": true,
+  "Properties.GetProperties": true,
+  "Properties.ListAdd": true,
+  "Properties.ListRemove": true,
+  "Properties.ListUpdate": true,
+  "Properties.ListReorder": true,
+});
+
+// Panels with their own CardAPI group; mediator calls to them are pointed there.
+const API_GROUPS = Object.freeze({ properties: "Properties", resources: "Resources", rolls: "Rolls" });
+
+// Command names a registered addon panel can't use (ClientMediator's own fields).
+const RESERVED_COMMANDS = Object.freeze(["id", "panel", "contextId", "onEvent"]);
+
+/**
+ * WebSocket commands that card addons are permitted to send to the server. Nothing
+ * else: "custom_*" in particular are real server commands (custom_panel_*, the views;
+ * custom_layer_*, map layers), run with the permissions of whoever's browser the card
+ * is in.
+ */
+export const ALLOWED_WS_COMMANDS = Object.freeze({
   chat_push: true,
   execute_action: true,
 });
@@ -139,27 +151,6 @@ class CardAPI {
   _handleWebSocketMessage(message) {
     const { command, data } = message;    
     
-    if (command === "property_notify") {
-      if (data.id !== this._cardId) return;
-
-      // Only fetch properties that have active subscribers
-      const subscribedNames = data.names?.filter(
-        (n) => this._propertySubscriptions[n]?.length > 0
-      );
-      if (!subscribedNames?.length) return;
-
-      // Invalidate stale cache entries before fetching so GetMany goes to server
-      this._invalidateCache(subscribedNames);
-
-      this.Properties.GetMany(subscribedNames).then((props) => {
-        for (const prop of props) {
-          this._updateCache(prop);
-          this._notifySubscribers(prop.name, prop);
-        }
-      });
-      return;
-    }
-
     if (command === "property_add" || command === "property_update") {
       // PropertyDTO.ParentID is explicitly tagged [JsonProperty("parentId")]
       // server-side (matches WebSocketCommandNames.DataKeyParentId, which
@@ -773,80 +764,76 @@ class CardAPI {
 
   // ── Sandboxed ClientMediator────────────────────────────────────────────
 
-  /**
-   * Internal: send a command through ClientMediator with allowlist enforcement.
-   * All Properties commands have parentId forced to this card's ID.
-   */
+  /** Internal: CardAPI's own property commands (see INTERNAL_COMMANDS). */
   async _sendCommand(panel, command, data) {
-    const key = `${panel}.${command}`;
-    if (!ALLOWED_COMMANDS[key]) {
-      console.error(
-        `CardAPI: blocked command "${key}" — not in allowlist`
-      );
-      return undefined;
+    if (!INTERNAL_COMMANDS[`${panel}.${command}`]) {
+      throw new Error(`CardAPI: internal command "${panel}.${command}" is not allowed`);
     }
-
     return ClientMediator.sendCommandAsync(panel, command, data);
   }
 
+  /** The scoped name of this card's addon panel "addon_<name>". */
+  _scopedPanelName(name) {
+    if (typeof name !== "string" || !name.startsWith(ADDON_PANEL_PREFIX) || name.length === ADDON_PANEL_PREFIX.length) {
+      throw new Error(`CardAPI: panel name must start with "${ADDON_PANEL_PREFIX}" — got "${name}"`);
+    }
+    return `${ADDON_PANEL_PREFIX}${this._cardId}_${name.slice(ADDON_PANEL_PREFIX.length)}`;
+  }
+
   /**
-   * Exposed to addons — restricted to allowed commands only.
-   * Does NOT expose `register()`.
-   */  ClientMediator = {
-    sendCommand: (panel, command, data) => {
+   * What card code can reach through ClientMediator: CARD_COMMANDS and addon_* panels.
+   * Anything else rejects, so a mistake shows up in the card instead of as null.
+   */
+  ClientMediator = {
+    sendCommandAsync: async (panel, command, data) => {
       const key = `${panel}.${command}`;
-      if (!ALLOWED_COMMANDS[key]) {
-        console.error(
-          `CardAPI: blocked command "${key}" — not in allowlist`
-        );
-        return undefined;
+      const group = API_GROUPS[String(panel).toLowerCase()];
+      if (group) throw new Error(`CardAPI: "${key}" — use CardAPI.${group} instead`);
+
+      if (CARD_COMMANDS[key]) {
+        if (key === "Chat.SendMessage") {
+          this.SendChatMessage(data);
+          return undefined;
+        }
+        return ClientMediator.sendCommandAsync(panel, command, data);
       }
-      return ClientMediator.sendCommand(panel, command, data);
+      if (typeof panel === "string" && panel.startsWith(ADDON_PANEL_PREFIX) && !RESERVED_COMMANDS.includes(command)) {
+        return ClientMediator.sendCommandAsync(panel, command, data);
+      }
+      throw new Error(`CardAPI: "${key}" is not available to cards`);
     },
-    sendCommandAsync: (panel, command, data) => {
-      return this._sendCommand(panel, command, data);
-    },
+    sendCommand: (panel, command, data) => this.ClientMediator.sendCommandAsync(panel, command, data),
 
     /**
-     * Register a panel/manager under the addon namespace.
+     * Registers an addon panel for this card: "addon_<name>" becomes
+     * "addon_<cardId>_<name>", so two cards never collide. Each command is handed to
+     * `invoke(name, command, data)` — CardPanel forwards it into the card's frame,
+     * where the handler functions live. Registering the same name again replaces its
+     * commands (the card reloaded). Removed on unregister or when the card closes.
      *
-     * Rules:
-     *  - Name MUST start with "addon_"
-     *  - The actual registered name is scoped to this card:
-     *    "addon_{cardId}_{name}" — prevents cross-addon collisions / squatting.
-     *  - The registration is tracked and automatically cleaned up on destroy().
-     *
-     * @returns {string} The scoped name that was registered (use this when
-     *   calling sendCommand to reach this panel from another addon).
+     * Reachable from actions (RunClientCommand step) and from other cards.
+     * @returns {string} the scoped name to call it by.
      */
-    register: (name, manager) => {
-      if (!name.startsWith(ADDON_PANEL_PREFIX)) {
-        console.error(
-          `CardAPI: register() name must start with "${ADDON_PANEL_PREFIX}" — got "${name}"`
-        );
-        return undefined;
+    register: (name, commands, invoke) => {
+      const scopedName = this._scopedPanelName(name);
+      const client = { id: scopedName, panel: scopedName };
+      for (const command of commands ?? []) {
+        if (typeof command !== "string" || RESERVED_COMMANDS.includes(command)) continue;
+        client[command] = (data) => invoke(name, command, data);
       }
-
-      // Scope to this card's ID so two addons can register "addon_toolbar" without colliding
-      const scopedName = `${ADDON_PANEL_PREFIX}${this._cardId}_${name.slice(ADDON_PANEL_PREFIX.length)}`;
-
-      if (this._registeredPanels.has(scopedName)) {
-        console.warn(`CardAPI: panel "${scopedName}" already registered — skipping`);
-        return scopedName;
-      }
-
-      ClientMediator.register({
-        ...manager,
-        id: scopedName,
-        panel: scopedName,
-      });
-
+      if (this._registeredPanels.has(scopedName)) ClientMediator.unregister(scopedName);
+      ClientMediator.register(client);
       this._registeredPanels.add(scopedName);
       return scopedName;
     },
 
-    // NOTE: unregister() is intentionally NOT exposed directly — cleanup happens
-    // automatically via destroy(). Addons should not unregister each other's panels.
+    /** Removes one of this card's own addon panels. */
+    unregister: (name) => {
+      const scopedName = this._scopedPanelName(name);
+      if (!this._registeredPanels.delete(scopedName)) return false;
+      ClientMediator.unregister(scopedName);
+      return true;
+    },
   };
 
   // ── Chat ────────────────────────────────────────────────────────────────
@@ -896,15 +883,15 @@ class CardAPI {
   // ── Sandboxed WebSocket send ────────────────────────────────────────────
 
   /**
-   * Send a custom command to the server.
-   * Only allowed WS commands and commands prefixed with "custom_" are permitted.
+   * Send a command to the server. Only ALLOWED_WS_COMMANDS are permitted (the bridge
+   * already refuses anything else in the card's frame).
    */
   SendCustomCommandToServer(command, data) {
     this._sendWsCommand(command, data);
   }
 
   _sendWsCommand(command, data) {
-    if (!ALLOWED_WS_COMMANDS[command] && !command.startsWith("custom_")) {
+    if (!ALLOWED_WS_COMMANDS[command]) {
       console.error(
         `CardAPI: blocked WS command "${command}" — not in allowlist`
       );
@@ -1071,12 +1058,9 @@ class PropertiesManager {
       return "--properties is required, since its complex object type this command is not supported (for now)";
     }
 
+    // The server broadcasts a property_update per saved row, which refreshes the cache.
     await WebHelper.postAsync(`properties/UpdateBulk`, properties);
     properties.forEach((x) => { this._propertyCache[x.id] = x; });
-    WebSocketManagerInstance.Send({
-      command: "property_notify",
-      data: { id: properties[0]?.parentId },
-    });
   }
 
   async Add({ property, isCommand, parentId, name, value, entityName }) {
@@ -1096,9 +1080,8 @@ class PropertiesManager {
       return "--properties is required, since its complex object type this command is not supported (for now)";
     }
 
-    await WebHelper.postAsync(`properties/AddMany`, properties);
-    properties.forEach((x) => { this._propertyCache[x.id] = x; });
-    WebSocketManagerInstance.Send({ command: "property_notify" });
+    // New rows have no id yet; the server's property_add broadcast fills the cache.
+    await WebHelper.postAsync(`properties/AddBulk`, properties);
   }
 
   async Remove({ propertyId, isCommand }) {
