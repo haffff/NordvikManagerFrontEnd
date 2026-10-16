@@ -14,7 +14,6 @@ import { OnPreviewEndBehavior } from "./Server/Preview/OnPreviewEnd";
 import { OnPropertyAddBehavior } from "./Server/Properties/OnPropertyAddBehavior";
 import { OnPropertyUpdateBehavior } from "./Server/Properties/OnPropertyUpdateBehavior";
 import { OnPropertyDeleteBehavior } from "./Server/Properties/OnPropertyDeleteBehavior";
-import { OnPropertyNotifyBehavior } from "./Server/Properties/OnPropertyNotifyBehavior";
 import { OnTokenClickedInSelectModeClientBehavior } from "./Client/OnTokenClickedInSelectModeBehavior";
 import { OnMouseDownActionToolClientBehavior } from "./Client/ActionTool/OnMouseDownActionTool";
 import { OnTokenUIActionClickClientBehavior } from "./Client/OnTokenUIActionClickBehavior";
@@ -47,7 +46,6 @@ export const BehaviorDictionaryServer = {
   property_add: new OnPropertyAddBehavior(),
   property_update: new OnPropertyUpdateBehavior(),
   property_remove: new OnPropertyDeleteBehavior(),
-  property_notify: new OnPropertyNotifyBehavior(),
 
   //Previewing, for example ruler
   preview_start: new OnPreviewStartBehavior(),

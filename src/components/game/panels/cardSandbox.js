@@ -12,10 +12,8 @@
  *   into itself.
  * • The iframe has NO allow-same-origin → it has a null origin and cannot
  *   access the parent page's cookies, localStorage, or DOM at all.
- * • The iframe boundary IS the isolation boundary. The sandbox host may still
- *   use an internal Shadow DOM for its own layout, so cards must mount into the
- *   host-provided `cardRoot` container rather than assuming a framework can find
- *   its mount point via document.getElementById(...).
+ * • The iframe boundary IS the isolation boundary. The card owns the whole
+ *   document (sandbox.html writes the card HTML over itself).
  * • CSS from additional resources is injected as normal <link> tags in <head>.
  *   Because the iframe is cross-origin, those styles never affect the parent.
  * • The only communication channel is postMessage (structured-clone; no
@@ -30,16 +28,22 @@
  *   { type: "CMD_RESULT",     reqId, result, error? }
  *   { type: "PROPERTY_EVENT", eventType, name, propData, global?, parentId? }
  *   { type: "WS_EVENT",       command, data }
+ *   { type: "APP_STYLES",     base, theme }
+ *   { type: "MEDIATOR_CALL",  reqId, name, command, data }  (a call to a panel the card registered)
  *
  * postMessage protocol (sandbox → parent)
  * ─────────────────────────────────────────
  *   { type: "SANDBOX_READY" }
  *   { type: "CMD",     reqId, panel, command, data }
+ *       panel "__mediator__": ClientMediator call (command = panel, data = { command, data })
+ *       panel "__register__" / "__unregister__": addon panel (command = name, data = { commands })
+ *   { type: "MEDIATOR_RESULT", reqId, result, error? }
  *   { type: "WS_SEND", command, data }
  *   { type: "CLOSE_PANEL" }
  */
 
 import { validOrigins } from "../../../helpers/sandboxOrigins";
+import { ALLOWED_WS_COMMANDS } from "../../../CardAPI";
 
 // The card's own CSP, from the GM's host list (helpers/sandboxOrigins.js). It goes first
 // in <head>, before the card's styles and scripts, and only tightens the sandbox page's
@@ -65,12 +69,15 @@ export function withCardCsp(html, origins) {
 }
 
 const NONCE_PLACEHOLDER = '__NM_SANDBOX_NONCE__';
+const WS_COMMANDS_PLACEHOLDER = '__NM_WS_COMMANDS__';
 
 /**
  * The CardAPI bootstrap <script> block for a frame with this nonce.
  * Injected into the card's HTML just before </body>.
  */
-export const sandboxBridgeScript = (nonce) => BRIDGE_TEMPLATE.replace(NONCE_PLACEHOLDER, JSON.stringify(String(nonce)));
+export const sandboxBridgeScript = (nonce) =>
+  BRIDGE_TEMPLATE.replace(NONCE_PLACEHOLDER, JSON.stringify(String(nonce)))
+    .replace(WS_COMMANDS_PLACEHOLDER, JSON.stringify(Object.keys(ALLOWED_WS_COMMANDS)));
 
 const BRIDGE_TEMPLATE = `<script>
 (function () {
@@ -79,12 +86,20 @@ const BRIDGE_TEMPLATE = `<script>
   // Messages from the host carry this; anything else is ignored.
   const _nonce = ${NONCE_PLACEHOLDER};
 
+  // Server commands a card may send (CardAPI.js ALLOWED_WS_COMMANDS), nothing else.
+  const _wsCommands = ${WS_COMMANDS_PLACEHOLDER};
+  // A call the app hasn't answered by then rejects (e.g. the panel closed meanwhile).
+  // Resources get longer: uploads go over the paced game connection.
+  const RPC_TIMEOUT_MS = 30000;
+  const RESOURCES_TIMEOUT_MS = 300000;
+
   // ── RPC state ─────────────────────────────────────────────────────────────
   let _reqCounter = 0;
   const _pending = {};                  // reqId → { resolve, reject }
   const _propSubscriptions = {};        // name → callback[]
   const _globalPropSubscriptions = {};  // "parentId:name" → callback[]
   const _wsSubscriptions   = [];        // callback[]
+  const _registrations     = {};        // addon panel name → { command: handler }
 
   // Mutable identity fields — written once on INIT
   let _cardId              = null;
@@ -93,9 +108,22 @@ const BRIDGE_TEMPLATE = `<script>
   function _rpc(panel, command, data) {
     return new Promise((resolve, reject) => {
       const reqId = 'r' + (++_reqCounter);
-      _pending[reqId] = { resolve, reject };
+      const timer = setTimeout(() => {
+        delete _pending[reqId];
+        reject(new Error('CardAPI: no answer from the app for ' + panel + '.' + command));
+      }, panel === 'Resources' ? RESOURCES_TIMEOUT_MS : RPC_TIMEOUT_MS);
+      _pending[reqId] = {
+        resolve: (v) => { clearTimeout(timer); resolve(v); },
+        reject:  (e) => { clearTimeout(timer); reject(e); },
+      };
       parent.postMessage({ type: 'CMD', reqId, panel, command, data }, '*');
     });
+  }
+
+  function _sendToServer(command, data) {
+    const allowed = typeof command === 'string' && _wsCommands.includes(command);
+    if (!allowed) throw new Error('CardAPI: cards may not send "' + command + '" to the server');
+    parent.postMessage({ type: 'WS_SEND', command, data }, '*');
   }
 
   // ── CardAPI surface ────────────────────────────────────────────────────────
@@ -185,23 +213,31 @@ const BRIDGE_TEMPLATE = `<script>
     },
 
     ClientMediator: {
-      sendCommand:      (panel, cmd, data) => _rpc(panel, cmd, data),
-      sendCommandAsync: (panel, cmd, data) => _rpc(panel, cmd, data),
-      register: (name, manager) => _rpc('__register__', name, manager),
+      sendCommand:      (panel, cmd, data) => _rpc('__mediator__', panel, { command: cmd, data }),
+      sendCommandAsync: (panel, cmd, data) => _rpc('__mediator__', panel, { command: cmd, data }),
+
+      // An addon panel: handlers stay in this frame, the app forwards each call here
+      // (MEDIATOR_CALL). Resolves to the scoped name others call it by.
+      register: (name, handlers) => {
+        const commands = Object.keys(handlers ?? {}).filter((k) => typeof handlers[k] === 'function');
+        _registrations[name] = handlers;
+        return _rpc('__register__', name, { commands });
+      },
+      unregister: (name) => {
+        delete _registrations[name];
+        return _rpc('__unregister__', name, {});
+      },
     },
 
     // Must match the real backend WS command (ChatHandler.cs's "chat_push"
     // case, also what src/CardAPI.js's own non-sandboxed SendChatMessage
     // sends) — ALLOWED_WS_COMMANDS only permits "chat_push", so anything
     // else is silently blocked by CardPanel.js's SendCustomCommandToServer.
-    SendChatMessage: (message) =>
-      parent.postMessage({ type: 'WS_SEND', command: 'chat_push', data: message }, '*'),
+    SendChatMessage: (message) => _sendToServer('chat_push', message),
 
-    FireAction: (action, args) =>
-      parent.postMessage({ type: 'WS_SEND', command: 'execute_action', data: { action, args } }, '*'),
+    FireAction: (action, args) => _sendToServer('execute_action', { action, args }),
 
-    SendCustomCommandToServer: (command, data) =>
-      parent.postMessage({ type: 'WS_SEND', command, data }, '*'),
+    SendCustomCommandToServer: (command, data) => _sendToServer(command, data),
 
     // Closes the dockable panel this card is hosted in — e.g. a creator/wizard
     // card that should dismiss itself once its job (create X) is done.
@@ -289,6 +325,20 @@ const BRIDGE_TEMPLATE = `<script>
           style.textContent = css;
         }
         break;
+
+      case 'MEDIATOR_CALL': {
+        const reply = (result, error) =>
+          parent.postMessage({ type: 'MEDIATOR_RESULT', reqId: msg.reqId, result, error }, '*');
+        const handler = _registrations[msg.name]?.[msg.command];
+        if (typeof handler !== 'function') {
+          reply(null, 'CardAPI: ' + msg.name + ' has no command ' + msg.command);
+          break;
+        }
+        Promise.resolve()
+          .then(() => handler(msg.data))
+          .then((result) => reply(result ?? null), (e) => reply(null, String(e?.message ?? e)));
+        break;
+      }
 
       case 'WS_EVENT':
         for (const cb of _wsSubscriptions) {

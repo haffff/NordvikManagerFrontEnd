@@ -22,9 +22,9 @@ import { baseCardCss, cardStyleLinks, onGameCssChange } from "../../../helpers/c
  *    access to parent cookies / localStorage / DOM). The page announces itself with
  *    SANDBOX_HOST_READY and writes the card HTML sent in SANDBOX_LOAD into itself;
  *    it's served with its own, looser CSP, so the app's own CSP can stay strict.
- *  • The iframe renders into a Shadow Root — addon CSS cannot leak out.
+ *  • The iframe is cross-origin, so addon CSS cannot leak out.
  *  • postMessage is the ONLY communication channel (structured-clone, no refs).
- *  • Every inbound CMD is validated against the CardAPI allowlist before execution.
+ *  • ClientMediator calls are checked against the CardAPI allowlist before execution.
  *
  * Protocol (parent → iframe):
  *   SANDBOX_LOAD    { html }   (to the sandbox page, before the card exists)
@@ -32,12 +32,16 @@ import { baseCardCss, cardStyleLinks, onGameCssChange } from "../../../helpers/c
  *   CMD_RESULT      { reqId, result, error? }
  *   PROPERTY_EVENT  { eventType, name, propData, global?, parentId? }
  *   WS_EVENT        { command, data }
- *   LOAD_RESOURCES  { scripts: string[], styles: string[] }
+ *   APP_STYLES      { base, theme }
+ *   MEDIATOR_CALL   { reqId, name, command, data }   (a call to a panel the card registered)
  *
  * Protocol (iframe → parent):
  *   SANDBOX_HOST_READY {}      (the sandbox page, on every (re)load)
  *   SANDBOX_READY   {}
  *   CMD             { reqId, panel, command, data }
+ *                   panel "__mediator__" / "__register__" / "__unregister__", or a CardAPI
+ *                   group (Properties, Resources, Rolls) — see cardSandbox.js
+ *   MEDIATOR_RESULT { reqId, result, error? }
  *   WS_SEND         { command, data }
  *   CLOSE_PANEL     {}
  */
@@ -60,6 +64,22 @@ function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, 
     if (ready) sendToFrame(msg);
     else queue.push(msg);
   };
+
+  // ── Calls to a panel the card registered (CardAPI.ClientMediator.register) ──
+  // The handlers live in the frame: each call goes there and waits for its answer.
+  const MEDIATOR_TIMEOUT_MS = 10000;
+  let mediatorCounter = 0;
+  const mediatorCalls = new Map(); // reqId → { resolve, reject, timer }
+  const invokeFrame = (name, command, data) =>
+    new Promise((resolve, reject) => {
+      const reqId = "m" + ++mediatorCounter;
+      const timer = setTimeout(() => {
+        mediatorCalls.delete(reqId);
+        reject(new Error(`CardAPI: ${name} did not answer ${command}`));
+      }, MEDIATOR_TIMEOUT_MS);
+      mediatorCalls.set(reqId, { resolve, reject, timer });
+      post({ type: "MEDIATOR_CALL", reqId, name, command, data });
+    });
 
   // ── parent → iframe: forward relevant WS / property events ─────────────
   const wsSubKey = "CardPanel_bridge_" + cardId + "_" + Math.random();
@@ -128,6 +148,16 @@ function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, 
       return;
     }
 
+    if (type === "MEDIATOR_RESULT") {
+      const call = mediatorCalls.get(reqId);
+      if (!call) return;
+      mediatorCalls.delete(reqId);
+      clearTimeout(call.timer);
+      if (event.data.error) call.reject(new Error(event.data.error));
+      else call.resolve(event.data.result);
+      return;
+    }
+
     // ── Card asks to close its own panel ────────────────────────────────────
     if (type === "CLOSE_PANEL") {
       onClosePanel?.();
@@ -139,7 +169,7 @@ function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, 
       // FireAction is routed through the real CardAPI method (not a raw send)
       // so cardId injection and the execute_action wire format live in one place.
       if (command === "execute_action" && data && typeof data === "object") {
-        cardApi.FireAction(data.action, data.args);
+        cardApi.FireAction(data.action ?? data.Action, data.args ?? data.Args);
         return;
       }
       cardApi.SendCustomCommandToServer(command, data);
@@ -151,11 +181,17 @@ function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, 
       try {
         let result;
 
-        if (panel === "__register__") {
-          // Scoped panel registration
-          result = cardApi.ClientMediator.register(command, data);        } 
-          
-          else if (panel === "Properties" && command.startsWith("List")) {
+        if (panel === "__mediator__") {
+          // CardAPI.ClientMediator.sendCommand(Async)(command, data.command, data.data)
+          result = await cardApi.ClientMediator.sendCommandAsync(command, data?.command, data?.data);
+
+        } else if (panel === "__register__") {
+          result = cardApi.ClientMediator.register(command, data?.commands, invokeFrame);
+
+        } else if (panel === "__unregister__") {
+          result = cardApi.ClientMediator.unregister(command);
+
+        } else if (panel === "Properties" && command.startsWith("List")) {
           // Repeating-row list ops (never global — a list property always
           // belongs to this card). Property.List[command] lookup is separate
           // from the flat cardApi.Properties[command] lookup below because
@@ -283,8 +319,7 @@ function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, 
           }
 
         } else {
-          // Generic allowlisted ClientMediator command
-          result = await cardApi.ClientMediator.sendCommandAsync(panel, command, data);
+          throw new Error(`Unknown CardAPI call: ${panel}.${command}`);
         }
 
         sendToFrame({ type: "CMD_RESULT", reqId, result: result ?? null });
@@ -306,6 +341,11 @@ function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, 
   const cleanup = () => {
     hostWindow.removeEventListener("message", onMessage);
     WebSocketManagerInstance.Unsubscribe(wsSubKey);
+    for (const call of mediatorCalls.values()) {
+      clearTimeout(call.timer);
+      call.reject(new Error("CardAPI: the card closed"));
+    }
+    mediatorCalls.clear();
     cardApi.destroy();
   };
   // For the panel's own messages to the page (queued until it's ready).
@@ -390,7 +430,10 @@ export const CardPanel = ({ id, name, data }) => {
       //    • The sandbox page is framed with sandbox="allow-scripts" → null
       //      origin, so it cannot access parent cookies / localStorage / DOM.
 
-      const rawHtml = mainResourceMeta?.data ? atob(mainResourceMeta.data) : "<html><body></body></html>";
+      // Resource bytes are UTF-8 (atob alone would read them as Latin-1).
+      const rawHtml = mainResourceMeta?.data
+        ? new TextDecoder().decode(Uint8Array.from(atob(mainResourceMeta.data), (c) => c.charCodeAt(0)))
+        : "<html><body></body></html>";
 
       // The card HTML is a CRA (or similar) production build whose asset paths
       // are root-relative (e.g. /static/js/main.abc.js), which would resolve

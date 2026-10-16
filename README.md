@@ -96,7 +96,7 @@ flowchart TB
 
 ### Addon communication
 
-Addon-authored code runs inside a sandboxed `blob:` iframe (`sandbox="allow-scripts"`, null origin) and can *only* talk to the rest of the app through **[CardAPI](src/CardAPI.js)** — call `CardAPI.Properties.*`, `CardAPI.Resources.*`, `CardAPI.ClientMediator.*`, `CardAPI.FireAction(...)`, etc. from inside the sandbox and it takes care of getting the request to the right place (with an allowlist enforced on the host side). A full CardAPI method reference will live on a separate docs site — this README just covers where things fit.
+Addon-authored code runs inside a sandboxed iframe — the app's own `public/sandbox.html` (`sandbox="allow-scripts"`, null origin) — and can *only* talk to the rest of the app through **[CardAPI](src/CardAPI.js)**: call `CardAPI.Properties.*`, `CardAPI.Resources.*`, `CardAPI.ClientMediator.*`, `CardAPI.FireAction(...)`, etc. from inside the sandbox and it takes care of getting the request to the right place (with an allowlist enforced on the host side). The full reference for addon authors is in the [Addon guide → Cards](https://nordvikmanager.pl/addon-guide/cards/card-api); this README just covers where things fit.
 
 Two trusted host panels create a sandbox like this:
 - **`CardPanel`** — a card *instance* created from a Template (see `TemplatesPanel`, where card Templates are authored/managed).
@@ -108,7 +108,7 @@ Sandboxed JS cannot reach the Backend on its own — for addon logic that needs 
 
 ```mermaid
 flowchart TB
-    subgraph Sandbox["Sandboxed addon code\n(blob: iframe — a CardPanel instance\nor a CustomViewsPanel view)"]
+    subgraph Sandbox["Sandboxed addon code\n(sandbox.html iframe — a CardPanel instance\nor a CustomViewsPanel view)"]
         AddonJS["Addon JS/HTML"]
     end
 

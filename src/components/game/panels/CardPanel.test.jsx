@@ -15,7 +15,13 @@ vi.mock('@hlorenzi/react-dockable', () => ({
 vi.mock('../../uiComponents/base/BasePanel', () => ({ BasePanel: ({ children }) => <div>{children}</div> }));
 vi.mock('../../uiComponents/hooks/useUUID', () => ({ default: () => 'panel-1' }));
 vi.mock('../../../helpers/DockableHelper', () => ({ default: { getGlobalState: vi.fn() } }));
-vi.mock('../../../CardAPI', () => ({ default: async () => ({ destroy: vi.fn() }) }));
+// The host-side CardAPI this card's frame talks to (tests set the methods they need).
+const cardApi = vi.hoisted(() => ({}));
+vi.mock('../../../CardAPI', () => ({
+  default: async () => cardApi,
+  ALLOWED_WS_RECEIVE_PREFIXES: ['property_', 'chat_', 'custom_'],
+  ALLOWED_WS_COMMANDS: { chat_push: true, execute_action: true },
+}));
 const b64 = (text) => btoa(String.fromCharCode(...new TextEncoder().encode(text)));
 vi.mock('../../../helpers/transport', () => ({
   ActiveWebHelper: {
@@ -26,7 +32,7 @@ vi.mock('../../../helpers/transport', () => ({
         return server.appStyles === undefined ? [] : [{ name: 'app_styles', value: server.appStyles }];
       }
       if (path === 'materials/ResourceMetadata?id=main') {
-        return { mimeType: 'text/html', data: b64('<html><head></head><body><p>card</p></body></html>') };
+        return { mimeType: 'text/html', data: b64('<html><head></head><body><p>card</p><p>Zażółć gęślą jaźń</p></body></html>') };
       }
       if (path === 'materials/ResourceMetadata?id=css1') return { mimeType: 'text/css', data: b64('.card{}') };
       if (path === 'security/sandboxorigins') return { origins: ['https://cdn.example.com'] };
@@ -37,6 +43,17 @@ vi.mock('../../../helpers/transport', () => ({
 }));
 
 import { CardPanel } from './CardPanel';
+import { beforeEach as beforeEachTest } from 'vitest';
+
+beforeEachTest(() => {
+  for (const key of Object.keys(cardApi)) delete cardApi[key];
+  Object.assign(cardApi, {
+    destroy: vi.fn(),
+    FireAction: vi.fn(),
+    SendCustomCommandToServer: vi.fn(),
+    ClientMediator: { sendCommandAsync: vi.fn(async () => 'game-1'), register: vi.fn(() => 'addon_card-1_t'), unregister: vi.fn(() => true) },
+  });
+});
 import DockableHelper from '../../../helpers/DockableHelper';
 import { setAppliedGameCss } from '../../../helpers/cardAppStyles';
 
@@ -204,5 +221,65 @@ describe('CardPanel, closing from the card', () => {
       ['coallesceEmptyPanels', state],
       ['commit'],
     ]);
+  });
+});
+
+describe('CardPanel, card HTML', () => {
+  // The main resource is UTF-8; decoding it as Latin-1 turned non-ASCII text to mojibake.
+  it('decodes the card page as UTF-8', async () => {
+    expect((await openCard()).hostReady()).toContain('Zażółć gęślą jaźń');
+  });
+});
+
+describe('CardPanel, calls from the card', () => {
+  const ready = async () => {
+    const card = await openCard();
+    card.hostReady();
+    card.fromFrame({ type: 'SANDBOX_READY' });
+    const sent = (type) => card.posted.mock.calls.map(([m]) => m).filter((m) => m.type === type);
+    return { ...card, sent };
+  };
+
+  it('hands ClientMediator calls to the CardAPI allowlist', async () => {
+    const { fromFrame, sent } = await ready();
+
+    fromFrame({ type: 'CMD', reqId: 'r1', panel: '__mediator__', command: 'Game', data: { command: 'GetGameId', data: { x: 1 } } });
+
+    await waitFor(() => expect(sent('CMD_RESULT').find((m) => m.reqId === 'r1')).toMatchObject({ result: 'game-1' }));
+    expect(cardApi.ClientMediator.sendCommandAsync).toHaveBeenCalledWith('Game', 'GetGameId', { x: 1 });
+  });
+
+  it('reports a refused call as an error', async () => {
+    cardApi.ClientMediator.sendCommandAsync.mockRejectedValue(new Error('CardAPI: "Game.DeleteGame" is not available to cards'));
+    const { fromFrame, sent } = await ready();
+
+    fromFrame({ type: 'CMD', reqId: 'r2', panel: '__mediator__', command: 'Game', data: { command: 'DeleteGame' } });
+
+    await waitFor(() => expect(sent('CMD_RESULT').find((m) => m.reqId === 'r2')?.error).toContain('not available to cards'));
+  });
+
+  it('forwards calls to a panel the card registered into the frame, and returns its answer', async () => {
+    const { fromFrame, sent } = await ready();
+
+    fromFrame({ type: 'CMD', reqId: 'r3', panel: '__register__', command: 'addon_t', data: { commands: ['Next'] } });
+    await waitFor(() => expect(sent('CMD_RESULT').find((m) => m.reqId === 'r3')).toMatchObject({ result: 'addon_card-1_t' }));
+    const [name, commands, invoke] = cardApi.ClientMediator.register.mock.calls[0];
+    expect([name, commands]).toEqual(['addon_t', ['Next']]);
+
+    const answer = invoke('addon_t', 'Next', { by: 2 });
+    const call = sent('MEDIATOR_CALL').at(-1);
+    expect(call).toMatchObject({ name: 'addon_t', command: 'Next', data: { by: 2 } });
+    fromFrame({ type: 'MEDIATOR_RESULT', reqId: call.reqId, result: 4 });
+    expect(await answer).toBe(4);
+  });
+
+  it('accepts an action as { action, args } or { Action, Args }', async () => {
+    const { fromFrame } = await ready();
+
+    fromFrame({ type: 'WS_SEND', command: 'execute_action', data: { action: 'dnd5e/a', args: { x: 1 } } });
+    fromFrame({ type: 'WS_SEND', command: 'execute_action', data: { Action: 'dnd5e/b', Args: { y: 2 } } });
+
+    expect(cardApi.FireAction).toHaveBeenNthCalledWith(1, 'dnd5e/a', { x: 1 });
+    expect(cardApi.FireAction).toHaveBeenNthCalledWith(2, 'dnd5e/b', { y: 2 });
   });
 });
