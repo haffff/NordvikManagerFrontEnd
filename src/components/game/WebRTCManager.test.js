@@ -65,6 +65,9 @@ const { protocolMock } = vi.hoisted(() => ({
 }));
 vi.mock('../../helpers/protocol', () => protocolMock);
 
+const { recordMock } = vi.hoisted(() => ({ recordMock: vi.fn() }));
+vi.mock('../../helpers/demoRecorder', () => ({ demoRecorder: { record: recordMock } }));
+
 import WebRTCManagerInstance, { iceServersFrom, describeIceServers } from './WebRTCManager';
 import TokenStore from '../../helpers/TokenStore';
 
@@ -205,6 +208,28 @@ describe('WebRTCManager', () => {
 
   // Chunked messages from the data channel: bad indices or totals must not
   // assemble a message early or allocate huge buffers.
+  describe('demo recording', () => {
+    beforeEach(() => {
+      WebRTCManagerInstance._dataChannel = { readyState: 'open', bufferedAmount: 0, send: vi.fn(), close: vi.fn() };
+      vi.spyOn(WebRTCManagerInstance, '_dispatchToSubscribers').mockImplementation(() => {});
+    });
+    afterEach(() => vi.restoreAllMocks());
+
+    it('records commands and api-requests going out', async () => {
+      WebRTCManagerInstance.Send({ command: 'element_update', data: { id: 'e1' } });
+      await WebRTCManagerInstance.sendRaw({ type: 'api-request', id: 'r1', method: 'GET', path: 'api/x' });
+      expect(recordMock).toHaveBeenCalledWith('out', { command: 'element_update', data: { id: 'e1' } });
+      expect(recordMock).toHaveBeenCalledWith('out', { type: 'api-request', id: 'r1', method: 'GET', path: 'api/x' });
+    });
+
+    it('records answers as they arrive, and broadcasts as subscribers get them', () => {
+      WebRTCManagerInstance._handleChannelMessage({ data: JSON.stringify({ type: 'api-response', id: 'r1', status: 200, body: { Id: 1 } }) });
+      WebRTCManagerInstance._handleChannelMessage({ data: JSON.stringify({ Command: 'chat_push', Data: 'hi' }) });
+      expect(recordMock).toHaveBeenCalledWith('in', { type: 'api-response', id: 'r1', status: 200, body: { Id: 1 } });
+      expect(recordMock).toHaveBeenCalledWith('in', { command: 'chat_push', data: 'hi' });
+    });
+  });
+
   describe('chunk reassembly', () => {
     let dispatched;
     const chunk = (chunkId, index, total, data) => WebRTCManagerInstance._handleChannelMessage({ data: JSON.stringify({ type: 'chunk', chunkId, index, total, data }) });

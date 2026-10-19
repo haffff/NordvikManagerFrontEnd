@@ -10,8 +10,7 @@ import CentralWebHelper from "../../helpers/CentralWebHelper";
 // the Backend's real HTTP endpoint with the browser's actual cookies attached —
 // the same pattern GMApp.js already uses for this class of call.
 import WebHelper from "../../helpers/WebHelper";
-
-const IS_PLAYER_MODE = process.env.REACT_APP_MODE === 'player';
+import { isDemo, isPlayerMode } from "../../helpers/appMode";
 
 // Built-in shortcut catalog. Values are plain {panel, command} descriptors
 // (not closures) so they can be merged 1:1 with the same-shaped bindings
@@ -141,14 +140,16 @@ class KeyboardEventsManager {
 export default KeyboardEventsManager;
 
 export async function fetchSavedBindings() {
-  const helper = IS_PLAYER_MODE ? CentralWebHelper : WebHelper;
+  if (isDemo()) return null; // no server behind the demo: the defaults apply
+  const helper = isPlayerMode() ? CentralWebHelper : WebHelper;
   return await helper.getAsync("user/KeyboardBindings");
 }
 
 // Both CentralWebHelper.postAsync and WebHelper.postAsync resolve to a real
 // fetch Response (`.ok`) — unlike WebRTCWebHelper, which resolves {status, body}.
 export async function saveBindings(bindings) {
-  const helper = IS_PLAYER_MODE ? CentralWebHelper : WebHelper;
+  if (isDemo()) return { ok: false };
+  const helper = isPlayerMode() ? CentralWebHelper : WebHelper;
   const resp = await helper.postAsync("user/KeyboardBindings", bindings);
   return { ok: !!resp?.ok };
 }

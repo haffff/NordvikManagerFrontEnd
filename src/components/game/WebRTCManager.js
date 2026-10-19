@@ -11,6 +11,7 @@ import SignalingClient, { SIGNAL_EVENTS } from '../../helpers/SignalingClient';
 import WebRTCWebHelperInstance from '../../helpers/WebRTCWebHelper';
 import TokenStore from '../../helpers/TokenStore';
 import { debugLog } from '../../helpers/debugLog';
+import { demoRecorder } from '../../helpers/demoRecorder';
 import CentralWebHelper, { refreshAccessToken } from '../../helpers/CentralWebHelper';
 import {
   PROTOCOL_VERSION,
@@ -316,6 +317,7 @@ class WebRTCManager {
 
   Send(command) {
     if (!command) return false;
+    demoRecorder.record('out', command);
 
     if (this.isChannelReady()) {
       try {
@@ -342,6 +344,7 @@ class WebRTCManager {
       this._log('warn', `sendRaw called before channel ready, readyState=${this._dataChannel?.readyState}`);
       return Promise.reject(new Error('Data channel closed'));
     }
+    demoRecorder.record('out', message);
     const json = JSON.stringify(message);
     this._log('log', `sendRaw: ${message.method} ${message.path} (${json.length}b)`);
 
@@ -570,23 +573,25 @@ class WebRTCManager {
         if (entry.received < entry.total) return; // wait for remaining chunks
         clearTimeout(entry.staleTimeout);
         this._chunkBuffer.delete(chunkId);
-        const assembled = JSON.parse(entry.parts.join(''));
-        if (assembled?.type === 'api-response') {
-          WebRTCWebHelperInstance.handleApiResponse(assembled);
-        } else {
-          this._dispatchToSubscribers(_camelizeKeys(assembled));
-        }
+        this._routeIncoming(JSON.parse(entry.parts.join('')));
         return;
       }
 
-      // Route api-responses to WebRTCWebHelper; everything else to subscribers
-      if (data?.type === 'api-response') {
-        WebRTCWebHelperInstance.handleApiResponse(data);
-      } else {
-        this._dispatchToSubscribers(_camelizeKeys(data));
-      }
+      this._routeIncoming(data);
     } catch (e) {
       this._log('error', 'Failed to parse data channel message', e);
+    }
+  }
+
+  // Route api-responses to WebRTCWebHelper; everything else to subscribers.
+  _routeIncoming(data) {
+    if (data?.type === 'api-response') {
+      demoRecorder.record('in', data);
+      WebRTCWebHelperInstance.handleApiResponse(data);
+    } else {
+      const message = _camelizeKeys(data);
+      demoRecorder.record('in', message);
+      this._dispatchToSubscribers(message);
     }
   }
 

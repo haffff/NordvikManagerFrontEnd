@@ -10,6 +10,7 @@ import DockableHelper from '../../../helpers/DockableHelper';
 import { _entityPermissionSetter } from '../../../contexts/PermissionsContext';
 import { ENTITY_TYPES, PERM } from '../../BattleMap/Helpers/permissionBits';
 import { resetSandboxOrigins } from '../../../helpers/sandboxOrigins';
+import { isPlayerMode } from '../../../helpers/appMode';
 
 // Global flags to prevent duplicate game initialization
 let gameInitializationInProgress = false;
@@ -89,7 +90,7 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
       setPlayers(game.players);
 
       // Load game-level entity permissions for non-GM players
-      if (!gmStatus && process.env.REACT_APP_MODE === 'player') {
+      if (!gmStatus && isPlayerMode()) {
         try {
           const gamePerms = await WebHelper.getAsync(
             `security/permissions?entityId=${game.id}&entityType=${ENTITY_TYPES.GAME}`

@@ -1,5 +1,22 @@
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
+import path from 'node:path'
+
+// Demo builds: every import of src/helpers/transport.js gets src/demo/DemoTransport.js
+// instead, so the app talks to the in-browser DemoServer. Other builds never see it.
+const demoTransport = () => {
+  const transportFile = path.resolve(__dirname, 'src/helpers/transport.js')
+  const demoFile = path.resolve(__dirname, 'src/demo/DemoTransport.js')
+  return {
+    name: 'nordvik-demo-transport',
+    enforce: 'pre',
+    async resolveId(source, importer, options) {
+      if (!/transport(\.js)?$/.test(source) || importer === demoFile) return null
+      const resolved = await this.resolve(source, importer, { ...options, skipSelf: true })
+      return resolved && path.resolve(resolved.id) === transportFile ? demoFile : null
+    },
+  }
+}
 
 export default defineConfig(({ mode }) => {
   // Load all vars from .env files (empty prefix = load everything)
@@ -12,13 +29,16 @@ export default defineConfig(({ mode }) => {
       .map(([k, v]) => [`process.env.${k}`, JSON.stringify(v)])
   )
 
-  const isPlayer = ({ ...fileEnv, ...process.env }).REACT_APP_MODE === 'player'
+  const appMode = ({ ...fileEnv, ...process.env }).REACT_APP_MODE
+  const isPlayer = appMode === 'player'
+  const isDemo = appMode === 'demo'
 
   return {
     // Player builds use a relative base so the same build works both at /client/ (latest)
     // and at /client/p<N>/ (frozen build per protocol version, see src/helpers/protocol.js).
-    base: isPlayer ? './' : '/',
-    plugins: [react()],
+    // The demo is served from /client/demo/.
+    base: isPlayer || isDemo ? './' : '/',
+    plugins: [react(), ...(isDemo ? [demoTransport()] : [])],
 
     define: {
       'process.env.NODE_ENV': JSON.stringify(mode === 'production' ? 'production' : 'development'),
@@ -45,8 +65,9 @@ export default defineConfig(({ mode }) => {
       environment: 'jsdom',
       setupFiles: ['./src/setupTests.js'],
       // Vitest blanks CSS files unless listed here; helpers/cardAppStyles.js
-      // reads these two as text (?raw) and its tests check that text.
-      css: { include: [/stylesheets[\\/](panel|card-base)\.css/] },
+      // reads these two as text (?raw) and its tests check that text; so does
+      // the demo's mock game (src/demo/mock), for its card template.
+      css: { include: [/stylesheets[\\/](panel|card-base)\.css/, /demo[\\/]mock[\\/]/] },
       server: {
         deps: {
           // Force ESM processing for styled-components and the dockable library

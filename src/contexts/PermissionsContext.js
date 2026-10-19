@@ -1,5 +1,6 @@
 import * as React from 'react';
 import { PERM } from '../components/BattleMap/Helpers/permissionBits';
+import { isPlayerMode } from '../helpers/appMode';
 
 export const ROLES = {
   ADMIN: 'admin',
@@ -47,7 +48,7 @@ const PermissionsContext = React.createContext({
  * entityPermissions state.  GMs/Admins always receive PERM.ALL.
  */
 export const PermissionsProvider = ({ isGM, children }) => {
-  const isAdmin = process.env.REACT_APP_MODE !== 'player';
+  const isAdmin = !isPlayerMode();
 
   const currentRole = isAdmin
     ? ROLES.ADMIN

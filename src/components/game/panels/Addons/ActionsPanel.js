@@ -1,5 +1,6 @@
 import * as React from "react";
 import { Badge, Box, Button, Flex, HStack, Input, Spinner, Text } from "@chakra-ui/react";
+import { BasePanel } from "../../../uiComponents/base/BasePanel";
 import * as Dockable from "@hlorenzi/react-dockable";
 import { FaBolt } from "@react-icons/all-files/fa/FaBolt";
 import { FaChevronDown } from "@react-icons/all-files/fa/FaChevronDown";
@@ -269,7 +270,7 @@ export const ActionsPanel = () => {
   };
 
   return (
-    <>
+    <BasePanel>
       <CollectionSyncer
         commandPrefix="action" collection={actions} setCollection={setActions}
         onAdd={(a) => {
@@ -321,7 +322,7 @@ export const ActionsPanel = () => {
           </DialogFooter>
         </DialogContent>
       </DialogRoot>
-    </>
+    </BasePanel>
   );
 };
 
