@@ -701,6 +701,7 @@ export const ChatPanel = () => {
                 variant={diceOpen ? "solid" : "ghost"}
                 aria-label="Roll dice"
                 title="Roll dice"
+                data-tour="chat-dice"
                 alignSelf="flex-end"
                 mb="1px"
                 ml="4px"
