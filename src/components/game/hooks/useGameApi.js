@@ -7,6 +7,7 @@ import UtilityHelper from '../../../helpers/UtilityHelper';
 import { ROLES } from '../../../contexts/PermissionsContext';
 import { _entityPermissionSetter } from '../../../contexts/PermissionsContext';
 import BrowserWindowPortal from '../../uiComponents/base/BrowserWindowPortal';
+import { isPlayerMode } from '../../../helpers/appMode';
 
 // (recentContextOps removed — replaced with pendingBMContextIds ref inside useGameApi)
 
@@ -266,12 +267,12 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
       GetGame: () => gameRef.current,
       GetOwner: () => gameRef.current?.master?.id,
       GetIsGM: () => {
-        const isAdmin = process.env.REACT_APP_MODE !== 'player';
+        const isAdmin = !isPlayerMode();
         if (isAdmin) return true;
         return isGM;
       },
       GetRole: () => {
-        const isAdmin = process.env.REACT_APP_MODE !== 'player';
+        const isAdmin = !isPlayerMode();
         if (isAdmin) return ROLES.ADMIN;
         return isGM ? ROLES.GM : ROLES.PLAYER;
       },

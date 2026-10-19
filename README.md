@@ -147,3 +147,18 @@ The map is a [Fabric.js](http://fabricjs.com/) canvas, set up in [LoadCanvas](sr
 
 All UI colours are CSS variables a game stylesheet (or a theme addon) can override — the list is in [themeColors](src/helpers/themeColors.js) and [index.css](src/index.css), and documented in the user guide's "Custom styling" page. Highlights (selection, current tab, current turn, focus, drop targets) all use one variable, `--nordvik-accent`; status colours (green / orange / red) keep their own meaning.
 
+
+## Demo
+
+`pnpm run buildci_demo` builds the public demo (served at `/client/demo/`): the real game screen with no server behind it, in the GM's or a player's view (`?role=player`). `pnpm start_demo` runs it locally.
+
+- In demo builds, `vite.config.js` resolves `src/helpers/transport.js` to [DemoTransport](src/demo/DemoTransport.js), which answers every request and command in the browser through [DemoServer](src/demo/DemoServer.js). Other builds don't include any of it. `src/helpers/appMode.js` tells the code which view is showing.
+- `DemoServer` answers REST requests from a fixture (`src/demo/fixtures/gm.json`, `player.json`) and imitates the server for the common commands: moving and adding things, property and list changes, chat and `/r` rolls, card rolls. Actions and other chat commands replay what the server sent when the fixture was recorded. Anything else shows "not available in the demo". Nothing is saved; Reset or a reload starts over.
+- Until there is a recording (the fixture files have no requests), the demo serves the hand-made game in [mockGame.js](src/demo/mockGame.js): the default layout a new game gets plus the panels the player tour points at, one map with a room and two tokens, a short chat, a turn order, and Note cards from the built-in Basics addon (its files are copied in `src/demo/mock/basics`; keep them in step with the Backend's `BuiltInAddons/basics`). A recording replaces it entirely.
+
+**Recording the fixtures.** Use a dedicated demo game (nothing private: everything the client receives goes into the demo).
+1. In the browser console of the GM client: `localStorage.nm_record_demo = "1"`, then reload.
+2. Click through everything a visitor should see: maps, tokens, sheets and their roll buttons, chat, turn order, the addon and action panels.
+3. `nmDemoRecorder.download()` saves the recording; `localStorage.removeItem("nm_record_demo")` turns recording off.
+4. `node scripts/demo/build-fixtures.mjs <recording.json> gm` writes `src/demo/fixtures/gm.json`. It refuses recordings with credentials or email addresses in them.
+5. Do the same in a player client for `player`.

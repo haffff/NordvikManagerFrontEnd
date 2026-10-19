@@ -113,6 +113,9 @@ importers:
       jsdom:
         specifier: ^25.0.0
         version: 25.0.1(canvas@2.11.2)
+      playwright-core:
+        specifier: 1.63.0
+        version: 1.63.0
       vite:
         specifier: ^5.4.0
         version: 5.4.21
@@ -3129,6 +3132,11 @@ packages:
 
   picomodal@3.0.0:
     resolution: {integrity: sha512-FoR3TDfuLlqUvcEeK5ifpKSVVns6B4BQvc8SDF6THVMuadya6LLtji0QgUDSStw0ZR2J7I6UGi5V2V23rnPWTw==}
+
+  playwright-core@1.63.0:
+    resolution: {integrity: sha512-rYCsBF/M5HjUch52bbtVONEFjv6Xu8sm8h72dNlR5bzIE1fvC/bxgspzkjSfU+MweEMmPM8KJebG6nnyxo5mCg==}
+    engines: {node: '>=20'}
+    hasBin: true
 
   possible-typed-array-names@1.1.0:
     resolution: {integrity: sha512-/+5VFTchJDoVj3bhoqi6UeymcD00DAwb1nJwamzPvHEszJ4FpF6SNNbUbOS8yI56qHzdV8eK0qEfOSiodkTdxg==}
@@ -7783,6 +7791,8 @@ snapshots:
   picomatch@2.3.2: {}
 
   picomodal@3.0.0: {}
+
+  playwright-core@1.63.0: {}
 
   possible-typed-array-names@1.1.0: {}
 
