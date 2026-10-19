@@ -10,6 +10,7 @@ import {
   Text,
 } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
+import { BasePanel } from "../../../uiComponents/base/BasePanel";
 import { JSONTree } from "react-json-tree";
 import { FaBroom } from "@react-icons/all-files/fa/FaBroom";
 import { FaBug } from "@react-icons/all-files/fa/FaBug";
@@ -595,7 +596,7 @@ export const DebugConsolePanel = ({ state, actionName: initialActionName }) => {
 
   // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <>
+    <BasePanel>
       <Subscribable onMessage={handleIncomingMessage} commandPrefix="" />
 
       <Flex direction="column" height="100%" bg={BG_SURFACE} overflow="hidden">
@@ -899,7 +900,7 @@ export const DebugConsolePanel = ({ state, actionName: initialActionName }) => {
 
         </Flex>
       </Flex>
-    </>
+    </BasePanel>
   );
 };
 

@@ -8,6 +8,7 @@ import { useDragOptimization } from './DragOptimizationContext';
 import { HelpIcon } from './HelpIcon';
 import LayoutHelper from "../../../helpers/LayoutCloneHelper";
 import { ErrorBoundary } from './ErrorBoundary';
+import { panelHelp } from '../../../helpers/panelHelp';
 
 // ── Drag overlay ──────────────────────────────────────────────────────────────
 // Consumes the drag context and renders the overlay + visibility wrapper.
@@ -76,14 +77,21 @@ const BasePanelComponent = (props) => {
     // stylesheet can target one: .nm_basePanel[data-panel="ChatPanel"].
     const panelType = ctx?.layoutContent?.content?.element?.type;
     const panelKey = panelType ? LayoutHelper._resolvePanelKey(panelType) : undefined;
+    // Without a title row, the help (its own, or the panel's page in the user guide,
+    // helpers/panelHelp.js) is a small icon in the top-right corner.
+    const help = panelHelp(panelKey, { text: helpText, docUrl });
 
     return (
         <Flex ref={baseRef} {...rest} className='nm_basePanel' data-panel={panelKey} position="relative">
             <DragOverlay currentPanel={currentPanel}>
-                {title && (
+                {title ? (
                     <Flex align="center" gap="6px" padding="6px 8px" flexShrink={0}>
                         <Heading size="xs">{title}</Heading>
-                        <HelpIcon text={helpText} docUrl={docUrl} />
+                        <HelpIcon text={help?.text} docUrl={help?.docUrl} />
+                    </Flex>
+                ) : help && (
+                    <Flex className="nm_panelHelp" position="absolute" top="2px" right="4px" zIndex={2} opacity={0.7} _hover={{ opacity: 1 }}>
+                        <HelpIcon text={help.text} docUrl={help.docUrl} />
                     </Flex>
                 )}
                 <ErrorBoundary name={panelKey ?? 'panel'} fallback={({ reset }) => <PanelError reset={reset} />}>
