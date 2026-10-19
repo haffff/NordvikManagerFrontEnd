@@ -21,6 +21,7 @@ import { PermissionsProvider } from "../../contexts/PermissionsContext";
 import PlaybackManager from "./PlaybackManager";
 import TurnOrderManager from "./turnOrder/TurnOrderManager";
 import RequestInputManager from "./RequestInputManager";
+import PlayerTour from "./tutorial/PlayerTour";
 import LayoutAutoSaveManager from "./LayoutAutoSaveManager";
 import MinimizedWindowsBar from "./MinimizedWindowsBar";
 import { useDockModifier } from "../../helpers/dockSettings";
@@ -116,7 +117,7 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
 
   // Initialize custom hooks
   const eventHandlers = useGameEventHandlers({ state: dockState, gameState, CreateLayoutElement });
-  const { loadGame, initError, clearInitError, resetInitialization, isInitialized } = useGameInitialization({ state: dockState, gameState, CreateLayoutElement });
+  const { loadGame, initError, clearInitError, resetInitialization, isInitialized, ready } = useGameInitialization({ state: dockState, gameState, CreateLayoutElement });
 
   // Reset the module-level initialization flag on unmount so that re-entering the same
   // game (e.g. after being kicked and rejoining) triggers a fresh loadGame call.
@@ -216,6 +217,7 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
       <PlaybackManager />
       <TurnOrderManager isGM={isGM} />
       <RequestInputManager />
+      <PlayerTour ready={ready} isGM={isGM} />
       <LayoutAutoSaveManager state={state} battlemapsRef={battleMapContexts} />
       <MainToolbar
         key={resolvedGameId}
@@ -223,7 +225,7 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
         gameDataManagerRef={gameDataManagerRef}
         battlemapsRef={battleMapContexts}
         forceRefreshGame={forceUpdate}
-      />      <Flex className="nm_dock" style={{ height: "100%", overflow: "hidden" }}>
+      />      <Flex className="nm_dock" data-tour="dock" style={{ height: "100%", overflow: "hidden" }}>
       <Dockable.Container state={state} dockModifier={dockModifier} onPopOut={DockableHelper.getPopOutHandler()} />
       </Flex><QuickCommandDialog state={dockState} openRef={quickCommandDialogOpenRef} />
       

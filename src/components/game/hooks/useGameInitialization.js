@@ -31,6 +31,8 @@ let gameInitGeneration = 0;
  */
 export const useGameInitialization = ({ state, gameState, CreateLayoutElement }) => {
   const [initError, setInitError] = useState(null);
+  // True once the game and its layout are loaded (e.g. to start the player tour).
+  const [ready, setReady] = useState(false);
   const {
     setCurrentPlayerId,
     setPlayers,
@@ -155,6 +157,7 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
 
       if (myGeneration === gameInitGeneration) {
         gameInitialized = true;
+        setReady(true);
         console.log('Game initialization completed successfully');
       } else {
         console.log('useGameInitialization: completed after being superseded — discarding result');
@@ -185,11 +188,13 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
       gameInitGeneration++;
       gameInitializationInProgress = false;
       gameInitialized = false;
+      setReady(false);
       // The next game may be another GM's backend, with its own allowed hosts.
       resetSandboxOrigins();
       setInitError(null);
       console.log('Game initialization state reset');
     },
     isInitialized: () => gameInitialized,
+    ready,
   };
 };

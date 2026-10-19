@@ -1,6 +1,7 @@
 import * as React from "react";
 import { FaMailBulk } from "@react-icons/all-files/fa/FaMailBulk";
 import { FaTerminal } from "@react-icons/all-files/fa/FaTerminal";
+import { FaQuestionCircle } from "@react-icons/all-files/fa/FaQuestionCircle";
 import { DropDownItem } from "../../uiComponents/base/DDItems/DropDownItem";
 import { DropDownMenu } from "../../uiComponents/base/DDItems/DropDownMenu";
 import ToolBar from "./ToolBar";
@@ -92,6 +93,12 @@ export const MainToolbar = ({
           name={"Run command"}
           icon={<FaTerminal />}
           onClick={() => ClientMediator.sendCommand("game", "OpenRun")}
+        />
+        <DropDownItem
+          width={150}
+          name={"Show tutorial"}
+          icon={<FaQuestionCircle />}
+          onClick={() => ClientMediator.sendCommand("Tutorial", "Start")}
         />
         <DropDownItem
           width={150}

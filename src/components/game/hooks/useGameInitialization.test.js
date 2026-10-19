@@ -80,6 +80,25 @@ describe('useGameInitialization generation token', () => {
     expect(gameState.setCurrentPlayerId).not.toHaveBeenCalled();
   });
 
+  it('ready turns true once the game has loaded, and false again on reset', async () => {
+    const gameState = makeGameState();
+    const { result } = renderHook(() =>
+      useGameInitialization({ state: {}, gameState, CreateLayoutElement: vi.fn() })
+    );
+    WebHelper.getAsync.mockImplementation(async (path) => {
+      if (path === 'battlemap/getplayer') return { id: 'p1' };
+      if (path === 'battlemap/getfullgame') return { id: 'g1', master: { id: 'p1' }, players: [], battleMaps: [] };
+      return null;
+    });
+
+    expect(result.current.ready).toBe(false);
+    await act(async () => { await result.current.loadGame(); });
+    expect(result.current.ready).toBe(true);
+
+    act(() => { result.current.resetInitialization(); });
+    expect(result.current.ready).toBe(false);
+  });
+
   it("a stale abandoned loadGame()'s finally does not clear a newer generation's in-progress guard", async () => {
     const gameState = makeGameState();
     const { result } = renderHook(() =>
