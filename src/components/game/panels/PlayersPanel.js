@@ -176,7 +176,7 @@ export const PlayersPanel = ({ adminMode = false }) => {
     <BasePanel 
       title={isAdmin ? "Admin players management panel" : undefined}
       helpText={isAdmin ? "You can manage players here, change settings of them or kick them out of your game" : undefined}
-      docUrl="/documentation/managingPlayers" 
+      docUrl={isAdmin ? "/user-guide/players-and-settings#managing-players-gm" : undefined}
       direction={horizontal ? "column" : "row"} 
       baseRef={panelRef}>
       <DList>

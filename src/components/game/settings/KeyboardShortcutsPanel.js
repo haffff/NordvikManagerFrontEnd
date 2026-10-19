@@ -379,7 +379,7 @@ export const KeyboardShortcutsPanel = () => {
   }, {});
 
   return (
-    <BasePanel>
+    <BasePanel helpText="Your shortcuts, saved to your account." docUrl="/user-guide/players-and-settings#keyboard-shortcuts">
       <Flex direction="column" flex="1" width="100%" overflowY="auto" overflowX="hidden" p={2} gap={2}>
         <DockModifierSetting />
         <MapSnapSetting />
