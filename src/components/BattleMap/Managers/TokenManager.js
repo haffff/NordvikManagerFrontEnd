@@ -663,7 +663,23 @@ class TokenManager {
       const url = _toResourceUrl(value || SYSTEM_ASSET_KEYS.EMPTY_TOKEN_IMAGE);
       targetElement.set("src", url);
       if (typeof targetElement.setSrc === "function") {
-        targetElement.setSrc(url, () => {});
+        // setSrc resets width/height to the new picture's own, so a token placed with
+        // the placeholder would change size on the map — keep the width it had, as
+        // placing does (scaleToWidth), and fit an automatic circle crop to the picture.
+        const shownWidth = targetElement.getScaledWidth?.();
+        const oldMin = Math.min(targetElement.width, targetElement.height);
+        targetElement.setSrc(url, (img) => {
+          if (!img?.width || !shownWidth) return;
+          img.setCoords?.(); // scaleToWidth measures the cached coords
+          img.scaleToWidth(shownWidth);
+          const clip = img.clipPath;
+          if (clip?.type === "circle" && clip.radius === oldMin / 2) {
+            clip.set("radius", Math.min(img.width, img.height) / 2);
+          }
+          img.setCoords?.();
+          if (object?.additionalObjects?.length) this.UpdateTokenUIPositions({ object });
+          this._getCanvas()?.requestRenderAll();
+        });
       }
       return true;
     }
