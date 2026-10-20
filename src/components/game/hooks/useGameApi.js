@@ -6,7 +6,7 @@ import LayoutHelper from '../../../helpers/LayoutCloneHelper';
 import UtilityHelper from '../../../helpers/UtilityHelper';
 import { _entityPermissionSetter } from '../../../contexts/PermissionsContext';
 import BrowserWindowPortal from '../../uiComponents/base/BrowserWindowPortal';
-import { ENTITY_TYPES, PERM } from '../../BattleMap/Helpers/permissionBits';
+import { ENTITY_TYPES, canEditGame } from '../../BattleMap/Helpers/permissionBits';
 
 // (recentContextOps removed — replaced with pendingBMContextIds ref inside useGameApi)
 
@@ -92,11 +92,11 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
           args: [],
         },
         GetIsGM: {
-          description: 'Returns true if the current user is the game master (the game\'s owner).',
+          description: 'Returns true if the current user is a GM: the game\'s owner, or a co-GM with Edit on the game.',
           args: [],
         },
         GetCanEditGame: {
-          description: 'Returns true if the current user may edit the game (Edit permission on it; always for the GM).',
+          description: 'Same as GetIsGM: true if the current user may edit the game (the owner, or Edit on it).',
           args: [],
         },
         GetGameId: {
@@ -267,8 +267,10 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
       // Methods return undefined/null until then — no timing error.
       GetGame: () => gameRef.current,
       GetOwner: () => gameRef.current?.master?.id,
-      GetIsGM: () => isOwner,
-      GetCanEditGame: () => isOwner || (gamePermission & PERM.EDIT) === PERM.EDIT,
+      // Co-GMs are GMs (the server gives them the owner's rights on the game's content), so
+      // addons and cards that ask GetIsGM treat them the same. The owner is GetOwner.
+      GetIsGM: () => canEditGame(isOwner, gamePermission),
+      GetCanEditGame: () => canEditGame(isOwner, gamePermission),
 
       // ── Maps ─────────────────────────────────────────────────────────────────
       GetMaps: async () => await WebHelper.getAsync('map/GetAllFlat'),

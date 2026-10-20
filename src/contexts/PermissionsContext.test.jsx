@@ -25,6 +25,13 @@ describe('PermissionsContext', () => {
     expect(perms.isOwner).toBe(false);
   });
 
+  it('a co-GM has every permission on the game\'s content, like the owner', () => {
+    const perms = render({ gamePermission: PERM.SEE | PERM.EDIT });
+
+    expect(perms.getEntityPermission(ENTITY_TYPES.MAP, 'map-1')).toBe(PERM.ALL);
+    expect(perms.hasEntityPermission(ENTITY_TYPES.MAP, 'map-1', PERM.EDIT)).toBe(true);
+  });
+
   it('a reader cannot edit the game', () => {
     expect(render({ gamePermission: PERM.SEE }).canEditGame).toBe(false);
   });

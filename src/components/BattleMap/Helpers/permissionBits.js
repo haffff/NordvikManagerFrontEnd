@@ -48,3 +48,11 @@ export const canControl = (bits) => (bits & 4) === 4;
 export const canEdit    = (bits) => (bits & 8) === 8;
 export const canRemove  = (bits) => (bits & 16) === 16;
 
+
+/**
+ * Whether the player is a GM of the game: its owner, or a co-GM with Edit on the game
+ * (the server gives co-GMs the owner's rights on the game's content). "Not set" (-1) is
+ * no permission.
+ */
+export const canEditGame = (isOwner, gamePermission) =>
+  !!isOwner || (typeof gamePermission === 'number' && gamePermission >= 0 && (gamePermission & PERM.EDIT) === PERM.EDIT);

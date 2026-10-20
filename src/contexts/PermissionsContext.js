@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { PERM, ENTITY_TYPES } from '../components/BattleMap/Helpers/permissionBits';
+import { PERM, ENTITY_TYPES, canEditGame as isGameEditor } from '../components/BattleMap/Helpers/permissionBits';
 
 /**
  * Module-level ref populated by PermissionsProvider.
@@ -31,7 +31,8 @@ const PermissionsContext = React.createContext({
  *   isLocalAdmin — the user runs this server (linking files from its disk)
  *
  * Entity permissions are loaded async after game/map init and stored in entityPermissions
- * state. The owner always gets PERM.ALL.
+ * state. The owner and co-GMs get PERM.ALL on the game's content (the server gives co-GMs
+ * the owner's rights); the game itself keeps the co-GM's own permission.
  */
 export const PermissionsProvider = ({ gameId, isOwner = false, isLocalAdmin = false, gamePermission = PERM.NONE, children }) => {
   // ── Entity-level permissions ────────────────────────────────────────────
@@ -48,13 +49,16 @@ export const PermissionsProvider = ({ gameId, isOwner = false, isLocalAdmin = fa
   // Sync the module-level ref so non-React callers can push updates.
   _entityPermissionSetter.current = setEntityPermission;
 
+  const canEditGame = isGameEditor(isOwner, gamePermission);
+
   const getEntityPermission = React.useCallback(
     (entityType, entityId) => {
       if (isOwner) return PERM.ALL;
       if (entityType === ENTITY_TYPES.GAME && entityId === gameId) return gamePermission ?? PERM.NONE;
+      if (canEditGame) return PERM.ALL;
       return entityPermissions[`${entityType}:${entityId}`] ?? PERM.NONE;
     },
-    [isOwner, gameId, gamePermission, entityPermissions],
+    [isOwner, gameId, gamePermission, canEditGame, entityPermissions],
   );
 
   const hasEntityPermission = React.useCallback(
@@ -64,8 +68,6 @@ export const PermissionsProvider = ({ gameId, isOwner = false, isLocalAdmin = fa
     },
     [getEntityPermission],
   );
-
-  const canEditGame = isOwner || ((gamePermission ?? PERM.NONE) & PERM.EDIT) === PERM.EDIT;
 
   // ── Context value ───────────────────────────────────────────────────────
   const value = React.useMemo(

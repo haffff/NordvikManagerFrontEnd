@@ -113,7 +113,7 @@ All custom env vars must be prefixed `REACT_APP_`.
 - `canEditGame` — Edit permission on the game (always true for the owner). Use it for anything that changes the game: settings, addons, maps, playlists, layouts, player management. Menu items take `requiresEdit`.
 - `isOwner` — the game's GM. Only for owner things: the game's own permissions, the single playback driver, GM whisper/roll routing.
 - `isLocalAdmin` — the user runs this server. Only for the host's disk (linking files and folders).
-The app build (`isPlayerMode()`) never grants anything. Non-React code asks `ClientMediator` for `Game.GetIsGM` (owner) or `Game.GetCanEditGame`.
+The app build (`isPlayerMode()`) never grants anything. Co-GMs are GMs: the server gives them the owner's rights on the game's content, and `hasEntityPermission` returns everything for them. Non-React code asks `ClientMediator` for `Game.GetIsGM` / `Game.GetCanEditGame` (both: owner or co-GM); the owner alone is `Game.GetOwner`.
 
 ## Key Files
 
