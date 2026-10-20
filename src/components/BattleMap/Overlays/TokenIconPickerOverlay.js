@@ -180,6 +180,8 @@ export const TokenIconPickerOverlay = ({ battleMapId, canvas }) => {
       dtoProperty: icon.dtoProperty,
       value: next,
       existingId: propertyIds[icon.id],
+    }).then((id) => {
+      if (id) setPropertyIds((prev) => ({ ...prev, [icon.id]: id }));
     });
   };
 
