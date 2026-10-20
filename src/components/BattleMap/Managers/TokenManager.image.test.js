@@ -45,6 +45,23 @@ describe('TokenManager: a new token image', () => {
     expect(t.getScaledWidth()).toBeCloseTo(GRID);
   });
 
+  // The size is the token's own, whatever the map's zoom or the token's rotation —
+  // and it stays put when the image dep runs again (every full refresh does).
+  it.each([
+    ['on a zoomed-in map', (t) => { t.canvas = { viewportTransform: [2, 0, 0, 2, 0, 0] }; }],
+    ['for a rotated token', (t) => { t.angle = 45; }],
+  ])('keeps the width %s, also when applied again', (_, arrange) => {
+    const t = tokenImage(1000);
+    arrange(t);
+    const tm = manager();
+    const props = [{ name: 'tokenImage', value: 'new-image', entityName: 'Element' }];
+
+    tm._applyDep(imageDep, t, t, props);
+    tm._applyDep(imageDep, t, t, props);
+
+    expect(t.width * t.scaleX).toBeCloseTo(GRID);
+  });
+
   it('sizes a circle crop for the new picture', () => {
     const t = tokenImage(1000);
     t.clipPath = new fabric.Circle({ radius: 500, originX: 'center', originY: 'center' });

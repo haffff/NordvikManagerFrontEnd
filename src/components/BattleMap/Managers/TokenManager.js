@@ -674,12 +674,13 @@ class TokenManager {
         // setSrc resets width/height to the new picture's own, so a token placed with
         // the placeholder would change size on the map — keep the width it had, as
         // placing does (scaleToWidth), and fit an automatic circle crop to the picture.
-        const shownWidth = targetElement.getScaledWidth?.();
+        // Scaled directly, not with scaleToWidth: that measures on screen, so map zoom
+        // and the token's rotation would change the size on every refresh.
+        const shownWidth = targetElement.width * (targetElement.scaleX ?? 1);
         const oldMin = Math.min(targetElement.width, targetElement.height);
         targetElement.setSrc(url, (img) => {
           if (!img?.width || !shownWidth) return;
-          img.setCoords?.(); // scaleToWidth measures the cached coords
-          img.scaleToWidth(shownWidth);
+          img.scale(shownWidth / img.width);
           const clip = img.clipPath;
           if (clip?.type === "circle" && clip.radius === oldMin / 2) {
             clip.set("radius", Math.min(img.width, img.height) / 2);
