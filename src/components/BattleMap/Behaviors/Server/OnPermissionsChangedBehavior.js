@@ -32,7 +32,11 @@ export class OnPermissionsChangedBehavior {
         if(data.entityType !== "ElementModel")
         {
             ClientMediator.sendCommandWaitForRegister("Game", "GetCurrentPlayer", {}, true).then((currentPlayer) => {
-                const isGM = ClientMediator.sendCommand("Game", "GetIsGM");
+                // The game's own permission is what makes a co-GM, so only the owner skips it
+                // there; on everything else a GM (owner or co-GM) has every right.
+                const isGM = data.entityType === ENTITY_TYPES.GAME
+                    ? currentPlayer?.id != null && currentPlayer.id === ClientMediator.sendCommand("Game", "GetOwner")
+                    : ClientMediator.sendCommand("Game", "GetIsGM");
                 const bits = isGM ? PERM.ALL : effectivePermission(data.permissions, currentPlayer?.id);
                 if (bits === undefined) return;
                 ClientMediator.sendCommand("Game", "UpdateEntityPermission", {

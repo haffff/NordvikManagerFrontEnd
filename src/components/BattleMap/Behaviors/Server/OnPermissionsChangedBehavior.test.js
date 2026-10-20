@@ -46,4 +46,21 @@ describe('OnPermissionsChangedBehavior — the game permission', () => {
   it("an update about other players only leaves this player's permission alone", async () => {
     expect(await gameUpdate({ other: 15 })).toEqual([]);
   });
+
+  // GetIsGM is true for co-GMs, but the game's own permission is what makes them one: a
+  // co-GM set back to See must lose the co-GM UI right away.
+  it('a co-GM demoted on the game gets their new bits, not everything', async () => {
+    ClientMediator.sendCommand.mockImplementation((panel, cmd) =>
+      cmd === 'GetIsGM' ? true : cmd === 'GetOwner' ? 'owner' : undefined);
+
+    expect(await gameUpdate({ [ME]: 1 })).toEqual([1]);
+  });
+
+  it('the owner keeps everything on the game', async () => {
+    ClientMediator.sendCommandWaitForRegister.mockResolvedValue({ id: 'owner' });
+    ClientMediator.sendCommand.mockImplementation((panel, cmd) =>
+      cmd === 'GetIsGM' ? true : cmd === 'GetOwner' ? 'owner' : undefined);
+
+    expect(await gameUpdate({ owner: 1 })).toEqual([31]);
+  });
 });
