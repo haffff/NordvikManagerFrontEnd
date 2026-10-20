@@ -3,6 +3,22 @@ import { canSee, canControl, PERM, ENTITY_TYPES } from "../../Helpers/permission
 
 const EVERYONE_ID = '00000000-0000-0000-0000-000000000000';
 
+const isSet = (bits) => typeof bits === 'number' && bits >= 0;
+
+/**
+ * The player's bits from a permission_update, read like the server does: their own row,
+ * else the "everyone" row; "not set" (-1) means no row. Undefined when the update names
+ * neither (it's about other players only).
+ */
+export const effectivePermission = (permissions, playerId) => {
+  const own = permissions?.[playerId];
+  if (isSet(own)) return own;
+  const everyone = permissions?.[EVERYONE_ID];
+  if (isSet(everyone)) return everyone;
+  if (own === undefined && everyone === undefined) return undefined;
+  return PERM.NONE;
+};
+
 export class OnPermissionsChangedBehavior {
     async Handle(response, canvas, battleMapId) {
         const { data } = response;
@@ -17,7 +33,8 @@ export class OnPermissionsChangedBehavior {
         {
             ClientMediator.sendCommandWaitForRegister("Game", "GetCurrentPlayer", {}, true).then((currentPlayer) => {
                 const isGM = ClientMediator.sendCommand("Game", "GetIsGM");
-                const bits = isGM ? PERM.ALL : (data.permissions?.[currentPlayer?.id] ?? data.permissions?.[EVERYONE_ID] ?? PERM.NONE);
+                const bits = isGM ? PERM.ALL : effectivePermission(data.permissions, currentPlayer?.id);
+                if (bits === undefined) return;
                 ClientMediator.sendCommand("Game", "UpdateEntityPermission", {
                     entityType: data.entityType,
                     entityId: data.id,
@@ -35,7 +52,7 @@ export class OnPermissionsChangedBehavior {
 
         ClientMediator.sendCommandWaitForRegister("Game", "GetCurrentPlayer", {}, true).then((currentPlayer) => {
             const isGM = ClientMediator.sendCommand("Game", "GetIsGM");
-            let permission = isGM ? PERM.ALL : (data.permissions?.[currentPlayer.id] ?? data.permissions?.[EVERYONE_ID] ?? PERM.NONE);
+            let permission = isGM ? PERM.ALL : (effectivePermission(data.permissions, currentPlayer.id) ?? PERM.NONE);
 
             obj.set('selectablePermission', canControl(permission));
             obj.set('permission', permission);
