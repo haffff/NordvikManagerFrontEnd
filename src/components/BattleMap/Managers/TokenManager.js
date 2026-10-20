@@ -639,6 +639,14 @@ class TokenManager {
       value = false;
     }
 
+    // While the token is dragged (or animated to a remote move) its parts are hidden
+    // and their own visibility kept in visibleBeforeDrag, restored afterwards — a
+    // change arriving meanwhile goes there, or that restore would undo it.
+    if (objectProperty === "visible" && targetElement?.visibleBeforeDrag !== undefined) {
+      targetElement.visibleBeforeDrag = value;
+      return true;
+    }
+
     // Fabric crashes with a 0×0 cache canvas — clamp width/height to at least 1px.
     if ((objectProperty === "width" || objectProperty === "height") && typeof value === "number") {
       value = Math.max(value, 1);
@@ -1234,9 +1242,11 @@ class TokenManager {
 
         // Restore visibility: hidden if disabled, control-only, prop-driven, or masked off
         const wasVisible = element.visible;
+        // On-selection parts stay shown while their token is selected on its own
+        // (OnTokenSelectedBehavior sets _controlsShown).
         element.visible =
           element.enabled !== false &&
-          !element.tokenData?.showOnTokenControl &&
+          (!element.tokenData?.showOnTokenControl || !!object._controlsShown) &&
           !hasPropVisibility &&
           maskVisible;
 

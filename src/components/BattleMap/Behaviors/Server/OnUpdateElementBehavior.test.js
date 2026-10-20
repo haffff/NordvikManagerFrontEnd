@@ -82,5 +82,23 @@ describe('OnUpdateElementBehavior', () => {
       expect(obj.layer).toBe(300);
       expect(obj.insideLayerIndex).toBe(5);
     });
+
+    // The token's parts are hidden while an update is applied; a layer change must
+    // show them again, not leave the token without its bars and icons.
+    it("shows the token's parts again afterwards", async () => {
+      const bar = { visible: true, set(props, val) { typeof props === 'string' ? (this[props] = val) : Object.assign(this, props); } };
+      const obj = { id: 'obj-1', layer: 50, selectablePermission: true, additionalObjects: [bar] };
+      obj.set = vi.fn((key, val) => { obj[key] = val; });
+      const canvas = { getObjects: () => [obj], requestRenderAll: vi.fn(), renderAll: vi.fn(), _objects: [obj] };
+      convertFromDTOMock.mockReturnValue({ layer: 300, insideLayerIndex: 5 });
+      clientMediatorMock.sendCommand.mockReturnValue(300);
+      const response = { data: { id: 'obj-1', layer: 300, insideLayerIndex: 5 }, action: 'layer' };
+
+      await new OnUpdateElementBehavior().Handle(response, canvas, 'bm-1');
+      await flushMicrotasks();
+
+      expect(bar.visible).toBe(true);
+      expect(bar.visibleBeforeDrag).toBeUndefined();
+    });
   });
 });
