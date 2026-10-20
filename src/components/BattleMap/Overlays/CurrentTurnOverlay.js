@@ -2,6 +2,7 @@ import * as React from "react";
 import * as ReactDOM from "react-dom";
 import themeColors from "../../../helpers/themeColors";
 import { useTurnOrder } from "../../game/turnOrder/turnOrderStore";
+import { screenRect } from "./screenRect";
 
 const RING = 4; // px around the token
 
@@ -26,7 +27,7 @@ export const CurrentTurnOverlay = ({ canvas }) => {
     const tick = () => {
       // Looked up every frame: a token's object can be replaced (e.g. on reload).
       const token = canvas.getObjects().find((o) => o.id === elementId);
-      const r = token ? token.getBoundingRect(false, true) : null;
+      const r = token ? screenRect(token) : null;
       if (!r !== !last || (r && (r.left !== last.left || r.top !== last.top || r.width !== last.width || r.height !== last.height))) {
         last = r;
         setRect(r);

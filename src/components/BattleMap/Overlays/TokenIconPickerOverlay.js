@@ -4,6 +4,7 @@ import ClientMediator from "../../../ClientMediator";
 import UtilityHelper from "../../../helpers/UtilityHelper";
 import { ICON_PACK_LOADERS } from "../../../helpers/ReactIconPackLoaders";
 import { resolveTokenParentId, writeTokenProperty } from "./tokenPropertyIO";
+import { screenRect } from "./screenRect";
 
 /**
  * New: lets a user assign/remove SVG status icons on a token (e.g. "poisoned"),
@@ -163,7 +164,7 @@ export const TokenIconPickerOverlay = ({ battleMapId, canvas }) => {
         setToken(null);
         return;
       }
-      setRect(token.getBoundingRect(false, true));
+      setRect(screenRect(token));
       raf = requestAnimationFrame(tick);
     };
     raf = requestAnimationFrame(tick);
