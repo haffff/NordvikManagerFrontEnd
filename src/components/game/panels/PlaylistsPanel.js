@@ -181,7 +181,7 @@ const RightPaneHeader = ({ playlist, confirmDelete, onDelete, onConfirmDelete, o
 // ── Main component ────────────────────────────────────────────────────────────
 
 export const PlaylistsPanel = () => {
-  const { isGM } = usePermissions();
+  const { canEditGame } = usePermissions();
   const [playlists, setPlaylists] = React.useState([]);
   const [selectedId, setSelectedId] = React.useState(null);
   const treeRefreshRef = React.useRef(null);
@@ -361,10 +361,10 @@ export const PlaylistsPanel = () => {
 
   // ── Derived state ────────────────────────────────────────────────────────────
 
-  if (!isGM) {
+  if (!canEditGame) {
     return (
       <BasePanel>
-        <EmptyState message="Only the GM can manage playlists." />
+        <EmptyState message="Only players who can edit the game can manage playlists." />
       </BasePanel>
     );
   }
@@ -393,7 +393,7 @@ export const PlaylistsPanel = () => {
             <DTreeList
               entityType="Playlist"
               items={playlists}
-              canEditFolders={isGM}
+              canEditFolders={canEditGame}
               refreshRef={treeRefreshRef}
               estimatedRowHeight={44}
               onSelect={(sel) => { if (sel?.itemRef) setSelectedId(sel.itemRef.id); }}

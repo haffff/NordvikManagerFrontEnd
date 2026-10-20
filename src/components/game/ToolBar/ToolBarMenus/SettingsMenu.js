@@ -14,7 +14,7 @@ export const SettingsMenu = ({ Dockable,
     // Player settings without a player are your own (resolved when the panel opens).
     return (
         <DropDownMenu viewId={"settings"} name={"Settings"} width={100} expandableLocationName={"settings"} expandableWithAction={true} state={state}>
-            <CreateDropDownButton gmOnly width={150} name={"Game"} icon={<FaWrench />} state={state} element={<GameSettingsPanel />} />
+            <CreateDropDownButton requiresEdit width={150} name={"Game"} icon={<FaWrench />} state={state} element={<GameSettingsPanel />} />
             <CreateDropDownButton width={150} name={"Player"} icon={<FaUser />} state={state} element={<PlayerSettingsPanel />} />
             <CreateDropDownButton width={150} name={"Keyboard Shortcuts"} icon={<FaKeyboard />} state={state} element={<KeyboardShortcutsPanel />} />
         </DropDownMenu>

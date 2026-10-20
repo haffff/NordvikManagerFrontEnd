@@ -15,7 +15,11 @@ export const useGameState = (gameID, onExit) => {
   const [connectedPlayers, setConnectedPlayers] = React.useState([]);
   const [currentPlayerId, setCurrentPlayerId] = React.useState(undefined);
   const [layout, setLayout] = React.useState(undefined);
-  const [isGM, setIsGM] = React.useState(false);
+  // Who the player is in this game: its owner (GM), the server's local admin, and their
+  // permission bits on the game itself (Edit = may change the game).
+  const [isOwner, setIsOwner] = React.useState(false);
+  const [isLocalAdmin, setIsLocalAdmin] = React.useState(false);
+  const [gamePermission, setGamePermission] = React.useState(0);
   const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
 
   // --- Refs ---
@@ -60,8 +64,12 @@ export const useGameState = (gameID, onExit) => {
     setConnectedPlayers,
     setCurrentPlayerId,
     setLayout,
-    isGM,
-    setIsGM,
+    isOwner,
+    setIsOwner,
+    isLocalAdmin,
+    setIsLocalAdmin,
+    gamePermission,
+    setGamePermission,
     forceUpdate,
     // Refs
     playersRef,

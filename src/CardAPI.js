@@ -15,6 +15,7 @@ export const CARD_COMMANDS = Object.freeze({
   "Game.GetCurrentPlayer": true,
   "Game.GetGameId": true,
   "Game.GetIsGM": true, // e.g. to keep GM-only entries out of a player's lists
+  "Game.GetCanEditGame": true, // the player may edit the game (GM, or given Edit on it)
 
   // BattleMap read-only
   "BattleMap.GetSelectedMap": true,

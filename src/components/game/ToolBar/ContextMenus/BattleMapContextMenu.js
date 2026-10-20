@@ -48,7 +48,7 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
   // Read when the menu opens: selecting on the canvas doesn't re-render this component,
   // so a value read at render time would still be the selection from before.
   const [selectedObjects, setSelectedObjects] = React.useState(() => canvas?.getActiveObjects() || []);
-  const { hasEntityPermission, isGM } = usePermissions();
+  const { hasEntityPermission } = usePermissions();
 
   // Resolve the current map id for entity-level permission checks
   const currentMap = ClientMediator.sendCommand("BattleMap", "GetSelectedMap", { contextId: battleMapId });
@@ -353,7 +353,7 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
 
   // Visible / GM only / Hidden for each custom layer (see layerVisibility.js).
   const layerVisibilityMenu = customLayers.length > 0 && (
-    <DropDownMenu gmOnly submenu={true} width={width} name={"Layers"} icon={<FaEye />}>
+    <DropDownMenu requiresEdit submenu={true} width={width} name={"Layers"} icon={<FaEye />}>
       {customLayers.map((layer) => (
         <DropDownMenu key={layer.key} submenu={true} width={width} name={layerLabel(layer)} icon={<FaLayerGroup />}>
           {LAYER_STATES.map(({ state, label }) => (
@@ -376,7 +376,7 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
       width={width}
       name={"Permissions"}
       icon={<FaLock />}
-      gmOnly
+      requiresEdit
     >
       {GetPlayersForPermissions().map((player) => (
         <DropDownMenu
@@ -597,7 +597,7 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
               name={"Battle Map"}
               icon={<FaMap/>}
             >
-              <DropDownMenu gmOnly submenu={true} width={width} name={"Show"} icon={<FaEye />}>
+              <DropDownMenu requiresEdit submenu={true} width={width} name={"Show"} icon={<FaEye />}>
                 <DropDownItem width={width} name={"All players"} onClick={() => ShowBattleMap()} />
                 {GetPlayersForPermissions().map(player => (
                   <DropDownItem key={player.id} width={width} name={player.name || player.id}

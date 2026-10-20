@@ -61,6 +61,20 @@ vi.mock('@chakra-ui/react', async (importOriginal) => {
 
 import { GameSettingsPanel } from './GameSettingsPanel';
 import { ActiveWebHelper } from '../../../helpers/transport';
+import { PermissionsProvider } from '../../../contexts/PermissionsContext';
+
+// Who may edit the game is the owner's call, so only they get the game's Permissions tab.
+describe('GameSettingsPanel — Permissions tab', () => {
+  it('is shown to the owner', () => {
+    renderWithProviders(<PermissionsProvider gameId="g1" isOwner><GameSettingsPanel /></PermissionsProvider>);
+    expect(screen.queryByText('Permissions')).not.toBeNull();
+  });
+
+  it('is hidden from an editor who is not the owner', () => {
+    renderWithProviders(<PermissionsProvider gameId="g1" gamePermission={15}><GameSettingsPanel /></PermissionsProvider>);
+    expect(screen.queryByText('Permissions')).toBeNull();
+  });
+});
 
 // Regression coverage: updateSettings used to mutate gameData in place
 // (gameData.name = event.data.name) with no setter call, so it never triggered a

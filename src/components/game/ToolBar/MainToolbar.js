@@ -12,6 +12,7 @@ import { IoIosExit } from "@react-icons/all-files/io/IoIosExit";
 import UtilityHelper from "../../../helpers/UtilityHelper";
 import AddonsMenu from "./ToolBarMenus/AddonsMenu";
 import ClientMediator from "../../../ClientMediator";
+import { usePermissions } from "../../../contexts/PermissionsContext";
 import { Button } from "@chakra-ui/react";
 
 import { toaster } from "../../ui/toaster";
@@ -71,18 +72,18 @@ export const MainToolbar = ({
     toaster.create(UtilityHelper.GenerateCopiedToast());
   };
 
-  // Whether the player may create/overwrite layouts. GM always can; otherwise the
-  // per-game "disallowPlayerLayouts" toggle decides. Read from the init snapshot,
-  // so a GM changing it mid-session takes effect for players on their next reload.
+  // Whether the player may create/overwrite layouts. Whoever may edit the game always can;
+  // otherwise the per-game "disallowPlayerLayouts" toggle decides. Read from the init
+  // snapshot, so a change mid-session takes effect for players on their next reload.
+  const { canEditGame } = usePermissions();
   const gameSnapshot = ClientMediator.sendCommand("Game", "GetGame", {});
-  const isGM = ClientMediator.sendCommand("Game", "GetIsGM");
-  const canSaveLayouts = isGM || !gameSnapshot?.disallowPlayerLayouts;
+  const canSaveLayouts = canEditGame || !gameSnapshot?.disallowPlayerLayouts;
 
   return (
     <ToolBar>
       <DropDownMenu viewId={"game"} name={"Game"} width={100}>
         <DropDownItem
-          gmOnly
+          requiresEdit
           width={150}
           name={"Get Invite URL"}
           onClick={GenerateInviteLink}

@@ -4,10 +4,9 @@ import DockableHelper from '../../../helpers/DockableHelper';
 import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
 import LayoutHelper from '../../../helpers/LayoutCloneHelper';
 import UtilityHelper from '../../../helpers/UtilityHelper';
-import { ROLES } from '../../../contexts/PermissionsContext';
 import { _entityPermissionSetter } from '../../../contexts/PermissionsContext';
 import BrowserWindowPortal from '../../uiComponents/base/BrowserWindowPortal';
-import { isPlayerMode } from '../../../helpers/appMode';
+import { ENTITY_TYPES, PERM } from '../../BattleMap/Helpers/permissionBits';
 
 // (recentContextOps removed — replaced with pendingBMContextIds ref inside useGameApi)
 
@@ -45,7 +44,9 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
     UpdateAfterTime,
     currentPlayerRef,
     gameRef,
-    isGM,
+    isOwner,
+    gamePermission,
+    setGamePermission,
   } = gameState;
 
   // Synchronous dedup for AddBattleMapContext.
@@ -90,12 +91,12 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
           description: 'Returns the user-ID of the game master / owner.',
           args: [],
         },
-        GetRole: {
-          description: 'Returns the current user\'s role: "admin", "gm", or "player".',
+        GetIsGM: {
+          description: 'Returns true if the current user is the game master (the game\'s owner).',
           args: [],
         },
-        GetIsGM: {
-          description: 'Returns true if the current user is the game master or admin.',
+        GetCanEditGame: {
+          description: 'Returns true if the current user may edit the game (Edit permission on it; always for the GM).',
           args: [],
         },
         GetGameId: {
@@ -266,16 +267,8 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
       // Methods return undefined/null until then — no timing error.
       GetGame: () => gameRef.current,
       GetOwner: () => gameRef.current?.master?.id,
-      GetIsGM: () => {
-        const isAdmin = !isPlayerMode();
-        if (isAdmin) return true;
-        return isGM;
-      },
-      GetRole: () => {
-        const isAdmin = !isPlayerMode();
-        if (isAdmin) return ROLES.ADMIN;
-        return isGM ? ROLES.GM : ROLES.PLAYER;
-      },
+      GetIsGM: () => isOwner,
+      GetCanEditGame: () => isOwner || (gamePermission & PERM.EDIT) === PERM.EDIT,
 
       // ── Maps ─────────────────────────────────────────────────────────────────
       GetMaps: async () => await WebHelper.getAsync('map/GetAllFlat'),
@@ -314,6 +307,11 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
 
       // ── Entity permissions ───────────────────────────────────────────────────
       UpdateEntityPermission: ({ entityType, entityId, bits }) => {
+        // The game's own permission lives in game state (it drives canEditGame).
+        if (entityType === ENTITY_TYPES.GAME && entityId === gameID) {
+          setGamePermission(bits ?? 0);
+          return;
+        }
         _entityPermissionSetter.current?.(entityType, entityId, bits ?? 0);
       },
 
@@ -363,6 +361,8 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
     gameContainerRef,
     quickCommandDialogOpenRef,
     currentPlayerRef,
-    isGM,
+    isOwner,
+    gamePermission,
+    setGamePermission,
   ]);
 };

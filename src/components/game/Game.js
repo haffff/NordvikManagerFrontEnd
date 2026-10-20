@@ -47,7 +47,9 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
     gameDataManagerRef,
     keyboardEventsManagerRef,
     forceUpdate,
-    isGM,
+    isOwner,
+    isLocalAdmin,
+    gamePermission,
   } = gameState;
 
   WebHelper.GameId = resolvedGameId;
@@ -179,7 +181,7 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
     return <LoadingScreen />;
   }  //To refactor toolbar. it will be in Toolbar directory probably. but i need to make map system and write tools panel properly.
   return (
-    <PermissionsProvider isGM={isGM}>
+    <PermissionsProvider gameId={resolvedGameId} isOwner={isOwner} isLocalAdmin={isLocalAdmin} gamePermission={gamePermission}>
     <DragOptimizationProvider>
       <div
         ref={gameContainerRef}
@@ -215,9 +217,9 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
       <Subscribable onMessage={eventHandlers.HandleOperationProgress} commandPrefix={"operation_"} />
       <GameStylesheets gameId={resolvedGameId} />
       <PlaybackManager />
-      <TurnOrderManager isGM={isGM} />
+      <TurnOrderManager isGM={isOwner} />
       <RequestInputManager />
-      <PlayerTour ready={ready} isGM={isGM} />
+      <PlayerTour ready={ready} isGM={isOwner} />
       <LayoutAutoSaveManager state={state} battlemapsRef={battleMapContexts} />
       <MainToolbar
         key={resolvedGameId}

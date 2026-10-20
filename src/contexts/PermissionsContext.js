@@ -1,35 +1,20 @@
 import * as React from 'react';
-import { PERM } from '../components/BattleMap/Helpers/permissionBits';
-import { isPlayerMode } from '../helpers/appMode';
-
-export const ROLES = {
-  ADMIN: 'admin',
-  GM: 'gm',
-  PLAYER: 'player',
-};
-
-// Hierarchy: ADMIN > GM > PLAYER
-const ROLE_RANK = {
-  [ROLES.ADMIN]: 2,
-  [ROLES.GM]: 1,
-  [ROLES.PLAYER]: 0,
-};
+import { PERM, ENTITY_TYPES } from '../components/BattleMap/Helpers/permissionBits';
 
 /**
  * Module-level ref populated by PermissionsProvider.
- * Allows non-React code (useGameInitialization, BMService behaviors, etc.)
- * to push entity permission updates into React state without needing the hook.
+ * Allows non-React code (BMService behaviors, etc.) to push entity permission updates
+ * into React state without needing the hook. The game's own permission is not kept here:
+ * it comes in as the provider's `gamePermission` prop (see useGameState).
  *
  * Usage:  _entityPermissionSetter.current?.(entityType, entityId, bits)
  */
 export const _entityPermissionSetter = { current: null };
 
 const PermissionsContext = React.createContext({
-  currentRole: ROLES.PLAYER,
-  isAdmin: false,
-  isGM: false,
-  isPlayer: true,
-  hasRole: () => false,
+  isOwner: false,
+  canEditGame: false,
+  isLocalAdmin: false,
   // entity-level
   setEntityPermission: () => {},
   getEntityPermission: () => PERM.NONE,
@@ -37,30 +22,18 @@ const PermissionsContext = React.createContext({
 });
 
 /**
- * Wraps game content and provides permissions to all child components.
+ * Wraps game content and provides permissions to all child components. The UI follows
+ * what the server lets the player do:
  *
- * Role derivation (frontend-only):
- *   ADMIN  — REACT_APP_MODE !== 'player' (GM server binary)
- *   GM     — current player owns the game (player.id === game.master.id)
- *   PLAYER — everyone else
+ *   canEditGame  — Edit on the game (settings, addons, maps, playlists, …); the owner always can
+ *   isOwner      — the player is the game's GM (whisper target, the one playback driver, game
+ *                  permissions, deleting the game)
+ *   isLocalAdmin — the user runs this server (linking files from its disk)
  *
- * Entity permissions are loaded async after game/map init and stored in
- * entityPermissions state.  GMs/Admins always receive PERM.ALL.
+ * Entity permissions are loaded async after game/map init and stored in entityPermissions
+ * state. The owner always gets PERM.ALL.
  */
-export const PermissionsProvider = ({ isGM, children }) => {
-  const isAdmin = !isPlayerMode();
-
-  const currentRole = isAdmin
-    ? ROLES.ADMIN
-    : isGM
-    ? ROLES.GM
-    : ROLES.PLAYER;
-
-  const hasRole = React.useCallback(
-    (requiredRole) => ROLE_RANK[currentRole] >= ROLE_RANK[requiredRole],
-    [currentRole],
-  );
-
+export const PermissionsProvider = ({ gameId, isOwner = false, isLocalAdmin = false, gamePermission = PERM.NONE, children }) => {
   // ── Entity-level permissions ────────────────────────────────────────────
   // Key format: `${entityType}:${entityId}` → permission bits for current player
   const [entityPermissions, setEntityPermissionsState] = React.useState({});
@@ -77,35 +50,34 @@ export const PermissionsProvider = ({ isGM, children }) => {
 
   const getEntityPermission = React.useCallback(
     (entityType, entityId) => {
-      if (isAdmin || isGM) return PERM.ALL;
+      if (isOwner) return PERM.ALL;
+      if (entityType === ENTITY_TYPES.GAME && entityId === gameId) return gamePermission ?? PERM.NONE;
       return entityPermissions[`${entityType}:${entityId}`] ?? PERM.NONE;
     },
-    [isAdmin, isGM, entityPermissions],
+    [isOwner, gameId, gamePermission, entityPermissions],
   );
 
   const hasEntityPermission = React.useCallback(
     (entityType, entityId, requiredBits) => {
-      if (isAdmin || isGM) return true;
       if (requiredBits === PERM.NONE) return true;
-      const bits = entityPermissions[`${entityType}:${entityId}`] ?? PERM.NONE;
-      return (bits & requiredBits) === requiredBits;
+      return (getEntityPermission(entityType, entityId) & requiredBits) === requiredBits;
     },
-    [isAdmin, isGM, entityPermissions],
+    [getEntityPermission],
   );
+
+  const canEditGame = isOwner || ((gamePermission ?? PERM.NONE) & PERM.EDIT) === PERM.EDIT;
 
   // ── Context value ───────────────────────────────────────────────────────
   const value = React.useMemo(
     () => ({
-      currentRole,
-      isAdmin,
-      isGM: isAdmin || isGM,
-      isPlayer: currentRole === ROLES.PLAYER,
-      hasRole,
+      isOwner: !!isOwner,
+      canEditGame,
+      isLocalAdmin: !!isLocalAdmin,
       setEntityPermission,
       getEntityPermission,
       hasEntityPermission,
     }),
-    [currentRole, isAdmin, isGM, hasRole, setEntityPermission, getEntityPermission, hasEntityPermission],
+    [isOwner, canEditGame, isLocalAdmin, setEntityPermission, getEntityPermission, hasEntityPermission],
   );
 
   return (
