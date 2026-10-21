@@ -61,4 +61,17 @@ describe('StepList', () => {
 
     expect(onSelect).toHaveBeenCalledWith('in');
   });
+
+  // Under a step: what its output variable will hold, before anything runs.
+  it('shows what a step gives back', () => {
+    renderWithProviders(
+      <StepList steps={[{ id: 'f', Type: 'Log', Data: {} }]} defsByType={defs} selectedId={null} traceFor={() => null}
+        outputsFor={() => [{ name: 'targets', kind: 'list', fields: ['id', 'name'] }, { name: 'roll', kind: 'value', fields: [] }]}
+        onSelect={vi.fn()} onMove={vi.fn()} onInsert={vi.fn()} onDuplicate={vi.fn()} onDelete={vi.fn()} onOpenAction={vi.fn()} />
+    );
+
+    expect(screen.getByText('targets')).toBeInTheDocument();
+    expect(screen.getByText(/list of: id, name/)).toBeInTheDocument();
+    expect(screen.getByText('roll')).toBeInTheDocument();
+  });
 });

@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  extractVariableRefs, scriptReturnKeys, variablesDefinedBy, variablesAvailableAt, computeInputs,
+  extractVariableRefs, scriptReturnKeys, variablesDefinedBy, variablesAvailableAt, computeInputs, outputsOf,
 } from "./variableScope";
 
 const defs = {
@@ -91,5 +91,72 @@ describe("computeInputs", () => {
   it("does not read RunScript source as tokens", () => {
     const steps = [{ Type: "RunScript", Data: { Script: "return { v: 17 % 5 % 2 };" } }];
     expect(computeInputs(steps, defs)).toEqual([]);
+  });
+});
+
+// What a step's output variables hold, from the shapes the backend declares — shown under
+// the step and in the variables panel.
+describe("outputsOf", () => {
+  const findDef = {
+    value: "Find",
+    arguments: [
+      { name: "What" }, { name: "First" },
+      { name: "Output", isOutput: true, output: { kind: "list", fields: [], fieldsBy: "What", fieldsByValue: { tokens: ["id", "name", "cardId"], cards: ["id", "name"] }, singleWhen: "First" } },
+    ],
+  };
+  const rollDef = {
+    value: "RollDice",
+    arguments: [{ name: "SimpleOutput" }, { name: "OutputVariable", isOutput: true, output: { kind: "object", fields: ["result", "rolled"], valueWhen: "SimpleOutput" } }],
+  };
+  const forEachDef = {
+    value: "ForEach",
+    arguments: [{ name: "Collection" }, { name: "ItemName", isOutput: true, output: { kind: "item", fields: [], itemOf: "Collection" } }],
+  };
+
+  it("a list with the fields its kind has", () => {
+    expect(outputsOf({ Type: "Find", Data: { What: "tokens", Output: "targets" } }, findDef))
+      .toEqual([{ name: "targets", kind: "list", fields: ["id", "name", "cardId"] }]);
+  });
+
+  it("one item when First is on", () => {
+    expect(outputsOf({ Type: "Find", Data: { What: "cards", First: true, Output: "card" } }, findDef))
+      .toEqual([{ name: "card", kind: "object", fields: ["id", "name"] }]);
+  });
+
+  it("a plain value when the step says so", () => {
+    expect(outputsOf({ Type: "RollDice", Data: { SimpleOutput: true, OutputVariable: "dmg" } }, rollDef))
+      .toEqual([{ name: "dmg", kind: "value", fields: [] }]);
+    expect(outputsOf({ Type: "RollDice", Data: { OutputVariable: "roll" } }, rollDef))
+      .toEqual([{ name: "roll", kind: "object", fields: ["result", "rolled"] }]);
+  });
+
+  it("a loop's item has the fields of the list's items", () => {
+    const shapes = { targets: { kind: "list", fields: ["id", "name"] } };
+    expect(outputsOf({ Type: "ForEach", Data: { Collection: "targets", ItemName: "t" } }, forEachDef, shapes))
+      .toEqual([{ name: "t", kind: "object", fields: ["id", "name"] }]);
+  });
+
+  it("nothing for an output named with a token", () => {
+    expect(outputsOf({ Type: "Find", Data: { What: "tokens", Output: "%x%" } }, findDef)).toEqual([]);
+  });
+});
+
+describe("variablesAvailableAt with shapes", () => {
+  it("gives each step variable what it holds, a loop's item its list's fields", () => {
+    const shaped = {
+      ...defs,
+      Find: { arguments: [{ name: "What" }, { name: "Output", isOutput: true, output: { kind: "list", fields: [], fieldsBy: "What", fieldsByValue: { tokens: ["id", "name"] } } }] },
+      ForEach: { arguments: [{ name: "Collection" }, { name: "ItemName", isOutput: true, output: { kind: "item", fields: [], itemOf: "Collection" } }, { name: "Do", type: "steps" }] },
+    };
+    const steps = [
+      { id: "find", Type: "Find", Data: { What: "tokens", Output: "targets" } },
+      { id: "loop", Type: "ForEach", Data: { Collection: "targets", ItemName: "t", Do: [{ id: "in", Type: "SendChat", Data: { Message: "x" } }] } },
+    ];
+
+    const at = Object.fromEntries(variablesAvailableAt(steps, "in", shaped).map((v) => [v.name, v]));
+
+    expect([at.targets.kind, at.targets.fields]).toEqual(["list", ["id", "name"]]);
+    expect([at.t.kind, at.t.fields]).toEqual(["object", ["id", "name"]]);
+    expect(at.playerName.kind).toBe("value");
   });
 });

@@ -72,15 +72,25 @@ export function variablesUsedBy(step, def) {
 /**
  * Variables available when the step with id `stepId` runs: what steps before it set,
  * inside blocks too (blocks share the action's variables).
- * @returns {{name:string, source:'builtin'|'hook'|'input'|'step', stepId?:string}[]}
+ * @returns {{name:string, source:'builtin'|'hook'|'input'|'step', kind:string, fields:string[], stepId?:string}[]}
  */
 export function variablesAvailableAt(steps, stepId, defsByType, hookVariables = [], inputs = []) {
   const seen = new Map();
-  const add = (name, source, from) => { if (!seen.has(name)) seen.set(name, { name, source, stepId: from }); };
+  const add = (name, source, shape, from) => {
+    if (!seen.has(name)) seen.set(name, { name, source, kind: shape?.kind ?? "value", fields: shape?.fields ?? [], stepId: from });
+  };
   BUILTIN_VARIABLES.forEach((n) => add(n, "builtin"));
   hookVariables.forEach((n) => add(n, "hook"));
   inputs.forEach((n) => add(n, "input"));
-  stepsBefore(steps, stepId).forEach((s) => variablesDefinedBy(s, defsByType[s.Type]).forEach((n) => add(n, "step", s.id)));
+  const known = {};
+  stepsBefore(steps, stepId).forEach((s) => {
+    const def = defsByType[s.Type];
+    const shapes = Object.fromEntries(outputsOf(s, def, known).map((o) => [o.name, o]));
+    variablesDefinedBy(s, def).forEach((n) => {
+      known[n] = shapes[n] ?? { kind: "value", fields: [] };
+      add(n, "step", known[n], s.id);
+    });
+  });
   return [...seen.values()];
 }
 
@@ -96,4 +106,38 @@ export function computeInputs(steps, defsByType, hookVariables = []) {
     variablesDefinedBy(s, def).forEach((n) => known.add(n));
   });
   return inputs;
+}
+
+const isOn = (v) => v === true || String(v).toLowerCase() === "true";
+
+/**
+ * What a step's output variables hold, from the shape its definition declares:
+ * [{ name, kind: 'value'|'object'|'list', fields }]. `known` maps names set earlier to
+ * their shape, so a loop's item gets the fields of its list's items.
+ */
+export function outputsOf(step, def, known = {}) {
+  const data = step?.Data ?? {};
+  const out = [];
+  for (const arg of def?.arguments ?? []) {
+    const shape = arg.output;
+    if (!arg.isOutput || !shape || !isPlainName(data[arg.name])) continue;
+    const name = data[arg.name].trim();
+    let kind = shape.kind;
+    let fields = shape.fields ?? [];
+    if (shape.fieldsBy && shape.fieldsByValue) {
+      const by = String(data[shape.fieldsBy] ?? "");
+      const match = Object.keys(shape.fieldsByValue).find((k) => k.toLowerCase() === by.toLowerCase());
+      fields = match ? shape.fieldsByValue[match] : [];
+    }
+    if (shape.singleWhen && isOn(data[shape.singleWhen])) kind = "object";
+    if (shape.valueWhen && isOn(data[shape.valueWhen])) { kind = "value"; fields = []; }
+    if (kind === "item") {
+      const of = known[String(data[shape.itemOf] ?? "").trim()];
+      kind = of?.kind === "list" ? "object" : "value";
+      fields = of?.kind === "list" ? of.fields : [];
+    }
+    if (kind === "script") continue; // a script's return keys are variables of their own
+    out.push({ name, kind, fields });
+  }
+  return out;
 }

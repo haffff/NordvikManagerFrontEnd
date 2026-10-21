@@ -53,12 +53,17 @@ const Inserter = ({ onClick, always }) => (
   </Flex>
 );
 
+const describeOutput = (o) =>
+  o.kind === "list" ? (o.fields.length ? `list of: ${o.fields.join(", ")}` : "list")
+    : o.kind === "object" ? (o.fields.length ? `with: ${o.fields.join(", ")}` : "object") : "";
+
 const Row = ({ step, index, def, selected, trace, onSelect, onDuplicate, onDelete, onOpenAction, listProps }) => {
   const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({ id: step.id });
   const summary = summarizeStep(step, def);
   const comment = step.Data?.Comment;
   const label = step.Data?.Label;
   const blocks = (def?.arguments ?? []).filter((a) => (a.type ?? "").toLowerCase() === "steps");
+  const outputs = listProps.outputsFor?.(step) ?? [];
   const branches = (def?.arguments ?? [])
     .filter((a) => (a.type ?? "").toLowerCase() === "action" && step.Data?.[a.name])
     .map((a) => ({ name: a.name, target: String(step.Data[a.name]) }));
@@ -106,6 +111,17 @@ const Row = ({ step, index, def, selected, trace, onSelect, onDuplicate, onDelet
                   <FaExternalLinkAlt />
                 </IconButton>
               )}
+            </HStack>
+          ))}
+        </Box>
+      )}
+      {outputs.length > 0 && (
+        <Box pl="64px" pb="4px" pr={2}>
+          {outputs.map((o) => (
+            <HStack key={o.name} gap={1} fontSize="2xs" color={T.muted} minW={0}>
+              <Text>→</Text>
+              <Text fontFamily="mono" color={T.token}>{o.name}</Text>
+              {describeOutput(o) && <Text truncate>{describeOutput(o)}</Text>}
             </HStack>
           ))}
         </Box>

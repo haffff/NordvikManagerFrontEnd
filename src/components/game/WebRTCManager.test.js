@@ -476,4 +476,9 @@ describe('camelizeKeys', () => {
     expect(camelizeKeys({ Name: 'x', ActionArgs: { Dice: '1d6', Nested: { Keep: 1 } } }))
       .toEqual({ name: 'x', actionArgs: { Dice: '1d6', Nested: { Keep: 1 } } });
   });
+
+  it("leaves an action trace's variables as the action named them", () => {
+    expect(camelizeKeys({ StepPath: '1', Variables: { Data: { Id: 1 }, playerName: 'W' } }))
+      .toEqual({ stepPath: '1', variables: { Data: { Id: 1 }, playerName: 'W' } });
+  });
 });

@@ -3,6 +3,7 @@ import { Badge, Box, Button, Flex, HStack, Input, Text } from "@chakra-ui/react"
 import { FaExchangeAlt } from "@react-icons/all-files/fa/FaExchangeAlt";
 import { StepField } from "./StepField";
 import { StepPicker } from "./StepPicker";
+import { VariablesPanel } from "./VariablesPanel";
 import { T, categoryColor } from "./editorTheme";
 
 // Editing panel for the selected step: its type, what it does, and one field per argument.
@@ -46,10 +47,13 @@ const LastRun = ({ trace }) => {
 };
 
 export const StepInspector = ({
-  step, index, def, stepDefinitions, variables, knownNames, actionOptions, trace,
+  step, index, def, stepDefinitions, variables, knownNames, actionOptions, trace, values,
   onChangeType, onChangeData, onFieldBlur,
 }) => {
   const [picking, setPicking] = React.useState(false);
+  // The field last edited: a variable clicked in the list below goes into it.
+  const [activeField, setActiveField] = React.useState(null);
+  React.useEffect(() => { setActiveField(null); }, [step?.id]);
 
   if (!step) {
     return (
@@ -87,10 +91,12 @@ export const StepInspector = ({
 
       <Flex direction="column" gap={3}>
         {args.map((arg) => (
-          <StepField
-            key={arg.name} arg={arg} {...field(arg.name)}
-            variables={variables} knownNames={knownNames} actionOptions={actionOptions}
-          />
+          <Box key={arg.name} onFocusCapture={() => setActiveField(arg.name)}>
+            <StepField
+              arg={arg} {...field(arg.name)}
+              variables={variables} knownNames={knownNames} actionOptions={actionOptions}
+            />
+          </Box>
         ))}
 
         <Box pt={2} borderTopWidth="1px" borderColor={T.border}>
@@ -104,6 +110,18 @@ export const StepInspector = ({
       </Flex>
 
       <LastRun trace={trace} />
+
+      <Box mt={4} pt={2} borderTopWidth="1px" borderColor={T.border}>
+        <Text fontSize="xs" color="gray.300" mb={1}>
+          Variables here {activeField ? <Text as="span" color={T.faint}>· click to insert into {activeField}</Text>
+            : <Text as="span" color={T.faint}>· click a field above, then a variable to insert it</Text>}
+        </Text>
+        <VariablesPanel variables={variables} values={values}
+          onInsert={(token) => {
+            if (activeField) onChangeData(activeField, `${data[activeField] ?? ""}${token}`);
+            else navigator.clipboard?.writeText?.(token);
+          }} />
+      </Box>
 
       <StepPicker
         open={picking} onClose={() => setPicking(false)} stepDefinitions={stepDefinitions}

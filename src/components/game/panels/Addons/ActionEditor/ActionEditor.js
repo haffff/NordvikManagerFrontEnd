@@ -16,8 +16,8 @@ import { StepPicker } from "./StepPicker";
 import { RunBar } from "./RunBar";
 import { useActionTrace } from "./useActionTrace";
 import { stepOps } from "./useActionDraft";
-import { computeInputs, variablesAvailableAt } from "./variableScope";
-import { findStep } from "./stepTree";
+import { computeInputs, outputsOf, variablesAvailableAt } from "./variableScope";
+import { findStep, stepsBefore } from "./stepTree";
 import { T } from "./editorTheme";
 
 // Editor for one action. `draft` comes from useActionDraft (owned by ActionsPanel so it can
@@ -166,6 +166,23 @@ export const ActionEditor = ({ draft, stepDefinitions, hooks, actions, onSave, o
     [steps, selected, defsByType, hookVariables, inputs]);
   const knownNames = React.useMemo(() => new Set(available.map((v) => v.name)), [available]);
 
+  // What the last run had in its variables just before the selected step.
+  const values = React.useMemo(() => {
+    if (!selected) return null;
+    const before = stepsBefore(steps, selected.id);
+    for (let i = before.length - 1; i >= 0; i--) {
+      const t = trace.byStep[before[i].id] ?? trace.byPath[findStep(steps, before[i].id)?.path];
+      if (t?.variables) return t.variables;
+    }
+    return null;
+  }, [steps, selected, trace.byStep, trace.byPath]);
+
+  // What a step's outputs hold, shown under it in the list.
+  const outputsFor = (step) => {
+    const known = Object.fromEntries(variablesAvailableAt(steps, step.id, defsByType, hookVariables, inputs).map((v) => [v.name, v]));
+    return outputsOf(step, defsByType[step.Type], known);
+  };
+
   const save = () => { onSave(draft.payload()); draft.markSaved(); };
   const traceFor = (step) => trace.byStep[step.id] ?? trace.byPath[findStep(steps, step.id)?.path];
 
@@ -207,7 +224,7 @@ export const ActionEditor = ({ draft, stepDefinitions, hooks, actions, onSave, o
         onInsert={(container, index) => setInsertAt({ container, index })}
         onDuplicate={(id) => draft.setSteps((s) => stepOps.duplicate(s, id))}
         onDelete={(id) => { draft.setSteps((s) => stepOps.remove(s, id)); if (id === selectedId) setSelectedId(null); }}
-        onOpenAction={onOpenAction}
+        onOpenAction={onOpenAction} outputsFor={outputsFor}
       />
     </Flex>
   );
@@ -216,7 +233,7 @@ export const ActionEditor = ({ draft, stepDefinitions, hooks, actions, onSave, o
     <StepInspector
       step={selected} index={selectedNumber} def={selected ? defsByType[selected.Type] : null}
       stepDefinitions={stepDefinitions} variables={available} knownNames={knownNames}
-      actionOptions={actionOptions} trace={selected ? traceFor(selected) : null}
+      actionOptions={actionOptions} trace={selected ? traceFor(selected) : null} values={values}
       onChangeType={(type) => draft.updateStep(selected.id, (s) => ({ ...s, Type: type }))}
       onChangeData={(name, value) =>
         draft.updateStep(selected.id, (s) => ({ ...s, Data: { ...s.Data, [name]: value } }), `${selected.id}.${name}`)}

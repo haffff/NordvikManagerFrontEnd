@@ -40,9 +40,10 @@ export function describeIceServers(servers) {
 // Recursively lower-cases the first character of every object key.
 // Mirrors the same helper in WebRTCWebHelper — applied here so push messages
 // (dispatched via _dispatchToSubscribers) arrive with camelCase keys, matching
-// what Subscribable/CollectionSyncer expect. The inside of actionArgs is an addon's
-// own data (the variables a menu item or map tool hands its action), kept as written.
-const KEEP_INSIDE = new Set(['actionArgs']);
+// what Subscribable/CollectionSyncer expect. The inside of actionArgs (the variables a
+// menu item or map tool hands its action) and of an action trace's variables is an
+// action's own data, kept as written.
+const KEEP_INSIDE = new Set(['actionArgs', 'variables']);
 
 export function camelizeKeys(obj) {
   if (Array.isArray(obj)) return obj.map(camelizeKeys);
