@@ -3,19 +3,19 @@ import { describe, it, expect, vi } from "vitest";
 vi.mock("../../../../../helpers/transport", () => ({ ActiveTransportManager: {} }));
 import { traceReducer } from "./useActionTrace";
 
-const start = traceReducer({ traceId: null, byStep: {}, byIndex: {} }, { type: "start", traceId: "t1" });
+const start = traceReducer({ traceId: null, byStep: {}, byPath: {} }, { type: "start", traceId: "t1" });
 const event = (state, data) => traceReducer(state, { type: "event", data: { traceId: "t1", ...data } });
 
 describe("traceReducer", () => {
-  it("stores step results by id and by position", () => {
-    const s = event(start, { stepIndex: 0, stepId: "s1", status: "done" });
+  it("stores step results by id and by path", () => {
+    const s = event(start, { stepPath: "0", stepId: "s1", status: "done" });
     expect(s.byStep.s1.status).toBe("done");
-    expect(s.byIndex[0].status).toBe("done");
+    expect(s.byPath["0"].status).toBe("done");
   });
 
-  it("keeps results for steps saved without an id (matched by position)", () => {
-    const s = event(start, { stepIndex: 2, stepId: null, status: "failed", error: "boom" });
-    expect(s.byIndex[2].error).toBe("boom");
+  it("keeps results for steps saved without an id (matched by path, also inside blocks)", () => {
+    const s = event(start, { stepPath: "2/Then/1", stepId: null, status: "failed", error: "boom" });
+    expect(s.byPath["2/Then/1"].error).toBe("boom");
     expect(Object.keys(s.byStep)).toHaveLength(0);
   });
 
@@ -26,7 +26,7 @@ describe("traceReducer", () => {
   });
 
   it("ignores messages from other runs", () => {
-    const s = traceReducer(start, { type: "event", data: { traceId: "other", stepIndex: 0, status: "done" } });
+    const s = traceReducer(start, { type: "event", data: { traceId: "other", stepPath: "0", status: "done" } });
     expect(s).toBe(start);
   });
 });

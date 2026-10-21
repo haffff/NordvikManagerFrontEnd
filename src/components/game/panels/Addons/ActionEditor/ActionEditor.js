@@ -164,7 +164,7 @@ export const ActionEditor = ({ draft, stepDefinitions, hooks, actions, onSave, o
   const knownNames = React.useMemo(() => new Set(available.map((v) => v.name)), [available]);
 
   const save = () => { onSave(draft.payload()); draft.markSaved(); };
-  const traceFor = (step, i) => trace.byStep[step.id] ?? trace.byIndex[i];
+  const traceFor = (step, i) => trace.byStep[step.id] ?? trace.byPath[String(i)];
 
   const onKeyDown = (e) => {
     e.stopPropagation(); // keep editor keys away from game shortcuts (e.g. Delete removes map elements)
