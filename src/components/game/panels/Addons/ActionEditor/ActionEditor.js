@@ -1,4 +1,5 @@
 import * as React from "react";
+import ClientMediator from "../../../../../ClientMediator";
 import {
   Badge, Box, Button, createListCollection, Field, Flex, For, HStack, IconButton, Input, Tabs, Text,
 } from "@chakra-ui/react";
@@ -18,6 +19,7 @@ import { useActionTrace } from "./useActionTrace";
 import { stepOps } from "./useActionDraft";
 import { computeInputs, outputsOf, variablesAvailableAt } from "./variableScope";
 import { findStep, stepsBefore } from "./stepTree";
+import { runFromMapArgs } from "./runFromMap";
 import { T } from "./editorTheme";
 
 // Editor for one action. `draft` comes from useActionDraft (owned by ActionsPanel so it can
@@ -216,7 +218,17 @@ export const ActionEditor = ({ draft, stepDefinitions, hooks, actions, onSave, o
         </Text>
       )}
       <RunBar actionId={action.id} inputs={inputs} running={trace.running} result={trace.result} dirty={draft.dirty}
-        onRun={(args) => { if (draft.dirty) save(); trace.run(fullActionName(action), args); }} />
+        onRun={(args) => { if (draft.dirty) save(); trace.run(fullActionName(action), args); }}
+        onRunFromMap={(args) => {
+          const where = ClientMediator.sendCommand("Game", "GetCurrentBattleMap");
+          if (!where) return;
+          if (draft.dirty) save();
+          ClientMediator.sendCommand("BattleMap", "SetPickTargetsMode", {
+            contextId: where.battleMapId, enabled: true,
+            request: { message: "Click where to run it, pick the tokens it is for, then Done", min: 0, max: 20 },
+            onDone: (state) => { if (state) trace.run(fullActionName(action), { ...args, ...runFromMapArgs(state, where) }); },
+          });
+        }} />
       <StepList
         steps={steps} defsByType={defsByType} selectedId={selectedId} traceFor={traceFor}
         onSelect={setSelectedId}

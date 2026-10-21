@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Box, Button, HStack, IconButton, Input, Spinner, Text } from "@chakra-ui/react";
 import { FaPlay } from "@react-icons/all-files/fa/FaPlay";
+import { FaMapMarkerAlt } from "@react-icons/all-files/fa/FaMapMarkerAlt";
 import { FaPlus } from "@react-icons/all-files/fa/FaPlus";
 import { FaTimes } from "@react-icons/all-files/fa/FaTimes";
 import { T } from "./editorTheme";
@@ -24,7 +25,8 @@ export function mergeRows(saved, inputs) {
   return rows;
 }
 
-export const RunBar = ({ actionId, inputs, onRun, running, result, dirty }) => {
+// onRunFromMap: run it as a map tool or menu click would, after picking on the map.
+export const RunBar = ({ actionId, inputs, onRun, onRunFromMap, running, result, dirty }) => {
   const [rows, setRows] = React.useState(() => mergeRows(loadRows(actionId), inputs));
 
   React.useEffect(() => { setRows(mergeRows(loadRows(actionId), inputs)); }, [actionId, inputs.join("|")]);
@@ -32,11 +34,12 @@ export const RunBar = ({ actionId, inputs, onRun, running, result, dirty }) => {
   const update = (next) => { setRows(next); saveRows(actionId, next); };
   const setRow = (i, patch) => update(rows.map((r, j) => (j === i ? { ...r, ...patch } : r)));
 
-  const run = () => {
+  const rowArgs = () => {
     const args = {};
     rows.forEach((r) => { if (r.name.trim()) args[r.name.trim()] = r.value; });
-    onRun(args);
+    return args;
   };
+  const run = () => onRun(rowArgs());
 
   return (
     <Box borderWidth="1px" borderColor={T.border} borderRadius="md" p={2} bg={T.raised}>
@@ -50,6 +53,12 @@ export const RunBar = ({ actionId, inputs, onRun, running, result, dirty }) => {
           </Text>
         )}
         {running && <Spinner size="xs" color="blue.300" />}
+        {onRunFromMap && (
+          <Button size="xs" variant="outline" onClick={() => onRunFromMap(rowArgs())} disabled={running}
+            title="Click a point and pick tokens on the map, then Done: the action runs as a map tool or menu click would.">
+            <FaMapMarkerAlt /> From map
+          </Button>
+        )}
         <Button size="xs" colorPalette="green" variant="outline" onClick={run} disabled={running}>
           <FaPlay /> {dirty ? "Save & run" : "Run"}
         </Button>
