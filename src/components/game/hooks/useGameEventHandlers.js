@@ -171,7 +171,7 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
 
   /**
    * Backend → client: add a dynamic menu item to a named dropdown menu.
-   * Payload: { name, uiName, icon, action, location, onlyOwner }
+   * Payload: { name, uiName, icon, action, location, onlyTriggeringPlayer, gmOnly }
    */
   // Straight into the menu item store: the target menu (e.g. the map's "Add"
   // submenu) may not be mounted yet, or may be re-mounted later, and shows the
@@ -199,7 +199,7 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
 
   /**
    * Backend → client: add a dynamic button to the toolbar.
-   * Payload: { name, uiName, icon, action, location, onlyOwner, menuId, menuName }
+   * Payload: { name, uiName, icon, action, location, onlyTriggeringPlayer, gmOnly, menuId, menuName }
    */
   const HandleAddToolbarButton = useCallback((resp) => {
     const item = resp.data;
@@ -213,7 +213,7 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
 
   /**
    * Backend → client: add an addon map tool to the Tools panel.
-   * Payload: { name, uiName, action, hint, target, stayActive, actionArgs, onlyOwner }
+   * Payload: { name, uiName, action, hint, target, stayActive, actionArgs, onlyTriggeringPlayer, gmOnly }
    */
   const HandleAddMapTool = useCallback((resp) => {
     const tool = resp.data;

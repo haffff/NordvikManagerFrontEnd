@@ -3,8 +3,8 @@
 // Sources, in the order the backend fills them:
 //   built-ins      set for every action (ActionProcessingService.ExecActionAsync)
 //   hook           the trigger's variables (HookInfoDto.Variables)
-//   steps          arguments marked isOutput (e.g. Output, ItemName), "Assign Variables"
-//                  lines, and RunScript `return { a, b }` keys
+//   steps          arguments marked isOutput (e.g. Output, ItemName) and RunScript
+//                  `return { a, b }` keys
 // "Inputs" are names used somewhere but never defined before use: for an action called
 // by name they are its arguments (e.g. %cardId%), not mistakes.
 
@@ -46,13 +46,6 @@ export function variablesDefinedBy(step, def) {
 
   for (const arg of def?.arguments ?? []) {
     if (arg.isOutput && isPlainName(data[arg.name])) add(data[arg.name].trim());
-  }
-
-  if (step?.Type === "QueryData" && typeof data.Assignments === "string") {
-    for (const line of data.Assignments.split(/\r?\n/)) {
-      const eq = line.indexOf("=");
-      if (eq > 0) { const n = line.slice(0, eq).trim(); if (isPlainName(n)) add(n); }
-    }
   }
 
   if (step?.Type === "RunScript" && isPlainName(data.Output) === false) {

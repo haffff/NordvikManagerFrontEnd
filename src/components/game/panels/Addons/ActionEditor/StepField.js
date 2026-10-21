@@ -34,8 +34,15 @@ export const MENU_LOCATIONS = [
 
 // Arg types with a fixed set of choices (still typeable, e.g. as a %variable%).
 const FIXED_OPTIONS = {
-  // Get Data's Type — the backend accepts these or "MapModel" etc.
-  entitytype: ["Map", "Card", "Layout", "Action", "Element", "Property"].map((v) => ({ value: v, label: v })),
+  // Find's What.
+  findkind: [
+    ["tokens", "Tokens on a map"], ["elements", "Everything on a map"], ["cards", "Cards"], ["maps", "Maps"],
+    ["battleMaps", "Battle map views"], ["players", "Players"], ["actions", "Actions"], ["layouts", "Layouts"],
+  ].map(([value, label]) => ({ value, label: `${label} · ${value}` })),
+  // The property steps' Of (empty: the entity in ParentId).
+  propertyowner: [
+    ["tokenCard", "The card of the token in ParentId"], ["map", "The map (empty ParentId: the one the player looks at)"], ["game", "The game"],
+  ].map(([value, label]) => ({ value, label: `${label} · ${value}` })),
   // Add Menu Item's Location.
   menulocation: MENU_LOCATIONS,
 };

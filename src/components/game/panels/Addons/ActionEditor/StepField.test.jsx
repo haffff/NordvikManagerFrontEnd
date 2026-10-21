@@ -9,19 +9,30 @@ vi.mock('../../../../../helpers/CommandExecutionHelper', () => ({
 
 import { StepField } from './StepField';
 
-// Get Data's Type was free text, and the help suggested names ('Map') that didn't match
-// anything; the backend now marks it 'entitytype' and the editor offers the choices.
-describe('StepField entitytype', () => {
-  it('offers the entity types to pick from', () => {
+// Find's What and the property steps' Of take one of a few words; the editor offers them.
+describe('StepField findkind and propertyowner', () => {
+  it('offers what Find can find', () => {
     renderWithProviders(
-      <StepField arg={{ name: 'Type', type: 'entitytype' }} value="" onChange={vi.fn()} variables={[]} knownNames={[]} />
+      <StepField arg={{ name: 'What', type: 'findkind' }} value="" onChange={vi.fn()} variables={[]} knownNames={[]} />
     );
 
     fireEvent.focus(screen.getByRole('textbox'));
 
-    for (const label of ['Map', 'Card', 'Layout', 'Action', 'Element', 'Property']) {
-      expect(screen.getByText(label)).toBeInTheDocument();
+    for (const label of ['Tokens', 'Cards', 'Maps', 'Players']) {
+      expect(screen.getByText(new RegExp(`^${label}`))).toBeInTheDocument();
     }
+  });
+
+  it("offers whose property: a token's card, the map, the game", () => {
+    renderWithProviders(
+      <StepField arg={{ name: 'Of', type: 'propertyowner' }} value="" onChange={vi.fn()} variables={[]} knownNames={[]} />
+    );
+
+    fireEvent.focus(screen.getByRole('textbox'));
+
+    expect(screen.getByText(/card of the token/)).toBeInTheDocument();
+    expect(screen.getByText(/^The map/)).toBeInTheDocument();
+    expect(screen.getByText(/^The game/)).toBeInTheDocument();
   });
 });
 

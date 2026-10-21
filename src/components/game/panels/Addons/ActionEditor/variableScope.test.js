@@ -7,7 +7,6 @@ const defs = {
   GetPropertyValue: { arguments: [{ name: "ParentId" }, { name: "PropertyName" }, { name: "Output", isOutput: true }] },
   RollDice: { arguments: [{ name: "DiceString" }, { name: "OutputVariable", isOutput: true }] },
   RunScript: { arguments: [{ name: "Script", type: "code" }, { name: "Output", isOutput: true }] },
-  QueryData: { arguments: [{ name: "Assignments" }] },
   SendChat: { arguments: [{ name: "Message" }] },
 };
 
@@ -41,11 +40,6 @@ describe("variablesDefinedBy", () => {
 
   it("ignores token-valued outputs", () => {
     expect(variablesDefinedBy({ Type: "RollDice", Data: { OutputVariable: "%x%" } }, defs.RollDice)).toEqual([]);
-  });
-
-  it("reads Assign Variables lines", () => {
-    const s = { Type: "QueryData", Data: { Assignments: "a=1\n b = %x%\nbad line\n=nope" } };
-    expect(variablesDefinedBy(s, defs.QueryData)).toEqual(["a", "b"]);
   });
 
   it("reads RunScript return keys when there is no Output", () => {
