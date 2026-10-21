@@ -60,7 +60,8 @@ export const StepInspector = ({
   }
 
   const data = step.Data ?? {};
-  const args = (def?.arguments ?? []).filter((a) => isArgVisible(a, data));
+  // Blocks (Then / Else / Do) are edited in the step list, under their step.
+  const args = (def?.arguments ?? []).filter((a) => isArgVisible(a, data) && (a.type ?? "").toLowerCase() !== "steps");
   const field = (name) => ({
     value: data[name],
     onChange: (v) => onChangeData(name, v),
@@ -70,7 +71,7 @@ export const StepInspector = ({
   return (
     <Box p={3}>
       <HStack gap={2} mb={1}>
-        <Text fontSize="xs" color={T.faint}>Step {index + 1}</Text>
+        <Text fontSize="xs" color={T.faint}>Step {index}</Text>
         {def && <Badge size="sm" variant="subtle" colorPalette={categoryColor(def.category)}>{def.category}</Badge>}
       </HStack>
       <HStack justify="space-between" mb={1}>

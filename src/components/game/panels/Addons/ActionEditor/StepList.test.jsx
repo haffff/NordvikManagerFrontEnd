@@ -1,5 +1,5 @@
 import React from 'react';
-import { screen } from '@testing-library/react';
+import { screen, fireEvent, within } from '@testing-library/react';
 import { vi, describe, it, expect } from 'vitest';
 import { renderWithProviders } from '../../../../../setupTests';
 import { StepList } from './StepList';
@@ -22,5 +22,43 @@ describe('StepList', () => {
     for (const name of ['Delete step', 'Duplicate step']) {
       expect(screen.getByRole('button', { name }).closest('.group')).not.toBeNull();
     }
+  });
+
+  // If's Then / Else and ForEach's Do are shown under their step, each with its own list.
+  const defs = {
+    If: { value: 'If', name: 'If', category: 'Control Flow', summary: 'If {Condition}',
+      arguments: [{ name: 'Condition' }, { name: 'Then', type: 'steps' }, { name: 'Else', type: 'steps' }] },
+    Log: { value: 'Log', name: 'Log', category: 'Utility', summary: 'Log {Message}', arguments: [{ name: 'Message' }] },
+  };
+  const ifWithThen = [{ id: 'if', Type: 'If', Data: { Condition: '1 = 1', Then: [{ id: 'in', Type: 'Log', Data: { Message: 'inside' } }] } }];
+  const renderTree = (props = {}) => renderWithProviders(
+    <StepList steps={ifWithThen} defsByType={defs} selectedId={null} traceFor={() => null}
+      onSelect={vi.fn()} onMove={vi.fn()} onInsert={vi.fn()} onDuplicate={vi.fn()} onDelete={vi.fn()} onOpenAction={vi.fn()} {...props} />
+  );
+
+  it('shows the steps of a block under their step', () => {
+    renderTree();
+
+    const then = screen.getByTestId('block-if-Then');
+    expect(within(then).getByText('inside')).toBeInTheDocument();
+    expect(screen.getByTestId('block-if-Else')).toBeInTheDocument(); // empty, still offered
+  });
+
+  it('adds a step into a block', () => {
+    const onInsert = vi.fn();
+    renderTree({ onInsert });
+
+    fireEvent.click(within(screen.getByTestId('block-if-Else')).getByText('Add step'));
+
+    expect(onInsert).toHaveBeenCalledWith({ parentId: 'if', block: 'Else' }, 0);
+  });
+
+  it('selects a step inside a block', () => {
+    const onSelect = vi.fn();
+    renderTree({ onSelect });
+
+    fireEvent.click(screen.getByText('inside'));
+
+    expect(onSelect).toHaveBeenCalledWith('in');
   });
 });

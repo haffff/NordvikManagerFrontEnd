@@ -1,3 +1,5 @@
+import { stepsBefore } from "./stepTree";
+
 // Works out which variables exist at each step of an action, for autocomplete and hints.
 //
 // Sources, in the order the backend fills them:
@@ -10,7 +12,7 @@
 
 export const BUILTIN_VARIABLES = [
   "gameId", "gmId", "actionId", "actionName", "actionPrefix",
-  "playerId", "playerName", "playerColor", "playerIsOwner",
+  "playerId", "playerName", "playerColor", "playerIsOwner", "playerIsGm",
 ];
 
 // Names referenced by tokens: %name%, %name.path[0].x%, %q:{name}.prop%, %q:{name.path}.prop%.
@@ -68,16 +70,17 @@ export function variablesUsedBy(step, def) {
 }
 
 /**
- * Variables available when step `index` runs.
- * @returns {{name:string, source:'builtin'|'hook'|'input'|'step', stepIndex?:number}[]}
+ * Variables available when the step with id `stepId` runs: what steps before it set,
+ * inside blocks too (blocks share the action's variables).
+ * @returns {{name:string, source:'builtin'|'hook'|'input'|'step', stepId?:string}[]}
  */
-export function variablesAvailableAt(steps, index, defsByType, hookVariables = [], inputs = []) {
+export function variablesAvailableAt(steps, stepId, defsByType, hookVariables = [], inputs = []) {
   const seen = new Map();
-  const add = (name, source, stepIndex) => { if (!seen.has(name)) seen.set(name, { name, source, stepIndex }); };
+  const add = (name, source, from) => { if (!seen.has(name)) seen.set(name, { name, source, stepId: from }); };
   BUILTIN_VARIABLES.forEach((n) => add(n, "builtin"));
   hookVariables.forEach((n) => add(n, "hook"));
   inputs.forEach((n) => add(n, "input"));
-  steps.slice(0, index).forEach((s, i) => variablesDefinedBy(s, defsByType[s.Type]).forEach((n) => add(n, "step", i)));
+  stepsBefore(steps, stepId).forEach((s) => variablesDefinedBy(s, defsByType[s.Type]).forEach((n) => add(n, "step", s.id)));
   return [...seen.values()];
 }
 
@@ -85,7 +88,7 @@ export function variablesAvailableAt(steps, index, defsByType, hookVariables = [
 export function computeInputs(steps, defsByType, hookVariables = []) {
   const known = new Set([...BUILTIN_VARIABLES, ...hookVariables]);
   const inputs = [];
-  steps.forEach((s) => {
+  stepsBefore(steps, null).forEach((s) => {
     const def = defsByType[s.Type];
     variablesUsedBy(s, def).forEach((n) => {
       if (!known.has(n) && !inputs.includes(n)) inputs.push(n);

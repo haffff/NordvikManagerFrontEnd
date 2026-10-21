@@ -8,12 +8,15 @@ const defs = {
   RollDice: { arguments: [{ name: "DiceString" }, { name: "OutputVariable", isOutput: true }] },
   RunScript: { arguments: [{ name: "Script", type: "code" }, { name: "Output", isOutput: true }] },
   SendChat: { arguments: [{ name: "Message" }] },
+  SetVariable: { arguments: [{ name: "Name", isOutput: true }, { name: "Value" }] },
+  If: { arguments: [{ name: "Condition" }, { name: "Then", type: "steps" }, { name: "Else", type: "steps" }] },
+  ForEach: { arguments: [{ name: "Collection" }, { name: "ItemName", isOutput: true }, { name: "Do", type: "steps" }] },
 };
 
 // dnd5e roll_attribute: called by name with cardId + attribute
 const rollAttribute = [
-  { Type: "GetPropertyValue", Data: { ParentId: "%cardId%", PropertyName: "%attribute%_mod", Output: "modifier" } },
-  { Type: "RollDice", Data: { DiceString: "1d20+(%modifier%)" } },
+  { id: "get", Type: "GetPropertyValue", Data: { ParentId: "%cardId%", PropertyName: "%attribute%_mod", Output: "modifier" } },
+  { id: "roll", Type: "RollDice", Data: { DiceString: "1d20+(%modifier%)" } },
 ];
 
 describe("extractVariableRefs", () => {
@@ -52,13 +55,26 @@ describe("variablesDefinedBy", () => {
 
 describe("variablesAvailableAt", () => {
   it("includes built-ins, hook variables, inputs and earlier outputs only", () => {
-    const at1 = variablesAvailableAt(rollAttribute, 1, defs, ["Data"], ["cardId"]).map((v) => `${v.source}:${v.name}`);
+    const at1 = variablesAvailableAt(rollAttribute, "roll", defs, ["Data"], ["cardId"]).map((v) => `${v.source}:${v.name}`);
     expect(at1).toContain("builtin:playerId");
     expect(at1).toContain("hook:Data");
     expect(at1).toContain("input:cardId");
     expect(at1).toContain("step:modifier");
-    const at0 = variablesAvailableAt(rollAttribute, 0, defs).map((v) => v.name);
+    const at0 = variablesAvailableAt(rollAttribute, "get", defs).map((v) => v.name);
     expect(at0).not.toContain("modifier");
+  });
+
+  // Blocks share the action's variables: what a block sets is there after it, and a
+  // loop's item is there inside its Do.
+  it("sees into blocks", () => {
+    const steps = [
+      { id: "if", Type: "If", Data: { Condition: "1 = 1", Then: [{ id: "set", Type: "SetVariable", Data: { Name: "hp", Value: "5" } }] } },
+      { id: "loop", Type: "ForEach", Data: { Collection: "list", ItemName: "item", Do: [{ id: "inside", Type: "SendChat", Data: { Message: "%item%" } }] } },
+      { id: "after", Type: "SendChat", Data: { Message: "%hp%" } },
+    ];
+    expect(variablesAvailableAt(steps, "after", defs).map((v) => v.name)).toEqual(expect.arrayContaining(["hp", "item"]));
+    expect(variablesAvailableAt(steps, "inside", defs).map((v) => v.name)).toContain("item");
+    expect(computeInputs(steps, defs)).toEqual([]); // hp and item are set inside the action
   });
 });
 
