@@ -20,6 +20,7 @@ import { ActionEditor, fullActionName } from "./ActionEditor/ActionEditor";
 import { useActionDraft } from "./ActionEditor/useActionDraft";
 import { T } from "./ActionEditor/editorTheme";
 import { QueryResolver } from "./ActionEditor/QueryResolver";
+import { NewActionForm } from "./ActionEditor/NewActionForm";
 
 // Actions panel: the list of actions (grouped by prefix) on the left, the editor on the right.
 // Unsaved edits are protected: switching action asks first, and if the panel closes or the
@@ -48,25 +49,6 @@ const ActionRow = ({ action, hookName, selected, onClick }) => (
   </HStack>
 );
 
-const NewActionForm = ({ onCreate, onCancel }) => {
-  const [prefix, setPrefix] = React.useState("");
-  const [name, setName] = React.useState("");
-  const submit = () => { if (name.trim()) onCreate(prefix.trim(), name.trim()); };
-  return (
-    <Box p={2} borderBottomWidth="1px" borderColor={T.border} bg={T.raised}>
-      <HStack gap={1}>
-        <Input size="xs" w="40%" placeholder="prefix" value={prefix} onChange={(e) => setPrefix(e.target.value)} />
-        <Input size="xs" autoFocus placeholder="action name" value={name} onChange={(e) => setName(e.target.value)}
-          onKeyDown={(e) => { if (e.key === "Enter") submit(); if (e.key === "Escape") onCancel(); }} />
-      </HStack>
-      <HStack mt={1} justify="flex-end" gap={1}>
-        <Button size="2xs" variant="ghost" onClick={onCancel}>Cancel</Button>
-        <Button size="2xs" colorPalette="blue" variant="outline" onClick={submit} disabled={!name.trim()}>Create</Button>
-      </HStack>
-    </Box>
-  );
-};
-
 const Sidebar = ({ actions, hooks, loading, selectedId, onSelect, onSelectGroup, onCreate }) => {
   const [search, setSearch] = React.useState("");
   const [closed, setClosed] = React.useState({});
@@ -91,7 +73,7 @@ const Sidebar = ({ actions, hooks, loading, selectedId, onSelect, onSelectGroup,
         <DListItemButton label="New action" icon={FaPlus} onClick={() => setCreating(true)} />
       </HStack>
       {creating && (
-        <NewActionForm onCancel={() => setCreating(false)} onCreate={(p, n) => { onCreate(p, n); setCreating(false); }} />
+        <NewActionForm onCancel={() => setCreating(false)} onCreate={(p, n, t) => { onCreate(p, n, t); setCreating(false); }} />
       )}
       <Box px={2} pt={2} pb={1} flexShrink={0}><SearchInput value={search} onChange={setSearch} /></Box>
       <Box flex={1} overflowY="auto" px={1} pb={2}>
@@ -258,9 +240,16 @@ export const ActionsPanel = () => {
     if (target) navigate({ type: "action", id: target.id });
   };
 
-  const create = (prefix, name) => {
+  // template: one of ActionEditor/actionTemplates, or null for an empty action.
+  const create = (prefix, name, template) => {
     createdRef.current = prefix ? `${prefix}/${name}` : name;
-    WebSocketManagerInstance.Send({ command: "action_add", data: { prefix, name, hook: 0, content: "[]" } });
+    WebSocketManagerInstance.Send({
+      command: "action_add",
+      data: {
+        prefix, name, hook: template?.hook ?? 0, description: template?.description ?? "",
+        content: JSON.stringify(template?.content ?? []),
+      },
+    });
   };
 
   const remove = () => {
