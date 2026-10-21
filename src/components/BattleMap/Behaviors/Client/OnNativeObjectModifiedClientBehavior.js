@@ -157,7 +157,10 @@ export class OnNativeObjectModifiedClientBehavior {
         case "scaleX":
         case "scaleY":
           // Position too: scaling from a top or left handle (or onto the grid) moves it.
-          dto = DTOConverter.ConvertToDTOMinified(target, ["left", "top", "scaleX", "scaleY"]);
+          // And the size the scale applies to: a token's image set from a property
+          // changes width/height on the client only, so the saved ones can be the
+          // placeholder's and the scale alone would shrink the token on reload.
+          dto = DTOConverter.ConvertToDTOMinified(target, ["left", "top", "width", "height", "scaleX", "scaleY"]);
           break;
         case "rotate":
           dto = DTOConverter.ConvertToDTOMinified(target, ["angle"]);
