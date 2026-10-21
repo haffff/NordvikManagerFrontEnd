@@ -9,6 +9,8 @@ import ConeTypeInit from "../../uiComponents/fabricjs/ConeType";
 import { RESERVED_LAYERS } from "../Constants/layers";
 import * as React from "react";
 import ActionToolOverlay from "../Overlays/ActionToolOverlay";
+import PickTargetsOverlay from "../Overlays/PickTargetsOverlay";
+import { startPicking, togglePick, isCandidate, clickAt } from "../Behaviors/Client/PickTargets/pickTargets";
 import { cleanSketches, undoSketch } from "../Behaviors/Client/Draw/sketches";
 
 class BMService {
@@ -150,6 +152,26 @@ class BMService {
           { name: 'enabled', type: 'boolean', required: true },
           { name: 'tool', type: 'object', required: false },
         ],
+      },
+      SetPickTargetsMode: {
+        description: 'Lets the player pick tokens on the map for an action (RequestTargets): request { message, min, max, candidates }; onDone(state) gets { picked, position } when Done, or null when cancelled.',
+        args: [
+          { name: 'enabled', type: 'boolean', required: true },
+          { name: 'request', type: 'object', required: false },
+          { name: 'onDone', type: 'function', required: false },
+        ],
+      },
+      FinishPickTargets: {
+        description: 'Ends picking tokens with what is picked (when at least min are).',
+        args: [],
+      },
+      CancelPickTargets: {
+        description: 'Ends picking tokens without an answer.',
+        args: [],
+      },
+      PickTargetsClick: {
+        description: 'While picking tokens: toggles the token clicked (elementId) and remembers where (position).',
+        args: [{ name: 'elementId', type: 'string', required: false }, { name: 'position', type: 'object', required: false }],
       },
       DisableAllModes: {
         description: 'Exits all active canvas modes (draw, measure, token-select, edit-layer, etc.).',
@@ -946,9 +968,90 @@ class BMService {
     }
   }
 
+  // Picking tokens for an action (RequestTargets, the editor's "Run from map"). Clicks are
+  // handled by Behaviors/Client/PickTargets/OnMouseDownPickTargets.js. Tokens that can't be
+  // picked are dimmed and picked ones glow — on this screen only, nothing is saved.
+  SetPickTargetsMode({ enabled, request, onDone }) {
+    const canvas = this._canvas;
+    if (enabled) {
+      if (canvas.modeLock || canvas.pickTargets) {
+        onDone?.(null);
+        return;
+      }
+      canvas.modeLock = true;
+      canvas.contextMenuLock = true;
+      canvas.discardActiveObject();
+      canvas.selection = false;
+      canvas.defaultCursor = "pointer";
+      const picking = { state: startPicking(request), onDone, listeners: new Set() };
+      canvas.pickTargets = picking;
+      canvas.getObjects().forEach((object) => {
+        object.set({ beforePickSelectable: object.selectable, selectable: false });
+        if (object.tokenData && !isCandidate(picking.state, object.id)) {
+          object.set({ beforePickOpacity: object.opacity, opacity: (object.opacity ?? 1) * 0.35 });
+        }
+      });
+      canvas.requestRenderAll();
+      this._addPopupAndOverlay(
+        React.createElement(PickTargetsOverlay, { key: this.contextId + "_PickTargets", battleMapId: this.contextId, picking })
+      );
+      ClientMediator.fireEvent("BattleMap_ModeChanged", { battleMapId: this.contextId, mode: "PickTargets", type: undefined });
+      return;
+    }
+    this._endPicking(false);
+  }
+
+  // A click on the map while picking: toggles the token clicked (if any) and remembers where.
+  PickTargetsClick({ elementId, position }) {
+    const picking = this._canvas.pickTargets;
+    if (!picking) return;
+    picking.state = clickAt(elementId ? togglePick(picking.state, elementId) : picking.state, position);
+    this._canvas.getObjects().forEach((object) => {
+      if (!object.tokenData) return;
+      const picked = picking.state.picked.includes(object.id);
+      if (picked && object.beforePickShadow === undefined) {
+        object.set({ beforePickShadow: object.shadow ?? null, shadow: new fabric.Shadow({ color: "rgba(255,215,0,0.95)", blur: 25 }) });
+      } else if (!picked && object.beforePickShadow !== undefined) {
+        object.set({ shadow: object.beforePickShadow, beforePickShadow: undefined });
+      }
+    });
+    this._canvas.requestRenderAll();
+    picking.listeners.forEach((listener) => listener(picking.state));
+  }
+
+  FinishPickTargets() {
+    const picking = this._canvas.pickTargets;
+    if (picking && picking.state.picked.length >= picking.state.min) this._endPicking(true);
+  }
+
+  CancelPickTargets() {
+    this._endPicking(false);
+  }
+
+  _endPicking(finished) {
+    const canvas = this._canvas;
+    const picking = canvas.pickTargets;
+    if (!picking) return;
+    canvas.pickTargets = undefined;
+    canvas.modeLock = undefined;
+    canvas.contextMenuLock = undefined;
+    canvas.selection = true;
+    canvas.defaultCursor = "default";
+    canvas.getObjects().forEach((object) => {
+      if (object.beforePickSelectable !== undefined) object.set({ selectable: object.beforePickSelectable, beforePickSelectable: undefined });
+      if (object.beforePickOpacity !== undefined) object.set({ opacity: object.beforePickOpacity, beforePickOpacity: undefined });
+      if (object.beforePickShadow !== undefined) object.set({ shadow: object.beforePickShadow, beforePickShadow: undefined });
+    });
+    canvas.requestRenderAll();
+    this._removePopupAndOverlay();
+    ClientMediator.fireEvent("BattleMap_ModeChanged", { battleMapId: this.contextId, mode: undefined, type: undefined });
+    picking.onDone?.(finished ? picking.state : null);
+  }
+
   DisableAllModes() {
     const canvas = this._canvas;
     this.SetActionToolMode({ enabled: false });
+    this.CancelPickTargets();
     this.SetSimpleCreateMode({ enabled: false });
     this.SetFreeDrawMode({ enabled: false });
     this.UnsetTokenSelectMode({});
