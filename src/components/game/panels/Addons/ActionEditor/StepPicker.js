@@ -19,7 +19,8 @@ const pushRecent = (type) => {
   } catch { /* storage unavailable: recents are a convenience only */ }
 };
 
-// Ranks a definition against the query: name hits first, then category, then description.
+// Ranks a definition against the query: name hits first, then what the step is for (its
+// keywords, e.g. "tokens" or "monsters" for Find), then category, then description.
 export function rankSteps(defs, query) {
   const q = query.trim().toLowerCase();
   if (!q) return defs;
@@ -27,8 +28,9 @@ export function rankSteps(defs, query) {
     const name = (d.name ?? "").toLowerCase();
     if (name.startsWith(q)) return 0;
     if (name.includes(q) || (d.value ?? "").toLowerCase().includes(q)) return 1;
-    if ((d.category ?? "").toLowerCase().includes(q)) return 2;
-    if ((d.description ?? "").toLowerCase().includes(q)) return 3;
+    if ((d.keywords ?? []).some((k) => k.toLowerCase().includes(q))) return 2;
+    if ((d.category ?? "").toLowerCase().includes(q)) return 3;
+    if ((d.description ?? "").toLowerCase().includes(q)) return 4;
     return -1;
   };
   return defs
