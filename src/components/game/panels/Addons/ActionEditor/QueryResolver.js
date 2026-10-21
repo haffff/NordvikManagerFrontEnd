@@ -6,7 +6,7 @@ import { FaSearch } from "@react-icons/all-files/fa/FaSearch";
 import { ActiveWebHelper as WebHelper } from "../../../../../helpers/transport";
 import { T } from "./editorTheme";
 
-// Sidebar tool to try out tokens (%name%, %v:%, %q:%) against the live game, filled in
+// Sidebar tool to try out tokens (%name%, %name.field%, %q:%) against the live game, filled in
 // exactly as a running action fills them in.
 // (Moved unchanged from the old ActionsPanel.)
 const BG_RAISED = T.raised;

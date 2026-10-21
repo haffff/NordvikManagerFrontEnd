@@ -18,9 +18,13 @@ const rollAttribute = [
 ];
 
 describe("extractVariableRefs", () => {
-  it("finds plain, dto, v: and q: references", () => {
-    expect(extractVariableRefs("%a% %dto:b% %v:c.d[0]% %q:{e}.hp% %q:1234.hp% %q:card[Mr. Smith].hp%"))
-      .toEqual(["a", "b", "c", "e"]);
+  it("finds plain, path and q: references", () => {
+    expect(extractVariableRefs("%a% %b.c[0].d% %q:{e}.hp% %q:{f.cardId}.hp% %q:1234.hp% %q:card[Mr. Smith].hp%"))
+      .toEqual(["a", "b", "e", "f"]);
+  });
+
+  it("doesn't read the old dto: and v: forms as variables", () => {
+    expect(extractVariableRefs("%dto:x% %v:y.z%")).toEqual([]);
   });
 });
 

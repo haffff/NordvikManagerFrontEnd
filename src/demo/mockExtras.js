@@ -108,7 +108,7 @@ const stepDefinitions = [
     description: "Reads a single named property's value for one entity, falling back to DefaultValue when it doesn't exist.",
     summary: 'Read {PropertyName} of {ParentId}[ → {Output}]',
     arguments: [
-      arg('ParentId', 'String', 'GUID of the entity whose property to read, e.g. %v:Data.id% or %playerId%.'),
+      arg('ParentId', 'String', 'GUID of the entity whose property to read, e.g. %Data.id% or %playerId%.'),
       arg('PropertyName', 'String', 'Name of the property to read.'),
       arg('Output', 'String', "Name of the variable where the property's value will be stored.", { isOutput: true }),
       arg('DefaultValue', 'String', "Value to store when the property doesn't exist."),
@@ -150,8 +150,8 @@ const action = {
   // The server sends the steps as a JSON string.
   content: JSON.stringify([
     { Type: 'GetPropertyValue', Data: { Label: 'Read the modifier', ParentId: '%cardId%', PropertyName: 'perception_mod', Output: 'mod', DefaultValue: '0' } },
-    { Type: 'RollDice', Data: { Label: 'Roll', DiceString: '1d20+%v:mod%', OutputVariable: 'roll', PrintToChat: true, ChatTitle: 'Perception' } },
-    { Type: 'SendChat', Data: { Label: 'Whisper to the GM', Template: 'Text', Title: 'Perception', Message: 'Rolled %v:roll.Result%', Player: 'GM' } },
+    { Type: 'RollDice', Data: { Label: 'Roll', DiceString: '1d20+%mod%', OutputVariable: 'roll', PrintToChat: true, ChatTitle: 'Perception' } },
+    { Type: 'SendChat', Data: { Label: 'Whisper to the GM', Template: 'Text', Title: 'Perception', Message: 'Rolled %roll.Result%', Player: 'GM' } },
   ]),
 };
 

@@ -13,14 +13,13 @@ export const BUILTIN_VARIABLES = [
   "playerId", "playerName", "playerColor", "playerIsOwner",
 ];
 
-// Names referenced by tokens: %name%, %dto:name%, %v:name.path%, %q:{name}.prop%.
+// Names referenced by tokens: %name%, %name.path[0].x%, %q:{name}.prop%, %q:{name.path}.prop%.
 export function extractVariableRefs(text) {
   if (typeof text !== "string" || !text.includes("%")) return [];
   const names = [];
   const add = (n) => { if (n && !names.includes(n)) names.push(n); };
-  for (const m of text.matchAll(/%(?:dto:)?([A-Za-z_]\w*)%/g)) add(m[1]);
-  for (const m of text.matchAll(/%v:([A-Za-z_]\w*)[.[]/g)) add(m[1]);
-  for (const m of text.matchAll(/%q:\{([A-Za-z_]\w*)\}/g)) add(m[1]);
+  for (const m of text.matchAll(/%([A-Za-z_]\w*)(?:\.\w+|\[\d+\])*%/g)) add(m[1]);
+  for (const m of text.matchAll(/%q:\{([A-Za-z_]\w*)(?:\.\w+|\[\d+\])*\}/g)) add(m[1]);
   return names;
 }
 

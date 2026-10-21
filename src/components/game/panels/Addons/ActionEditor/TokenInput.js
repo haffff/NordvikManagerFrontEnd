@@ -72,9 +72,7 @@ export const TokenInput = React.forwardRef(function TokenInput({
       .filter((v) => v.name.toLowerCase().includes(q))
       .map((v) => ({ value: v.name, label: `%${v.name}%`, hint: SOURCE_LABEL[v.source] ?? v.source }));
     const snippets = [
-      { value: "v:", label: "%v:name.field%", hint: "value inside an object", snippet: "v:" },
       { value: "q:", label: "%q:{name}.prop%", hint: "property of an entity", snippet: "q:{" },
-      { value: "dto:", label: "%dto:name%", hint: "as JSON", snippet: "dto:" },
     ].filter((s) => s.value.startsWith(q) || q === "");
     return [...vars.slice(0, MAX_ITEMS), ...snippets];
   }, [menu, text, variables, options]);
