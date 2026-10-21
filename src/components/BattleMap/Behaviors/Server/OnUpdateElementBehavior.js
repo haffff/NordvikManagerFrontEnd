@@ -104,7 +104,17 @@ export class OnUpdateElementBehavior {
                   obj.selectablePermission && obj.layer === selectedLayer
                 );
               }, options);
+              // Hidden above like for any update — nothing animates here to show them again.
+              obj?.additionalObjects?.forEach((element) => {
+                if (element.visibleBeforeDrag !== undefined) {
+                  element.set({
+                    visible: element.visibleBeforeDrag,
+                    visibleBeforeDrag: undefined,
+                  });
+                }
+              });
               canvas._objects.sort(compareLayers);
+              canvas.requestRenderAll();
               break;
             default:
               obj.set(parsedJson);

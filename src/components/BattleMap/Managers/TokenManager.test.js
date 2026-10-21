@@ -213,3 +213,49 @@ describe('TokenManager: showing / hiding a masked part redraws the map', () => {
     expect(canvas.requestRenderAll).toHaveBeenCalled();
   });
 });
+
+describe('TokenManager: token parts stay as the user left them', () => {
+  const managerFor = (token) => {
+    const tm = new TokenManager();
+    tm._getCanvas = () => ({ getObjects: () => [token], requestRenderAll: vi.fn() });
+    tm._findObject = () => token;
+    tm._getSelectedMap = () => ({ id: 'map-1' });
+    ClientMediator.sendCommand.mockImplementation(() => undefined);
+    ClientMediator.sendCommandAsync.mockResolvedValue([]);
+    return tm;
+  };
+
+  beforeEach(() => vi.clearAllMocks());
+
+  // A full refresh (e.g. a mask toggled) must not hide the parts a selected token shows.
+  it('keeps a selected token\'s on-selection parts shown on a full refresh', async () => {
+    const control = { tokenData: { showOnTokenControl: true }, visible: true };
+    const token = { id: 'tok-1', additionalObjects: [control], tokenData: {}, _controlsShown: true };
+
+    await managerFor(token).UpdateTokenBasedOnProperties({ tokenId: 'tok-1' });
+
+    expect(control.visible).toBe(true);
+  });
+
+  it('hides them when the token is not selected', async () => {
+    const control = { tokenData: { showOnTokenControl: true }, visible: true };
+    const token = { id: 'tok-1', additionalObjects: [control], tokenData: {} };
+
+    await managerFor(token).UpdateTokenBasedOnProperties({ tokenId: 'tok-1' });
+
+    expect(control.visible).toBe(false);
+  });
+
+  // While a token is dragged (or animated to a remote move) its parts are hidden and
+  // their visibility kept in visibleBeforeDrag, which is restored afterwards — a
+  // status icon switched meanwhile must land there, or the restore undoes it.
+  it('keeps an icon switched on during a drag', () => {
+    const icon = { visible: false, visibleBeforeDrag: false, set(k, v) { this[k] = v; } };
+    const dep = { dtoProperty: 'status_prone', objectProperty: 'visible', type: 'bool', source: 'element' };
+
+    managerFor({})._applyDep(dep, { id: 'tok-1' }, icon, [{ name: 'status_prone', value: 'True', entityName: 'ElementModel' }]);
+
+    expect(icon.visibleBeforeDrag).toBe(true);
+    expect(icon.visible).toBe(false); // still hidden until the drag ends
+  });
+});

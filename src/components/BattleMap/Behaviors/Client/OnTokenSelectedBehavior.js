@@ -19,8 +19,12 @@ export class OnTokenSelectedClientBehavior {
             }
 
             setIconsExpanded(element, false, battleMapId);
+            // Read by TokenManager.UpdateTokenBasedOnProperties, which would otherwise
+            // hide the on-selection parts of a token that is still selected.
+            element._controlsShown = false;
 
             if (element && element.additionalObjects) {
+                const token = element;
                 let objects = element.additionalObjects.filter(x => x?.tokenData?.showOnTokenControl);
                 objects.forEach(element => {
                     element.animate('opacity', 0, {
@@ -28,7 +32,8 @@ export class OnTokenSelectedClientBehavior {
                         easing: fabric.util.ease.easeOutSine,
                         onChange: canvas.renderAll.bind(canvas),
                         onComplete: () => {
-                            element.set({ visible: false });
+                            // Selected again before the fade ended: keep it.
+                            if (!token._controlsShown) element.set({ visible: false });
                         }
                     });
                 });
@@ -46,6 +51,7 @@ export class OnTokenSelectedClientBehavior {
         }
 
         setIconsExpanded(token, true, battleMapId);
+        token._controlsShown = true;
 
         // _maskVisible is computed by TokenManager.UpdateTokenBasedOnProperties from
         // this element's maskGroup (map-wide toggle, with an optional per-token
@@ -56,6 +62,7 @@ export class OnTokenSelectedClientBehavior {
         ) || [];
 
         objects.forEach(element => {
+            fabric.runningAnimations?.cancelByTarget(element); // a fade-out still running
             element.set({ visible: true });
             element.animate('opacity', 1, {
                 onChange: canvas.renderAll.bind(canvas),

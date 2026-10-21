@@ -639,6 +639,14 @@ class TokenManager {
       value = false;
     }
 
+    // While the token is dragged (or animated to a remote move) its parts are hidden
+    // and their own visibility kept in visibleBeforeDrag, restored afterwards — a
+    // change arriving meanwhile goes there, or that restore would undo it.
+    if (objectProperty === "visible" && targetElement?.visibleBeforeDrag !== undefined) {
+      targetElement.visibleBeforeDrag = value;
+      return true;
+    }
+
     // Fabric crashes with a 0×0 cache canvas — clamp width/height to at least 1px.
     if ((objectProperty === "width" || objectProperty === "height") && typeof value === "number") {
       value = Math.max(value, 1);
@@ -663,7 +671,24 @@ class TokenManager {
       const url = _toResourceUrl(value || SYSTEM_ASSET_KEYS.EMPTY_TOKEN_IMAGE);
       targetElement.set("src", url);
       if (typeof targetElement.setSrc === "function") {
-        targetElement.setSrc(url, () => {});
+        // setSrc resets width/height to the new picture's own, so a token placed with
+        // the placeholder would change size on the map — keep the width it had, as
+        // placing does (scaleToWidth), and fit an automatic circle crop to the picture.
+        // Scaled directly, not with scaleToWidth: that measures on screen, so map zoom
+        // and the token's rotation would change the size on every refresh.
+        const shownWidth = targetElement.width * (targetElement.scaleX ?? 1);
+        const oldMin = Math.min(targetElement.width, targetElement.height);
+        targetElement.setSrc(url, (img) => {
+          if (!img?.width || !shownWidth) return;
+          img.scale(shownWidth / img.width);
+          const clip = img.clipPath;
+          if (clip?.type === "circle" && clip.radius === oldMin / 2) {
+            clip.set("radius", Math.min(img.width, img.height) / 2);
+          }
+          img.setCoords?.();
+          if (object?.additionalObjects?.length) this.UpdateTokenUIPositions({ object });
+          this._getCanvas()?.requestRenderAll();
+        });
       }
       return true;
     }
@@ -1218,9 +1243,11 @@ class TokenManager {
 
         // Restore visibility: hidden if disabled, control-only, prop-driven, or masked off
         const wasVisible = element.visible;
+        // On-selection parts stay shown while their token is selected on its own
+        // (OnTokenSelectedBehavior sets _controlsShown).
         element.visible =
           element.enabled !== false &&
-          !element.tokenData?.showOnTokenControl &&
+          (!element.tokenData?.showOnTokenControl || !!object._controlsShown) &&
           !hasPropVisibility &&
           maskVisible;
 
