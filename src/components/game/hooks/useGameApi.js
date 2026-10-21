@@ -2,6 +2,7 @@ import React from 'react';
 import ClientMediator from '../../../ClientMediator';
 import DockableHelper from '../../../helpers/DockableHelper';
 import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
+import { currentBattleMap } from './currentBattleMap';
 import LayoutHelper from '../../../helpers/LayoutCloneHelper';
 import UtilityHelper from '../../../helpers/UtilityHelper';
 import { _entityPermissionSetter } from '../../../contexts/PermissionsContext';
@@ -144,6 +145,10 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
           description: 'Returns (async) the ID of the currently active / focused BattleMap.',
           args: [],
         },
+        GetCurrentBattleMap: {
+          description: 'Returns { battleMapId, mapId } of the battle map view the player is looking at (the selected one, else the first open), or undefined when none is open. Does not wait.',
+          args: [],
+        },
         GetMaps: {
           description: 'Fetches the flat list of all maps from the server.',
           args: [],
@@ -231,6 +236,10 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
       },
 
       GetOpenedBattleMaps: () => Object.values(battleMapsContextsRef.current),
+
+      GetCurrentBattleMap: () =>
+        currentBattleMap(selectedBattleMapId, battleMapsContextsRef.current,
+          (contextId) => ClientMediator.sendCommand("BattleMap", "GetSelectedMapID", { contextId })),
 
       GetActiveBattleMapId: async () => {
         if (selectedBattleMapId !== undefined) return selectedBattleMapId;

@@ -1,4 +1,5 @@
 import { ActiveTransportManager } from "../../helpers/transport";
+import ClientMediator from "../../ClientMediator";
 
 // Fires a server-side Action, as a ClientMediator client instead of every call
 // site hand-rolling ActiveTransportManager.Send({ command: "execute_action", ... }).
@@ -24,8 +25,13 @@ export const ActionService = {
     },
   },
 
-  Run: ({ name, args } = {}) =>
-    ActiveTransportManager.Send({ command: "execute_action", data: { Action: name, Args: args } }),
+  // The battle map view and map the player is looking at go along, so an action's
+  // "tokens" or "turn order" needs no map id; a caller's own (a map tool's click) wins.
+  Run: ({ name, args } = {}) => {
+    const current = ClientMediator.sendCommand("Game", "GetCurrentBattleMap");
+    const where = current ? { battleMapId: current.battleMapId, mapId: current.mapId } : {};
+    ActiveTransportManager.Send({ command: "execute_action", data: { Action: name, Args: { ...where, ...(args ?? {}) } } });
+  },
 };
 
 export default ActionService;

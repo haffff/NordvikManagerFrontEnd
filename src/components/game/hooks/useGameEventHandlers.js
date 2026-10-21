@@ -173,29 +173,6 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
    * Backend → client: add a dynamic menu item to a named dropdown menu.
    * Payload: { name, uiName, icon, action, location, onlyOwner }
    */
-  /**
-   * Menu items placed under "battlemap_add" are inherently battle-map-scoped
-   * (the "Add" submenu on the map's right-click context menu) — resolve the
-   * active battle map + the canvas position the menu was opened at, and merge
-   * them into the action's args as `battleMapId`/`position`, generically for
-   * ANY addon's menu item in that location, not just a specific one. This is
-   * what lets an addon's create action end with a RunClientCommand step that
-   * spawns a token exactly where the user right-clicked, without the menu
-   * item itself needing to carry any position data (it can't — the position
-   * is only known at click time).
-   */
-  const resolveBattlemapAddContext = useCallback(async (item) => {
-    if (item.location !== "battlemap_add") return {};
-    try {
-      const battleMapId = await ClientMediator.sendCommandWaitForRegisterAsync("Game", "GetActiveBattleMapId");
-      const position = ClientMediator.sendCommand("BattleMap", "GetLastClickPos", { contextId: battleMapId });
-      return { battleMapId, position };
-    } catch (e) {
-      console.warn(`HandleAddMenuItem: failed to resolve battlemap click context for "${item.name}"`, e);
-      return {};
-    }
-  }, []);
-
   // Straight into the menu item store: the target menu (e.g. the map's "Add"
   // submenu) may not be mounted yet, or may be re-mounted later, and shows the
   // store's items whenever it is.
@@ -205,10 +182,10 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
       key: item.name,
       name: item.uiName || item.name,
       onClick: async () => {
-        // What the menu was opened on (a token, a card, ...), set by that menu when it opened.
+        // What the menu was opened on (a token, a card, where on the map, ...), set by that
+        // menu when it opened.
         const menuContext = getMenuContext(item.location || "game");
-        const extraArgs = await resolveBattlemapAddContext(item);
-        ClientMediator.sendCommand("Action", "Run", { name: item.action, args: { ...item.actionArgs, ...menuContext, ...extraArgs } });
+        ClientMediator.sendCommand("Action", "Run", { name: item.action, args: { ...item.actionArgs, ...menuContext } });
       },
     });
 
@@ -218,7 +195,7 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
     } else {
       addMenuItem(item.location || "game", menuItem);
     }
-  }, [resolveBattlemapAddContext]);
+  }, []);
 
   /**
    * Backend → client: add a dynamic button to the toolbar.

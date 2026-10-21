@@ -43,6 +43,7 @@ import { SearchInput } from "../../../uiComponents/SearchInput";
 import { LAYER_STATES, layerFlagUpdate, layerLabel, layerState } from "../../../BattleMap/Helpers/layerVisibility";
 import AddonMenuItems from "../../../uiComponents/base/DDItems/AddonMenuItems";
 import { setMenuContext } from "../../../uiComponents/base/DDItems/menuItemsStore";
+import { battleMapMenuContexts } from "./battleMapMenuContexts";
 
 export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) => {
   // Read when the menu opens: selecting on the canvas doesn't re-render this component,
@@ -416,8 +417,9 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
           setSelectedObjects(opened);
           // What addon items in these menus get as variables when clicked.
           const position = ClientMediator.sendCommand("BattleMap", "GetLastClickPos", { contextId: battleMapId });
-          setMenuContext("battlemap", { battleMapId, position });
-          setMenuContext("battlemap_element", { battleMapId, position, elementId: opened[0]?.id });
+          const mapId = ClientMediator.sendCommand("BattleMap", "GetSelectedMapID", { contextId: battleMapId });
+          const contexts = battleMapMenuContexts({ battleMapId, mapId, position, selected: opened });
+          Object.entries(contexts).forEach(([viewId, context]) => setMenuContext(viewId, context));
         }
     }}>
       <Subscribable commandPrefix="permission_update" onMessage={(msg) => {
