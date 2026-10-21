@@ -6,7 +6,8 @@ import { FaSearch } from "@react-icons/all-files/fa/FaSearch";
 import { ActiveWebHelper as WebHelper } from "../../../../../helpers/transport";
 import { T } from "./editorTheme";
 
-// Sidebar tool to try out %q:% / %qn:% expressions against the live game.
+// Sidebar tool to try out tokens (%name%, %v:%, %q:%) against the live game, filled in
+// exactly as a running action fills them in.
 // (Moved unchanged from the old ActionsPanel.)
 const BG_RAISED = T.raised;
 const BORDER_CLR = T.border;
@@ -16,6 +17,7 @@ export const QueryResolver = () => {
   const [expression, setExpression] = React.useState("");
   const [variables,  setVariables]  = React.useState("");
   const [result,     setResult]     = React.useState(null);
+  const [unresolved, setUnresolved] = React.useState([]);
   const [error,      setError]      = React.useState(null);
   const [loading,    setLoading]    = React.useState(false);
 
@@ -23,6 +25,7 @@ export const QueryResolver = () => {
     if (!expression.trim()) return;
     setLoading(true);
     setResult(null);
+    setUnresolved([]);
     setError(null);
     try {
       let vars;
@@ -31,7 +34,8 @@ export const QueryResolver = () => {
       }
       const resp = await WebHelper.postAsync("addon/resolveQuery", { expression, variables: vars });
       if (!resp || resp.status < 200 || resp.status >= 300) { setError(`HTTP ${resp?.status ?? "error"}`); return; }
-      setResult(resp.body?.result ?? "(empty)");
+      setResult(resp.body?.result || "(empty)");
+      setUnresolved(resp.body?.unresolved ?? []);
     } catch (e) {
       setError(e?.message ?? "Request failed");
     } finally {
@@ -55,7 +59,7 @@ export const QueryResolver = () => {
       {open && (
         <Flex direction="column" px={3} pb={3} gap={2}>
           <Input
-            size="xs" placeholder="%q:{gameId}.name% or %qn:player-&quot;John&quot;.hp%"
+            size="xs" placeholder="%q:card[Goblin].hp% or %q:{gameId}.name%"
             value={expression} onChange={e => setExpression(e.target.value)}
             onKeyDown={e => { if (e.key === "Enter") resolve(); }}
             fontFamily="mono" borderColor={BORDER_CLR}
@@ -74,6 +78,11 @@ export const QueryResolver = () => {
             <Box bg={BG_RAISED} borderRadius="md" borderWidth="1px" borderColor={BORDER_CLR} px={2} py={1}>
               <Text fontSize="xs" color="gray.400" mb="2px">Result</Text>
               <Text fontSize="xs" fontFamily="mono" color="green.300" wordBreak="break-all">{result}</Text>
+              {unresolved.length > 0 && (
+                <Text fontSize="xs" fontFamily="mono" color="orange.300" wordBreak="break-all" mt="2px">
+                  Not found: {unresolved.join(", ")}
+                </Text>
+              )}
             </Box>
           )}
           {error && (
