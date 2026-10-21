@@ -20,7 +20,9 @@ const gameState = () => ({
   setCurrentPlayerId: vi.fn(),
   setPlayers: vi.fn(),
   setLayout: vi.fn(),
-  setIsGM: vi.fn(),
+  setIsOwner: vi.fn(),
+  setIsLocalAdmin: vi.fn(),
+  setGamePermission: vi.fn(),
   currentPlayerRef: { current: undefined },
   gameRef: { current: undefined },
   keyboardEventsManagerRef: { current: { GetKeyboardConfigFromCentralServer: vi.fn(() => Promise.resolve()) } },
@@ -50,7 +52,7 @@ describe('the demo boots on its fixtures', () => {
   it('GM view: the game loads and the visitor is the GM', async () => {
     const { result, state, notes } = await boot('gm', gmFixture);
     expect(result.current.initError).toBeNull();
-    expect(state.setIsGM).toHaveBeenCalledWith(true);
+    expect(state.setIsOwner).toHaveBeenCalledWith(true);
     expect(state.gameRef.current?.id).toBe(gmFixture.requests['GET api/battlemap/getfullgame'].body.id);
     expect(state.setLayout).toHaveBeenCalledWith(expect.objectContaining({ value: expect.stringContaining('Battlemap') }));
     expect(notes).toEqual([]);
@@ -59,7 +61,7 @@ describe('the demo boots on its fixtures', () => {
   it('player view: the game loads and the visitor is a player', async () => {
     const { result, state, notes } = await boot('player', playerFixture);
     expect(result.current.initError).toBeNull();
-    expect(state.setIsGM).toHaveBeenCalledWith(false);
+    expect(state.setIsOwner).toHaveBeenCalledWith(false);
     expect(state.setCurrentPlayerId).toHaveBeenCalledWith(playerFixture.requests['GET api/battlemap/getplayer'].body.id);
     expect(notes).toEqual([]);
   });

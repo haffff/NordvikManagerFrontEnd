@@ -52,7 +52,7 @@ export const maskSettingFields = (groups, { category, notSetMeans = "this map's 
       property: true,
       propertyNames: [enabledKey, gmOnlyKey],
       label: g.label,
-      toolTip: `Who sees "${g.label}": everyone (Visible), only the GM, or nobody (Hidden). Not set uses ${notSetMeans} (visible to everyone when nothing is set).`,
+      toolTip: `Who sees "${g.label}": everyone (Visible), only those who can edit the game (GM only), or nobody (Hidden). Not set uses ${notSetMeans} (visible to everyone when nothing is set).`,
       type: "segmented",
       options: MASK_OPTIONS,
       fromProperties: (get) => maskChoice(get(enabledKey), get(gmOnlyKey)),

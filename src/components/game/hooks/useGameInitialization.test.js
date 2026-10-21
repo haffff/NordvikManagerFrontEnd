@@ -20,7 +20,9 @@ function makeGameState() {
     setCurrentPlayerId: vi.fn(),
     setPlayers: vi.fn(),
     setLayout: vi.fn(),
-    setIsGM: vi.fn(),
+    setIsOwner: vi.fn(),
+    setIsLocalAdmin: vi.fn(),
+    setGamePermission: vi.fn(),
     currentPlayerRef: { current: undefined },
     gameRef: { current: undefined },
     keyboardEventsManagerRef: {
@@ -78,6 +80,26 @@ describe('useGameInitialization generation token', () => {
     // It must not have written into this (now-dead) mount's refs/state.
     expect(gameState.currentPlayerRef.current).toBeUndefined();
     expect(gameState.setCurrentPlayerId).not.toHaveBeenCalled();
+  });
+
+  it('takes ownership, the game permission and local admin from the full game', async () => {
+    const gameState = makeGameState();
+    const { result } = renderHook(() =>
+      useGameInitialization({ state: {}, gameState, CreateLayoutElement: vi.fn() })
+    );
+    WebHelper.getAsync.mockImplementation(async (path) => {
+      if (path === 'battlemap/getplayer') return { id: 'p2' };
+      if (path === 'battlemap/getfullgame') return { id: 'g1', master: { id: 'p1' }, players: [], battleMaps: [], permission: 9, isLocalAdmin: true };
+      return null;
+    });
+
+    await act(async () => { await result.current.loadGame(); });
+
+    expect(gameState.setIsOwner).toHaveBeenCalledWith(false);
+    expect(gameState.setGamePermission).toHaveBeenCalledWith(9);
+    expect(gameState.setIsLocalAdmin).toHaveBeenCalledWith(true);
+    expect(WebHelper.getAsync).not.toHaveBeenCalledWith(expect.stringContaining('security/permissions'));
+    act(() => { result.current.resetInitialization(); }); // initialization state is module-level
   });
 
   it('ready turns true once the game has loaded, and false again on reset', async () => {

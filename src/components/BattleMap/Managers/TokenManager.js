@@ -123,6 +123,7 @@ const ALLOWED_TOKEN_UI_MEDIATOR_COMMANDS = Object.freeze({
   "Game.GetCurrentPlayer":   true,
   "Game.GetGameId":          true,
   "Game.GetIsGM":            true,
+  "Game.GetCanEditGame":     true,
 
   // ── Map ─────────────────────────────────────────────────────────────────
   "BattleMap.GetSelectedMap": true,
@@ -511,7 +512,8 @@ class TokenManager {
       ClientMediator.sendCommandAsync("Properties", "GetByNames", { parentId: token.id, names }).catch(() => []),
     ]);
 
-    const isGM = ClientMediator.sendCommand("Game", "GetIsGM");
+    // "GM only" masks are shown to whoever may edit the game.
+    const canEditGame = ClientMediator.sendCommand("Game", "GetCanEditGame");
 
     const result = new Map();
     for (const group of groups) {
@@ -524,7 +526,7 @@ class TokenManager {
       const enabled = resolveMaskSetting(elEnabled, mapEnabled, true);
       const gmOnly = resolveMaskSetting(elGmOnly, mapGmOnly, false);
 
-      result.set(group, enabled && (!gmOnly || isGM));
+      result.set(group, enabled && (!gmOnly || canEditGame));
     }
     return result;
   }

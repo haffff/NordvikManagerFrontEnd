@@ -13,7 +13,7 @@ import {
 } from "../ui/dialog";
 
 /**
- * RequestInputManager — always-mounted (see Game.js), not gated on isGM.
+ * RequestInputManager — always-mounted (see Game.js), not gated on any permission.
  *
  * The "Request User Input" action step sends the targeted player a `request_input`
  * WebSocket command carrying `{ message, showDialog, defaultValue }` + an `inputToken`.

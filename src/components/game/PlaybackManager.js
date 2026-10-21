@@ -20,7 +20,7 @@ import AudioUnlockNotice from "./AudioUnlockNotice";
 // resulting broadcasts. This prevents every connected client from racing to call
 // AdvanceTrack/StopPlaylist simultaneously.
 export const PlaybackManager = () => {
-  const { isGM } = usePermissions();
+  const { isOwner: isGM } = usePermissions();
   const isGMRef = React.useRef(isGM);
   isGMRef.current = isGM;
 

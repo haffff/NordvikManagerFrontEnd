@@ -184,7 +184,7 @@ describe('TokenManager: showing / hiding a masked part redraws the map', () => {
     tm._getCanvas = () => canvas;
     tm._findObject = () => token;
     tm._getSelectedMap = () => ({ id: 'map-1' });
-    ClientMediator.sendCommand.mockImplementation((panel, cmd) => (cmd === 'GetIsGM' ? false : undefined));
+    ClientMediator.sendCommand.mockImplementation((panel, cmd) => (cmd === 'GetCanEditGame' ? false : undefined));
     ClientMediator.sendCommandAsync.mockImplementation(async (panel, cmd, data) =>
       cmd === 'GetByNames' && data.parentId === 'tok-1' ? [{ name: 'mask_bars_enabled', value: maskValue, entityName: 'ElementModel', parentId: 'tok-1' }] : []);
     return { tm, canvas };

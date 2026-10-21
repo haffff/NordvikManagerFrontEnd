@@ -19,8 +19,11 @@ import ClientMediator from "../../../ClientMediator";
 import { toaster } from "../../ui/toaster";
 import LayerListEditor from "./LayerListEditor";
 import { GameStylesheetSettings } from "../theme/StylesheetSettings";
+import { usePermissions } from "../../../contexts/PermissionsContext";
 
 export const GameSettingsPanel = () => {
+  // Who may edit the game is the owner's call (the server refuses it from anyone else).
+  const { isOwner } = usePermissions();
   const [templates, setTemplates] = React.useState([]);
 
   const editables = [
@@ -235,7 +238,7 @@ export const GameSettingsPanel = () => {
             <Tabs.Trigger value="general">General Settings</Tabs.Trigger>
             <Tabs.Trigger value="grid">Grid Settings</Tabs.Trigger>
             <Tabs.Trigger value="character">Character Sheets</Tabs.Trigger>
-            <Tabs.Trigger value="permissions">Permissions</Tabs.Trigger>
+            {isOwner && <Tabs.Trigger value="permissions">Permissions</Tabs.Trigger>}
             <Tabs.Trigger value="props">Properties</Tabs.Trigger>
             <Tabs.Trigger value="appearance">Appearance</Tabs.Trigger>
             <Tabs.Trigger value="adv">Advanced</Tabs.Trigger>
@@ -262,9 +265,11 @@ export const GameSettingsPanel = () => {
               editableKeyLabelDict={characterSheetEditables}
             />
           </Tabs.Content>
-          <Tabs.Content value="permissions">
-            <SecuritySettingsPanel dto={dto} type="GameModel" />
-          </Tabs.Content>
+          {isOwner && (
+            <Tabs.Content value="permissions">
+              <SecuritySettingsPanel dto={dto} type="GameModel" />
+            </Tabs.Content>
+          )}
           <Tabs.Content value="props">
             <PropertiesSettingsPanel
               gameId={gameData.id}

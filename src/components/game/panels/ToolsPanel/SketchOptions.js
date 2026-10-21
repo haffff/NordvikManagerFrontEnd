@@ -20,7 +20,8 @@ export const SketchOptions = ({ battleMapId }) => {
   const [color, setColor] = useState("rgba(0,0,0,1)");
   const [width, setWidth] = useState(3);
   const [visibleToOthers, setVisibleToOthers] = useState(true);
-  const isGM = !!ClientMediator.sendCommand("Game", "GetIsGM");
+  // Other players' screens accept "clear everyone's" only from the owner (OnPreviewEnd).
+  const isOwner = ClientMediator.sendCommand("Game", "GetCurrentPlayer")?.id === ClientMediator.sendCommand("Game", "GetOwner");
 
   const send = (command, data = {}) =>
     ClientMediator.sendCommand("BattleMap", command, { contextId: battleMapId, ...data });
@@ -85,7 +86,7 @@ export const SketchOptions = ({ battleMapId }) => {
       />
       <DListItemButton label={"Undo"} icon={FaUndo} variant={"elevated"} onClick={() => send("UndoSketch")} />
       <DListItemButton label={"Clean"} icon={FaTrash} color={"red"} variant={"elevated"} onClick={() => send("CleanSketches")} />
-      {isGM && (
+      {isOwner && (
         <DListItemButton
           label={"Clear everyone's"}
           icon={FaUsersSlash}

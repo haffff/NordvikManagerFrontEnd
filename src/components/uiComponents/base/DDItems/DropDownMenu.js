@@ -47,11 +47,10 @@ export const DropDownMenu = ({
   width,
   icon,
   onDropDown,
-  gmOnly,
-  adminOnly,
+  requiresEdit,
   viewId,
 }) => {
-  const { isGM, isAdmin } = usePermissions();
+  const { canEditGame } = usePermissions();
   const ancestors = React.useContext(AncestorMenus);
   const path = React.useMemo(() => (viewId ? [...ancestors, viewId] : ancestors), [ancestors, viewId]);
   const additionalItems = React.useSyncExternalStore(
@@ -78,8 +77,7 @@ export const DropDownMenu = ({
     // items sent while this menu is closed are still there when it mounts again.
   }, [viewId]);
 
-  if (gmOnly && !isGM) return null;
-  if (adminOnly && !isAdmin) return null;
+  if (requiresEdit && !canEditGame) return null;
 
   return (
     <MenuRoot lazyMount={false} closeOnSelect  >

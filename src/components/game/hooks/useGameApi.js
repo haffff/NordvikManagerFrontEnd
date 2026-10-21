@@ -4,10 +4,9 @@ import DockableHelper from '../../../helpers/DockableHelper';
 import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
 import LayoutHelper from '../../../helpers/LayoutCloneHelper';
 import UtilityHelper from '../../../helpers/UtilityHelper';
-import { ROLES } from '../../../contexts/PermissionsContext';
 import { _entityPermissionSetter } from '../../../contexts/PermissionsContext';
 import BrowserWindowPortal from '../../uiComponents/base/BrowserWindowPortal';
-import { isPlayerMode } from '../../../helpers/appMode';
+import { ENTITY_TYPES, canEditGame } from '../../BattleMap/Helpers/permissionBits';
 
 // (recentContextOps removed — replaced with pendingBMContextIds ref inside useGameApi)
 
@@ -45,7 +44,9 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
     UpdateAfterTime,
     currentPlayerRef,
     gameRef,
-    isGM,
+    isOwner,
+    gamePermission,
+    setGamePermission,
   } = gameState;
 
   // Synchronous dedup for AddBattleMapContext.
@@ -90,12 +91,12 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
           description: 'Returns the user-ID of the game master / owner.',
           args: [],
         },
-        GetRole: {
-          description: 'Returns the current user\'s role: "admin", "gm", or "player".',
+        GetIsGM: {
+          description: 'Returns true if the current user is a GM: the game\'s owner, or a co-GM with Edit on the game.',
           args: [],
         },
-        GetIsGM: {
-          description: 'Returns true if the current user is the game master or admin.',
+        GetCanEditGame: {
+          description: 'Same as GetIsGM: true if the current user may edit the game (the owner, or Edit on it).',
           args: [],
         },
         GetGameId: {
@@ -266,16 +267,10 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
       // Methods return undefined/null until then — no timing error.
       GetGame: () => gameRef.current,
       GetOwner: () => gameRef.current?.master?.id,
-      GetIsGM: () => {
-        const isAdmin = !isPlayerMode();
-        if (isAdmin) return true;
-        return isGM;
-      },
-      GetRole: () => {
-        const isAdmin = !isPlayerMode();
-        if (isAdmin) return ROLES.ADMIN;
-        return isGM ? ROLES.GM : ROLES.PLAYER;
-      },
+      // Co-GMs are GMs (the server gives them the owner's rights on the game's content), so
+      // addons and cards that ask GetIsGM treat them the same. The owner is GetOwner.
+      GetIsGM: () => canEditGame(isOwner, gamePermission),
+      GetCanEditGame: () => canEditGame(isOwner, gamePermission),
 
       // ── Maps ─────────────────────────────────────────────────────────────────
       GetMaps: async () => await WebHelper.getAsync('map/GetAllFlat'),
@@ -314,6 +309,11 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
 
       // ── Entity permissions ───────────────────────────────────────────────────
       UpdateEntityPermission: ({ entityType, entityId, bits }) => {
+        // The game's own permission lives in game state (it drives canEditGame).
+        if (entityType === ENTITY_TYPES.GAME && entityId === gameID) {
+          setGamePermission(bits ?? 0);
+          return;
+        }
         _entityPermissionSetter.current?.(entityType, entityId, bits ?? 0);
       },
 
@@ -363,6 +363,8 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
     gameContainerRef,
     quickCommandDialogOpenRef,
     currentPlayerRef,
-    isGM,
+    isOwner,
+    gamePermission,
+    setGamePermission,
   ]);
 };

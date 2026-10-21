@@ -46,7 +46,7 @@ const PLAYER_FRONTEND_URL = (
 
 const GameSettingsDialog = ({ game, open, onClose, onDeleted, onSaved }) => {
   const [name, setName]               = React.useState(game?.name ?? "");
-  const [description, setDescription] = React.useState(game?.description ?? "");
+  const [description, setDescription] = React.useState(game?.shortDescription ?? "");
   const [saving, setSaving]           = React.useState(false);
   const [deleting, setDeleting]       = React.useState(false);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
@@ -55,12 +55,12 @@ const GameSettingsDialog = ({ game, open, onClose, onDeleted, onSaved }) => {
   React.useEffect(() => {
     if (open) {
       setName(game?.name ?? "");
-      setDescription(game?.description ?? "");
+      setDescription(game?.shortDescription ?? "");
       setConfirmDelete(false);
     }
   }, [open, game]);
 
-  const isDirty = name !== (game?.name ?? "") || description !== (game?.description ?? "");
+  const isDirty = name !== (game?.name ?? "") || description !== (game?.shortDescription ?? "");
 
   const handleSave = async () => {
     if (!isDirty) return;
@@ -243,6 +243,9 @@ const GameListItem = ({ game, onClick, reload }) => {
 
   const hasImage = Boolean(game.image);
   const isLocked = Boolean(game.passwordRequired);
+  // The server's local admin also sees games they aren't in: manageable, not joinable.
+  const canJoin = game.isMember !== false;
+  const join = () => { if (canJoin) onClick(game.id); };
 
   return (
     <>
@@ -263,10 +266,10 @@ const GameListItem = ({ game, onClick, reload }) => {
         border="1px solid"
         borderColor="whiteAlpha.200"
         bg={game.color ?? "gray.800"}
-        cursor="pointer"
+        cursor={canJoin ? "pointer" : "default"}
         _hover={{ transform: "translateY(-4px)", shadow: "xl", borderColor: "whiteAlpha.400" }}
         transition="transform 0.18s ease, box-shadow 0.18s ease, border-color 0.18s ease"
-        onClick={() => onClick(game.id)}
+        onClick={join}
       >
         {/* Cover image with gradient overlay */}
         {hasImage ? (
@@ -309,10 +312,13 @@ const GameListItem = ({ game, onClick, reload }) => {
           {game.isOwner && (
             <Badge colorPalette="blue" size="sm">Owner</Badge>
           )}
+          {!canJoin && (
+            <Badge colorPalette="gray" size="sm" title="You aren't a player in this game">Not a member</Badge>
+          )}
         </HStack>
 
-        {/* Settings gear — top-left (owner only) */}
-        {game.isOwner && (
+        {/* Settings gear — top-left (owner, or the server's local admin) */}
+        {game.canManage && (
           <Box
             position="absolute" top={2} left={2} zIndex={2}
             onClick={(e) => e.stopPropagation()}
@@ -356,19 +362,21 @@ const GameListItem = ({ game, onClick, reload }) => {
           <Separator borderColor="whiteAlpha.300" />
 
           <HStack gap={2} justify="space-between" align="center">
-            <Button
-              size="sm"
-              variant="solid"
-              flex={1}
-              bg="whiteAlpha.200"
-              color="white"
-              _hover={{ bg: "whiteAlpha.400" }}
-              backdropFilter="blur(4px)"
-              onClick={(e) => { e.stopPropagation(); onClick(game.id); }}
-            >
-              <Icon as={FaUnlock} />
-              Join
-            </Button>
+            {canJoin && (
+              <Button
+                size="sm"
+                variant="solid"
+                flex={1}
+                bg="whiteAlpha.200"
+                color="white"
+                _hover={{ bg: "whiteAlpha.400" }}
+                backdropFilter="blur(4px)"
+                onClick={(e) => { e.stopPropagation(); join(); }}
+              >
+                <Icon as={FaUnlock} />
+                Join
+              </Button>
+            )}
 
             {game.playerCount != null && (
               <HStack gap={1} color="whiteAlpha.700" fontSize="xs" flexShrink={0}>
