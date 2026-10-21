@@ -85,7 +85,7 @@ export const StepField = ({ arg, value, onChange, onBlur, variables, knownNames,
           <Label arg={arg} />
           <Help>{arg.description}</Help>
         </Box>
-        <Switch checked={value === true || value === "true"} onCheckedChange={(e) => { onChange(e.checked); onBlur?.(); }} />
+        <Switch checked={value === undefined || value === null ? arg.default === true : value === true || value === "true"} onCheckedChange={(e) => { onChange(e.checked); onBlur?.(); }} />
       </HStack>
     );
   }

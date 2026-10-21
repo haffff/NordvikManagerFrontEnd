@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Button, Input } from "@chakra-ui/react";
+import { Button, HStack, Input } from "@chakra-ui/react";
 import Subscribable from "../uiComponents/base/Subscribable";
 import ClientMediator from "../../ClientMediator";
 import { ActiveTransportManager } from "../../helpers/transport";
@@ -16,9 +16,10 @@ import {
  * RequestInputManager — always-mounted (see Game.js), not gated on any permission.
  *
  * The "Request User Input" action step sends the targeted player a `request_input`
- * WebSocket command carrying `{ message, showDialog, defaultValue }` + an `inputToken`.
- * When `showDialog` is true this shows a built-in modal so the player can answer with
- * no addon frontend; the answer goes back over the auth-free `input_value` command.
+ * WebSocket command carrying `{ message, showDialog, defaultValue, options }` + an
+ * `inputToken`. When `showDialog` is true this shows a built-in modal so the player can
+ * answer with no addon frontend — a text box, or a button per option when the step has
+ * Options; the answer goes back over the auth-free `input_value` command.
  *
  * Also registers a ClientMediator method so addons can answer programmatically:
  *   ClientMediator.sendCommandAsync("Game", "RespondToRequestInput", { inputToken, value })
@@ -70,6 +71,7 @@ export const RequestInputManager = () => {
       inputToken: resp.inputToken,
       message: d.message ?? "",
       defaultValue: d.defaultValue ?? "",
+      options: Array.isArray(d.options) ? d.options.filter((o) => typeof o === "string" && o.length > 0) : [],
     };
     if (currentRef.current) queueRef.current.push(item); // one dialog at a time
     else showItem(item);
@@ -126,6 +128,16 @@ export const RequestInputManager = () => {
             <DialogTitle>{current?.message || "Input requested"}</DialogTitle>
           </DialogHeader>
           <DialogBody>
+            {current?.options?.length > 0 ? (
+              <HStack gap={2} wrap="wrap">
+                {current.options.map((option) => (
+                  <Button key={option} colorPalette="blue" variant="outline"
+                    onClick={() => respond(currentRef.current?.inputToken, option)}>
+                    {option}
+                  </Button>
+                ))}
+              </HStack>
+            ) : (
             <Input
               ref={inputRef}
               value={value}
@@ -138,15 +150,18 @@ export const RequestInputManager = () => {
                 }
               }}
             />
+            )}
           </DialogBody>
           <DialogFooter>
-            <Button
-              colorPalette="blue"
-              variant="outline"
-              onClick={() => respond(currentRef.current?.inputToken, value)}
-            >
-              Submit
-            </Button>
+            {!(current?.options?.length > 0) && (
+              <Button
+                colorPalette="blue"
+                variant="outline"
+                onClick={() => respond(currentRef.current?.inputToken, value)}
+              >
+                Submit
+              </Button>
+            )}
             <Button variant="outline" onClick={() => respond(currentRef.current?.inputToken, "")}>
               Cancel
             </Button>

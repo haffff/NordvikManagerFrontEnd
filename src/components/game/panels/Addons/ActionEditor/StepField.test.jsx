@@ -50,3 +50,14 @@ describe('StepField menulocation', () => {
     expect(screen.getByText(/Game menu/)).toBeInTheDocument();
   });
 });
+
+// A switch that is on unless turned off (StopIfCancelled) shows as on when not set.
+describe('StepField boolean default', () => {
+  it('shows the default when the value is not set', () => {
+    renderWithProviders(
+      <StepField arg={{ name: 'StopIfCancelled', type: 'Boolean', default: true }} value={undefined} onChange={vi.fn()} variables={[]} knownNames={[]} />
+    );
+
+    expect(screen.getByRole('checkbox')).toBeChecked();
+  });
+});

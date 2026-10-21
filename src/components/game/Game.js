@@ -21,6 +21,7 @@ import { PermissionsProvider } from "../../contexts/PermissionsContext";
 import PlaybackManager from "./PlaybackManager";
 import TurnOrderManager from "./turnOrder/TurnOrderManager";
 import RequestInputManager from "./RequestInputManager";
+import TargetPickingManager from "./TargetPickingManager";
 import PlayerTour from "./tutorial/PlayerTour";
 import LayoutAutoSaveManager from "./LayoutAutoSaveManager";
 import MinimizedWindowsBar from "./MinimizedWindowsBar";
@@ -219,6 +220,7 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
       <PlaybackManager />
       <TurnOrderManager isGM={isOwner} />
       <RequestInputManager />
+      <TargetPickingManager />
       <PlayerTour ready={ready} isGM={isOwner} />
       <LayoutAutoSaveManager state={state} battlemapsRef={battleMapContexts} />
       <MainToolbar
