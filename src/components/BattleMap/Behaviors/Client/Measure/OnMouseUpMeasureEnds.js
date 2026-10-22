@@ -1,6 +1,7 @@
 import { fabric } from "fabric";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../../../helpers/transport";
 import DTOConverter from "../../../DTOConverter";
+import { glowTokensIn } from "../../../Helpers/areaGlow";
 
 export class OnMouseUpMeasureEndsClientBehavior {
   Handle(opt, canvas, map, battleMapId) {
@@ -27,6 +28,9 @@ export class OnMouseUpMeasureEndsClientBehavior {
       canvas.remove(element);
       canvas.remove(measure);
     }
+    // The tokens it lit up go back to how they were.
+    glowTokensIn(canvas, null, "", "beforeMeasureShadow");
+
     // In both modes: clear the active-preview refs so mouse:move stops updating
     // the shape and the next mouse:down starts a fresh measurement.
     canvas.previewArrow = undefined;

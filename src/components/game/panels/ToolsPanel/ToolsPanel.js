@@ -18,6 +18,7 @@ import { FaSquare } from "@react-icons/all-files/fa/FaSquare";
 import { FaPlay } from "@react-icons/all-files/fa/FaPlay";
 import { FaMagic } from "@react-icons/all-files/fa/FaMagic";
 import { FaPencilAlt } from "@react-icons/all-files/fa/FaPencilAlt";
+import { FaVectorSquare } from "@react-icons/all-files/fa/FaVectorSquare";
 import ClientMediator from "../../../../ClientMediator";
 import UtilityHelper from "../../../../helpers/UtilityHelper";
 import DLabel from "../../../uiComponents/base/Text/DLabel";
@@ -155,6 +156,13 @@ export const ToolsPanel = ({ battleMapId }) => {
       name: "Cone",
       onClick: () => handleMeasureCone(),
       selected: mode === "Measure_Cone",
+    },
+    {
+      type: "option",
+      icon: <FaVectorSquare />,
+      name: "Square",
+      onClick: () => handleMeasureRect(),
+      selected: mode === "Measure_Rect",
     },
     ...(mapTools.length > 0 ? [
       { type: "label", name: "Addon tools" },
@@ -547,6 +555,22 @@ export const ToolsPanel = ({ battleMapId }) => {
       playerColor: playerColor,
       type: "Cone",
       overlayContent: <MeasureConeOptions key={_battleMapId + "_Measure_Cone"} battleMapId={_battleMapId} />,
+    });
+  };
+
+  const handleMeasureRect = () => {
+    if (mode === "Measure_Rect") {
+      clearMode();
+      return;
+    }
+    clearMode();
+
+    ClientMediator.sendCommand("BattleMap", "SetMeasureMode", {
+      contextId: _battleMapId,
+      enabled: true,
+      playerColor: playerColor,
+      type: "Rect",
+      overlayContent: <MeasureOptions key={_battleMapId + "_Measure_Rect"} battleMapId={_battleMapId} />,
     });
   };
 

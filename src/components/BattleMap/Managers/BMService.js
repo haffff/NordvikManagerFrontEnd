@@ -5,14 +5,13 @@ import DTOConverter from "../DTOConverter";
 import ClientMediator from "../../../ClientMediator";
 import { toaster } from "../../ui/toaster";
 import UtilityHelper from "../../../helpers/UtilityHelper";
-import ConeTypeInit from "../../uiComponents/fabricjs/ConeType";
 import { RESERVED_LAYERS } from "../Constants/layers";
 import * as React from "react";
 import ActionToolOverlay from "../Overlays/ActionToolOverlay";
 import PickTargetsOverlay from "../Overlays/PickTargetsOverlay";
 import { startPicking, togglePick, isCandidate, isPickable, clickAt } from "../Behaviors/Client/PickTargets/pickTargets";
 import { startPointing, pointerAt, areaAt, throttled } from "../Behaviors/Client/PickPoint/pickPoint";
-import { touchesToken } from "../Helpers/areaShape";
+import { glowTokensIn, glow } from "../Helpers/areaGlow";
 import { areaColors } from "../Helpers/areaColors";
 import { buildAreaObject, placeArea } from "../Helpers/buildArea";
 import PickPointOverlay from "../Overlays/PickPointOverlay";
@@ -798,40 +797,12 @@ class BMService {
 
       canvas.measure.measureType = type ?? 'Line';
 
-      // Build a semi-transparent fill from the player color
-      const fillColor = (() => {
-        try {
-          const c = new fabric.Color(playerColor);
-          c.setAlpha(0.2);
-          return c.toRgba();
-        } catch {
-          return 'rgba(255,255,255,0.2)';
-        }
-      })();
-
-      if (type === 'Circle') {
-        canvas.measure.measureArrow = arrowObject ?? new fabric.Circle({
-          left: 0,
-          top: 0,
-          radius: 0,
-          fill: fillColor,
-          stroke: playerColor,
-          strokeWidth: 2,
-          selectable: false,
-          originX: 'center',
-          originY: 'center',
-          objectCaching: false,
-        });
-      } else if (type === 'Cone') {
-        ConeTypeInit();
-        canvas.measure.coneAngle = 53; // default D&D 5e cone (width = length)
-        canvas.measure.measureArrow = arrowObject ?? new fabric.Cone([0, 0, 0, 0], {
-          strokeWidth: 2,
-          stroke: playerColor,
-          fill: fillColor,
-          selectable: false,
-          coneAngle: 53,
-        });
+      if (["Circle", "Cone", "Rect"].includes(type)) {
+        // An area (Helpers/measure.js, buildArea.js — the shapes markers and Find use), in
+        // the player's colours; the tokens it covers light up unless that's switched off.
+        canvas.measure.colors = areaColors(playerColor);
+        canvas.measure.highlightTokens = true;
+        if (type === "Cone") canvas.measure.coneAngle = 53; // default D&D 5e cone (width = length)
       } else {
         canvas.measure.measureArrow = arrowObject ?? new fabric.LineArrow([0, 0, 0, 0], {
           strokeWidth: 2,
@@ -901,6 +872,7 @@ class BMService {
     } else {
       if (canvas.measureMode) {
         this.CleanPreviews();
+        glowTokensIn(canvas, null, "", "beforeMeasureShadow");
         canvas.modeLock = undefined;
         canvas.measureMode = undefined;
         canvas.selection = true;
@@ -1033,7 +1005,7 @@ class BMService {
     picking.state = clickAt(elementId ? togglePick(picking.state, elementId) : picking.state, position);
     this._canvas.getObjects().forEach((object) => {
       if (!isPickable(picking.state, object)) return;
-      this._glow(object, picking.state.picked.includes(object.id), "beforePickShadow", this._myColors().glow);
+      glow(object, picking.state.picked.includes(object.id), "beforePickShadow", this._myColors().glow);
     });
     this._canvas.requestRenderAll();
     picking.listeners.forEach((listener) => listener(picking.state));
@@ -1158,23 +1130,7 @@ class BMService {
 
   // Tokens the area covers glow (as picked tokens do), others go back to how they were.
   _glowCovered(pointing) {
-    const area = pointing.state.allowed ? areaAt(pointing.state) : null;
-    const glow = this._myColors().glow;
-    this._canvas.getObjects().forEach((object) => {
-      if (!object.tokenData || object.isTokenUI || object.preview) return;
-      const c = object.getCenterPoint();
-      const covered = !!area && touchesToken(area, { x: c.x, y: c.y, w: object.getScaledWidth(), h: object.getScaledHeight() });
-      this._glow(object, covered, "beforePointShadow", glow);
-    });
-  }
-
-  // Lights a token up (or back to how it was), keeping its own shadow in `keep`.
-  _glow(object, on, keep, color) {
-    if (on && object[keep] === undefined) {
-      object.set({ [keep]: object.shadow ?? null, shadow: new fabric.Shadow({ color, blur: 25 }) });
-    } else if (!on && object[keep] !== undefined) {
-      object.set({ shadow: object[keep], [keep]: undefined });
-    }
+    glowTokensIn(this._canvas, pointing.state.allowed ? areaAt(pointing.state) : null, this._myColors().glow, "beforePointShadow");
   }
 
   // The colours of this player's areas and glow: theirs, else the theme's, else orange.

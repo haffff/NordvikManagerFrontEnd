@@ -15,12 +15,14 @@ import { FaTimes } from "@react-icons/all-files/fa/FaTimes";
 import { FaTrash } from "@react-icons/all-files/fa/FaTrash";
 import DList from "../../../uiComponents/base/List/DList";
 import DListItemToggleButton from "../../../uiComponents/base/List/ListItemDetails/DListItemToggleButton";
+import { HighlightTokensToggle } from "./HighlightTokensToggle";
 
 export const MeasureOptions = ({ battleMapId }) => {
   const [visibleToOthers, setVisibleToOthers] = useState(false);
   const [dissappearAfter, setDissappearAfter] = useState(0);
 
   const measureRef = React.useRef();
+  const [measure, setMeasure] = useState();
 
   useEffect(() => {
     let measure = ClientMediator.sendCommand("BattleMap", "GetMeasureOptions", {
@@ -30,6 +32,7 @@ export const MeasureOptions = ({ battleMapId }) => {
       setVisibleToOthers(measure.visibleToOthers);
       setDissappearAfter(measure.dissappearAfter);
       measureRef.current = measure;
+      setMeasure(measure);
     }
 
     return () => {};
@@ -67,6 +70,7 @@ export const MeasureOptions = ({ battleMapId }) => {
         label={"Don't dissapear"}
         icon={FaClock}
       />
+      {measure && measure.measureType !== "Line" && <HighlightTokensToggle measure={measure} />}
       { dissappearAfter && <DListItemButton style={{position:"absolute", top: 65, left: 65}} color={'red'} bgColor={'rgba(0,0,0,0.5)'} variant={'elevated'} label={"Clean"} icon={FaTrash} onClick={() => { ClientMediator.sendCommand("BattleMap", "CleanPreviews", { contextId: battleMapId }); }} />}
       <Stack alignItems={"center"}>
         <DListItemButton
