@@ -30,6 +30,14 @@ describe("glowTokensIn", () => {
     expect(near.k).toBeUndefined();
   });
 
+  // Burning Hands from the caster's token: Find leaves the caster out, so it doesn't glow either.
+  it("leaves out the token the area starts from", () => {
+    const caster = token("caster", 0, { id: "c" });
+    glowTokensIn(canvasOf([caster]), circle, "red", "k", "c");
+
+    expect(caster.shadow).toBe("own");
+  });
+
   it("leaves token parts and previews alone", () => {
     const bar = token("bar", 0, { isTokenUI: true }), preview = token("p", 0, { preview: true });
     glowTokensIn(canvasOf([bar, preview]), circle, "red", "k");

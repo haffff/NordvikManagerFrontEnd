@@ -13,6 +13,8 @@ describe("areaColors", () => {
     expect(parseRgb("rgba(1,2,3,0.5)")).toEqual([1, 2, 3]);
     expect(parseRgb("teal-ish")).toBeNull();
     expect(parseRgb("rgb(300,0,0)")).toBeNull();
+    expect(parseRgb("rgba(255, 0, 0, 1)")).toEqual([255, 0, 0]); // as the colour picker writes it
+    expect(parseRgb("rgb(0,0,0,0)")).toBeNull(); // see-through: no colour (a player who has none)
   });
 
   it("the player's colour: an outline, a see-through fill and a glow", () => {

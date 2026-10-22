@@ -1130,7 +1130,8 @@ class BMService {
 
   // Tokens the area covers glow (as picked tokens do), others go back to how they were.
   _glowCovered(pointing) {
-    glowTokensIn(this._canvas, pointing.state.allowed ? areaAt(pointing.state) : null, this._myColors().glow, "beforePointShadow");
+    const { state } = pointing;
+    glowTokensIn(this._canvas, state.allowed ? areaAt(state) : null, this._myColors().glow, "beforePointShadow", state.fromId);
   }
 
   // The colours of this player's areas and glow: theirs, else the theme's, else orange.

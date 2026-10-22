@@ -5,7 +5,8 @@
 
 const DEFAULT = [255, 120, 0];
 
-// #rgb, #rrggbb, rgb(…) or rgba(…) as [r, g, b]; null for anything else.
+// #rgb, #rrggbb, rgb(…) or rgba(…) as [r, g, b]; null for anything else, and for a fully
+// see-through colour (what a player without one gets).
 export function parseRgb(color) {
   if (typeof color !== "string") return null;
   const c = color.trim();
@@ -14,8 +15,9 @@ export function parseRgb(color) {
     const h = hex[1].length === 3 ? [...hex[1]].map((ch) => ch + ch).join("") : hex[1];
     return [0, 2, 4].map((i) => parseInt(h.slice(i, i + 2), 16));
   }
-  const rgb = /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(,\s*[\d.]+\s*)?\)$/i.exec(c);
+  const rgb = /^rgba?\(\s*(\d{1,3})\s*,\s*(\d{1,3})\s*,\s*(\d{1,3})\s*(?:,\s*([\d.]+)\s*)?\)$/i.exec(c);
   if (rgb) {
+    if (rgb[4] !== undefined && Number(rgb[4]) === 0) return null;
     const parts = [rgb[1], rgb[2], rgb[3]].map(Number);
     if (parts.every((v) => v <= 255)) return parts;
   }

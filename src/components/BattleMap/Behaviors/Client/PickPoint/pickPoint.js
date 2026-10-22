@@ -5,10 +5,11 @@
 
 // area: { shape, radius, width, height, angle, text, fill, stroke } in pixels, or null for a
 // bare point. gridSize: the one the server sized the area and range with, else the map's own.
-export const startPointing = ({ message = "", area = null, from = null, snap = "none", range = null, highlight = true, showToOthers = true, gridSize: sent } = {}, gridSize = 50) => ({
+export const startPointing = ({ message = "", area = null, from = null, fromId = undefined, snap = "none", range = null, highlight = true, showToOthers = true, gridSize: sent } = {}, gridSize = 50) => ({
   message,
   area,
   from,
+  fromId,
   snap: snap === "center" || snap === "corner" ? snap : "none",
   range,
   highlight,
