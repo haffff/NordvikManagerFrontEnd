@@ -172,7 +172,7 @@ class BMService {
         args: [],
       },
       SetPickPointMode: {
-        description: 'Lets the player point at a place on the map for an action (RequestPoint): request { message, marker, snap, range, highlight, showToOthers }; onDone(state) gets { position } when chosen, or null when cancelled.',
+        description: 'Lets the player point at a place on the map for an action (RequestPoint): request { message, marker, snap, gridSize, range, highlight, showToOthers }; onDone(state) gets { position } when chosen, or null when cancelled.',
         args: [
           { name: 'enabled', type: 'boolean', required: true },
           { name: 'request', type: 'object', required: false },
@@ -1167,7 +1167,7 @@ class BMService {
   _glowCovered(pointing) {
     const { marker, position } = pointing.state;
     this._canvas.getObjects().forEach((object) => {
-      if (!object.tokenData || object.preview) return;
+      if (!object.tokenData || object.isTokenUI || object.preview) return;
       const c = object.getCenterPoint();
       const token = { x: c.x, y: c.y, w: object.getScaledWidth(), h: object.getScaledHeight() };
       const covered = !!position && covers(marker, position, token);

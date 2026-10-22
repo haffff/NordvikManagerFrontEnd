@@ -21,6 +21,8 @@ export class OnPreviewStartBehavior {
           let playerId = objects[i].playerId;
           element.set({
             selectable: false,
+            // Someone else's preview (a ruler, a marker being aimed) mustn't take clicks.
+            evented: false,
             previewId: previewId,
             playerId: playerId,
             stayVisible: stayVisible,

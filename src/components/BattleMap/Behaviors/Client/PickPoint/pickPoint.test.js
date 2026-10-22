@@ -42,6 +42,12 @@ describe("pickPoint", () => {
     expect(pointerAt(s, { x: 200, y: 10 })).toMatchObject({ position: { x: 225, y: 25 }, allowed: false });
   });
 
+  // The server sized the marker and the range with its grid size: snapping uses the same.
+  it("snaps with the grid size the server sent", () => {
+    const s = startPointing({ gridSize: 70, snap: "corner" }, 50);
+    expect(pointerAt(s, { x: 40, y: 120 }).position).toEqual({ x: 70, y: 140 });
+  });
+
   it("has nothing to choose before the pointer moves", () => {
     expect(startPointing({}, 50)).toMatchObject({ position: null, allowed: false, snap: "none" });
   });

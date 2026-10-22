@@ -2,14 +2,15 @@
 // cursor, snapped to the grid when asked, and only a point within range can be chosen.
 // Pure, so the mode is easy to test; BMService.SetPickPointMode draws it.
 
-export const startPointing = ({ message = "", marker = null, snap = "none", range = null, highlight = true, showToOthers = true } = {}, gridSize = 50) => ({
+// gridSize: the one the server sized the marker and range with, else the map's own.
+export const startPointing = ({ message = "", marker = null, snap = "none", range = null, highlight = true, showToOthers = true, gridSize: sent } = {}, gridSize = 50) => ({
   message,
   marker,
   snap: snap === "center" || snap === "corner" ? snap : "none",
   range,
   highlight,
   showToOthers,
-  gridSize: gridSize > 0 ? gridSize : 50,
+  gridSize: sent > 0 ? sent : gridSize > 0 ? gridSize : 50,
   position: null,
   allowed: false,
 });
