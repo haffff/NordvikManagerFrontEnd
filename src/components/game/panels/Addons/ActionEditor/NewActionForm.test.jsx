@@ -56,4 +56,17 @@ describe('NewActionForm', () => {
     expect(onCreate).not.toHaveBeenCalled();
     expect(screen.getByText(/No such step: DealDamage/)).toBeInTheDocument();
   });
+
+  it('creates every action of a pasted list', () => {
+    const onCreate = vi.fn();
+    renderWithProviders(<NewActionForm onCreate={onCreate} onCancel={vi.fn()} stepTypes={['SendChat']} />);
+
+    fireEvent.change(screen.getByLabelText('Start from'), { target: { value: 'json' } });
+    fireEvent.change(screen.getByLabelText('Action JSON'), {
+      target: { value: '[{ "prefix": "me", "name": "a", "content": [] }, { "prefix": "me", "name": "b", "content": [] }]' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Create 2 actions' }));
+
+    expect(onCreate.mock.calls.map((c) => c.slice(0, 2))).toEqual([['me', 'a'], ['me', 'b']]);
+  });
 });

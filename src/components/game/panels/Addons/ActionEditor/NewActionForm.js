@@ -5,8 +5,8 @@ import { ACTION_TEMPLATES } from "./actionTemplates";
 import { parseActionJson } from "./importAction";
 
 // Prefix, name, and what the new action starts as: empty, one of the templates, or pasted
-// JSON (an exported action, an addon action file, or one an AI assistant wrote). Pasted JSON
-// gives the prefix and name too unless they are typed. stepTypes: the server's step types,
+// JSON (an exported action, an addon action file, or what an AI assistant wrote: one action or
+// several). Pasted JSON gives the prefix and name too unless they are typed. stepTypes: the server's step types,
 // to catch made-up ones.
 export const NewActionForm = ({ onCreate, onCancel, stepTypes }) => {
   const [prefix, setPrefix] = React.useState("");
@@ -19,13 +19,15 @@ export const NewActionForm = ({ onCreate, onCancel, stepTypes }) => {
 
   const submit = () => {
     if (!pasting) { if (name.trim()) onCreate(prefix.trim(), name.trim(), template); return; }
-    const { action, error: problem } = parseActionJson(json, stepTypes);
+    const { actions, error: problem } = parseActionJson(json, stepTypes);
     if (problem) { setError(problem); return; }
-    const finalName = name.trim() || action.name.trim();
-    if (!finalName) { setError("Give the action a name."); return; }
-    onCreate(prefix.trim() || action.prefix.trim(), finalName,
-      { hook: action.hook, description: action.description, content: action.content });
+    // A typed name only names a single action; a typed prefix applies to all.
+    const named = actions.map((a) => ({ ...a, name: (actions.length === 1 && name.trim()) || a.name.trim() }));
+    if (named.some((a) => !a.name)) { setError(actions.length === 1 ? "Give the action a name." : "Every action in the list needs a \"name\"."); return; }
+    named.forEach((a) => onCreate(prefix.trim() || a.prefix.trim(), a.name,
+      { hook: a.hook, description: a.description, content: a.content }));
   };
+  const count = pasting ? (parseActionJson(json).actions?.length ?? 1) : 1;
 
   return (
     <Box p={2} borderBottomWidth="1px" borderColor={T.border} bg={T.raised}>
@@ -55,7 +57,9 @@ export const NewActionForm = ({ onCreate, onCancel, stepTypes }) => {
       )}
       <HStack mt={1} justify="flex-end" gap={1}>
         <Button size="2xs" variant="ghost" onClick={onCancel}>Cancel</Button>
-        <Button size="2xs" colorPalette="blue" variant="outline" onClick={submit} disabled={pasting ? !json.trim() : !name.trim()}>Create</Button>
+        <Button size="2xs" colorPalette="blue" variant="outline" onClick={submit} disabled={pasting ? !json.trim() : !name.trim()}>
+          {count > 1 ? `Create ${count} actions` : "Create"}
+        </Button>
       </HStack>
     </Box>
   );

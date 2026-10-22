@@ -1,10 +1,11 @@
-// An action pasted as JSON: one exported from the editor, an addon's action file, or what an
-// AI assistant wrote (often inside a ```json fence, around some prose). Gives
-// { action: { prefix, name, hook, description, content } } or { error } saying what's wrong.
+// Actions pasted as JSON: one exported from the editor, an addon's action file, what an AI
+// assistant wrote (often inside a ```json fence, around some prose), or a list of those. Gives
+// { actions: [{ prefix, name, hook, description, content }] } or { error } saying what's wrong.
 
+// The text of every ```json block, or the whole text when there is none.
 const unfence = (text) => {
-  const fenced = /```(?:json)?\s*\n([\s\S]*?)```/i.exec(text);
-  return (fenced ? fenced[1] : text).trim();
+  const fenced = [...text.matchAll(/```(?:json)?\s*\n([\s\S]*?)```/gi)].map((m) => m[1].trim());
+  return fenced.length ? fenced : [text.trim()];
 };
 
 const isStep = (s) => s && typeof s === "object" && !Array.isArray(s);
@@ -20,14 +21,9 @@ const typesIn = (steps, into = new Set()) => {
   return into;
 };
 
-/** knownTypes: the step types the server has (omit to skip that check). */
-export function parseActionJson(text, knownTypes) {
-  let value;
-  try { value = JSON.parse(unfence(text ?? "")); } catch (e) { return { error: `Not valid JSON: ${e.message}` }; }
+const isAction = (v) => isStep(v) && "content" in v;
 
-  const source = Array.isArray(value) ? { content: value } : value;
-  if (!isStep(source)) return { error: "Expected an action: { \"name\", \"hook\", \"content\": [steps] }." };
-
+const readAction = (source, knownTypes) => {
   let content = source.content;
   if (typeof content === "string") {
     try { content = JSON.parse(content); } catch { return { error: "\"content\" is text that isn't a JSON list of steps." }; }
@@ -52,4 +48,25 @@ export function parseActionJson(text, knownTypes) {
       content,
     },
   };
+};
+
+/** knownTypes: the step types the server has (omit to skip that check). */
+export function parseActionJson(text, knownTypes) {
+  const sources = [];
+  for (const block of unfence(text ?? "")) {
+    let value;
+    try { value = JSON.parse(block); } catch (e) { return { error: `Not valid JSON: ${e.message}` }; }
+    // A list is either several actions or the steps of one.
+    if (Array.isArray(value)) sources.push(...(value.length > 0 && value.every(isAction) ? value : [{ content: value }]));
+    else sources.push(value);
+  }
+  if (!sources.every(isStep)) return { error: "Expected an action: { \"name\", \"hook\", \"content\": [steps] }." };
+
+  const actions = [];
+  for (const source of sources) {
+    const { action, error } = readAction(source, knownTypes);
+    if (error) return { error: sources.length > 1 ? `${source.name || "An action"}: ${error}` : error };
+    actions.push(action);
+  }
+  return { actions };
 }
