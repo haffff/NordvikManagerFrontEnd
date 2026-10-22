@@ -10,7 +10,9 @@ import { RESERVED_LAYERS } from "../Constants/layers";
 import * as React from "react";
 import ActionToolOverlay from "../Overlays/ActionToolOverlay";
 import PickTargetsOverlay from "../Overlays/PickTargetsOverlay";
-import { startPicking, togglePick, isCandidate, clickAt } from "../Behaviors/Client/PickTargets/pickTargets";
+import { startPicking, togglePick, isCandidate, isPickable, clickAt } from "../Behaviors/Client/PickTargets/pickTargets";
+import { startPointing, pointerAt, covers, throttled } from "../Behaviors/Client/PickPoint/pickPoint";
+import PickPointOverlay from "../Overlays/PickPointOverlay";
 import { cleanSketches, undoSketch } from "../Behaviors/Client/Draw/sketches";
 
 class BMService {
@@ -154,7 +156,7 @@ class BMService {
         ],
       },
       SetPickTargetsMode: {
-        description: 'Lets the player pick tokens on the map for an action (RequestTargets): request { message, min, max, candidates }; onDone(state) gets { picked, position } when Done, or null when cancelled.',
+        description: 'Lets the player pick tokens (or, with target "element", any elements) on the map for an action (RequestTargets): request { message, target, min, max, candidates }; onDone(state) gets { picked, position } when Done, or null when cancelled.',
         args: [
           { name: 'enabled', type: 'boolean', required: true },
           { name: 'request', type: 'object', required: false },
@@ -167,6 +169,26 @@ class BMService {
       },
       CancelPickTargets: {
         description: 'Ends picking tokens without an answer.',
+        args: [],
+      },
+      SetPickPointMode: {
+        description: 'Lets the player point at a place on the map for an action (RequestPoint): request { message, marker, snap, range, highlight, showToOthers }; onDone(state) gets { position } when chosen, or null when cancelled.',
+        args: [
+          { name: 'enabled', type: 'boolean', required: true },
+          { name: 'request', type: 'object', required: false },
+          { name: 'onDone', type: 'function', required: false },
+        ],
+      },
+      PickPointMove: {
+        description: 'While pointing: moves the marker to position (map pixels).',
+        args: [{ name: 'position', type: 'object', required: true }],
+      },
+      PickPointClick: {
+        description: 'While pointing: chooses position when it is within range.',
+        args: [{ name: 'position', type: 'object', required: true }],
+      },
+      CancelPickPoint: {
+        description: 'Ends pointing without an answer.',
         args: [],
       },
       PickTargetsClick: {
@@ -987,7 +1009,7 @@ class BMService {
       canvas.pickTargets = picking;
       canvas.getObjects().forEach((object) => {
         object.set({ beforePickSelectable: object.selectable, selectable: false });
-        if (object.tokenData && !isCandidate(picking.state, object.id)) {
+        if (isPickable(picking.state, object) && !isCandidate(picking.state, object.id)) {
           object.set({ beforePickOpacity: object.opacity, opacity: (object.opacity ?? 1) * 0.35 });
         }
       });
@@ -1007,7 +1029,7 @@ class BMService {
     if (!picking) return;
     picking.state = clickAt(elementId ? togglePick(picking.state, elementId) : picking.state, position);
     this._canvas.getObjects().forEach((object) => {
-      if (!object.tokenData) return;
+      if (!isPickable(picking.state, object)) return;
       const picked = picking.state.picked.includes(object.id);
       if (picked && object.beforePickShadow === undefined) {
         object.set({ beforePickShadow: object.shadow ?? null, shadow: new fabric.Shadow({ color: "rgba(255,215,0,0.95)", blur: 25 }) });
@@ -1048,10 +1070,148 @@ class BMService {
     picking.onDone?.(finished ? picking.state : null);
   }
 
+  // Pointing at a place for an action (RequestPoint). The marker (built by the server, like
+  // ShowMarker's) follows the cursor — Behaviors/Client/PickPoint — snapped to the grid,
+  // with the range drawn as a dashed ring; tokens it covers glow, and with showToOthers the
+  // other players see it move (preview_start / preview_update / preview_end, as the ruler).
+  SetPickPointMode({ enabled, request, onDone }) {
+    const canvas = this._canvas;
+    if (!enabled) {
+      this._endPointing(null);
+      return;
+    }
+    if (canvas.modeLock || canvas.pickPoint || canvas.pickTargets) {
+      onDone?.(null);
+      return;
+    }
+    canvas.modeLock = true;
+    canvas.contextMenuLock = true;
+    canvas.discardActiveObject();
+    canvas.selection = false;
+    canvas.defaultCursor = "crosshair";
+    canvas.getObjects().forEach((object) => object.set({ beforePickSelectable: object.selectable, selectable: false }));
+
+    const pointing = {
+      state: startPointing(request, this._BMQueryService.GetSelectedMap()?.gridSize),
+      onDone,
+      listeners: new Set(),
+      shapes: [],
+      sendUpdate: throttled((data) => this._sendPreview("preview_update", data), 50),
+    };
+    canvas.pickPoint = pointing;
+    const player = ClientMediator.sendCommand("Game", "GetCurrentPlayer");
+    const shared = { selectable: false, evented: false, preview: true, playerId: player?.id, stayVisible: true };
+
+    const specs = [];
+    const { range, marker } = pointing.state;
+    if (range) {
+      specs.push({
+        type: "circle", left: range.x, top: range.y, radius: range.radius, originX: "center", originY: "center",
+        fill: "rgba(255,255,255,0.04)", stroke: "rgba(255,255,255,0.7)", strokeWidth: 2, strokeDashArray: [10, 8],
+      });
+    }
+    if (marker) specs.push({ ...marker, visible: false });
+    fabric.util.enlivenObjects(specs, (shapes) => {
+      if (canvas.pickPoint !== pointing) return; // ended meanwhile
+      shapes.forEach((shape) => {
+        shape.set({ ...shared, previewId: UtilityHelper.GenerateUUID() });
+        canvas.add(shape);
+        shape.bringToFront();
+      });
+      pointing.shapes = shapes;
+      pointing.marker = marker ? shapes[shapes.length - 1] : undefined;
+      pointing.markerStroke = pointing.marker?.stroke;
+      if (pointing.state.showToOthers && shapes.length) this._sendPreview("preview_start", shapes);
+      canvas.requestRenderAll();
+    });
+
+    this._addPopupAndOverlay(
+      React.createElement(PickPointOverlay, { key: this.contextId + "_PickPoint", battleMapId: this.contextId, pointing })
+    );
+    ClientMediator.fireEvent("BattleMap_ModeChanged", { battleMapId: this.contextId, mode: "PickPoint", type: undefined });
+  }
+
+  // The pointer moved while pointing: the marker follows, red where it can't be chosen.
+  PickPointMove({ position }) {
+    const canvas = this._canvas;
+    const pointing = canvas.pickPoint;
+    if (!pointing || !position) return;
+    pointing.state = pointerAt(pointing.state, position);
+    const { x, y } = pointing.state.position;
+    const marker = pointing.marker;
+    if (marker) {
+      marker.set({ left: x, top: y, visible: true, stroke: pointing.state.allowed ? pointing.markerStroke : "rgba(255,60,60,0.95)" });
+      marker.setCoords();
+      if (pointing.state.showToOthers) {
+        pointing.sendUpdate([{ previewId: marker.previewId, left: x, top: y, visible: true, stroke: marker.stroke }]);
+      }
+    }
+    if (pointing.state.highlight) this._glowCovered(pointing);
+    canvas.requestRenderAll();
+    pointing.listeners.forEach((listener) => listener(pointing.state));
+  }
+
+  // A click while pointing: chooses the point when it may be chosen there.
+  PickPointClick({ position }) {
+    const pointing = this._canvas.pickPoint;
+    if (!pointing || !position) return;
+    this.PickPointMove({ position });
+    if (pointing.state.allowed) this._endPointing(pointing.state);
+  }
+
+  CancelPickPoint() {
+    this._endPointing(null);
+  }
+
+  // Tokens the marker covers glow (as picked tokens do), others go back to how they were.
+  _glowCovered(pointing) {
+    const { marker, position } = pointing.state;
+    this._canvas.getObjects().forEach((object) => {
+      if (!object.tokenData || object.preview) return;
+      const c = object.getCenterPoint();
+      const token = { x: c.x, y: c.y, w: object.getScaledWidth(), h: object.getScaledHeight() };
+      const covered = !!position && covers(marker, position, token);
+      if (covered && object.beforePointShadow === undefined) {
+        object.set({ beforePointShadow: object.shadow ?? null, shadow: new fabric.Shadow({ color: "rgba(255,140,0,0.95)", blur: 25 }) });
+      } else if (!covered && object.beforePointShadow !== undefined) {
+        object.set({ shadow: object.beforePointShadow, beforePointShadow: undefined });
+      }
+    });
+  }
+
+  _sendPreview(command, data) {
+    WebSocketManagerInstance.Send({ command, battleMapId: this.contextId, data });
+  }
+
+  _endPointing(chosen) {
+    const canvas = this._canvas;
+    const pointing = canvas.pickPoint;
+    if (!pointing) return;
+    canvas.pickPoint = undefined;
+    canvas.modeLock = undefined;
+    canvas.contextMenuLock = undefined;
+    canvas.selection = true;
+    canvas.defaultCursor = "default";
+    pointing.sendUpdate.cancel();
+    pointing.shapes.forEach((shape) => canvas.remove(shape));
+    if (pointing.state.showToOthers && pointing.shapes.length) {
+      this._sendPreview("preview_end", pointing.shapes.map((shape) => ({ previewId: shape.previewId })));
+    }
+    canvas.getObjects().forEach((object) => {
+      if (object.beforePickSelectable !== undefined) object.set({ selectable: object.beforePickSelectable, beforePickSelectable: undefined });
+      if (object.beforePointShadow !== undefined) object.set({ shadow: object.beforePointShadow, beforePointShadow: undefined });
+    });
+    canvas.requestRenderAll();
+    this._removePopupAndOverlay();
+    ClientMediator.fireEvent("BattleMap_ModeChanged", { battleMapId: this.contextId, mode: undefined, type: undefined });
+    pointing.onDone?.(chosen);
+  }
+
   DisableAllModes() {
     const canvas = this._canvas;
     this.SetActionToolMode({ enabled: false });
     this.CancelPickTargets();
+    this.CancelPickPoint();
     this.SetSimpleCreateMode({ enabled: false });
     this.SetFreeDrawMode({ enabled: false });
     this.UnsetTokenSelectMode({});

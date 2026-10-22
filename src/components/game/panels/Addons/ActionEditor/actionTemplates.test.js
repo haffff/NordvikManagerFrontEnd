@@ -19,8 +19,8 @@ describe("ACTION_TEMPLATES", () => {
     }
   });
 
-  it("picks targets with RequestTargets and shows the area with ShowMarker", () => {
+  it("picks targets with RequestTargets, aims the area with RequestPoint and shows it with ShowMarker", () => {
     expect(types(ACTION_TEMPLATES.find((t) => t.key === "targets").content)).toContain("RequestTargets");
-    expect(types(ACTION_TEMPLATES.find((t) => t.key === "area").content)).toEqual(expect.arrayContaining(["Find", "ShowMarker", "RequestUserInput"]));
+    expect(types(ACTION_TEMPLATES.find((t) => t.key === "area").content)).toEqual(expect.arrayContaining(["RequestPoint", "Find", "ShowMarker", "RequestUserInput"]));
   });
 });

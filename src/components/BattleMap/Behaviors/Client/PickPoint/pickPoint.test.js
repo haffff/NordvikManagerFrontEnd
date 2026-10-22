@@ -1,0 +1,72 @@
+import { describe, it, expect, vi } from "vitest";
+import { startPointing, snapPoint, inRange, covers, pointerAt, throttled } from "./pickPoint";
+
+// Pointing at the map for an action (RequestPoint): the marker follows the cursor, snapped
+// to the grid when asked, and only a point within range can be chosen.
+describe("pickPoint", () => {
+  it("snaps to the middle of a square, or to where grid lines cross", () => {
+    expect(snapPoint({ x: 61, y: 140 }, 50, "center")).toEqual({ x: 75, y: 125 });
+    expect(snapPoint({ x: 61, y: 140 }, 50, "corner")).toEqual({ x: 50, y: 150 });
+    expect(snapPoint({ x: 61.4, y: 140.6 }, 50, "none")).toEqual({ x: 61, y: 141 });
+  });
+
+  it("is in range within the radius, or always without one", () => {
+    const range = { x: 0, y: 0, radius: 100 };
+    expect(inRange({ x: 60, y: 80 }, range)).toBe(true);
+    expect(inRange({ x: 61, y: 80 }, range)).toBe(false);
+    expect(inRange({ x: 1e6, y: 0 }, null)).toBe(true);
+  });
+
+  // The same rule as Find with Near and Radius on the server: a token counts when its
+  // centre is within the radius plus half the token.
+  it("a circle covers a token it reaches, counted to the token's edge", () => {
+    const marker = { type: "circle", radius: 100 };
+    expect(covers(marker, { x: 0, y: 0 }, { x: 120, y: 0, w: 50, h: 50 })).toBe(true);
+    expect(covers(marker, { x: 0, y: 0 }, { x: 130, y: 0, w: 50, h: 50 })).toBe(false);
+  });
+
+  it("a rect covers a token that overlaps it", () => {
+    const marker = { type: "rect", width: 100, height: 50 };
+    expect(covers(marker, { x: 0, y: 0 }, { x: 70, y: 0, w: 50, h: 50 })).toBe(true);
+    expect(covers(marker, { x: 0, y: 0 }, { x: 80, y: 0, w: 50, h: 50 })).toBe(false);
+  });
+
+  it("text or no marker covers nothing", () => {
+    expect(covers({ type: "text" }, { x: 0, y: 0 }, { x: 0, y: 0, w: 50, h: 50 })).toBe(false);
+    expect(covers(null, { x: 0, y: 0 }, { x: 0, y: 0, w: 50, h: 50 })).toBe(false);
+  });
+
+  it("follows the pointer: snapped, and whether it may be chosen there", () => {
+    const s = startPointing({ snap: "center", range: { x: 0, y: 0, radius: 100 } }, 50);
+    expect(pointerAt(s, { x: 10, y: 10 })).toMatchObject({ position: { x: 25, y: 25 }, allowed: true });
+    expect(pointerAt(s, { x: 200, y: 10 })).toMatchObject({ position: { x: 225, y: 25 }, allowed: false });
+  });
+
+  it("has nothing to choose before the pointer moves", () => {
+    expect(startPointing({}, 50)).toMatchObject({ position: null, allowed: false, snap: "none" });
+  });
+
+  // The marker's moves go to the other players at most every `ms`, the last one always.
+  it("sends at most once per interval, and the last call after it", () => {
+    vi.useFakeTimers();
+    const send = vi.fn();
+    const t = throttled(send, 50);
+    t(1); t(2); t(3);
+    expect(send.mock.calls).toEqual([[1]]);
+    vi.advanceTimersByTime(50);
+    expect(send.mock.calls).toEqual([[1], [3]]);
+    t.cancel();
+    vi.useRealTimers();
+  });
+
+  it("sends nothing more once cancelled", () => {
+    vi.useFakeTimers();
+    const send = vi.fn();
+    const t = throttled(send, 50);
+    t(1); t(2);
+    t.cancel();
+    vi.advanceTimersByTime(100);
+    expect(send.mock.calls).toEqual([[1]]);
+    vi.useRealTimers();
+  });
+});

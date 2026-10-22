@@ -53,6 +53,21 @@ describe('installLayerTargeting', () => {
     expect(c._checkTarget({}, { layer: 5, visible: true, selectable: true }, {})).toBe(true);
   });
 
+  // Picking for an action (RequestTargets) makes everything unselectable, and the element
+  // to pick may sit on any layer (a wall on the map layer): clicks reach it, unless its
+  // layer is hidden.
+  it('lets a click reach an element on any layer while picking for an action', () => {
+    const c = canvas();
+    installLayerTargeting(c);
+    c.pickTargets = {};
+    const wall = { layer: 5, visible: true, selectable: false };
+
+    expect(c._checkTarget({}, wall, {})).toBe(true);
+
+    setLayerView(c, { hidden: new Set([5]), dimmed: new Set() });
+    expect(c._checkTarget({}, wall, {})).toBeFalsy();
+  });
+
   it('installs once, even when the map is reloaded on the same canvas', () => {
     const c = canvas();
     installLayerTargeting(c);

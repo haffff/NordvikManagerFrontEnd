@@ -18,9 +18,16 @@ describe("handleTargetRequest", () => {
 
     handleTargetRequest(request, { current: () => ({ battleMapId: "bm" }), setMode, send });
 
-    expect(setMode).toHaveBeenCalledWith("bm", { message: "Bless whom?", min: 1, max: 3, candidates: ["a", "b"] }, expect.any(Function));
+    expect(setMode).toHaveBeenCalledWith("bm", { message: "Bless whom?", target: "token", min: 1, max: 3, candidates: ["a", "b"] }, expect.any(Function));
     onDone({ picked: ["b", "a"] });
     expect(send).toHaveBeenCalledWith({ command: "input_value", inputToken: "tok", data: ["b", "a"] });
+  });
+
+  it("passes on what may be picked (Target element)", () => {
+    const setMode = vi.fn();
+    handleTargetRequest({ inputToken: "tok", data: { target: "element", min: 1, max: 1 } }, { current: () => ({ battleMapId: "bm" }), setMode, send: vi.fn() });
+
+    expect(setMode.mock.calls[0][1]).toMatchObject({ target: "element" });
   });
 
   it("answers cancelled when the player cancels", () => {

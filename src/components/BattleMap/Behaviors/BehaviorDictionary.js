@@ -17,6 +17,7 @@ import { OnPropertyDeleteBehavior } from "./Server/Properties/OnPropertyDeleteBe
 import { OnTokenClickedInSelectModeClientBehavior } from "./Client/OnTokenClickedInSelectModeBehavior";
 import { OnMouseDownActionToolClientBehavior } from "./Client/ActionTool/OnMouseDownActionTool";
 import { OnMouseDownPickTargetsClientBehavior } from "./Client/PickTargets/OnMouseDownPickTargets";
+import { OnMouseDownPickPointClientBehavior, OnMouseMovePickPointClientBehavior } from "./Client/PickPoint/OnPickPoint";
 import { OnTokenUIActionClickClientBehavior } from "./Client/OnTokenUIActionClickBehavior";
 import { OnDragStartClientBehavior } from "./Client/Drag/OnDragStart";
 import { OnDragEndClientBehavior } from "./Client/Drag/OnDragEnd";
@@ -77,6 +78,7 @@ export const BehaviorDictionaryClient = {
     new OnMouseDownMeasureStartClientBehavior(),
     new OnMouseDownActionToolClientBehavior(),
     new OnMouseDownPickTargetsClientBehavior(),
+    new OnMouseDownPickPointClientBehavior(),
   ],
   "mouse:up": [
     new OnDragEndClientBehavior(),
@@ -90,6 +92,7 @@ export const BehaviorDictionaryClient = {
     new OnMouseMovePopupLocationUpdateClientBehavior(),
     new OnMouseMoveSimpleCreateClientBehavior(),
     new OnMouseMoveMeasureUpdateClientBehavior(),
+    new OnMouseMovePickPointClientBehavior(),
   ],
   "mouse:wheel": [new OnMouseWheelChangeZoomClientBehavior()],
   "path:created": [new OnPathCreatedFreeDrawClientBehavior()],

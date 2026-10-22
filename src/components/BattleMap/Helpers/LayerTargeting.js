@@ -44,6 +44,8 @@ export function installLayerTargeting(canvas) {
     if (obj && obj.layer !== undefined && isHidden(this, obj)) return false;
     if (
       obj &&
+      // Picking for an action (RequestTargets): the element may be on any layer.
+      !this.pickTargets &&
       obj.layer !== undefined &&
       drawLayerOf(obj) !== this.selectedLayer &&
       !obj.selectable &&
