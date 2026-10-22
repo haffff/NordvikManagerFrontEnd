@@ -2,6 +2,7 @@ import * as React from "react";
 import { FaMailBulk } from "@react-icons/all-files/fa/FaMailBulk";
 import { FaTerminal } from "@react-icons/all-files/fa/FaTerminal";
 import { FaQuestionCircle } from "@react-icons/all-files/fa/FaQuestionCircle";
+import { FaInfoCircle } from "@react-icons/all-files/fa/FaInfoCircle";
 import { DropDownItem } from "../../uiComponents/base/DDItems/DropDownItem";
 import { DropDownMenu } from "../../uiComponents/base/DDItems/DropDownMenu";
 import ToolBar from "./ToolBar";
@@ -16,6 +17,7 @@ import { usePermissions } from "../../../contexts/PermissionsContext";
 import { Button } from "@chakra-ui/react";
 
 import { toaster } from "../../ui/toaster";
+import { AboutDialog } from "../../AboutDialog";
 
 export const MainToolbar = ({
   Dockable,
@@ -25,6 +27,7 @@ export const MainToolbar = ({
   forceRefreshGame,
 }) => {
   const [additionalButtons, setAdditionalButtons] = React.useState([]);
+  const openAboutRef = React.useRef();
 
   React.useEffect(() => {
     ClientMediator.register({
@@ -103,6 +106,12 @@ export const MainToolbar = ({
         />
         <DropDownItem
           width={150}
+          name={"About"}
+          icon={<FaInfoCircle />}
+          onClick={() => openAboutRef.current()}
+        />
+        <DropDownItem
+          width={150}
           name={"Exit"}
           icon={<IoIosExit />}
           onClick={() => ClientMediator.sendCommand("game", "Exit")}
@@ -126,6 +135,7 @@ export const MainToolbar = ({
       />
       <AddonsMenu state={state} />
       {additionalButtons}
+      <AboutDialog openRef={openAboutRef} />
     </ToolBar>
   );
 };
