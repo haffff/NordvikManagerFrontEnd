@@ -212,3 +212,74 @@ describe('TokenManager: token parts stay as the user left them', () => {
     expect(icon.visible).toBe(false); // still hidden until the drag ends
   });
 });
+
+// The server builds a token as wide as it should be at scale 1 (it doesn't know the
+// picture's size), so the loaded picture showed cropped to that square. When a token
+// loads, its picture keeps the width it shows but at its own size, scaled to it.
+describe('TokenManager: a token\'s picture fits the token when it loads', () => {
+  const picture = (w, h) => ({ naturalWidth: w, naturalHeight: h, width: w, height: h });
+  const token = (extra = {}) => ({
+    id: 'tok-1', type: 'image', isToken: true, width: 50, height: 50, scaleX: 1, scaleY: 1,
+    set(k, v) { if (typeof k === 'object') Object.assign(this, k); else this[k] = v; },
+    scale(s) { this.scaleX = s; this.scaleY = s; },
+    setCoords: vi.fn(),
+    ...extra,
+  });
+
+  it('shows the whole picture at the token\'s width', () => {
+    const t = token({ getElement: () => picture(64, 64) });
+
+    manager()._fitTokenPicture(t);
+
+    expect([t.width, t.height, t.scaleX, t.scaleY]).toEqual([64, 64, 50 / 64, 50 / 64]);
+  });
+
+  it('fits a circle crop sized to the square to the picture', () => {
+    const t = token({ getElement: () => picture(200, 100), clipPath: { type: 'circle', radius: 25, set(k, v) { this[k] = v; } } });
+
+    manager()._fitTokenPicture(t);
+
+    expect(t.clipPath.radius).toBe(50);
+    expect(t.width * t.scaleX).toBe(50);
+  });
+
+  it('leaves a token that already shows its whole picture alone', () => {
+    const t = token({ width: 64, height: 64, scaleX: 0.5, scaleY: 0.5, getElement: () => picture(64, 64) });
+
+    manager()._fitTokenPicture(t);
+
+    expect([t.width, t.scaleX]).toEqual([64, 0.5]);
+  });
+
+  it('does nothing before the picture is there', () => {
+    const t = token({ getElement: () => null });
+
+    manager()._fitTokenPicture(t);
+
+    expect([t.width, t.scaleX]).toEqual([50, 1]);
+  });
+
+  it('fits it on load, also for a token without parts', async () => {
+    const t = token({ getElement: () => picture(64, 64) });
+    const tm = manager();
+    tm._findObject = () => t;
+
+    await tm.CanvasObjectLoadToken({ id: 'tok-1' });
+
+    expect(t.width).toBe(64);
+  });
+});
+
+// A width or height that isn't a finite number (e.g. Infinity from a rule dividing by
+// zero) gave the part a 0x0 cache canvas, and Fabric's drawImage then broke drawing
+// the whole map.
+describe("TokenManager: a part's width stays a usable number", () => {
+  it('Infinity becomes 1', () => {
+    const bar = { width: 10, set(k, v) { this[k] = v; } };
+    const dep = { dtoProperty: 'x', objectProperty: 'width', type: 'number', source: 'element' };
+
+    manager()._applyDep(dep, { id: 'tok-1' }, bar, [{ name: 'x', value: 'Infinity', entityName: 'ElementModel' }]);
+
+    expect(bar.width).toBe(1);
+  });
+});
