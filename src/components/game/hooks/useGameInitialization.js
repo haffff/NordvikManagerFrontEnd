@@ -7,10 +7,8 @@ import { PropertiesManagerInstance } from '../../../CardAPI';
 import ActionService from '../ActionService';
 import { ActiveWebHelper as WebHelper, ActiveTransportManager as WebSocketManagerInstance } from '../../../helpers/transport';
 import DockableHelper from '../../../helpers/DockableHelper';
-import { _entityPermissionSetter } from '../../../contexts/PermissionsContext';
-import { ENTITY_TYPES, PERM } from '../../BattleMap/Helpers/permissionBits';
+import { PERM } from '../../BattleMap/Helpers/permissionBits';
 import { resetSandboxOrigins } from '../../../helpers/sandboxOrigins';
-import { isPlayerMode } from '../../../helpers/appMode';
 
 // Global flags to prevent duplicate game initialization
 let gameInitializationInProgress = false;
@@ -38,7 +36,9 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
     setCurrentPlayerId,
     setPlayers,
     setLayout,
-    setIsGM,
+    setIsOwner,
+    setIsLocalAdmin,
+    setGamePermission,
     currentPlayerRef,
     gameRef,
     keyboardEventsManagerRef,
@@ -86,23 +86,12 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
       // Populate refs so useGameApi's GetGame/GetOwner/GetCurrentPlayer resolve
       gameRef.current = game;
 
-      const gmStatus = game.master.id === player.id;
-      localStorage.setItem('gmMode', gmStatus ? 'true' : 'false');
-      setIsGM(gmStatus);
+      // The game carries this player's permission on it ("everyone" row included) and
+      // whether the user runs this server; the UI follows those, not the app build.
+      setIsOwner(game.master.id === player.id);
+      setGamePermission(game.permission ?? PERM.NONE);
+      setIsLocalAdmin(!!game.isLocalAdmin);
       setPlayers(game.players);
-
-      // Load game-level entity permissions for non-GM players
-      if (!gmStatus && isPlayerMode()) {
-        try {
-          const gamePerms = await WebHelper.getAsync(
-            `security/permissions?entityId=${game.id}&entityType=${ENTITY_TYPES.GAME}`
-          );
-          const bits = gamePerms?.[player.id] ?? PERM.NONE;
-          _entityPermissionSetter.current?.(ENTITY_TYPES.GAME, game.id, bits);
-        } catch (e) {
-          console.warn('useGameInitialization: failed to load game entity permissions', e);
-        }
-      }
 
       // ── Load layout: this player's remembered arrangement (if the GM enabled
       //    "saveLayoutOnExit" and one is stored) else the game's default. ──────
@@ -179,7 +168,7 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
         gameInitializationInProgress = false;
       }
     }
-  }, [state, CreateLayoutElement, setCurrentPlayerId, setPlayers, setLayout, setIsGM, currentPlayerRef, gameRef, keyboardEventsManagerRef]);
+  }, [state, CreateLayoutElement, setCurrentPlayerId, setPlayers, setLayout, setIsOwner, setIsLocalAdmin, setGamePermission, currentPlayerRef, gameRef, keyboardEventsManagerRef]);
 
   return {
     loadGame,

@@ -4,6 +4,7 @@ import { waitFor } from '@testing-library/react';
 vi.mock('../../../helpers/transport', () => ({
   ActiveWebHelper: {
     getAsync: vi.fn(),
+    postAsync: vi.fn(),
     getMaterialAsync: vi.fn(),
     getResourceString: vi.fn((id, key) => `resource:${id ?? key}`),
   },
@@ -57,89 +58,41 @@ const sentElement = async () => {
   return ActiveTransportManager.Send.mock.calls[0][0];
 };
 
+// The server builds the token (materials/BuildToken, the same as the SpawnToken step);
+// the client adds it to the map, selected, like any element it adds.
 describe('TokenManager.CreateToken', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     ClientMediator.sendCommand.mockImplementation((panel, command) =>
       panel === 'BattleMap' && command === 'GetSelectedMap' ? { id: 'map-1', gridSize: 50 } : undefined);
+    WebHelper.postAsync.mockResolvedValue({ status: 200, body: { object: JSON.stringify({ name: 'Goblin', layer: 100, isToken: true }), size: 2 } });
   });
 
-  it('places a token from a definition, with no card', async () => {
-    WebHelper.getMaterialAsync.mockResolvedValue(JSON.stringify({ ...definition, prefix: 'Thing' }));
-
-    manager().CreateToken({ token: 'basics_token_generic.json', position: { x: 10, y: 20 } });
+  it('asks the server to build the token, then adds it to the map', async () => {
+    manager().CreateToken({ cardId: 'card-1', position: { x: 10, y: 20 } });
 
     const { command, data } = await sentElement();
+    expect(WebHelper.postAsync).toHaveBeenCalledWith('materials/BuildToken',
+      { mapId: 'map-1', cardId: 'card-1', token: undefined, image: undefined, x: 10, y: 20 });
     expect(command).toBe('element_add');
-    // definition fetched by its resource key; no card properties read
-    expect(WebHelper.getMaterialAsync).toHaveBeenCalledWith(null, 'application/json', 'basics_token_generic.json');
-    expect(ClientMediator.sendCommandAsync).not.toHaveBeenCalled();
-
-    expect(data.cardId).toBeUndefined();
-    expect(data.tokenData.cardId).toBeUndefined();
-    expect(data.name).toBe('Token');
-    expect(data.tokenData.editableProps).toEqual(definition.editableProps);
-    // its image is stored on the token itself
-    expect(data.tokenData.propDeps).toContainEqual(expect.objectContaining({ dtoProperty: 'tokenImage', objectProperty: 'src', source: 'element' }));
-    expect(data.properties).toContainEqual({ name: 'isToken', value: 'true' });
+    expect(JSON.parse(data.object).name).toBe('Goblin');
+    expect([data.mapId, data.layer, data.withSelection]).toEqual(['map-1', 100, true]);
+    expect(data.properties).toEqual([{ name: 'tokenSize', value: '2' }, { name: 'isToken', value: 'true' }]);
   });
 
-  it('still places a card token with the image from the card', async () => {
-    ClientMediator.sendCommandAsync.mockResolvedValue([
-      { name: 'token', value: 'dnd5e_token_character.json' },
-      { name: 'character_name', value: 'Vex' },
-    ]);
-    WebHelper.getMaterialAsync.mockResolvedValue(JSON.stringify({ ...definition, prefix: 'pc' }));
-
-    manager().CreateToken({ cardId: 'card-1', position: { x: 0, y: 0 } });
-
-    const { data } = await sentElement();
-    expect(data.cardId).toBe('card-1');
-    expect(data.tokenData.cardId).toBe('card-1');
-    // The template's prefix is not part of the name.
-    expect(data.name).toBe('Vex');
-    expect(data.tokenData.propDeps).toContainEqual(expect.objectContaining({ dtoProperty: 'tokenImage', source: 'card' }));
-  });
-
-  // Regression: monster/item cards carry their name as the card's own name, not a
-  // character_name property, so their tokens all came out as "token Token".
-  it("names a card token after the card when it has no character_name", async () => {
-    ClientMediator.sendCommandAsync.mockResolvedValue([{ name: 'token', value: 'dnd5e_token_monster.json' }]);
-    WebHelper.getAsync.mockResolvedValue({ id: 'card-1', name: 'Goblin' });
-    WebHelper.getMaterialAsync.mockResolvedValue(JSON.stringify({ ...definition, prefix: 'token' }));
-
-    manager().CreateToken({ cardId: 'card-1', position: { x: 0, y: 0 } });
-
-    const { data } = await sentElement();
-    expect(WebHelper.getAsync).toHaveBeenCalledWith('materials/getcard?id=card-1');
-    expect(data.name).toBe('Goblin');
-  });
-
-  it("uses the card's name when character_name is blank", async () => {
-    ClientMediator.sendCommandAsync.mockResolvedValue([
-      { name: 'token', value: 'dnd5e_token_character.json' },
-      { name: 'character_name', value: '  ' },
-    ]);
-    WebHelper.getAsync.mockResolvedValue({ id: 'card-1', name: 'New Character' });
-    WebHelper.getMaterialAsync.mockResolvedValue(JSON.stringify({ ...definition, prefix: 'token' }));
-
-    manager().CreateToken({ cardId: 'card-1', position: { x: 0, y: 0 } });
-
-    const { data } = await sentElement();
-    expect(data.name).toBe('New Character');
-  });
-
-  it("doesn't fetch the card when character_name is set", async () => {
-    ClientMediator.sendCommandAsync.mockResolvedValue([
-      { name: 'token', value: 'dnd5e_token_character.json' },
-      { name: 'character_name', value: 'Vex' },
-    ]);
-    WebHelper.getMaterialAsync.mockResolvedValue(JSON.stringify(definition));
-
-    manager().CreateToken({ cardId: 'card-1', position: { x: 0, y: 0 } });
+  it('places a token from a token file, with no card', async () => {
+    manager().CreateToken({ token: 'basics_token_generic.json', position: { x: 0, y: 0 } });
 
     await sentElement();
-    expect(WebHelper.getAsync).not.toHaveBeenCalled();
+    expect(WebHelper.postAsync.mock.calls[0][1]).toMatchObject({ token: 'basics_token_generic.json', cardId: undefined });
+  });
+
+  it('adds nothing when the server refuses', async () => {
+    WebHelper.postAsync.mockResolvedValue({ status: 400, body: { error: 'no token property' } });
+
+    await manager()._createTokenAsync({ cardId: 'card-1' }, { x: 0, y: 0 });
+
+    expect(ActiveTransportManager.Send).not.toHaveBeenCalled();
   });
 
   it('as a command, needs a card or a token definition', () => {
@@ -184,7 +137,7 @@ describe('TokenManager: showing / hiding a masked part redraws the map', () => {
     tm._getCanvas = () => canvas;
     tm._findObject = () => token;
     tm._getSelectedMap = () => ({ id: 'map-1' });
-    ClientMediator.sendCommand.mockImplementation((panel, cmd) => (cmd === 'GetIsGM' ? false : undefined));
+    ClientMediator.sendCommand.mockImplementation((panel, cmd) => (cmd === 'GetCanEditGame' ? false : undefined));
     ClientMediator.sendCommandAsync.mockImplementation(async (panel, cmd, data) =>
       cmd === 'GetByNames' && data.parentId === 'tok-1' ? [{ name: 'mask_bars_enabled', value: maskValue, entityName: 'ElementModel', parentId: 'tok-1' }] : []);
     return { tm, canvas };
@@ -211,5 +164,51 @@ describe('TokenManager: showing / hiding a masked part redraws the map', () => {
 
     expect(token.bar.visible).toBe(true);
     expect(canvas.requestRenderAll).toHaveBeenCalled();
+  });
+});
+
+describe('TokenManager: token parts stay as the user left them', () => {
+  const managerFor = (token) => {
+    const tm = new TokenManager();
+    tm._getCanvas = () => ({ getObjects: () => [token], requestRenderAll: vi.fn() });
+    tm._findObject = () => token;
+    tm._getSelectedMap = () => ({ id: 'map-1' });
+    ClientMediator.sendCommand.mockImplementation(() => undefined);
+    ClientMediator.sendCommandAsync.mockResolvedValue([]);
+    return tm;
+  };
+
+  beforeEach(() => vi.clearAllMocks());
+
+  // A full refresh (e.g. a mask toggled) must not hide the parts a selected token shows.
+  it('keeps a selected token\'s on-selection parts shown on a full refresh', async () => {
+    const control = { tokenData: { showOnTokenControl: true }, visible: true };
+    const token = { id: 'tok-1', additionalObjects: [control], tokenData: {}, _controlsShown: true };
+
+    await managerFor(token).UpdateTokenBasedOnProperties({ tokenId: 'tok-1' });
+
+    expect(control.visible).toBe(true);
+  });
+
+  it('hides them when the token is not selected', async () => {
+    const control = { tokenData: { showOnTokenControl: true }, visible: true };
+    const token = { id: 'tok-1', additionalObjects: [control], tokenData: {} };
+
+    await managerFor(token).UpdateTokenBasedOnProperties({ tokenId: 'tok-1' });
+
+    expect(control.visible).toBe(false);
+  });
+
+  // While a token is dragged (or animated to a remote move) its parts are hidden and
+  // their visibility kept in visibleBeforeDrag, which is restored afterwards — a
+  // status icon switched meanwhile must land there, or the restore undoes it.
+  it('keeps an icon switched on during a drag', () => {
+    const icon = { visible: false, visibleBeforeDrag: false, set(k, v) { this[k] = v; } };
+    const dep = { dtoProperty: 'status_prone', objectProperty: 'visible', type: 'bool', source: 'element' };
+
+    managerFor({})._applyDep(dep, { id: 'tok-1' }, icon, [{ name: 'status_prone', value: 'True', entityName: 'ElementModel' }]);
+
+    expect(icon.visibleBeforeDrag).toBe(true);
+    expect(icon.visible).toBe(false); // still hidden until the drag ends
   });
 });

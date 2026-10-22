@@ -2,6 +2,7 @@ import * as React from "react";
 import { FaMailBulk } from "@react-icons/all-files/fa/FaMailBulk";
 import { FaTerminal } from "@react-icons/all-files/fa/FaTerminal";
 import { FaQuestionCircle } from "@react-icons/all-files/fa/FaQuestionCircle";
+import { FaInfoCircle } from "@react-icons/all-files/fa/FaInfoCircle";
 import { DropDownItem } from "../../uiComponents/base/DDItems/DropDownItem";
 import { DropDownMenu } from "../../uiComponents/base/DDItems/DropDownMenu";
 import ToolBar from "./ToolBar";
@@ -12,9 +13,11 @@ import { IoIosExit } from "@react-icons/all-files/io/IoIosExit";
 import UtilityHelper from "../../../helpers/UtilityHelper";
 import AddonsMenu from "./ToolBarMenus/AddonsMenu";
 import ClientMediator from "../../../ClientMediator";
+import { usePermissions } from "../../../contexts/PermissionsContext";
 import { Button } from "@chakra-ui/react";
 
 import { toaster } from "../../ui/toaster";
+import { AboutDialog } from "../../AboutDialog";
 
 export const MainToolbar = ({
   Dockable,
@@ -24,6 +27,7 @@ export const MainToolbar = ({
   forceRefreshGame,
 }) => {
   const [additionalButtons, setAdditionalButtons] = React.useState([]);
+  const openAboutRef = React.useRef();
 
   React.useEffect(() => {
     ClientMediator.register({
@@ -71,18 +75,18 @@ export const MainToolbar = ({
     toaster.create(UtilityHelper.GenerateCopiedToast());
   };
 
-  // Whether the player may create/overwrite layouts. GM always can; otherwise the
-  // per-game "disallowPlayerLayouts" toggle decides. Read from the init snapshot,
-  // so a GM changing it mid-session takes effect for players on their next reload.
+  // Whether the player may create/overwrite layouts. Whoever may edit the game always can;
+  // otherwise the per-game "disallowPlayerLayouts" toggle decides. Read from the init
+  // snapshot, so a change mid-session takes effect for players on their next reload.
+  const { canEditGame } = usePermissions();
   const gameSnapshot = ClientMediator.sendCommand("Game", "GetGame", {});
-  const isGM = ClientMediator.sendCommand("Game", "GetIsGM");
-  const canSaveLayouts = isGM || !gameSnapshot?.disallowPlayerLayouts;
+  const canSaveLayouts = canEditGame || !gameSnapshot?.disallowPlayerLayouts;
 
   return (
     <ToolBar>
       <DropDownMenu viewId={"game"} name={"Game"} width={100}>
         <DropDownItem
-          gmOnly
+          requiresEdit
           width={150}
           name={"Get Invite URL"}
           onClick={GenerateInviteLink}
@@ -99,6 +103,12 @@ export const MainToolbar = ({
           name={"Show tutorial"}
           icon={<FaQuestionCircle />}
           onClick={() => ClientMediator.sendCommand("Tutorial", "Start")}
+        />
+        <DropDownItem
+          width={150}
+          name={"About"}
+          icon={<FaInfoCircle />}
+          onClick={() => openAboutRef.current()}
         />
         <DropDownItem
           width={150}
@@ -125,6 +135,7 @@ export const MainToolbar = ({
       />
       <AddonsMenu state={state} />
       {additionalButtons}
+      <AboutDialog openRef={openAboutRef} />
     </ToolBar>
   );
 };

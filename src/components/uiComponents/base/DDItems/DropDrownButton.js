@@ -10,12 +10,10 @@ export const DropDownButton = ({
   onClick,
   width,
   height,
-  gmOnly,
-  adminOnly,
+  requiresEdit,
 }) => {
-  const { isGM, isAdmin } = usePermissions();
-  if (gmOnly && !isGM) return null;
-  if (adminOnly && !isAdmin) return null;
+  const { canEditGame } = usePermissions();
+  if (requiresEdit && !canEditGame) return null;
 
   return (
     <Button

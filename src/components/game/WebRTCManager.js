@@ -40,15 +40,19 @@ export function describeIceServers(servers) {
 // Recursively lower-cases the first character of every object key.
 // Mirrors the same helper in WebRTCWebHelper — applied here so push messages
 // (dispatched via _dispatchToSubscribers) arrive with camelCase keys, matching
-// what Subscribable/CollectionSyncer expect.
-function _camelizeKeys(obj) {
-  if (Array.isArray(obj)) return obj.map(_camelizeKeys);
+// what Subscribable/CollectionSyncer expect. The inside of actionArgs (the variables a
+// menu item or map tool hands its action) and of an action trace's variables is an
+// action's own data, kept as written.
+const KEEP_INSIDE = new Set(['actionArgs', 'variables']);
+
+export function camelizeKeys(obj) {
+  if (Array.isArray(obj)) return obj.map(camelizeKeys);
   if (obj !== null && typeof obj === 'object') {
     return Object.fromEntries(
-      Object.entries(obj).map(([k, v]) => [
-        k.charAt(0).toLowerCase() + k.slice(1),
-        _camelizeKeys(v),
-      ])
+      Object.entries(obj).map(([k, v]) => {
+        const key = k.charAt(0).toLowerCase() + k.slice(1);
+        return [key, KEEP_INSIDE.has(key) ? v : camelizeKeys(v)];
+      })
     );
   }
   return obj;
@@ -589,7 +593,7 @@ class WebRTCManager {
       demoRecorder.record('in', data);
       WebRTCWebHelperInstance.handleApiResponse(data);
     } else {
-      const message = _camelizeKeys(data);
+      const message = camelizeKeys(data);
       demoRecorder.record('in', message);
       this._dispatchToSubscribers(message);
     }

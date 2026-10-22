@@ -1,5 +1,6 @@
 import CommandFactory from "../Factories/CommandFactory";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
+import ClientMediator from "../../../ClientMediator";
 
 // Shared between TokenQuickEditOverlay.js and TokenIconPickerOverlay.js — both
 // read/write arbitrary addon-declared properties scoped to a token's own card
@@ -16,22 +17,33 @@ export function resolveTokenParentId(source, token) {
 }
 
 /**
- * Writes a single property scoped to a token's card/element, creating it if
- * no existing property id is known yet, otherwise updating it in place —
- * mirrors PropertiesSettingsPanel.js's own add-vs-update split.
+ * Writes a single property scoped to a token's card/element: updates it in place when
+ * its id is known, otherwise looks it up by name first — it may have been created
+ * since the caller read it (an icon toggled on, then off again: the server refuses a
+ * second add) — and only adds it when it really doesn't exist yet.
+ * Resolves to the property's id when known.
  */
-export function writeTokenProperty({ token, source, dtoProperty, value, existingId }) {
+export async function writeTokenProperty({ token, source, dtoProperty, value, existingId }) {
   const parentId = resolveTokenParentId(source, token);
-  if (!parentId) return;
+  if (!parentId) return undefined;
   const entityName = ENTITY_NAME_BY_SOURCE[source];
 
-  if (existingId) {
+  let id = existingId;
+  if (!id) {
+    const found = await ClientMediator
+      .sendCommandAsync("Properties", "GetByNames", { parentId, names: [dtoProperty] })
+      .catch(() => []);
+    id = found?.find((p) => p.name === dtoProperty)?.id;
+  }
+
+  if (id) {
     WebSocketManagerInstance.Send(
-      CommandFactory.CreatePropertyUpdateCommand({ id: existingId, name: dtoProperty, value, entityName, parentId })
+      CommandFactory.CreatePropertyUpdateCommand({ id, name: dtoProperty, value, entityName, parentId })
     );
   } else {
     WebSocketManagerInstance.Send(
       CommandFactory.CreatePropertyAddCommand({ name: dtoProperty, value, isProtected: false, entityName, parentId })
     );
   }
+  return id;
 }

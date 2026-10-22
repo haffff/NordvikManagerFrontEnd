@@ -34,7 +34,7 @@ vi.mock('../../ClientMediator', () => ({
 }));
 
 vi.mock('../../contexts/PermissionsContext', () => ({
-  usePermissions: () => ({ isGM: true }),
+  usePermissions: () => ({ isOwner: true }),
 }));
 
 const { playSystemSoundMock } = vi.hoisted(() => ({ playSystemSoundMock: vi.fn() }));

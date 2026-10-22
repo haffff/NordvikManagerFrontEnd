@@ -4,9 +4,9 @@ import DockableHelper from '../../../../../helpers/DockableHelper';
 import DropDownButton from '../DropDrownButton';
 import DropDownItem from '../DropDownItem';
 
-export const CreateDropDownButton = ({ name, onClick, icon, width, state, element, getElementFunc, gmOnly }) => {
+export const CreateDropDownButton = ({ name, onClick, icon, width, state, element, getElementFunc, requiresEdit }) => {
     return (
-            <DropDownItem gmOnly={gmOnly} width={width} icon={icon} onClick={() =>{
+            <DropDownItem requiresEdit={requiresEdit} width={width} icon={icon} onClick={() =>{
                 if (getElementFunc) {
                     element = getElementFunc();
                 }

@@ -17,7 +17,7 @@ import CreateDropDownButton from '../../../uiComponents/base/DDItems/SpecialButt
 
 export const AddonsMenu = ({ state, gameDataManagerRef }) => {
     return (
-        <DropDownMenu viewId={"addons"} gmOnly name="Addons" width={150} >
+        <DropDownMenu viewId={"addons"} requiresEdit name="Addons" width={150} >
             <DropDownMenu viewId={"addons_addons"} name="Addons" submenu={true} width={150} expandableLocationName={"addons"} expandableWithAction={true} state={state} gameDataRef={gameDataManagerRef}>
                 <CreateDropDownButton width={150} name="Addons Manage" icon={IoMdDocument} state={state} element={(<AddonsManagePanel gameDataRef={gameDataManagerRef} />)} />
             </DropDownMenu>

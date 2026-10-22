@@ -15,6 +15,7 @@ import { ActiveTransportManager as WebSocketManagerInstance } from "../../../hel
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
 import { useDimensions } from "../../uiComponents/hooks/useDimensions";
+import { usePermissions } from "../../../contexts/PermissionsContext";
 
 // ─── Online indicator dot ─────────────────────────────────────────────────────
 
@@ -87,7 +88,7 @@ const PlayerRow = React.memo(({ entry, isAdmin, isCurrentPlayer, isOwner, horizo
             icon={FaCog}
             onClick={handleSettings}
           />
-          {!isCurrentPlayer && !isSystem && (
+          {!isCurrentPlayer && !isSystem && !isOwner && (
             <DListItemButton
               label="Kick"
               icon={FaUserSlash}
@@ -118,11 +119,13 @@ const buildEntries = (allPlayers, connectedPlayers) => {
 
 // ─── Main panel ───────────────────────────────────────────────────────────────
 
-export const PlayersPanel = ({ adminMode = false }) => {
+export const PlayersPanel = () => {
   const [entries, setEntries]           = React.useState([]);
   const [currentPlayerId, setCurrentPlayerId] = React.useState(null);
   const [ownerId, setOwnerId]           = React.useState(null);
-  const [isAdmin, setIsAdmin]           = React.useState(adminMode);
+  // Managing players (settings, kick) follows Edit on the game.
+  const { canEditGame } = usePermissions();
+  const isAdmin = canEditGame;
 
   const panelRef = React.useRef(null);
   const { width, height } = useDimensions(panelRef);
@@ -144,11 +147,6 @@ export const PlayersPanel = ({ adminMode = false }) => {
       const currentId = currentPlayer?.id ?? currentPlayer?.Id ?? null;
       setCurrentPlayerId(currentId);
       setOwnerId(owner ?? null);
-
-      // Elevate to admin if the current player is the game owner
-      if (!adminMode) {
-        setIsAdmin(currentId != null && currentId === owner);
-      }
 
       setEntries(buildEntries(allPlayers, connected));
     };

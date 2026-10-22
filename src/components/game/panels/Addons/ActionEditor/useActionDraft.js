@@ -1,5 +1,6 @@
 import * as React from "react";
 import UtilityHelper from "../../../../../helpers/UtilityHelper";
+import { withIds, updateById, removeById, duplicateById, insertInto, moveWithin } from "./stepTree";
 
 // Editing state for one action: the action's fields plus its steps, with an "unsaved"
 // flag and undo/redo. Consecutive edits with the same `key` (typing in one field) are
@@ -11,11 +12,7 @@ const parseSteps = (content) => {
   let steps;
   try { steps = typeof content === "string" ? JSON.parse(content || "[]") : content; } catch { steps = []; }
   if (!Array.isArray(steps)) steps = [];
-  return steps.map((s) => ({
-    ...s,
-    id: s?.id || UtilityHelper.GenerateUUID(),
-    Data: s?.Data ?? {},
-  }));
+  return withIds(steps);
 };
 
 const snapshotKey = (action, steps) =>
@@ -95,8 +92,8 @@ export function useActionDraft() {
       breakMerge: () => dispatch({ type: "breakMerge" }),
       updateAction: (patch, key) => edit((d) => ({ ...d, action: { ...d.action, ...patch } }), key),
       setSteps: (fn, key) => edit((d) => ({ ...d, steps: fn(d.steps) }), key),
-      updateStep: (id, fn, key) =>
-        edit((d) => ({ ...d, steps: d.steps.map((s) => (s.id === id ? fn(s) : s)) }), key),
+      // Any step, also one inside a block (If's Then / Else, ForEach's Do).
+      updateStep: (id, fn, key) => edit((d) => ({ ...d, steps: updateById(d.steps, id, fn) }), key),
     };
   }, []);
 
@@ -112,25 +109,13 @@ export function useActionDraft() {
   };
 }
 
-// Step list operations used by the editor (pure, so they're easy to test).
+// Step list operations used by the editor (pure, so they're easy to test). They reach steps
+// inside blocks too; `container` is where to insert: null for the action's own list,
+// { parentId, block } for a block of a step.
 export const stepOps = {
-  insertAt: (steps, index, step) => [...steps.slice(0, index), step, ...steps.slice(index)],
-  remove: (steps, id) => steps.filter((s) => s.id !== id),
-  duplicate: (steps, id) => {
-    const i = steps.findIndex((s) => s.id === id);
-    if (i === -1) return steps;
-    const copy = JSON.parse(JSON.stringify(steps[i]));
-    copy.id = UtilityHelper.GenerateUUID();
-    return stepOps.insertAt(steps, i + 1, copy);
-  },
-  move: (steps, fromId, toId) => {
-    const from = steps.findIndex((s) => s.id === fromId);
-    const to = steps.findIndex((s) => s.id === toId);
-    if (from === -1 || to === -1 || from === to) return steps;
-    const arr = [...steps];
-    const [item] = arr.splice(from, 1);
-    arr.splice(to, 0, item);
-    return arr;
-  },
+  insertAt: (steps, index, step, container = null) => insertInto(steps, container, index, step),
+  remove: (steps, id) => removeById(steps, id),
+  duplicate: (steps, id) => duplicateById(steps, id),
+  move: (steps, fromId, toId) => moveWithin(steps, fromId, toId),
   newStep: (type) => ({ id: UtilityHelper.GenerateUUID(), Type: type, Data: {} }),
 };

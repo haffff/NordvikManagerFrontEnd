@@ -162,3 +162,7 @@ All UI colours are CSS variables a game stylesheet (or a theme addon) can overri
 3. `nmDemoRecorder.download()` saves the recording; `localStorage.removeItem("nm_record_demo")` turns recording off.
 4. `node scripts/demo/build-fixtures.mjs <recording.json> gm` writes `src/demo/fixtures/gm.json`. It refuses recordings with credentials or email addresses in them.
 5. Do the same in a player client for `player`.
+
+## License
+
+Copyright (C) 2025-2026 haffff. The client is licensed under the [GNU Affero General Public License v3](LICENSE) (`AGPL-3.0-only`), with an additional attribution term: see [NOTICE](NOTICE).

@@ -19,10 +19,12 @@ import { FaUserFriends } from "@react-icons/all-files/fa/FaUserFriends";
 import { FaChevronLeft } from "@react-icons/all-files/fa/FaChevronLeft";
 import { FaChevronRight } from "@react-icons/all-files/fa/FaChevronRight";
 import { IoMdLogOut } from "@react-icons/all-files/io/IoMdLogOut";
+import { FaInfoCircle } from "@react-icons/all-files/fa/FaInfoCircle";
 import { UserManagementDialog } from "./UserManagementDialog";
 import { AppSettingsDialog } from "./AppSettingsDialog";
 import { NewVersionDialog } from "./NewVersionDialog";
 import CentralSettings from "../CentralSettings";
+import { AboutDialog } from "../AboutDialog";
 
 const PUBLIC_GAMES_PAGE_SIZE = 10;
 
@@ -41,6 +43,7 @@ export const GameList = ({ OnSuccess, OnLogout }) => {
 
   const openAppSettingsRef = React.useRef();
   const openUserManagementRef = React.useRef();
+  const openAboutRef = React.useRef();
 
   const load = React.useCallback(async () => {
     const [games, user, serverMeta] = await Promise.all([
@@ -89,6 +92,7 @@ export const GameList = ({ OnSuccess, OnLogout }) => {
     <>
       <UserManagementDialog openRef={openUserManagementRef} />
       <AppSettingsDialog openRef={openAppSettingsRef} />
+      <AboutDialog openRef={openAboutRef} />
       <NewVersionDialog open={updateAvailable} versionInfo={versionInfo} onClose={() => setUpdateAvailable(false)} />
       <JoinDialog OnSuccess={(r) => OnSuccess(r)} />
       <Stack
@@ -113,6 +117,9 @@ export const GameList = ({ OnSuccess, OnLogout }) => {
               <Icon as={FaUserFriends} /> User Management
             </Button>
           )}
+          <Button variant="outline" onClick={() => openAboutRef.current()}>
+            <Icon as={FaInfoCircle} /> About
+          </Button>
           <Button variant="outline" onClick={OnLogout}>
             <Icon as={IoMdLogOut} /> Logout
           </Button>

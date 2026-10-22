@@ -63,7 +63,9 @@ vi.mock('./hooks/useGameState', () => ({
       current: { HandleKeyboardEventDown: vi.fn(), HandleKeyboardEventUp: vi.fn() },
     },
     forceUpdate: vi.fn(),
-    isGM: false,
+    isOwner: false,
+    isLocalAdmin: false,
+    gamePermission: 0,
   }),
 }));
 

@@ -10,7 +10,7 @@ vi.mock('../../uiComponents/base/Modals/InputModal', () => ({ default: () => nul
 vi.mock('../settings/SettingsPanel', () => ({
   default: ({ dto }) => <div data-testid="settings">Editing {dto?.name}</div>,
 }));
-vi.mock('../../../contexts/PermissionsContext', () => ({ usePermissions: () => ({ isGM: true }) }));
+vi.mock('../../../contexts/PermissionsContext', () => ({ usePermissions: () => ({ canEditGame: true }) }));
 vi.mock('@hlorenzi/react-dockable', () => ({ useContentContext: () => ({ setTitle: vi.fn() }) }));
 
 const playlists = [

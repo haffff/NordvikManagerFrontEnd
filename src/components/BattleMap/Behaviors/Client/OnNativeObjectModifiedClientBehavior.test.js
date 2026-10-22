@@ -113,6 +113,15 @@ describe('OnNativeObjectModifiedClientBehavior — grid snapping', () => {
     expect(image.scaleY).toBeCloseTo(1.25);
   });
 
+  // The scale only means something together with the size it scales: a token whose
+  // image came from a property was saved with the placeholder's size, so the scale
+  // alone would be applied to that on reload and the token would shrink.
+  it('scaling saves the size the scale applies to', () => {
+    const token = rect({ type: 'image', left: 0, top: 0, width: 1000, height: 1000, scaleX: 0.5, scaleY: 0.5 });
+    const cmd = run(token, { action: 'scale', originX: 'left', originY: 'top' });
+    expect(sentElement(cmd)).toMatchObject({ width: 1000, height: 1000, scaleX: 0.5, scaleY: 0.5 });
+  });
+
   it('a side handle only snaps its own edge', () => {
     const target = rect({ left: 100, top: 100, scaleX: 1.3, scaleY: 0.7 });
     run(target, { action: 'scaleX', originX: 'left', originY: 'center' }, { ctrlKey: true });

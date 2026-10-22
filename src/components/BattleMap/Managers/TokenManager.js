@@ -1,6 +1,5 @@
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import { fabric } from "fabric";
-import DTOConverter from "../DTOConverter";
 import ClientMediator from "../../../ClientMediator";
 import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import UtilityHelper from "../../../helpers/UtilityHelper";
@@ -15,17 +14,7 @@ import { ICON_PACK_LOADERS } from "../../../helpers/ReactIconPackLoaders";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const TOKEN_LAYER = RESERVED_LAYERS.TOKEN;
 const TOKEN_UI_LAYER = RESERVED_LAYERS.TOKEN_UI;
-
-/** Property names fetched when spawning a new token */
-const CREATE_TOKEN_PROPS = [
-  "token",
-  "tokenImage",
-  "drop_token_size",
-  "character_name",
-  "player_owner",
-];
 
 /** Status icons ("right-top") shown before the rest collapse into "+N" — tokenData.maxStatusIcons overrides. */
 const DEFAULT_MAX_STATUS_ICONS = 3;
@@ -75,14 +64,6 @@ function _getMaterial(idOrKey, mimeType) {
     : WebHelper.getMaterialAsync(null, mimeType, idOrKey);
 }
 
-/** The implicit propDep injected into every token (card image → fabric src) */
-const IMAGE_PROP_DEP = Object.freeze({
-  dtoProperty: "tokenImage",
-  objectProperty: "src",
-  type: "string",
-  source: "card",
-});
-
 /**
  * Maps tokenData.actions keys to Fabric.js per-object event names.
  *
@@ -123,6 +104,7 @@ const ALLOWED_TOKEN_UI_MEDIATOR_COMMANDS = Object.freeze({
   "Game.GetCurrentPlayer":   true,
   "Game.GetGameId":          true,
   "Game.GetIsGM":            true,
+  "Game.GetCanEditGame":     true,
 
   // ── Map ─────────────────────────────────────────────────────────────────
   "BattleMap.GetSelectedMap": true,
@@ -139,10 +121,6 @@ const ALLOWED_TOKEN_UI_MEDIATOR_COMMANDS = Object.freeze({
 });
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
-
-/** Safely find a property value by name, returning `fallback` when missing. */
-const findPropValue = (properties, name, fallback = undefined) =>
-  properties.find((p) => p.name === name)?.value ?? fallback;
 
 /**
  * Coerce a raw string value to the declared dep type.
@@ -511,7 +489,8 @@ class TokenManager {
       ClientMediator.sendCommandAsync("Properties", "GetByNames", { parentId: token.id, names }).catch(() => []),
     ]);
 
-    const isGM = ClientMediator.sendCommand("Game", "GetIsGM");
+    // "GM only" masks are shown to whoever may edit the game.
+    const canEditGame = ClientMediator.sendCommand("Game", "GetCanEditGame");
 
     const result = new Map();
     for (const group of groups) {
@@ -524,7 +503,7 @@ class TokenManager {
       const enabled = resolveMaskSetting(elEnabled, mapEnabled, true);
       const gmOnly = resolveMaskSetting(elGmOnly, mapGmOnly, false);
 
-      result.set(group, enabled && (!gmOnly || isGM));
+      result.set(group, enabled && (!gmOnly || canEditGame));
     }
     return result;
   }
@@ -639,6 +618,14 @@ class TokenManager {
       value = false;
     }
 
+    // While the token is dragged (or animated to a remote move) its parts are hidden
+    // and their own visibility kept in visibleBeforeDrag, restored afterwards — a
+    // change arriving meanwhile goes there, or that restore would undo it.
+    if (objectProperty === "visible" && targetElement?.visibleBeforeDrag !== undefined) {
+      targetElement.visibleBeforeDrag = value;
+      return true;
+    }
+
     // Fabric crashes with a 0×0 cache canvas — clamp width/height to at least 1px.
     if ((objectProperty === "width" || objectProperty === "height") && typeof value === "number") {
       value = Math.max(value, 1);
@@ -663,7 +650,24 @@ class TokenManager {
       const url = _toResourceUrl(value || SYSTEM_ASSET_KEYS.EMPTY_TOKEN_IMAGE);
       targetElement.set("src", url);
       if (typeof targetElement.setSrc === "function") {
-        targetElement.setSrc(url, () => {});
+        // setSrc resets width/height to the new picture's own, so a token placed with
+        // the placeholder would change size on the map — keep the width it had, as
+        // placing does (scaleToWidth), and fit an automatic circle crop to the picture.
+        // Scaled directly, not with scaleToWidth: that measures on screen, so map zoom
+        // and the token's rotation would change the size on every refresh.
+        const shownWidth = targetElement.width * (targetElement.scaleX ?? 1);
+        const oldMin = Math.min(targetElement.width, targetElement.height);
+        targetElement.setSrc(url, (img) => {
+          if (!img?.width || !shownWidth) return;
+          img.scale(shownWidth / img.width);
+          const clip = img.clipPath;
+          if (clip?.type === "circle" && clip.radius === oldMin / 2) {
+            clip.set("radius", Math.min(img.width, img.height) / 2);
+          }
+          img.setCoords?.();
+          if (object?.additionalObjects?.length) this.UpdateTokenUIPositions({ object });
+          this._getCanvas()?.requestRenderAll();
+        });
       }
       return true;
     }
@@ -1218,9 +1222,11 @@ class TokenManager {
 
         // Restore visibility: hidden if disabled, control-only, prop-driven, or masked off
         const wasVisible = element.visible;
+        // On-selection parts stay shown while their token is selected on its own
+        // (OnTokenSelectedBehavior sets _controlsShown).
         element.visible =
           element.enabled !== false &&
-          !element.tokenData?.showOnTokenControl &&
+          (!element.tokenData?.showOnTokenControl || !!object._controlsShown) &&
           !hasPropVisibility &&
           maskVisible;
 
@@ -1308,6 +1314,9 @@ class TokenManager {
    * Internal: resolve the token definition and its inputs (from the card, or
    * from the definition alone), build the Fabric object, and send element_add.
    */
+  // The token is built on the server (materials/BuildToken, as the SpawnToken action step
+  // builds one): from the card's token file, picture, size and name, or from a token file.
+  // It comes sized to the grid at scale 1; the picture is fitted to it when it loads.
   async _createTokenAsync({ cardId, tokenRef, image }, position) {
     const map = this._getSelectedMap();
     if (!map) {
@@ -1315,149 +1324,30 @@ class TokenManager {
       return;
     }
 
-    const { gridSize } = map;
-
-    const inputs = cardId
-      ? await this._tokenInputsFromCard(cardId)
-      : { tokenId: tokenRef, displayName: null, tokenSize: null, tokenImageId: image, imageSource: "element" };
-    if (!inputs) return;
-    const { tokenId, tokenImageId, imageSource } = inputs;
-
-    // Fetch the token JSON template
-    const tokenRaw = await _getMaterial(tokenId, "application/json");
-    if (!tokenRaw) {
-      console.error(
-        `TokenManager._createTokenAsync: failed to fetch token template "${tokenId}"`
-      );
+    const resp = await WebHelper.postAsync("materials/BuildToken", {
+      mapId: map.id, cardId, token: tokenRef, image, x: position.x, y: position.y,
+    });
+    if (!resp || resp.status < 200 || resp.status >= 300 || !resp.body?.object) {
+      console.error("TokenManager._createTokenAsync: the token could not be built", resp?.body?.error ?? resp?.status);
       return;
     }
 
-    const token = JSON.parse(tokenRaw);
-    // Named after the character / card; a token template's "prefix" is no longer used.
-    const tokenName = cardId ? inputs.displayName : "Token";
-    const tokenSize = inputs.tokenSize ?? (parseInt(token.size, 10) || 1);
-
-    // Convert the raw resource ID to a full URL so fabric.util.loadImage
-    // recognises it as a backend resource and fetches it via WebRTC. No
-    // tokenImage assigned yet (card has none set) falls back to the
-    // emptyTokenImage placeholder key rather than loading no image at all.
-    const tokenImageUrl = _toResourceUrl(tokenImageId || SYSTEM_ASSET_KEYS.EMPTY_TOKEN_IMAGE);
-
-    // Build the Fabric image object
-    fabric.Image.fromURL(tokenImageUrl, (fabricObject) => {
-      fabricObject.set({
-        ...token.object,
-        name: tokenName,
-        left: position.x,
-        top: position.y,
-        cardId: cardId,
-        tokenData: {
-          ...token?.tokenData,
-          cardId,
-          // Token-root declarative config (sibling to per-addition propDeps) for
-          // the on-select quick-edit overlay (TokenQuickEditOverlay) — an array
-          // of {name, dtoProperty, label, source} the addon's own token JSON
-          // declares; core only enumerates them, no hardcoded field knowledge.
-          editableProps: token.editableProps ?? [],
-          // Same spirit, for TokenIconPickerOverlay — an array of
-          // {id, label, iconPack, iconName, dtoProperty, source} manifest
-          // entries. Each needs a matching `additions[]` icon (own visible
-          // propDep on the same dtoProperty) to actually render on the token;
-          // this manifest just tells the picker what exists and how to preview
-          // and toggle it.
-          assignableIcons: token.assignableIcons ?? [],
-          propDeps: [
-            ...(token?.tokenData?.propDeps ?? []),
-            { ...IMAGE_PROP_DEP, source: imageSource },
-          ],
-        },
-        isToken: true,
-        tokenUiElements: token.additions,
+    const object = JSON.parse(resp.body.object);
+    WebSocketManagerInstance.Send({
+      command: "element_add",
+      data: {
+        object: resp.body.object,
+        layer: object.layer,
         mapId: map.id,
-        layer: TOKEN_LAYER,
-        // resourceId is preserved through the DTO round-trip (ConvertToDTO strips
-        // src but keeps other fields); ConvertFromDTO rebuilds src from resourceId.
-        resourceId: tokenImageId,
-        src: tokenImageUrl,
-      });
-
-      fabricObject.scaleToWidth(gridSize * tokenSize);
-
-      // If the token JSON declares a clipPath spec, instantiate it as a real
-      // Fabric object. fabricObject.set() above only copies the plain spec —
-      // Fabric does not auto-enliven nested clipPath objects through set().
-      //
-      // For circles with no explicit radius (or radius ≤ 0) we compute it from
-      // the image's natural size: min(w,h)/2 in LOCAL (pre-scale) coordinates,
-      // which maps to exactly the visual token circle after scaleToWidth().
-      const clipSpec = token.object?.clipPath;
-      if (clipSpec?.type === "circle") {
-        const radius =
-          clipSpec.radius > 0
-            ? clipSpec.radius
-            : Math.min(fabricObject.width, fabricObject.height) / 2;
-        fabricObject.clipPath = new fabric.Circle({
-          ...clipSpec,
-          radius,
-        });
-      }
-
-      // Position UI elements relative to the token
-      this.UpdateTokenUIPositions({ object: fabricObject });
-
-      // Set UI element layers
-      fabricObject.tokenUiElements?.forEach((el) => {
-        el.layer = TOKEN_UI_LAYER;
-      });
-
-      // Send to server
-      const dto = DTOConverter.ConvertToDTO(fabricObject);
-      WebSocketManagerInstance.Send({
-        command: "element_add",
-        data: {
-          ...dto,
-          withSelection: true,
-          properties: [
-            { name: "tokenSize", value: String(tokenSize) },
-            { name: "isToken", value: "true" },
-          ],
-        },
-      });
+        withSelection: true,
+        properties: [
+          { name: "tokenSize", value: String(resp.body.size) },
+          { name: "isToken", value: "true" },
+        ],
+      },
     });
   }
 
-  /** A card token's inputs, read from the card's properties. */
-  async _tokenInputsFromCard(cardId) {
-    const properties = await ClientMediator.sendCommandAsync(
-      "Properties",
-      "GetByNames",
-      { parentId: cardId, names: CREATE_TOKEN_PROPS }
-    );
-
-    const tokenId = findPropValue(properties, "token");
-    if (!tokenId) {
-      console.error(
-        `TokenManager._createTokenAsync: no "token" property found for card "${cardId}"`
-      );
-      return null;
-    }
-
-    // Characters keep their name in character_name; other cards (e.g. 5e monsters and
-    // items) only have the card's own name.
-    let displayName = findPropValue(properties, "character_name")?.trim();
-    if (!displayName) {
-      const card = await WebHelper.getAsync(`materials/getcard?id=${cardId}`);
-      displayName = card?.name?.trim() || "Token";
-    }
-
-    return {
-      tokenId,
-      displayName,
-      tokenSize: parseInt(findPropValue(properties, "drop_token_size", "1"), 10) || 1,
-      tokenImageId: findPropValue(properties, "tokenImage"),
-      imageSource: "card",
-    };
-  }
 
   // The small "+N" after the status icons, counting the collapsed ones.
   _createOverflowMarker(likeIcon) {

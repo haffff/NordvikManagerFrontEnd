@@ -11,28 +11,29 @@ export const TRACE_COMMAND = "action_trace";
 export function traceReducer(state, msg) {
   switch (msg.type) {
     case "start":
-      return { traceId: msg.traceId, running: true, byStep: {}, byIndex: {}, result: null };
+      return { traceId: msg.traceId, running: true, byStep: {}, byPath: {}, result: null };
     case "event": {
       const d = msg.data ?? {};
       if (!state.traceId || d.traceId !== state.traceId) return state;
       if (d.status === "finished") {
         return { ...state, running: false, result: { state: d.state, error: d.error } };
       }
-      // Steps saved without an id (older/hand-written actions) are matched by position;
-      // the editor saves before running, so the server's order matches the list.
-      const byIndex = Number.isInteger(d.stepIndex) ? { ...state.byIndex, [d.stepIndex]: d } : state.byIndex;
+      // Steps saved without an id (hand-written actions) are matched by their path
+      // ("3", or "3/Then/1" inside a block); the editor saves before running, so the
+      // server's paths match the list.
+      const byPath = d.stepPath != null ? { ...state.byPath, [d.stepPath]: d } : state.byPath;
       const byStep = d.stepId ? { ...state.byStep, [d.stepId]: d } : state.byStep;
-      return { ...state, byStep, byIndex };
+      return { ...state, byStep, byPath };
     }
     case "clear":
-      return { traceId: null, running: false, byStep: {}, byIndex: {}, result: null };
+      return { traceId: null, running: false, byStep: {}, byPath: {}, result: null };
     default:
       return state;
   }
 }
 
 export function useActionTrace() {
-  const [state, dispatch] = React.useReducer(traceReducer, { traceId: null, running: false, byStep: {}, byIndex: {}, result: null });
+  const [state, dispatch] = React.useReducer(traceReducer, { traceId: null, running: false, byStep: {}, byPath: {}, result: null });
   const subscriptionName = React.useMemo(() => `ActionTrace-${UtilityHelper.GenerateUUID()}`, []);
 
   React.useEffect(() => {

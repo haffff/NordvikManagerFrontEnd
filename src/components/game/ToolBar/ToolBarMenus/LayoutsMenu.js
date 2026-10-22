@@ -89,7 +89,7 @@ export const LayoutsMenu = ({ state, battlemapsRef, canSave = true }) => {
         onClick={ResetMyLayout}
       />
       <CreateDropDownButton
-        gmOnly
+        requiresEdit
         icon={FaBook}
         width={width}
         name={"Layout Manager"}

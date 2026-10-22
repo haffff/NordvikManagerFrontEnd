@@ -17,16 +17,11 @@ export const DeletableDropDownButton = ({
   id,
   name,
   icon,
-  gmOnly,
   onClick,
   onDeleteClick,
   width,
   height,
 }) => {
-  if (gmOnly && localStorage.getItem("gmMode") !== "true") {
-    return null;
-  }
-
   //TODO get access key from settings
 
   return (

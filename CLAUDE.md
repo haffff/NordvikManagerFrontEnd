@@ -108,8 +108,12 @@ REACT_APP_FORCE_TURN = ""         # "true" = relay-only ICE (TURN testing)
 ```
 All custom env vars must be prefixed `REACT_APP_`.
 
-### Game Master Context
-The `isGM` flag gates admin-level actions throughout. Check for it before rendering GM-only UI.
+### Permissions (UI follows what the server allows)
+`usePermissions()` (`src/contexts/PermissionsContext.js`) gives three flags. Gate UI on the one that matches what the server checks:
+- `canEditGame` — Edit permission on the game (always true for the owner). Use it for anything that changes the game: settings, addons, maps, playlists, layouts, player management. Menu items take `requiresEdit`.
+- `isOwner` — the game's GM. Only for owner things: the game's own permissions, the single playback driver, GM whisper/roll routing.
+- `isLocalAdmin` — the user runs this server. Only for the host's disk (linking files and folders).
+The app build (`isPlayerMode()`) never grants anything. Co-GMs are GMs: the server gives them the owner's rights on the game's content, and `hasEntityPermission` returns everything for them. Non-React code asks `ClientMediator` for `Game.GetIsGM` / `Game.GetCanEditGame` (both: owner or co-GM); the owner alone is `Game.GetOwner`.
 
 ## Key Files
 

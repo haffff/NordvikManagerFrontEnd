@@ -11,13 +11,14 @@ import { layerView } from "../Helpers/layerVisibility";
 export function useLayerView(canvas) {
   const gameId = React.useMemo(() => ClientMediator.sendCommand("Game", "GetGameId"), []);
   const { layers } = useCustomLayers(gameId);
-  const isGM = !!ClientMediator.sendCommand("Game", "GetIsGM");
+  // "GM only" layers are for whoever may edit the game, not only its owner.
+  const canEditGame = !!ClientMediator.sendCommand("Game", "GetCanEditGame");
 
   React.useEffect(() => {
     if (!canvas) return;
     installLayerTargeting(canvas);
-    setLayerView(canvas, layerView(layers, isGM));
-  }, [canvas, layers, isGM]);
+    setLayerView(canvas, layerView(layers, canEditGame));
+  }, [canvas, layers, canEditGame]);
 }
 
 export default useLayerView;

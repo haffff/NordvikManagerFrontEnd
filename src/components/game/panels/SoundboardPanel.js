@@ -151,7 +151,7 @@ const RightPaneHeader = ({ board, viewMode, onToggleView, confirmDelete, onDelet
 // ── Main component ────────────────────────────────────────────────────────────
 
 export const SoundboardPanel = () => {
-  const { isGM } = usePermissions();
+  const { canEditGame } = usePermissions();
   const [boards, setBoards] = React.useState([]);
   const [selectedId, setSelectedId] = React.useState(null);
   const treeRefreshRef = React.useRef(null);
@@ -275,10 +275,10 @@ export const SoundboardPanel = () => {
 
   const sounds = selectedBoard?.resources ?? [];
 
-  if (!isGM) {
+  if (!canEditGame) {
     return (
       <BasePanel>
-        <EmptyState message="Only the GM can manage the soundboard." />
+        <EmptyState message="Only players who can edit the game can manage the soundboard." />
       </BasePanel>
     );
   }
@@ -307,7 +307,7 @@ export const SoundboardPanel = () => {
             <DTreeList
               entityType="Soundboard"
               items={boards}
-              canEditFolders={isGM}
+              canEditFolders={canEditGame}
               refreshRef={treeRefreshRef}
               estimatedRowHeight={44}
               onSelect={(sel) => { if (sel?.itemRef) setSelectedId(sel.itemRef.id); }}

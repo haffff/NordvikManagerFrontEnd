@@ -89,15 +89,15 @@ function playlists(gameId) {
 }
 
 const basicsAddon = {
-  id: EXTRA_IDS.addon, key: 'basics', name: 'Basics', version: '0.1.0', author: 'haffff', license: 'MIT',
+  id: EXTRA_IDS.addon, key: 'basics', name: 'Basics', version: '0.1.0', author: 'haffff', license: 'AGPL-3.0-only',
   website: null, dependencies: [], isEnabled: true,
   description: 'Ships with NordvikManager and is added to every new game: a generic token with two bars and a private Note card.',
 };
 
 const registry = [
-  { key: 'basics', name: 'Basics', version: '0.1.0', author: 'haffff', license: 'MIT', repositoryUrl: null, description: basicsAddon.description },
+  { key: 'basics', name: 'Basics', version: '0.1.0', author: 'haffff', license: 'AGPL-3.0-only', repositoryUrl: null, description: basicsAddon.description },
   { key: 'dnd5e', name: 'Fifth Edition (SRD)', version: '1.4.0', author: 'haffff', license: 'OGL / CC-BY-4.0', repositoryUrl: null, description: 'Character sheets, monsters, spells and items for 5th-edition games, from the SRD.' },
-  { key: 'themes', name: 'Themes', version: '0.3.0', author: 'haffff', license: 'MIT', repositoryUrl: null, description: 'Ready-made looks for your game: parchment, sci-fi and more.' },
+  { key: 'themes', name: 'Themes', version: '0.3.0', author: 'haffff', license: 'AGPL-3.0-only', repositoryUrl: null, description: 'Ready-made looks for your game: parchment, sci-fi and more.' },
 ];
 
 const arg = (name, type, description, extra = {}) => ({ name, type, description, conditionField: null, conditionValue: null, isOutput: false, deferred: false, ...extra });
@@ -108,7 +108,7 @@ const stepDefinitions = [
     description: "Reads a single named property's value for one entity, falling back to DefaultValue when it doesn't exist.",
     summary: 'Read {PropertyName} of {ParentId}[ → {Output}]',
     arguments: [
-      arg('ParentId', 'String', 'GUID of the entity whose property to read, e.g. %v:Data.id% or %playerId%.'),
+      arg('ParentId', 'String', 'GUID of the entity whose property to read, e.g. %Data.id% or %playerId%.'),
       arg('PropertyName', 'String', 'Name of the property to read.'),
       arg('Output', 'String', "Name of the variable where the property's value will be stored.", { isOutput: true }),
       arg('DefaultValue', 'String', "Value to store when the property doesn't exist."),
@@ -150,8 +150,8 @@ const action = {
   // The server sends the steps as a JSON string.
   content: JSON.stringify([
     { Type: 'GetPropertyValue', Data: { Label: 'Read the modifier', ParentId: '%cardId%', PropertyName: 'perception_mod', Output: 'mod', DefaultValue: '0' } },
-    { Type: 'RollDice', Data: { Label: 'Roll', DiceString: '1d20+%v:mod%', OutputVariable: 'roll', PrintToChat: true, ChatTitle: 'Perception' } },
-    { Type: 'SendChat', Data: { Label: 'Whisper to the GM', Template: 'Text', Title: 'Perception', Message: 'Rolled %v:roll.Result%', Player: 'GM' } },
+    { Type: 'RollDice', Data: { Label: 'Roll', DiceString: '1d20+%mod%', OutputVariable: 'roll', PrintToChat: true, ChatTitle: 'Perception' } },
+    { Type: 'SendChat', Data: { Label: 'Whisper to the GM', Template: 'Text', Title: 'Perception', Message: 'Rolled %roll.Result%', Player: 'GM' } },
   ]),
 };
 

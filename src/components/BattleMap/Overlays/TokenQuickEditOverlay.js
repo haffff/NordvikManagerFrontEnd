@@ -5,6 +5,7 @@ import { useClientMediator } from "../../uiComponents/hooks/useClientMediator";
 import UtilityHelper from "../../../helpers/UtilityHelper";
 import { resolveTokenParentId, writeTokenProperty } from "./tokenPropertyIO";
 import { MaterialChooser } from "../../uiComponents/MaterialChooser";
+import { screenRect } from "./screenRect";
 
 /**
  * A small gear next to the selected token opens compact editable fields, for
@@ -152,7 +153,7 @@ export const TokenQuickEditOverlay = ({ battleMapId, canvas }) => {
         setToken(null);
         return;
       }
-      const r = token.getBoundingRect(false, true);
+      const r = screenRect(token);
       if (!last || r.left !== last.left || r.top !== last.top || r.width !== last.width || r.height !== last.height) {
         last = r;
         setRect(r);

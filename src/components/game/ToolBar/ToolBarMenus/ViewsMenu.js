@@ -51,9 +51,9 @@ export const ViewsMenu = ({ state, onDropDown }) => {
                 <CreateDropDownButton width={150} name={"Turn order"} icon={<FaListOl />} state={state} element={<TurnOrderPanel />} />
                 <CreateDropDownButton width={150} name={"Cards"} icon={<FaUserAlt />} state={state} element={<CardsPanel state={state} />} />
                 <CreateDropDownButton width={150} name={"Materials"} icon={<FaPaintBrush />} state={state} element={<MaterialsPanel state={state} />} />
-                <CreateDropDownButton gmOnly width={150} name={"Playlists"} icon={<FaMusic />} state={state} element={<PlaylistsPanel state={state} />} />
-                <CreateDropDownButton gmOnly width={150} name={"Soundboard"} icon={<FaVolumeUp />} state={state} element={<SoundboardPanel state={state} />} />
-                <CreateDropDownButton gmOnly width={150} name={"Manage Players"} icon={<FaUserCog />} state={state} element={<AdminPlayersPanel state={state} />} />
+                <CreateDropDownButton requiresEdit width={150} name={"Playlists"} icon={<FaMusic />} state={state} element={<PlaylistsPanel state={state} />} />
+                <CreateDropDownButton requiresEdit width={150} name={"Soundboard"} icon={<FaVolumeUp />} state={state} element={<SoundboardPanel state={state} />} />
+                <CreateDropDownButton requiresEdit width={150} name={"Manage Players"} icon={<FaUserCog />} state={state} element={<AdminPlayersPanel state={state} />} />
             </DropDownMenu>
             {/* Keep maps in sync with server events so the "Add new" dialog and Switch Map always reflect current maps */}
             <CollectionSyncer collection={maps} setCollection={setMaps} commandPrefix={"map"} />

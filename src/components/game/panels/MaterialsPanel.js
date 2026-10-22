@@ -277,7 +277,9 @@ export const MaterialsPanel = ({ state }) => {
     const editingAudioRef               = React.useRef(false);
     const treeRefreshRef                = React.useRef(null);
 
-    const { hasEntityPermission, isGM } = usePermissions();
+    // Editors see everyone's materials and may move them between database and the server's
+    // own folder; linking files from the host's disk is for the server's local admin only.
+    const { hasEntityPermission, canEditGame, isLocalAdmin } = usePermissions();
     const gameId = React.useMemo(() => ClientMediator.sendCommand("Game", "GetGameId"), []);
     const canEditFolders = hasEntityPermission(ENTITY_TYPES.GAME, gameId, PERM.EDIT);
 
@@ -470,14 +472,14 @@ export const MaterialsPanel = ({ state }) => {
                                 <DListItemButton icon={FaHashtag} label="Copy ID" onClick={() => copyId(item.id)} />
                                 <DListItemButton icon={FaLink} label="Copy link" onClick={() => copyLink(item.id)} />
                                 <DListItemButton icon={FaPen}  label="Edit"    onClick={() => { editingAudioRef.current = item.mimeType?.startsWith("audio"); onFolderRenameOpenRef.current(resourceEditDto(item)); }} />
-                                {isGM && item.storage !== 1 && (
+                                {canEditGame && item.storage !== 1 && (
                                     <DListItemButton
                                         icon={FaExchangeAlt}
                                         label={isLinked ? "Adopt as file on disk" : "Store as file on disk"}
                                         onClick={() => handleTransfer(item, 1)}
                                     />
                                 )}
-                                {isGM && item.storage !== 0 && (
+                                {canEditGame && item.storage !== 0 && (
                                     <DListItemButton
                                         icon={FaDatabase}
                                         label={isLinked ? "Adopt as database entry" : "Store in database"}
@@ -520,7 +522,7 @@ export const MaterialsPanel = ({ state }) => {
                 }}
             />
 
-            {isGM && (
+            {isLocalAdmin && (
                 <LinkBrowserModal
                     open={linkModalOpen}
                     onClose={() => setLinkModalOpen(false)}
@@ -538,7 +540,7 @@ export const MaterialsPanel = ({ state }) => {
                     onAdd={() => treeRefreshRef.current?.()}
                 />
 
-                {isGM ? (
+                {canEditGame ? (
                     <Tabs.Root defaultValue="mine" display="flex" flexDirection="column" flex="1" minH={0}>
                         <Tabs.List flexShrink={0}>
                             <Tabs.Trigger value="mine">My Materials</Tabs.Trigger>
@@ -549,12 +551,14 @@ export const MaterialsPanel = ({ state }) => {
                             {renderResourceList(myResources)}
                             <Box px={2} py={2} borderTop="1px solid" borderColor={BORDER_CLR} flexShrink={0} display="flex" flexDirection="column" gap={2}>
                                 <UploadZone uploading={uploading} onFiles={handleFiles} />
-                                <Button size="xs" variant="outline" onClick={() => setLinkModalOpen(true)}>
-                                    <Flex align="center" gap={2}>
-                                        <Icon as={FaPlus} boxSize={3} />
-                                        <span>Link local file or folder…</span>
-                                    </Flex>
-                                </Button>
+                                {isLocalAdmin && (
+                                    <Button size="xs" variant="outline" onClick={() => setLinkModalOpen(true)}>
+                                        <Flex align="center" gap={2}>
+                                            <Icon as={FaPlus} boxSize={3} />
+                                            <span>Link local file or folder…</span>
+                                        </Flex>
+                                    </Button>
+                                )}
                             </Box>
                         </Tabs.Content>
 

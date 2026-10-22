@@ -1,4 +1,5 @@
 import * as React from "react";
+import ClientMediator from "../../../../../ClientMediator";
 import {
   Badge, Box, Button, createListCollection, Field, Flex, For, HStack, IconButton, Input, Tabs, Text,
 } from "@chakra-ui/react";
@@ -16,7 +17,9 @@ import { StepPicker } from "./StepPicker";
 import { RunBar } from "./RunBar";
 import { useActionTrace } from "./useActionTrace";
 import { stepOps } from "./useActionDraft";
-import { computeInputs, variablesAvailableAt } from "./variableScope";
+import { computeInputs, outputsOf, variablesAvailableAt } from "./variableScope";
+import { findStep, stepsBefore } from "./stepTree";
+import { runFromMapArgs } from "./runFromMap";
 import { T } from "./editorTheme";
 
 // Editor for one action. `draft` comes from useActionDraft (owned by ActionsPanel so it can
@@ -134,7 +137,7 @@ export const ActionEditor = ({ draft, stepDefinitions, hooks, actions, onSave, o
   const { action, steps } = draft;
   const [tab, setTab] = React.useState("steps");
   const [selectedId, setSelectedId] = React.useState(null);
-  const [insertAt, setInsertAt] = React.useState(null); // index for the step picker, or null
+  const [insertAt, setInsertAt] = React.useState(null); // { container, index } for the step picker, or null
   const bodyRef = React.useRef(null);
   const narrow = useWidth(bodyRef) < NARROW_WIDTH;
   const trace = useActionTrace();
@@ -156,15 +159,34 @@ export const ActionEditor = ({ draft, stepDefinitions, hooks, actions, onSave, o
     hint: hooks.find((h) => Number(h.value) === Number(a.hook))?.name ?? (a.isEnabled ? "" : "off"),
   })), [actions, hooks]);
 
-  const selectedIndex = steps.findIndex((s) => s.id === selectedId);
-  const selected = selectedIndex >= 0 ? steps[selectedIndex] : null;
+  // The selected step may sit in a block; its number reads like its path, e.g. "2 › Then › 1".
+  const found = selectedId ? findStep(steps, selectedId) : null;
+  const selected = found?.step ?? null;
+  const selectedNumber = found ? found.path.split("/").map((p) => (/^\d+$/.test(p) ? Number(p) + 1 : p)).join(" › ") : "";
   const available = React.useMemo(
-    () => (selectedIndex >= 0 ? variablesAvailableAt(steps, selectedIndex, defsByType, hookVariables, inputs) : []),
-    [steps, selectedIndex, defsByType, hookVariables, inputs]);
+    () => (selected ? variablesAvailableAt(steps, selected.id, defsByType, hookVariables, inputs) : []),
+    [steps, selected, defsByType, hookVariables, inputs]);
   const knownNames = React.useMemo(() => new Set(available.map((v) => v.name)), [available]);
 
+  // What the last run had in its variables just before the selected step.
+  const values = React.useMemo(() => {
+    if (!selected) return null;
+    const before = stepsBefore(steps, selected.id);
+    for (let i = before.length - 1; i >= 0; i--) {
+      const t = trace.byStep[before[i].id] ?? trace.byPath[findStep(steps, before[i].id)?.path];
+      if (t?.variables) return t.variables;
+    }
+    return null;
+  }, [steps, selected, trace.byStep, trace.byPath]);
+
+  // What a step's outputs hold, shown under it in the list.
+  const outputsFor = (step) => {
+    const known = Object.fromEntries(variablesAvailableAt(steps, step.id, defsByType, hookVariables, inputs).map((v) => [v.name, v]));
+    return outputsOf(step, defsByType[step.Type], known);
+  };
+
   const save = () => { onSave(draft.payload()); draft.markSaved(); };
-  const traceFor = (step, i) => trace.byStep[step.id] ?? trace.byIndex[i];
+  const traceFor = (step) => trace.byStep[step.id] ?? trace.byPath[findStep(steps, step.id)?.path];
 
   const onKeyDown = (e) => {
     e.stopPropagation(); // keep editor keys away from game shortcuts (e.g. Delete removes map elements)
@@ -196,24 +218,34 @@ export const ActionEditor = ({ draft, stepDefinitions, hooks, actions, onSave, o
         </Text>
       )}
       <RunBar actionId={action.id} inputs={inputs} running={trace.running} result={trace.result} dirty={draft.dirty}
-        onRun={(args) => { if (draft.dirty) save(); trace.run(fullActionName(action), args); }} />
+        onRun={(args) => { if (draft.dirty) save(); trace.run(fullActionName(action), args); }}
+        onRunFromMap={(args) => {
+          const where = ClientMediator.sendCommand("Game", "GetCurrentBattleMap");
+          if (!where) return;
+          if (draft.dirty) save();
+          ClientMediator.sendCommand("BattleMap", "SetPickTargetsMode", {
+            contextId: where.battleMapId, enabled: true,
+            request: { message: "Click where to run it, pick the tokens it is for, then Done", min: 0, max: 20 },
+            onDone: (state) => { if (state) trace.run(fullActionName(action), { ...args, ...runFromMapArgs(state, where) }); },
+          });
+        }} />
       <StepList
         steps={steps} defsByType={defsByType} selectedId={selectedId} traceFor={traceFor}
         onSelect={setSelectedId}
         onMove={(from, to) => draft.setSteps((s) => stepOps.move(s, from, to))}
-        onInsert={(i) => setInsertAt(i)}
+        onInsert={(container, index) => setInsertAt({ container, index })}
         onDuplicate={(id) => draft.setSteps((s) => stepOps.duplicate(s, id))}
         onDelete={(id) => { draft.setSteps((s) => stepOps.remove(s, id)); if (id === selectedId) setSelectedId(null); }}
-        onOpenAction={onOpenAction}
+        onOpenAction={onOpenAction} outputsFor={outputsFor}
       />
     </Flex>
   );
 
   const inspector = (
     <StepInspector
-      step={selected} index={selectedIndex} def={selected ? defsByType[selected.Type] : null}
+      step={selected} index={selectedNumber} def={selected ? defsByType[selected.Type] : null}
       stepDefinitions={stepDefinitions} variables={available} knownNames={knownNames}
-      actionOptions={actionOptions} trace={selected ? traceFor(selected, selectedIndex) : null}
+      actionOptions={actionOptions} trace={selected ? traceFor(selected) : null} values={values}
       onChangeType={(type) => draft.updateStep(selected.id, (s) => ({ ...s, Type: type }))}
       onChangeData={(name, value) =>
         draft.updateStep(selected.id, (s) => ({ ...s, Data: { ...s.Data, [name]: value } }), `${selected.id}.${name}`)}
@@ -268,7 +300,7 @@ export const ActionEditor = ({ draft, stepDefinitions, hooks, actions, onSave, o
         open={insertAt !== null} onClose={() => setInsertAt(null)} stepDefinitions={stepDefinitions}
         onPick={(d) => {
           const step = stepOps.newStep(d.value);
-          draft.setSteps((s) => stepOps.insertAt(s, insertAt ?? s.length, step));
+          draft.setSteps((s) => stepOps.insertAt(s, insertAt?.index ?? s.length, step, insertAt?.container ?? null));
           setSelectedId(step.id);
         }}
       />

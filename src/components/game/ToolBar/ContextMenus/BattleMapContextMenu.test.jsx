@@ -13,8 +13,7 @@ vi.mock('../../../../helpers/transport', () => ({
 let mapPermission = 31;
 vi.mock('../../../../contexts/PermissionsContext', () => ({
   usePermissions: () => ({
-    isGM: true,
-    isAdmin: true,
+    canEditGame: true,
     hasEntityPermission: (type, id, bit) => type !== 'MapModel' || (mapPermission & bit) === bit,
   }),
 }));

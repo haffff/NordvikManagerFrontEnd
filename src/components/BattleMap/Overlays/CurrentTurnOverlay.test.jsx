@@ -1,6 +1,7 @@
 import React from 'react';
 import { act, render, screen, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { fabric } from 'fabric';
 import { setTurnOrderState } from '../../game/turnOrder/turnOrderStore';
 import { CurrentTurnOverlay } from './CurrentTurnOverlay';
 
@@ -41,5 +42,22 @@ describe('CurrentTurnOverlay', () => {
 
     turnOf('not-here');
     expect(screen.queryByLabelText('Current turn')).toBeNull();
+  });
+
+  it('rings the token where it is while it is selected together with others', async () => {
+    // In a multi-selection Fabric keeps a token's own left/top relative to the
+    // selection's centre — the ring must still sit on the token.
+    const rect = (id, left, top) => Object.assign(
+      new fabric.Rect({ left, top, width: 50, height: 50, strokeWidth: 0 }), { id });
+    const a = rect('t1', 100, 20);
+    const b = rect('t2', 300, 220);
+    new fabric.ActiveSelection([a, b]);
+    setup([a, b]);
+
+    turnOf('t1');
+
+    const ring = await screen.findByLabelText('Current turn');
+    await waitFor(() => expect(ring.style.left).toBe('96px'));
+    expect(ring.style.top).toBe('16px');
   });
 });

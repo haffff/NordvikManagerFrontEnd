@@ -51,7 +51,7 @@ const LayerRow = React.memo(({ row, propertyId, canMoveUp, canMoveDown, onRemove
   );
 });
 
-// Hidden (nobody sees it) and GM only (players don't; the GM sees it faded).
+// Hidden (nobody sees it) and GM only (only those who can edit the game see it, faded).
 const LayerVisibilityButtons = ({ row, propertyId }) => {
   const state = layerState(row);
   const setState = (next) => WebSocketManagerInstance.Send(layerFlagUpdate(propertyId, row, next));
@@ -161,7 +161,7 @@ export const LayerListEditor = ({ gameId }) => {
         Removing a layer moves any elements on it back to the Map layer.
       </Text>
       <Text fontSize="2xs" color="gray.500">
-        Hidden layers aren't drawn for anyone; GM-only layers are drawn only for the GM (faded).
+        Hidden layers aren't drawn for anyone; GM-only layers are drawn only for those who can edit the game (faded).
       </Text>
     </Box>
   );

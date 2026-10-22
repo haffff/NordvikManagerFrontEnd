@@ -68,7 +68,7 @@ vi.mock('../../helpers/protocol', () => protocolMock);
 const { recordMock } = vi.hoisted(() => ({ recordMock: vi.fn() }));
 vi.mock('../../helpers/demoRecorder', () => ({ demoRecorder: { record: recordMock } }));
 
-import WebRTCManagerInstance, { iceServersFrom, describeIceServers } from './WebRTCManager';
+import WebRTCManagerInstance, { iceServersFrom, describeIceServers, camelizeKeys } from './WebRTCManager';
 import TokenStore from '../../helpers/TokenStore';
 
 describe('WebRTCManager', () => {
@@ -466,5 +466,19 @@ describe('WebRTCManager', () => {
       expect(text).not.toContain('top-secret=');
       expect(text).not.toContain('user-1');
     });
+  });
+});
+
+// Push messages are camelCased, but an addon's ActionArgs are its own data: a menu item's
+// { "Dice": "1d6" } must reach its action as Dice, not dice.
+describe('camelizeKeys', () => {
+  it('camelCases keys but leaves the inside of actionArgs alone', () => {
+    expect(camelizeKeys({ Name: 'x', ActionArgs: { Dice: '1d6', Nested: { Keep: 1 } } }))
+      .toEqual({ name: 'x', actionArgs: { Dice: '1d6', Nested: { Keep: 1 } } });
+  });
+
+  it("leaves an action trace's variables as the action named them", () => {
+    expect(camelizeKeys({ StepPath: '1', Variables: { Data: { Id: 1 }, playerName: 'W' } }))
+      .toEqual({ stepPath: '1', variables: { Data: { Id: 1 }, playerName: 'W' } });
   });
 });

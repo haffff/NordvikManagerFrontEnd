@@ -35,7 +35,7 @@ export const BattleMapsMenu = ({ state, maps, onCreateBmModalRef }) => {
     // The useEffect fallback should not overwrite a fresher event-driven update.
     const receivedEventRef = React.useRef(false);
 
-    const { hasEntityPermission, isGM } = usePermissions();
+    const { hasEntityPermission } = usePermissions();
     const gameId = React.useMemo(() => ClientMediator.sendCommand("Game", "GetGameId"), []);
     const canEditGame = hasEntityPermission(ENTITY_TYPES.GAME, gameId, PERM.EDIT);
 
@@ -143,7 +143,7 @@ export const BattleMapsMenu = ({ state, maps, onCreateBmModalRef }) => {
         };
 
         return (
-            <DropDownMenu submenu={true} width={200} name={"Permissions"} icon={<FaLock />} gmOnly>
+            <DropDownMenu submenu={true} width={200} name={"Permissions"} icon={<FaLock />}>
                 {GetPlayersForPermissions().map(player => (
                     <DropDownMenu key={player.id} submenu={true} width={150} name={player.name || player.id} icon={adminIcon(player.id)}>
                         <DropDownItem width={150} name={"See"}     icon={check(player.id, PERM_LEVEL.SEE)}     onClick={() => SetBMPermission(bmId, player.id, PERM_LEVEL.SEE)} />
@@ -163,7 +163,7 @@ export const BattleMapsMenu = ({ state, maps, onCreateBmModalRef }) => {
     };
 
     return (
-        <DropDownMenu viewId={"views_battlemaps"} name={"Battle Maps"} submenu={true} icon={<FaMap />} width={200} gmOnly>
+        <DropDownMenu viewId={"views_battlemaps"} name={"Battle Maps"} submenu={true} icon={<FaMap />} width={200}>
             <Subscribable commandPrefix="permission_update" onMessage={(msg) => {
                 if (msg.data?.entityType !== 'BattleMapModel') return;
                 const bmId = msg.data.id;
