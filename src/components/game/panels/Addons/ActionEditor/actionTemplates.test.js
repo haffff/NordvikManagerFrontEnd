@@ -19,6 +19,17 @@ describe("ACTION_TEMPLATES", () => {
     }
   });
 
+  // Markers take At (a point or token), like Find's Near: never X / Y.
+  it("places markers with At", () => {
+    const steps = (list) => list.flatMap((s) => [s, ...Object.values(s.Data).filter(Array.isArray).flatMap(steps)]);
+    const markers = ACTION_TEMPLATES.flatMap((t) => steps(t.content)).filter((s) => s.Type === "ShowMarker" || s.Type === "AddElement");
+    expect(markers.length).toBeGreaterThan(0);
+    for (const m of markers) {
+      expect(m.Data.At).toBeTruthy();
+      expect(m.Data.X).toBeUndefined();
+    }
+  });
+
   it("picks targets with RequestTargets, aims the area with RequestPoint and shows it with ShowMarker", () => {
     expect(types(ACTION_TEMPLATES.find((t) => t.key === "targets").content)).toContain("RequestTargets");
     expect(types(ACTION_TEMPLATES.find((t) => t.key === "area").content)).toEqual(expect.arrayContaining(["RequestPoint", "Find", "ShowMarker", "RequestUserInput"]));

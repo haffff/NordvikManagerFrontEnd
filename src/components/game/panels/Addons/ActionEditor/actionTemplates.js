@@ -41,12 +41,12 @@ export const ACTION_TEMPLATES = [
   {
     key: "area",
     label: "Area effect with GM confirmation",
-    description: "The player aims the area on the map (it follows the cursor, the tokens it covers glow); rolls damage for them and asks the GM before applying it.",
+    description: "The player aims the area on the map (it follows the cursor, the tokens it covers glow); rolls damage for them and asks the GM before applying it. For a cone or line, set Shape and From (the caster's token): see Burning Hands in the docs' examples.",
     hook: 0,
     content: [
       step("RequestPoint", "Aim", { Message: "Where does it go off?", Shape: "circle", Radius: "4", SnapToGrid: "corner", Output: "point" }),
       step("Find", "Tokens in the area", { What: "tokens", Near: "%point%", Radius: "4", Output: "hit" }),
-      step("ShowMarker", "Show the area while the GM decides", { Shape: "circle", X: "%point.x%", Y: "%point.y%", Radius: "4", UntilActionEnds: true }),
+      step("ShowMarker", "Show the area while the GM decides", { Shape: "circle", At: "%point%", Radius: "4", UntilActionEnds: true }),
       step("RollDice", "Damage", { DiceString: "8d6", OutputVariable: "rolled", SimpleOutput: true, PrintToChat: true, ChatTitle: "%playerName%: Fireball" }),
       step("RunScript", "Who was hit", { Output: "", Script: 'return { hitNames: vars.hit.map(function (t) { return t.name; }).join(", ") || "nobody" };' }),
       step("RequestUserInput", "Ask the GM", {
