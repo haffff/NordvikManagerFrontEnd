@@ -32,8 +32,21 @@ export const MENU_LOCATIONS = [
   { value: "cards_item", label: "Cards panel: right-click on a card" },
 ].map(({ value, label }) => ({ value, label: `${label} · ${value}` }));
 
+const SHAPES = {
+  circle: "Circle", rect: "Rectangle", line: "Line", cone: "Cone", text: "Text", none: "None (just a point)",
+};
+const shapeOptions = (...values) => values.map((value) => ({ value, label: `${SHAPES[value]} · ${value}` }));
+
 // Arg types with a fixed set of choices (still typeable, e.g. as a %variable%).
 const FIXED_OPTIONS = {
+  // Find's Shape; ShowMarker's and AddElement's; Request Point's.
+  areashape: shapeOptions("circle", "rect", "line", "cone"),
+  markershape: shapeOptions("circle", "rect", "line", "cone", "text"),
+  pointshape: shapeOptions("circle", "rect", "line", "cone", "text", "none"),
+  // Request Point's SnapToGrid.
+  gridsnap: [
+    ["none", "No snapping"], ["center", "The middle of a square"], ["corner", "Where grid lines cross"],
+  ].map(([value, label]) => ({ value, label: `${label} · ${value}` })),
   // Find's What.
   findkind: [
     ["tokens", "Tokens on a map"], ["elements", "Everything on a map"], ["cards", "Cards"], ["maps", "Maps"],
