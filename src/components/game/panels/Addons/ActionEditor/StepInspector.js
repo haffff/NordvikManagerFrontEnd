@@ -9,13 +9,17 @@ import { T, categoryColor } from "./editorTheme";
 // Editing panel for the selected step: its type, what it does, and one field per argument.
 // After a traced run it also shows the variables as they were when this step finished.
 
-// Arguments with a ShowIf condition only appear when the controlling field matches.
-export function isArgVisible(arg, data) {
+// Arguments with a ShowIf condition only appear when the controlling field matches one of
+// the values it lists ("rect|line"). An empty controlling field counts as its default (an
+// empty Shape is a circle); one holding a token could be anything, so the argument shows.
+export function isArgVisible(arg, data, args = []) {
   if (!arg.conditionField || arg.conditionValue == null) return true;
-  const actual = data?.[arg.conditionField];
-  const expected = String(arg.conditionValue).toLowerCase();
-  if (typeof actual === "boolean") return expected === "true" ? actual : !actual;
-  return String(actual ?? "").toLowerCase() === expected;
+  const expected = String(arg.conditionValue).toLowerCase().split("|");
+  let actual = data?.[arg.conditionField];
+  if (typeof actual === "boolean") return expected.includes("true") ? actual : !actual;
+  if (actual == null || actual === "") actual = args.find((a) => a.name === arg.conditionField)?.default ?? "";
+  const text = String(actual).trim().toLowerCase();
+  return text.includes("%") || expected.includes(text);
 }
 
 const formatValue = (v) => {
@@ -65,7 +69,7 @@ export const StepInspector = ({
 
   const data = step.Data ?? {};
   // Blocks (Then / Else / Do) are edited in the step list, under their step.
-  const args = (def?.arguments ?? []).filter((a) => isArgVisible(a, data) && (a.type ?? "").toLowerCase() !== "steps");
+  const args = (def?.arguments ?? []).filter((a) => isArgVisible(a, data, def?.arguments) && (a.type ?? "").toLowerCase() !== "steps");
   const field = (name) => ({
     value: data[name],
     onChange: (v) => onChangeData(name, v),

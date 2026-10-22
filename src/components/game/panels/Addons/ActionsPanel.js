@@ -49,7 +49,7 @@ const ActionRow = ({ action, hookName, selected, onClick }) => (
   </HStack>
 );
 
-const Sidebar = ({ actions, hooks, loading, selectedId, onSelect, onSelectGroup, onCreate }) => {
+const Sidebar = ({ actions, hooks, stepTypes, loading, selectedId, onSelect, onSelectGroup, onCreate }) => {
   const [search, setSearch] = React.useState("");
   const [closed, setClosed] = React.useState({});
   const [creating, setCreating] = React.useState(false);
@@ -73,7 +73,7 @@ const Sidebar = ({ actions, hooks, loading, selectedId, onSelect, onSelectGroup,
         <DListItemButton label="New action" icon={FaPlus} onClick={() => setCreating(true)} />
       </HStack>
       {creating && (
-        <NewActionForm onCancel={() => setCreating(false)} onCreate={(p, n, t) => { onCreate(p, n, t); setCreating(false); }} />
+        <NewActionForm stepTypes={stepTypes} onCancel={() => setCreating(false)} onCreate={(p, n, t) => { onCreate(p, n, t); setCreating(false); }} />
       )}
       <Box px={2} pt={2} pb={1} flexShrink={0}><SearchInput value={search} onChange={setSearch} /></Box>
       <Box flex={1} overflowY="auto" px={1} pb={2}>
@@ -156,6 +156,7 @@ export const ActionsPanel = () => {
   const draft = useActionDraft();
   const draftRef = React.useRef(draft);
   draftRef.current = draft;
+  const stepTypes = React.useMemo(() => (stepDefinitions.length ? stepDefinitions.map((d) => d.value) : undefined), [stepDefinitions]);
   const createdRef = React.useRef(null); // "prefix/name" just created here, to open it when it arrives
 
   const colRef = React.useRef(null);
@@ -240,7 +241,7 @@ export const ActionsPanel = () => {
     if (target) navigate({ type: "action", id: target.id });
   };
 
-  // template: one of ActionEditor/actionTemplates, or null for an empty action.
+  // template: one of ActionEditor/actionTemplates, pasted JSON ({ hook, description, content }), or null for an empty action.
   const create = (prefix, name, template) => {
     createdRef.current = prefix ? `${prefix}/${name}` : name;
     WebSocketManagerInstance.Send({
@@ -268,7 +269,7 @@ export const ActionsPanel = () => {
       />
       <Flex height="100%" overflow="hidden" ref={colRef}>
         <Box width={`${fracs[0] * 100}%`} flexShrink={0} overflow="hidden">
-          <Sidebar actions={actions} hooks={hooks} loading={loading} selectedId={draft.action?.id}
+          <Sidebar actions={actions} hooks={hooks} stepTypes={stepTypes} loading={loading} selectedId={draft.action?.id}
             onSelect={(id) => navigate({ type: "action", id })}
             onSelectGroup={(prefix) => navigate({ type: "group", prefix })}
             onCreate={create} />

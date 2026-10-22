@@ -5,12 +5,16 @@ import DTOConverter from "../DTOConverter";
 import ClientMediator from "../../../ClientMediator";
 import { toaster } from "../../ui/toaster";
 import UtilityHelper from "../../../helpers/UtilityHelper";
-import ConeTypeInit from "../../uiComponents/fabricjs/ConeType";
 import { RESERVED_LAYERS } from "../Constants/layers";
 import * as React from "react";
 import ActionToolOverlay from "../Overlays/ActionToolOverlay";
 import PickTargetsOverlay from "../Overlays/PickTargetsOverlay";
-import { startPicking, togglePick, isCandidate, clickAt } from "../Behaviors/Client/PickTargets/pickTargets";
+import { startPicking, togglePick, isCandidate, isPickable, clickAt } from "../Behaviors/Client/PickTargets/pickTargets";
+import { startPointing, pointerAt, areaAt, throttled } from "../Behaviors/Client/PickPoint/pickPoint";
+import { glowTokensIn, glow } from "../Helpers/areaGlow";
+import { areaColors } from "../Helpers/areaColors";
+import { buildAreaObject, placeArea } from "../Helpers/buildArea";
+import PickPointOverlay from "../Overlays/PickPointOverlay";
 import { cleanSketches, undoSketch } from "../Behaviors/Client/Draw/sketches";
 
 class BMService {
@@ -154,7 +158,7 @@ class BMService {
         ],
       },
       SetPickTargetsMode: {
-        description: 'Lets the player pick tokens on the map for an action (RequestTargets): request { message, min, max, candidates }; onDone(state) gets { picked, position } when Done, or null when cancelled.',
+        description: 'Lets the player pick tokens (or, with target "element", any elements) on the map for an action (RequestTargets): request { message, target, min, max, candidates }; onDone(state) gets { picked, position } when Done, or null when cancelled.',
         args: [
           { name: 'enabled', type: 'boolean', required: true },
           { name: 'request', type: 'object', required: false },
@@ -167,6 +171,26 @@ class BMService {
       },
       CancelPickTargets: {
         description: 'Ends picking tokens without an answer.',
+        args: [],
+      },
+      SetPickPointMode: {
+        description: 'Lets the player point at a place on the map for an action (RequestPoint): request { message, area, from, snap, gridSize, range, highlight, showToOthers }; onDone(state) gets { position } when chosen, or null when cancelled.',
+        args: [
+          { name: 'enabled', type: 'boolean', required: true },
+          { name: 'request', type: 'object', required: false },
+          { name: 'onDone', type: 'function', required: false },
+        ],
+      },
+      PickPointMove: {
+        description: 'While pointing: moves the marker to position (map pixels).',
+        args: [{ name: 'position', type: 'object', required: true }],
+      },
+      PickPointClick: {
+        description: 'While pointing: chooses position when it is within range.',
+        args: [{ name: 'position', type: 'object', required: true }],
+      },
+      CancelPickPoint: {
+        description: 'Ends pointing without an answer.',
         args: [],
       },
       PickTargetsClick: {
@@ -773,40 +797,12 @@ class BMService {
 
       canvas.measure.measureType = type ?? 'Line';
 
-      // Build a semi-transparent fill from the player color
-      const fillColor = (() => {
-        try {
-          const c = new fabric.Color(playerColor);
-          c.setAlpha(0.2);
-          return c.toRgba();
-        } catch {
-          return 'rgba(255,255,255,0.2)';
-        }
-      })();
-
-      if (type === 'Circle') {
-        canvas.measure.measureArrow = arrowObject ?? new fabric.Circle({
-          left: 0,
-          top: 0,
-          radius: 0,
-          fill: fillColor,
-          stroke: playerColor,
-          strokeWidth: 2,
-          selectable: false,
-          originX: 'center',
-          originY: 'center',
-          objectCaching: false,
-        });
-      } else if (type === 'Cone') {
-        ConeTypeInit();
-        canvas.measure.coneAngle = 53; // default D&D 5e cone (width = length)
-        canvas.measure.measureArrow = arrowObject ?? new fabric.Cone([0, 0, 0, 0], {
-          strokeWidth: 2,
-          stroke: playerColor,
-          fill: fillColor,
-          selectable: false,
-          coneAngle: 53,
-        });
+      if (["Circle", "Cone", "Rect"].includes(type)) {
+        // An area (Helpers/measure.js, buildArea.js — the shapes markers and Find use), in
+        // the player's colours; the tokens it covers light up unless that's switched off.
+        canvas.measure.colors = areaColors(playerColor);
+        canvas.measure.highlightTokens = true;
+        if (type === "Cone") canvas.measure.coneAngle = 53; // default D&D 5e cone (width = length)
       } else {
         canvas.measure.measureArrow = arrowObject ?? new fabric.LineArrow([0, 0, 0, 0], {
           strokeWidth: 2,
@@ -876,6 +872,7 @@ class BMService {
     } else {
       if (canvas.measureMode) {
         this.CleanPreviews();
+        glowTokensIn(canvas, null, "", "beforeMeasureShadow");
         canvas.modeLock = undefined;
         canvas.measureMode = undefined;
         canvas.selection = true;
@@ -987,7 +984,7 @@ class BMService {
       canvas.pickTargets = picking;
       canvas.getObjects().forEach((object) => {
         object.set({ beforePickSelectable: object.selectable, selectable: false });
-        if (object.tokenData && !isCandidate(picking.state, object.id)) {
+        if (isPickable(picking.state, object) && !isCandidate(picking.state, object.id)) {
           object.set({ beforePickOpacity: object.opacity, opacity: (object.opacity ?? 1) * 0.35 });
         }
       });
@@ -1007,13 +1004,8 @@ class BMService {
     if (!picking) return;
     picking.state = clickAt(elementId ? togglePick(picking.state, elementId) : picking.state, position);
     this._canvas.getObjects().forEach((object) => {
-      if (!object.tokenData) return;
-      const picked = picking.state.picked.includes(object.id);
-      if (picked && object.beforePickShadow === undefined) {
-        object.set({ beforePickShadow: object.shadow ?? null, shadow: new fabric.Shadow({ color: "rgba(255,215,0,0.95)", blur: 25 }) });
-      } else if (!picked && object.beforePickShadow !== undefined) {
-        object.set({ shadow: object.beforePickShadow, beforePickShadow: undefined });
-      }
+      if (!isPickable(picking.state, object)) return;
+      glow(object, picking.state.picked.includes(object.id), "beforePickShadow", this._myColors().glow);
     });
     this._canvas.requestRenderAll();
     picking.listeners.forEach((listener) => listener(picking.state));
@@ -1048,10 +1040,138 @@ class BMService {
     picking.onDone?.(finished ? picking.state : null);
   }
 
+  // Pointing at a place for an action (RequestPoint). The area (Helpers/buildArea.js, the
+  // shapes markers and Find use) follows the cursor — Behaviors/Client/PickPoint — snapped to
+  // the grid; a line or cone starts at `from` and only turns. The range shows as a dashed
+  // ring; tokens the area covers (Helpers/areaShape.js, Find's rule) glow in the player's
+  // colour; with showToOthers the others see it move (preview_start / _update / _end).
+  SetPickPointMode({ enabled, request, onDone }) {
+    const canvas = this._canvas;
+    if (!enabled) {
+      this._endPointing(null);
+      return;
+    }
+    if (canvas.modeLock || canvas.pickPoint || canvas.pickTargets) {
+      onDone?.(null);
+      return;
+    }
+    canvas.modeLock = true;
+    canvas.contextMenuLock = true;
+    canvas.discardActiveObject();
+    canvas.selection = false;
+    canvas.defaultCursor = "crosshair";
+    canvas.getObjects().forEach((object) => object.set({ beforePickSelectable: object.selectable, selectable: false }));
+
+    const state = startPointing(request, this._BMQueryService.GetSelectedMap()?.gridSize);
+    const mine = this._myColors();
+    const colors = { fill: state.area?.fill ?? mine.fill, stroke: state.area?.stroke ?? mine.stroke };
+    const pointing = { state, onDone, colors, listeners: new Set(), shapes: [], sendUpdate: throttled((data) => this._sendPreview("preview_update", data), 50) };
+    canvas.pickPoint = pointing;
+    const shared = { preview: true, playerId: ClientMediator.sendCommand("Game", "GetCurrentPlayer")?.id, stayVisible: true };
+
+    if (state.range) {
+      pointing.shapes.push(new fabric.Circle({
+        left: state.range.x, top: state.range.y, radius: state.range.radius, originX: "center", originY: "center",
+        fill: "rgba(255,255,255,0.04)", stroke: colors.stroke, strokeWidth: 2, strokeDashArray: [10, 8], selectable: false, evented: false,
+      }));
+    }
+    if (state.area) {
+      pointing.area = buildAreaObject(state.area, { at: state.from ?? { x: 0, y: 0 }, ...colors });
+      pointing.area.set({ visible: false });
+      pointing.shapes.push(pointing.area);
+    }
+    pointing.shapes.forEach((shape) => {
+      shape.set({ ...shared, previewId: UtilityHelper.GenerateUUID() });
+      canvas.add(shape);
+      shape.bringToFront();
+    });
+    if (state.showToOthers && pointing.shapes.length) this._sendPreview("preview_start", pointing.shapes);
+    canvas.requestRenderAll();
+
+    this._addPopupAndOverlay(
+      React.createElement(PickPointOverlay, { key: this.contextId + "_PickPoint", battleMapId: this.contextId, pointing })
+    );
+    ClientMediator.fireEvent("BattleMap_ModeChanged", { battleMapId: this.contextId, mode: "PickPoint", type: undefined });
+  }
+
+  // The pointer moved while pointing: the area follows (or turns); where it can't be chosen
+  // it is faded and dashed, with a red outline.
+  PickPointMove({ position }) {
+    const canvas = this._canvas;
+    const pointing = canvas.pickPoint;
+    if (!pointing || !position) return;
+    pointing.state = pointerAt(pointing.state, position);
+    const { state, area, colors } = pointing;
+    if (area) {
+      const aimed = state.from && (state.area.shape === "line" || state.area.shape === "cone");
+      const moved = aimed ? placeArea(area, state.area, state.from, state.position) : placeArea(area, state.area, state.position);
+      const look = state.allowed
+        ? { visible: true, opacity: 1, stroke: colors.stroke, strokeDashArray: null }
+        : { visible: true, opacity: 0.5, stroke: "rgba(255,60,60,0.95)", strokeDashArray: [8, 6] };
+      area.set(look);
+      if (state.showToOthers) pointing.sendUpdate([{ previewId: area.previewId, ...moved, ...look }]);
+    }
+    if (state.highlight) this._glowCovered(pointing);
+    canvas.requestRenderAll();
+    pointing.listeners.forEach((listener) => listener(pointing.state));
+  }
+
+  // A click while pointing: chooses the point when it may be chosen there.
+  PickPointClick({ position }) {
+    const pointing = this._canvas.pickPoint;
+    if (!pointing || !position) return;
+    this.PickPointMove({ position });
+    if (pointing.state.allowed) this._endPointing(pointing.state);
+  }
+
+  CancelPickPoint() {
+    this._endPointing(null);
+  }
+
+  // Tokens the area covers glow (as picked tokens do), others go back to how they were.
+  _glowCovered(pointing) {
+    const { state } = pointing;
+    glowTokensIn(this._canvas, state.allowed ? areaAt(state) : null, this._myColors().glow, "beforePointShadow", state.fromId);
+  }
+
+  // The colours of this player's areas and glow: theirs, else the theme's, else orange.
+  _myColors() {
+    return areaColors(ClientMediator.sendCommand("Game", "GetCurrentPlayer")?.color);
+  }
+
+  _sendPreview(command, data) {
+    WebSocketManagerInstance.Send({ command, battleMapId: this.contextId, data });
+  }
+
+  _endPointing(chosen) {
+    const canvas = this._canvas;
+    const pointing = canvas.pickPoint;
+    if (!pointing) return;
+    canvas.pickPoint = undefined;
+    canvas.modeLock = undefined;
+    canvas.contextMenuLock = undefined;
+    canvas.selection = true;
+    canvas.defaultCursor = "default";
+    pointing.sendUpdate.cancel();
+    pointing.shapes.forEach((shape) => canvas.remove(shape));
+    if (pointing.state.showToOthers && pointing.shapes.length) {
+      this._sendPreview("preview_end", pointing.shapes.map((shape) => ({ previewId: shape.previewId })));
+    }
+    canvas.getObjects().forEach((object) => {
+      if (object.beforePickSelectable !== undefined) object.set({ selectable: object.beforePickSelectable, beforePickSelectable: undefined });
+      if (object.beforePointShadow !== undefined) object.set({ shadow: object.beforePointShadow, beforePointShadow: undefined });
+    });
+    canvas.requestRenderAll();
+    this._removePopupAndOverlay();
+    ClientMediator.fireEvent("BattleMap_ModeChanged", { battleMapId: this.contextId, mode: undefined, type: undefined });
+    pointing.onDone?.(chosen);
+  }
+
   DisableAllModes() {
     const canvas = this._canvas;
     this.SetActionToolMode({ enabled: false });
     this.CancelPickTargets();
+    this.CancelPickPoint();
     this.SetSimpleCreateMode({ enabled: false });
     this.SetFreeDrawMode({ enabled: false });
     this.UnsetTokenSelectMode({});

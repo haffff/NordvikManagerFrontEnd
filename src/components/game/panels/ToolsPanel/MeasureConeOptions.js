@@ -7,6 +7,7 @@ import { FaClock } from "@react-icons/all-files/fa/FaClock";
 import { FaEye } from "@react-icons/all-files/fa/FaEye";
 import { FaTrash } from "@react-icons/all-files/fa/FaTrash";
 import ClientMediator from "../../../../ClientMediator";
+import { HighlightTokensToggle } from "./HighlightTokensToggle";
 
 export const MeasureConeOptions = ({ battleMapId }) => {
   const [visibleToOthers, setVisibleToOthers] = useState(false);
@@ -14,6 +15,7 @@ export const MeasureConeOptions = ({ battleMapId }) => {
   const [coneAngle, setConeAngle] = useState(53);
 
   const measureRef = React.useRef();
+  const [measure, setMeasure] = useState();
 
   useEffect(() => {
     const measure = ClientMediator.sendCommand("BattleMap", "GetMeasureOptions", {
@@ -24,6 +26,7 @@ export const MeasureConeOptions = ({ battleMapId }) => {
       setDissappearAfter(measure.dissappearAfter);
       if (measure.coneAngle !== undefined) setConeAngle(measure.coneAngle);
       measureRef.current = measure;
+      setMeasure(measure);
     }
   }, []);
 
@@ -33,6 +36,7 @@ export const MeasureConeOptions = ({ battleMapId }) => {
 
   return (
     <Flex gap={"10px"} direction={"row"} alignItems={"flex-start"}>
+      {measure && <HighlightTokensToggle measure={measure} />}
       <DListItemToggleButton
         isToggled={visibleToOthers}
         selectedColor={"gold"}

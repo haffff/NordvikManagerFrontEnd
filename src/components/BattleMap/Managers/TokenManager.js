@@ -627,8 +627,9 @@ class TokenManager {
     }
 
     // Fabric crashes with a 0×0 cache canvas — clamp width/height to at least 1px.
+    // Infinity (a rule dividing by zero) gives one too.
     if ((objectProperty === "width" || objectProperty === "height") && typeof value === "number") {
-      value = Math.max(value, 1);
+      value = Number.isFinite(value) ? Math.max(value, 1) : 1;
     }
 
     // Special case: image src must be a full resource URL so FabricTypesInitializer
@@ -1069,6 +1070,8 @@ class TokenManager {
       return;
     }
 
+    this._fitTokenPicture(object);
+
     if (!object.tokenUiElements?.length) return;
 
     const enlivened = await this._enlivenTokenUiElements(object.tokenUiElements);
@@ -1110,6 +1113,27 @@ class TokenManager {
     this.UpdateTokenUIPositions({ object });
     // UpdateTokenBasedOnProperties restores visibility after applying deps
     this.UpdateTokenBasedOnProperties({ tokenId: id });
+  }
+
+  // The server builds a token as wide as it should be at scale 1 (it doesn't know the
+  // picture's size), so Fabric would show the picture cropped to that square. The token
+  // keeps the width it shows, with the whole picture at its own size scaled to it, and
+  // an automatic circle crop (sized to the square) fitted to the picture — as setSrc does.
+  _fitTokenPicture(token) {
+    if (token?.type !== "image") return;
+    const picture = token.getElement?.();
+    const w = picture?.naturalWidth || picture?.width;
+    const h = picture?.naturalHeight || picture?.height;
+    if (!w || !h || (token.width === w && token.height === h)) return;
+    const shownWidth = token.width * (token.scaleX ?? 1);
+    const oldMin = Math.min(token.width, token.height);
+    token.set({ width: w, height: h });
+    token.scale(shownWidth / w);
+    const clip = token.clipPath;
+    if (clip?.type === "circle" && clip.radius === oldMin / 2) {
+      clip.set("radius", Math.min(w, h) / 2);
+    }
+    token.setCoords?.();
   }
 
   /**

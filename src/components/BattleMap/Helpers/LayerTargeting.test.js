@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, vi } from 'vitest';
 import { installLayerTargeting, setLayerView } from './LayerTargeting';
 
 // Fabric gives a click to the topmost element under the pointer that has `evented`
@@ -51,6 +51,21 @@ describe('installLayerTargeting', () => {
     installLayerTargeting(c);
 
     expect(c._checkTarget({}, { layer: 5, visible: true, selectable: true }, {})).toBe(true);
+  });
+
+  // Picking for an action (RequestTargets) makes everything unselectable, and the element
+  // to pick may sit on any layer (a wall on the map layer): clicks reach it, unless its
+  // layer is hidden.
+  it('lets a click reach an element on any layer while picking for an action', () => {
+    const c = canvas();
+    installLayerTargeting(c);
+    c.pickTargets = {};
+    const wall = { layer: 5, visible: true, selectable: false };
+
+    expect(c._checkTarget({}, wall, {})).toBe(true);
+
+    setLayerView(c, { hidden: new Set([5]), dimmed: new Set() });
+    expect(c._checkTarget({}, wall, {})).toBeFalsy();
   });
 
   it('installs once, even when the map is reloaded on the same canvas', () => {
@@ -138,5 +153,31 @@ describe('layer view on the canvas', () => {
     c.collected = [secret, token];
 
     expect(c._collectObjects({})).toEqual([token]);
+  });
+});
+
+// One element with a size or place that isn't a number (NaN, Infinity) made Fabric's
+// drawImage throw in the middle of drawing the map, which then left trails of
+// everything moved. It's left out (and named in the console) instead.
+describe('elements that cannot be drawn', () => {
+  const ctx = { save() {}, restore() {}, globalAlpha: 1 };
+  const element = (name, extra = {}) => ({ name, layer: 100, width: 10, height: 10, scaleX: 1, scaleY: 1, left: 0, top: 0, ...extra });
+
+  it.each([
+    ['without a layer view', undefined],
+    ['with a layer view', { hidden: new Set([150]), dimmed: new Set() }],
+  ])('skips them, %s', (_, view) => {
+    const drawn = [];
+    const c = canvas();
+    installLayerTargeting(c);
+    if (view) setLayerView(c, view);
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const of = (o) => ({ ...o, render: () => drawn.push(o.name) });
+
+    c._renderObjects(ctx, [of(element('ok')), of(element('nan', { width: NaN })), of(element('inf', { scaleX: Infinity })), of(element('ok2'))]);
+
+    expect(drawn).toEqual(['ok', 'ok2']);
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
   });
 });

@@ -18,6 +18,24 @@ const DIMMED_ALPHA = 0.45;
 
 const isHidden = (canvas, obj) => !!canvas.layerView?.hidden.has(drawLayerOf(obj));
 
+// An element whose size or place isn't a finite number gets a 0x0 cache canvas, and
+// Fabric's drawImage then throws in the middle of drawing the map — which leaves
+// trails of everything moved afterwards. Such an element isn't drawn, and is named
+// in the console once.
+const GEOMETRY = ["width", "height", "scaleX", "scaleY", "left", "top"];
+const reported = new WeakSet();
+function canDraw(obj) {
+  const bad = GEOMETRY.filter((k) => obj[k] !== undefined && !Number.isFinite(obj[k]));
+  if (!bad.length) return true;
+  if (!reported.has(obj)) {
+    reported.add(obj);
+    console.warn("Battle map: not drawing an element with an unusable size or place", {
+      id: obj.id, name: obj.name, type: obj.type, ...Object.fromEntries(bad.map((k) => [k, obj[k]])),
+    });
+  }
+  return false;
+}
+
 export function installLayerTargeting(canvas) {
   if (!canvas || canvas.__layerTargeting) return;
 
@@ -26,6 +44,8 @@ export function installLayerTargeting(canvas) {
     if (obj && obj.layer !== undefined && isHidden(this, obj)) return false;
     if (
       obj &&
+      // Picking for an action (RequestTargets): the element may be on any layer.
+      !this.pickTargets &&
       obj.layer !== undefined &&
       drawLayerOf(obj) !== this.selectedLayer &&
       !obj.selectable &&
@@ -37,17 +57,13 @@ export function installLayerTargeting(canvas) {
     return checkTarget.call(this, pointer, obj, globalPointer);
   };
 
-  const renderObjects = canvas._renderObjects;
   canvas._renderObjects = function (ctx, objects) {
     const view = this.layerView;
-    if (!view || (view.hidden.size === 0 && view.dimmed.size === 0)) {
-      return renderObjects.call(this, ctx, objects);
-    }
     for (const obj of objects) {
-      if (!obj) continue;
-      const layer = drawLayerOf(obj);
-      if (view.hidden.has(layer)) continue;
-      if (view.dimmed.has(layer)) {
+      if (!obj || !canDraw(obj)) continue;
+      const layer = view ? drawLayerOf(obj) : undefined;
+      if (view?.hidden.has(layer)) continue;
+      if (view?.dimmed.has(layer)) {
         ctx.save();
         ctx.globalAlpha *= DIMMED_ALPHA;
         obj.render(ctx);

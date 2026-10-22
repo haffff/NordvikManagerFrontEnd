@@ -51,6 +51,39 @@ describe('StepField menulocation', () => {
   });
 });
 
+// Shape and SnapToGrid were free text; each shape step lists only the shapes it takes.
+describe('StepField shapes and grid snap', () => {
+  const offered = (type) => {
+    renderWithProviders(
+      <StepField arg={{ name: 'Shape', type }} value="" onChange={vi.fn()} variables={[]} knownNames={[]} />
+    );
+    fireEvent.focus(screen.getByRole('textbox'));
+  };
+
+  it("offers Find's area shapes, without text or none", () => {
+    offered('areashape');
+    for (const v of ['circle', 'rect', 'line', 'cone']) expect(screen.getByText(new RegExp(`· ${v}$`))).toBeInTheDocument();
+    expect(screen.queryByText(/· text$/)).not.toBeInTheDocument();
+  });
+
+  it('offers text for markers and elements', () => {
+    offered('markershape');
+    expect(screen.getByText(/· text$/)).toBeInTheDocument();
+    expect(screen.queryByText(/· none$/)).not.toBeInTheDocument();
+  });
+
+  it('offers text and none for Request Point', () => {
+    offered('pointshape');
+    expect(screen.getByText(/· text$/)).toBeInTheDocument();
+    expect(screen.getByText(/· none$/)).toBeInTheDocument();
+  });
+
+  it('offers the grid snaps', () => {
+    offered('gridsnap');
+    for (const v of ['none', 'center', 'corner']) expect(screen.getByText(new RegExp(`· ${v}$`))).toBeInTheDocument();
+  });
+});
+
 // A switch that is on unless turned off (StopIfCancelled) shows as on when not set.
 describe('StepField boolean default', () => {
   it('shows the default when the value is not set', () => {
