@@ -89,15 +89,15 @@ function playlists(gameId) {
 }
 
 const basicsAddon = {
-  id: EXTRA_IDS.addon, key: 'basics', name: 'Basics', version: '0.1.0', author: 'haffff', license: 'MIT',
+  id: EXTRA_IDS.addon, key: 'basics', name: 'Basics', version: '0.1.0', author: 'haffff', license: 'AGPL-3.0-only',
   website: null, dependencies: [], isEnabled: true,
   description: 'Ships with NordvikManager and is added to every new game: a generic token with two bars and a private Note card.',
 };
 
 const registry = [
-  { key: 'basics', name: 'Basics', version: '0.1.0', author: 'haffff', license: 'MIT', repositoryUrl: null, description: basicsAddon.description },
+  { key: 'basics', name: 'Basics', version: '0.1.0', author: 'haffff', license: 'AGPL-3.0-only', repositoryUrl: null, description: basicsAddon.description },
   { key: 'dnd5e', name: 'Fifth Edition (SRD)', version: '1.4.0', author: 'haffff', license: 'OGL / CC-BY-4.0', repositoryUrl: null, description: 'Character sheets, monsters, spells and items for 5th-edition games, from the SRD.' },
-  { key: 'themes', name: 'Themes', version: '0.3.0', author: 'haffff', license: 'MIT', repositoryUrl: null, description: 'Ready-made looks for your game: parchment, sci-fi and more.' },
+  { key: 'themes', name: 'Themes', version: '0.3.0', author: 'haffff', license: 'AGPL-3.0-only', repositoryUrl: null, description: 'Ready-made looks for your game: parchment, sci-fi and more.' },
 ];
 
 const arg = (name, type, description, extra = {}) => ({ name, type, description, conditionField: null, conditionValue: null, isOutput: false, deferred: false, ...extra });
