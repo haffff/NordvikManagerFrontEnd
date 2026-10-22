@@ -1,11 +1,14 @@
-// Pointing at a place on a battle map for an action (RequestPoint): the marker follows the
-// cursor, snapped to the grid when asked, and only a point within range can be chosen.
-// Pure, so the mode is easy to test; BMService.SetPickPointMode draws it.
+// Pointing at a place on a battle map for an action (RequestPoint): the area follows the
+// cursor, snapped to the grid when asked, and only a point within range can be chosen. A line
+// or cone starts at `from` and the cursor only aims it. Pure, so the mode is easy to test;
+// BMService.SetPickPointMode draws it (Helpers/buildArea.js).
 
-// gridSize: the one the server sized the marker and range with, else the map's own.
-export const startPointing = ({ message = "", marker = null, snap = "none", range = null, highlight = true, showToOthers = true, gridSize: sent } = {}, gridSize = 50) => ({
+// area: { shape, radius, width, height, angle, text, fill, stroke } in pixels, or null for a
+// bare point. gridSize: the one the server sized the area and range with, else the map's own.
+export const startPointing = ({ message = "", area = null, from = null, snap = "none", range = null, highlight = true, showToOthers = true, gridSize: sent } = {}, gridSize = 50) => ({
   message,
-  marker,
+  area,
+  from,
   snap: snap === "center" || snap === "corner" ? snap : "none",
   range,
   highlight,
@@ -27,22 +30,28 @@ export function inRange({ x, y }, range) {
   return Math.hypot(x - range.x, y - range.y) <= range.radius;
 }
 
-// Whether a marker at `at` covers a token (its centre x, y and size w, h) — for a circle the
-// rule of Find with Near and Radius: the centre within the radius plus half the token.
-export function covers(marker, at, token) {
-  if (marker?.type === "circle") {
-    return Math.hypot(token.x - at.x, token.y - at.y) <= marker.radius + Math.min(token.w, token.h) / 2;
+const aimed = (state) => !!state.from && (state.area?.shape === "line" || state.area?.shape === "cone");
+
+// The area where the pointer is, for the area rule (areaShape.js): centred on the pointer,
+// or from `from` toward it; null when there's nothing it covers (no area, text, no pointer).
+export function areaAt(state) {
+  const { area, position } = state;
+  if (!area || area.shape === "text" || !position) return null;
+  const { fill, stroke, text, fontSize, ...shape } = area;
+  if (aimed(state)) {
+    if (position.x === state.from.x && position.y === state.from.y) return null;
+    return { ...shape, x: state.from.x, y: state.from.y, toward: position };
   }
-  if (marker?.type === "rect") {
-    return Math.abs(token.x - at.x) <= (marker.width + token.w) / 2 && Math.abs(token.y - at.y) <= (marker.height + token.h) / 2;
-  }
-  return false;
+  return { ...shape, x: position.x, y: position.y };
 }
 
 // The pointer moved to `raw` (map pixels).
 export function pointerAt(state, raw) {
   const position = snapPoint(raw, state.gridSize, state.snap);
-  return { ...state, position, allowed: inRange(position, state.range) };
+  const allowed = aimed(state)
+    ? position.x !== state.from.x || position.y !== state.from.y
+    : inRange(position, state.range);
+  return { ...state, position, allowed };
 }
 
 // Calls `fn` at most once every `ms`; a call in between is kept and made when the time is

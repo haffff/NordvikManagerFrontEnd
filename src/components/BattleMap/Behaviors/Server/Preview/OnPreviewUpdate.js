@@ -1,4 +1,5 @@
 import ClientMediator from "../../../../../ClientMediator";
+import { applyAreaUpdate } from "../../../Helpers/buildArea";
 
 export class OnPreviewUpdateBehavior {
   currentPlayer = null;
@@ -21,7 +22,8 @@ export class OnPreviewUpdateBehavior {
         if (!obj) {
           return;
         }
-        obj.set(update);
+        // An area being aimed may turn: its polygon's box is worked out again.
+        applyAreaUpdate(obj, update);
       });
       canvas.requestRenderAll();
     }

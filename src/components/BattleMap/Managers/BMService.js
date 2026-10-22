@@ -11,7 +11,10 @@ import * as React from "react";
 import ActionToolOverlay from "../Overlays/ActionToolOverlay";
 import PickTargetsOverlay from "../Overlays/PickTargetsOverlay";
 import { startPicking, togglePick, isCandidate, isPickable, clickAt } from "../Behaviors/Client/PickTargets/pickTargets";
-import { startPointing, pointerAt, covers, throttled } from "../Behaviors/Client/PickPoint/pickPoint";
+import { startPointing, pointerAt, areaAt, throttled } from "../Behaviors/Client/PickPoint/pickPoint";
+import { touchesToken } from "../Helpers/areaShape";
+import { areaColors } from "../Helpers/areaColors";
+import { buildAreaObject, placeArea } from "../Helpers/buildArea";
 import PickPointOverlay from "../Overlays/PickPointOverlay";
 import { cleanSketches, undoSketch } from "../Behaviors/Client/Draw/sketches";
 
@@ -172,7 +175,7 @@ class BMService {
         args: [],
       },
       SetPickPointMode: {
-        description: 'Lets the player point at a place on the map for an action (RequestPoint): request { message, marker, snap, gridSize, range, highlight, showToOthers }; onDone(state) gets { position } when chosen, or null when cancelled.',
+        description: 'Lets the player point at a place on the map for an action (RequestPoint): request { message, area, from, snap, gridSize, range, highlight, showToOthers }; onDone(state) gets { position } when chosen, or null when cancelled.',
         args: [
           { name: 'enabled', type: 'boolean', required: true },
           { name: 'request', type: 'object', required: false },
@@ -1030,12 +1033,7 @@ class BMService {
     picking.state = clickAt(elementId ? togglePick(picking.state, elementId) : picking.state, position);
     this._canvas.getObjects().forEach((object) => {
       if (!isPickable(picking.state, object)) return;
-      const picked = picking.state.picked.includes(object.id);
-      if (picked && object.beforePickShadow === undefined) {
-        object.set({ beforePickShadow: object.shadow ?? null, shadow: new fabric.Shadow({ color: "rgba(255,215,0,0.95)", blur: 25 }) });
-      } else if (!picked && object.beforePickShadow !== undefined) {
-        object.set({ shadow: object.beforePickShadow, beforePickShadow: undefined });
-      }
+      this._glow(object, picking.state.picked.includes(object.id), "beforePickShadow", this._myColors().glow);
     });
     this._canvas.requestRenderAll();
     picking.listeners.forEach((listener) => listener(picking.state));
@@ -1070,10 +1068,11 @@ class BMService {
     picking.onDone?.(finished ? picking.state : null);
   }
 
-  // Pointing at a place for an action (RequestPoint). The marker (built by the server, like
-  // ShowMarker's) follows the cursor — Behaviors/Client/PickPoint — snapped to the grid,
-  // with the range drawn as a dashed ring; tokens it covers glow, and with showToOthers the
-  // other players see it move (preview_start / preview_update / preview_end, as the ruler).
+  // Pointing at a place for an action (RequestPoint). The area (Helpers/buildArea.js, the
+  // shapes markers and Find use) follows the cursor — Behaviors/Client/PickPoint — snapped to
+  // the grid; a line or cone starts at `from` and only turns. The range shows as a dashed
+  // ring; tokens the area covers (Helpers/areaShape.js, Find's rule) glow in the player's
+  // colour; with showToOthers the others see it move (preview_start / _update / _end).
   SetPickPointMode({ enabled, request, onDone }) {
     const canvas = this._canvas;
     if (!enabled) {
@@ -1091,39 +1090,31 @@ class BMService {
     canvas.defaultCursor = "crosshair";
     canvas.getObjects().forEach((object) => object.set({ beforePickSelectable: object.selectable, selectable: false }));
 
-    const pointing = {
-      state: startPointing(request, this._BMQueryService.GetSelectedMap()?.gridSize),
-      onDone,
-      listeners: new Set(),
-      shapes: [],
-      sendUpdate: throttled((data) => this._sendPreview("preview_update", data), 50),
-    };
+    const state = startPointing(request, this._BMQueryService.GetSelectedMap()?.gridSize);
+    const mine = this._myColors();
+    const colors = { fill: state.area?.fill ?? mine.fill, stroke: state.area?.stroke ?? mine.stroke };
+    const pointing = { state, onDone, colors, listeners: new Set(), shapes: [], sendUpdate: throttled((data) => this._sendPreview("preview_update", data), 50) };
     canvas.pickPoint = pointing;
-    const player = ClientMediator.sendCommand("Game", "GetCurrentPlayer");
-    const shared = { selectable: false, evented: false, preview: true, playerId: player?.id, stayVisible: true };
+    const shared = { preview: true, playerId: ClientMediator.sendCommand("Game", "GetCurrentPlayer")?.id, stayVisible: true };
 
-    const specs = [];
-    const { range, marker } = pointing.state;
-    if (range) {
-      specs.push({
-        type: "circle", left: range.x, top: range.y, radius: range.radius, originX: "center", originY: "center",
-        fill: "rgba(255,255,255,0.04)", stroke: "rgba(255,255,255,0.7)", strokeWidth: 2, strokeDashArray: [10, 8],
-      });
+    if (state.range) {
+      pointing.shapes.push(new fabric.Circle({
+        left: state.range.x, top: state.range.y, radius: state.range.radius, originX: "center", originY: "center",
+        fill: "rgba(255,255,255,0.04)", stroke: colors.stroke, strokeWidth: 2, strokeDashArray: [10, 8], selectable: false, evented: false,
+      }));
     }
-    if (marker) specs.push({ ...marker, visible: false });
-    fabric.util.enlivenObjects(specs, (shapes) => {
-      if (canvas.pickPoint !== pointing) return; // ended meanwhile
-      shapes.forEach((shape) => {
-        shape.set({ ...shared, previewId: UtilityHelper.GenerateUUID() });
-        canvas.add(shape);
-        shape.bringToFront();
-      });
-      pointing.shapes = shapes;
-      pointing.marker = marker ? shapes[shapes.length - 1] : undefined;
-      pointing.markerStroke = pointing.marker?.stroke;
-      if (pointing.state.showToOthers && shapes.length) this._sendPreview("preview_start", shapes);
-      canvas.requestRenderAll();
+    if (state.area) {
+      pointing.area = buildAreaObject(state.area, { at: state.from ?? { x: 0, y: 0 }, ...colors });
+      pointing.area.set({ visible: false });
+      pointing.shapes.push(pointing.area);
+    }
+    pointing.shapes.forEach((shape) => {
+      shape.set({ ...shared, previewId: UtilityHelper.GenerateUUID() });
+      canvas.add(shape);
+      shape.bringToFront();
     });
+    if (state.showToOthers && pointing.shapes.length) this._sendPreview("preview_start", pointing.shapes);
+    canvas.requestRenderAll();
 
     this._addPopupAndOverlay(
       React.createElement(PickPointOverlay, { key: this.contextId + "_PickPoint", battleMapId: this.contextId, pointing })
@@ -1131,22 +1122,24 @@ class BMService {
     ClientMediator.fireEvent("BattleMap_ModeChanged", { battleMapId: this.contextId, mode: "PickPoint", type: undefined });
   }
 
-  // The pointer moved while pointing: the marker follows, red where it can't be chosen.
+  // The pointer moved while pointing: the area follows (or turns); where it can't be chosen
+  // it is faded and dashed, with a red outline.
   PickPointMove({ position }) {
     const canvas = this._canvas;
     const pointing = canvas.pickPoint;
     if (!pointing || !position) return;
     pointing.state = pointerAt(pointing.state, position);
-    const { x, y } = pointing.state.position;
-    const marker = pointing.marker;
-    if (marker) {
-      marker.set({ left: x, top: y, visible: true, stroke: pointing.state.allowed ? pointing.markerStroke : "rgba(255,60,60,0.95)" });
-      marker.setCoords();
-      if (pointing.state.showToOthers) {
-        pointing.sendUpdate([{ previewId: marker.previewId, left: x, top: y, visible: true, stroke: marker.stroke }]);
-      }
+    const { state, area, colors } = pointing;
+    if (area) {
+      const aimed = state.from && (state.area.shape === "line" || state.area.shape === "cone");
+      const moved = aimed ? placeArea(area, state.area, state.from, state.position) : placeArea(area, state.area, state.position);
+      const look = state.allowed
+        ? { visible: true, opacity: 1, stroke: colors.stroke, strokeDashArray: null }
+        : { visible: true, opacity: 0.5, stroke: "rgba(255,60,60,0.95)", strokeDashArray: [8, 6] };
+      area.set(look);
+      if (state.showToOthers) pointing.sendUpdate([{ previewId: area.previewId, ...moved, ...look }]);
     }
-    if (pointing.state.highlight) this._glowCovered(pointing);
+    if (state.highlight) this._glowCovered(pointing);
     canvas.requestRenderAll();
     pointing.listeners.forEach((listener) => listener(pointing.state));
   }
@@ -1163,20 +1156,30 @@ class BMService {
     this._endPointing(null);
   }
 
-  // Tokens the marker covers glow (as picked tokens do), others go back to how they were.
+  // Tokens the area covers glow (as picked tokens do), others go back to how they were.
   _glowCovered(pointing) {
-    const { marker, position } = pointing.state;
+    const area = pointing.state.allowed ? areaAt(pointing.state) : null;
+    const glow = this._myColors().glow;
     this._canvas.getObjects().forEach((object) => {
       if (!object.tokenData || object.isTokenUI || object.preview) return;
       const c = object.getCenterPoint();
-      const token = { x: c.x, y: c.y, w: object.getScaledWidth(), h: object.getScaledHeight() };
-      const covered = !!position && covers(marker, position, token);
-      if (covered && object.beforePointShadow === undefined) {
-        object.set({ beforePointShadow: object.shadow ?? null, shadow: new fabric.Shadow({ color: "rgba(255,140,0,0.95)", blur: 25 }) });
-      } else if (!covered && object.beforePointShadow !== undefined) {
-        object.set({ shadow: object.beforePointShadow, beforePointShadow: undefined });
-      }
+      const covered = !!area && touchesToken(area, { x: c.x, y: c.y, w: object.getScaledWidth(), h: object.getScaledHeight() });
+      this._glow(object, covered, "beforePointShadow", glow);
     });
+  }
+
+  // Lights a token up (or back to how it was), keeping its own shadow in `keep`.
+  _glow(object, on, keep, color) {
+    if (on && object[keep] === undefined) {
+      object.set({ [keep]: object.shadow ?? null, shadow: new fabric.Shadow({ color, blur: 25 }) });
+    } else if (!on && object[keep] !== undefined) {
+      object.set({ shadow: object[keep], [keep]: undefined });
+    }
+  }
+
+  // The colours of this player's areas and glow: theirs, else the theme's, else orange.
+  _myColors() {
+    return areaColors(ClientMediator.sendCommand("Game", "GetCurrentPlayer")?.color);
   }
 
   _sendPreview(command, data) {
