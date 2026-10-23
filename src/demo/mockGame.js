@@ -252,6 +252,9 @@ export function buildMockFixture(role) {
   answer('api/battlemap/getbattlemaps', {}, [battleMap]);
   answer('api/map/get', { mapId: MOCK_IDS.map }, map);
   answer('api/map/getallflat', {}, [{ id: MOCK_IDS.map, name: map.name }]);
+  answer('api/battlemap/gettree', { entityType: 'MapModel' }, [
+    { id: id(98), name: map.name, parentId: null, isFolder: false, head: true, next: null, targetId: MOCK_IDS.map, entryType: 'MapModel' },
+  ]);
   answer('api/turnorder', { mapId: MOCK_IDS.map }, turnOrder(role));
   answer('api/battlemap/getchat', {}, chat());
   answer('api/battlemap/getlayouts', {}, [layout]);
