@@ -47,6 +47,10 @@ vi.mock('../../uiComponents/hooks/useBattleMapName', () => ({
   default: () => 'Test BM',
 }));
 
+vi.mock('../../../contexts/PermissionsContext', () => ({
+  usePermissions: () => ({ canEditGame: true, hasEntityPermission: () => true }),
+}));
+
 import { ActiveWebHelper, ActiveTransportManager } from '../../../helpers/transport';
 import ClientMediator from '../../../ClientMediator';
 import * as Dockable from '@hlorenzi/react-dockable';
@@ -56,6 +60,15 @@ const MAPS = [
   { id: 'map-2', name: 'Cave' },
 ];
 
+// The maps' folder tree, as battlemap/getTree?entityType=MapModel returns it.
+let treeEntries;
+const TOP_LEVEL = [
+  { id: 'e-1', targetId: 'map-1', head: true, next: 'e-2' },
+  { id: 'e-2', targetId: 'map-2' },
+];
+const serveTree = (otherwise) => (url, cb) =>
+  url.startsWith('battlemap/getTree') ? cb(treeEntries) : otherwise?.(url, cb);
+
 const mockState = {};
 
 describe('MapSelector', () => {
@@ -64,6 +77,8 @@ describe('MapSelector', () => {
     // Clear captured handlers between tests
     Object.keys(subscribableHandlers).forEach((k) => delete subscribableHandlers[k]);
     ActiveWebHelper.getAsync.mockResolvedValue(MAPS);
+    treeEntries = TOP_LEVEL;
+    ActiveWebHelper.get.mockImplementation(serveTree());
     ClientMediator.sendCommandWaitForRegister.mockResolvedValue(null);
   });
 
@@ -164,7 +179,7 @@ describe('MapSelector', () => {
 
   it('calls getAsync and spawnFloating when the Settings button is clicked', async () => {
     const user = userEvent.setup();
-    ActiveWebHelper.get.mockImplementation((_url, cb) => cb({ id: 'map-1', name: 'Forest' }));
+    ActiveWebHelper.get.mockImplementation(serveTree((_url, cb) => cb({ id: 'map-1', name: 'Forest' })));
     renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
     await waitFor(() => expect(screen.getByText('Forest')).toBeInTheDocument());
 
@@ -172,10 +187,55 @@ describe('MapSelector', () => {
     await user.click(settingsBtns[0]);
 
     expect(ActiveWebHelper.get).toHaveBeenCalledWith(
-      expect.stringContaining('map/get'),
+      expect.stringContaining('map/get?'),
       expect.any(Function)
     );
     expect(Dockable.spawnFloating).toHaveBeenCalled();
+  });
+
+  // ── folders ────────────────────────────────────────────────────────────────
+
+  it('shows maps inside their folders', async () => {
+    const user = userEvent.setup();
+    treeEntries = [
+      { id: 'f-dungeons', isFolder: true, name: 'Dungeons', head: true, next: 'e-1' },
+      { id: 'e-2', targetId: 'map-2', parentId: 'f-dungeons', head: true },
+      { id: 'e-1', targetId: 'map-1' },
+    ];
+    renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
+    await waitFor(() => expect(screen.getByText('Dungeons')).toBeInTheDocument());
+    expect(screen.getByText('Forest')).toBeInTheDocument();
+
+    // Cave sits in the folder: it shows once the folder is open
+    if (!screen.queryByText('Cave')) await user.dblClick(screen.getByText('Dungeons'));
+    expect(screen.getByText('Cave')).toBeInTheDocument();
+  });
+
+  it('offers folders to whoever can edit the game', async () => {
+    renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
+    await waitFor(() => expect(screen.getByText('Forest')).toBeInTheDocument());
+    expect(screen.getByRole('button', { name: /add folder/i })).toBeInTheDocument();
+  });
+
+  it('deleting a folder with everything in it keeps the active map', async () => {
+    const user = userEvent.setup();
+    ClientMediator.sendCommandWaitForRegister.mockResolvedValue('map-1');
+    treeEntries = [
+      { id: 'f-all', isFolder: true, name: 'Everything', head: true },
+      { id: 'e-1', targetId: 'map-1', parentId: 'f-all', head: true, next: 'e-2' },
+      { id: 'e-2', targetId: 'map-2', parentId: 'f-all' },
+    ];
+    renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
+    await waitFor(() => expect(screen.getByText('Everything')).toBeInTheDocument());
+    await waitFor(() => expect(ClientMediator.sendCommandWaitForRegister).toHaveBeenCalled());
+
+    await user.click(screen.getByText('Everything'));
+    await user.click(screen.getByRole('button', { name: /^delete all$/i }));
+    const confirm = await screen.findAllByRole('button', { name: /^delete all$/i });
+    await user.click(confirm[confirm.length - 1]);
+
+    const removed = ActiveTransportManager.Send.mock.calls.map(([c]) => c).filter((c) => c.command === 'map_remove');
+    expect(removed).toEqual([expect.objectContaining({ data: 'map-2' })]);
   });
 
   // ── settings_map refresh (regression) ─────────────────────────────────────

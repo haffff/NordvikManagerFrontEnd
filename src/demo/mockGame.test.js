@@ -87,6 +87,7 @@ describe('the mock game, GM windows', () => {
     expect(targetsOf('Playlist')).toEqual(get(fixture, 'api/playlist/getplaylists', { kind: '0' }).body.map((p) => p.id));
     expect(targetsOf('Soundboard')).toEqual(get(fixture, 'api/playlist/getplaylists', { kind: '1' }).body.map((p) => p.id));
     expect(targetsOf('CardModel').sort()).toEqual(get(fixture, 'api/materials/getcards').body.map((c) => c.id).sort());
+    expect(targetsOf('MapModel')).toEqual(get(fixture, 'api/map/getallflat').body.map((m) => m.id));
   });
 
   it('pictures in the materials have their files, and the map floor uses one', () => {
