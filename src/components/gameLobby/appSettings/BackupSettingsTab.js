@@ -21,6 +21,7 @@ import { FaUndo } from "@react-icons/all-files/fa/FaUndo";
 
 import WebHelper from "../../../helpers/WebHelper";
 import { toaster } from "../../ui/toaster";
+import { showError } from "./serverErrors";
 import { Field } from "../../ui/field";
 import { Switch } from "../../ui/switch";
 import { NumberInputField, NumberInputRoot } from "../../ui/number-input";
@@ -39,21 +40,6 @@ const formatSize = (bytes) => {
 };
 
 const formatDate = (utc) => (utc ? new Date(utc).toLocaleString() : "—");
-
-// The backend answers errors as { error: "..." }; fall back to the status code.
-const errorMessage = async (response) => {
-  if (!response) return "The server could not be reached.";
-  try {
-    const body = await response.json();
-    if (body?.error) return body.error;
-  } catch (e) {
-    // not JSON
-  }
-  return `Request failed (HTTP ${response.status}).`;
-};
-
-const showError = async (title, response) =>
-  toaster.create({ title, description: await errorMessage(response), type: "error" });
 
 /**
  * Application Settings → Backups. Whole-server backups (database + uploaded resource files):
