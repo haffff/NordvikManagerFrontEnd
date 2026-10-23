@@ -31,10 +31,40 @@ describe("handlePointRequest", () => {
     expect(send).toHaveBeenCalledWith({ command: "input_value", inputToken: "tok", data: { cancelled: true } });
   });
 
-  it("answers cancelled when the player looks at another map", () => {
+  it("with two battle maps open, points on the one showing the asked map, not the one in focus", () => {
+    const send = vi.fn();
+    let onDone;
+    const setMode = vi.fn((battleMapId, req, done) => { onDone = done; });
+    handlePointRequest(request, {
+      current: () => ({ battleMapId: "bm-a", mapId: "other" }),
+      opened: () => [{ battleMapId: "bm-a", mapId: "other" }, { battleMapId: "bm-b", mapId: "m1" }],
+      setMode, send,
+    });
+
+    expect(setMode).toHaveBeenCalledWith("bm-b", data, expect.any(Function));
+    onDone({ position: { x: 5, y: 6 } });
+    expect(send).toHaveBeenCalledWith({ command: "input_value", inputToken: "tok", data: { x: 5, y: 6, mapId: "m1" } });
+  });
+
+  it("prefers the battle map in focus when both show the asked map", () => {
+    const setMode = vi.fn();
+    handlePointRequest(request, {
+      current: () => ({ battleMapId: "bm-b", mapId: "m1" }),
+      opened: () => [{ battleMapId: "bm-a", mapId: "m1" }, { battleMapId: "bm-b", mapId: "m1" }],
+      setMode, send: vi.fn(),
+    });
+
+    expect(setMode).toHaveBeenCalledWith("bm-b", data, expect.any(Function));
+  });
+
+  it("answers cancelled when no open battle map shows the asked map", () => {
     const send = vi.fn();
     const setMode = vi.fn();
-    handlePointRequest(request, { current: () => ({ battleMapId: "bm", mapId: "other" }), setMode, send });
+    handlePointRequest(request, {
+      current: () => ({ battleMapId: "bm", mapId: "other" }),
+      opened: () => [{ battleMapId: "bm", mapId: "other" }, { battleMapId: "bm-2", mapId: "third" }],
+      setMode, send,
+    });
 
     expect(setMode).not.toHaveBeenCalled();
     expect(send).toHaveBeenCalledWith({ command: "input_value", inputToken: "tok", data: { cancelled: true } });
