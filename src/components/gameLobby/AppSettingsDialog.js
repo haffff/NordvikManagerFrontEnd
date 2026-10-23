@@ -10,6 +10,7 @@ import {
   DialogRoot,
 } from "../ui/dialog";
 import { BackupSettingsTab } from "./appSettings/BackupSettingsTab";
+import { ServerSettingsTab } from "./appSettings/ServerSettingsTab";
 
 export const AppSettingsDialog = ({ openRef }) => {
   const [open, setOpen] = React.useState(false);
@@ -31,9 +32,13 @@ export const AppSettingsDialog = ({ openRef }) => {
           <Tabs.Root defaultValue="backups" lazyMount size="md" variant="enclosed">
             <Tabs.List>
               <Tabs.Trigger value="backups">Backups</Tabs.Trigger>
+              <Tabs.Trigger value="server">Server</Tabs.Trigger>
             </Tabs.List>
             <Tabs.Content value="backups">
               <BackupSettingsTab />
+            </Tabs.Content>
+            <Tabs.Content value="server">
+              <ServerSettingsTab />
             </Tabs.Content>
           </Tabs.Root>
         </DialogBody>
