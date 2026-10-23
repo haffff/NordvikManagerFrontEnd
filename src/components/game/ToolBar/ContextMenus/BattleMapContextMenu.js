@@ -24,6 +24,7 @@ import { FaListOl } from "@react-icons/all-files/fa/FaListOl";
 import Loadable from "../../../uiComponents/base/Loadable";
 import Subscribable from "../../../uiComponents/base/Subscribable";
 import CollectionSyncer from "../../../uiComponents/base/CollectionSyncer";
+import MapsSyncer from "./MapsSyncer";
 import DTOConverter from "../../../BattleMap/DTOConverter";
 import { ActiveTransportManager as WebSocketManagerInstance, ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import ClientMediator from "../../../../ClientMediator";
@@ -426,7 +427,7 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
         if (msg.data?.entityType !== 'ElementModel' || msg.data?.id !== selectedId) return;
         setElementPermissions(msg.data.permissions ?? {});
       }} />
-      <CollectionSyncer collection={maps} setCollection={setMaps} commandPrefix="map" />
+      <MapsSyncer maps={maps} setMaps={setMaps} />
       <CollectionSyncer
         collection={allCards}
         setCollection={setAllCards}

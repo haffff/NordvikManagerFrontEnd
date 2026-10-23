@@ -24,7 +24,7 @@ import DropDownMenu from '../../../uiComponents/base/DDItems/DropDownMenu';
 import CreateDropDownButton from '../../../uiComponents/base/DDItems/SpecialButtons/CreateDropDownButton';
 import ClientMediator from '../../../../ClientMediator';
 import InputModal from '../../../uiComponents/base/Modals/InputModal';
-import CollectionSyncer from '../../../uiComponents/base/CollectionSyncer';
+import MapsSyncer from '../ContextMenus/MapsSyncer';
 import { ActiveTransportManager as WebSocketManagerInstance } from '../../../../helpers/transport';
 
 export const ViewsMenu = ({ state, onDropDown }) => {
@@ -56,7 +56,7 @@ export const ViewsMenu = ({ state, onDropDown }) => {
                 <CreateDropDownButton requiresEdit width={150} name={"Manage Players"} icon={<FaUserCog />} state={state} element={<AdminPlayersPanel state={state} />} />
             </DropDownMenu>
             {/* Keep maps in sync with server events so the "Add new" dialog and Switch Map always reflect current maps */}
-            <CollectionSyncer collection={maps} setCollection={setMaps} commandPrefix={"map"} />
+            <MapsSyncer maps={maps} setMaps={setMaps} />
             <InputModal
                 title={"Add new Battle Map"}
                 getConfigDict={() => [
