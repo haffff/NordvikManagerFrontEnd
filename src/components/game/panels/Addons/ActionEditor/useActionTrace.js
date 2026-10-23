@@ -1,6 +1,7 @@
 import * as React from "react";
 import { ActiveTransportManager } from "../../../../../helpers/transport";
 import UtilityHelper from "../../../../../helpers/UtilityHelper";
+import ClientMediator from "../../../../../ClientMediator";
 
 // Runs an action from the editor with tracing on, and collects the per-step results the
 // server sends back ("action_trace" messages, only to the player who ran it). Unlike
@@ -32,6 +33,13 @@ export function traceReducer(state, msg) {
   }
 }
 
+// The execute_action data. Like ActionService.Run, the battle map view and map the player is
+// looking at go along (else the server uses the game's first view); the caller's own win.
+export function traceRunData(actionFullName, args, traceId, where) {
+  const current = where ? { battleMapId: where.battleMapId, mapId: where.mapId } : {};
+  return { Action: actionFullName, Args: { ...current, ...(args ?? {}) }, Trace: true, TraceId: traceId };
+}
+
 export function useActionTrace() {
   const [state, dispatch] = React.useReducer(traceReducer, { traceId: null, running: false, byStep: {}, byPath: {}, result: null });
   const subscriptionName = React.useMemo(() => `ActionTrace-${UtilityHelper.GenerateUUID()}`, []);
@@ -48,7 +56,7 @@ export function useActionTrace() {
     dispatch({ type: "start", traceId });
     ActiveTransportManager.Send({
       command: "execute_action",
-      data: { Action: actionFullName, Args: args ?? {}, Trace: true, TraceId: traceId },
+      data: traceRunData(actionFullName, args, traceId, ClientMediator.sendCommand("Game", "GetCurrentBattleMap")),
     });
   }, []);
 
