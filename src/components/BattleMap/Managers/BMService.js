@@ -11,7 +11,7 @@ import ActionToolOverlay from "../Overlays/ActionToolOverlay";
 import PickTargetsOverlay from "../Overlays/PickTargetsOverlay";
 import { startPicking, togglePick, isCandidate, isPickable, clickAt } from "../Behaviors/Client/PickTargets/pickTargets";
 import { startPointing, pointerAt, areaAt, throttled } from "../Behaviors/Client/PickPoint/pickPoint";
-import { glowTokensIn, glow } from "../Helpers/areaGlow";
+import { glowTokensIn, glow, glowUpdate } from "../Helpers/areaGlow";
 import { areaColors } from "../Helpers/areaColors";
 import { buildAreaObject, placeArea } from "../Helpers/buildArea";
 import PickPointOverlay from "../Overlays/PickPointOverlay";
@@ -1109,7 +1109,9 @@ class BMService {
         ? { visible: true, opacity: 1, stroke: colors.stroke, strokeDashArray: null }
         : { visible: true, opacity: 0.5, stroke: "rgba(255,60,60,0.95)", strokeDashArray: [8, 6] };
       area.set(look);
-      if (state.showToOthers) pointing.sendUpdate([{ previewId: area.previewId, ...moved, ...look }]);
+      // The others see the area move and, with highlight on, the same tokens light up.
+      const shared = state.highlight ? { glow: glowUpdate(state.allowed ? areaAt(state) : null, this._myColors().glow, state.fromId) } : {};
+      if (state.showToOthers) pointing.sendUpdate([{ previewId: area.previewId, ...moved, ...look, ...shared }]);
     }
     if (state.highlight) this._glowCovered(pointing);
     canvas.requestRenderAll();

@@ -1,4 +1,5 @@
 import ClientMediator from "../../../../../ClientMediator";
+import { glowTokensIn, remoteGlowKey } from "../../../Helpers/areaGlow";
 
 export class OnPreviewEndBehavior {
   currentPlayer = null;
@@ -19,6 +20,8 @@ export class OnPreviewEndBehavior {
         : canvas.getObjects().filter((x) => response.playerId === x.playerId && x.preview === true);
 
       canvas.remove(...removes);
+      // Whatever their area lit up goes back to how it was.
+      glowTokensIn(canvas, null, null, remoteGlowKey(response.playerId));
       canvas.requestRenderAll();
     }
   }

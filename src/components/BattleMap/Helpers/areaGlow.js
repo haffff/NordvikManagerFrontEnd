@@ -18,6 +18,14 @@ export function glowTokensIn(canvas, area, color, keep, exceptId) {
   });
 }
 
+// Where a token keeps its own shadow while another player's area makes it glow (one key per
+// player, so their glow and this player's own don't undo each other).
+export const remoteGlowKey = (playerId) => `beforeRemoteGlow_${playerId}`;
+
+// What a preview_update carries so the others light up the same tokens: the covered area
+// (null: none now), the sender's glow colour, the token it starts from (left out).
+export const glowUpdate = (area, color, exceptId) => ({ area: area ?? null, color, exceptId });
+
 // Lights one object up (or back to how it was), keeping its own shadow in object[keep].
 export function glow(object, on, keep, color) {
   if (on && object[keep] === undefined) {

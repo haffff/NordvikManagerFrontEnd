@@ -1,7 +1,7 @@
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../../../helpers/transport";
 import { measureArea, measureLabel } from "../../../Helpers/measure";
 import { placeArea } from "../../../Helpers/buildArea";
-import { glowTokensIn } from "../../../Helpers/areaGlow";
+import { glowTokensIn, glowUpdate } from "../../../Helpers/areaGlow";
 
 // A measurement follows the pointer: the arrow or area (Helpers/measure.js) and its text in
 // the map's units; with "Highlight tokens" the tokens an area covers light up (the ones Find
@@ -17,6 +17,7 @@ export class OnMouseMoveMeasureUpdateClientBehavior {
     const type = canvas.measure.measureType ?? "Line";
 
     let shape;
+    let glow;
     const area = measureArea(type, from, to, canvas.measure.coneAngle);
     if (area) {
       shape = placeArea(element, area.area, area.at, area.toward);
@@ -24,6 +25,8 @@ export class OnMouseMoveMeasureUpdateClientBehavior {
       const moved = to.x !== from.x || to.y !== from.y;
       const covered = canvas.measure.highlightTokens && moved ? { ...area.area, x: area.at.x, y: area.at.y, toward: area.toward } : null;
       glowTokensIn(canvas, covered, canvas.measure.colors?.glow, "beforeMeasureShadow");
+      // The others see the same tokens light up.
+      glow = glowUpdate(covered, canvas.measure.colors?.glow);
     } else {
       element.set({ x2: to.x, y2: to.y });
       shape = { x1: element.x1, x2: element.x2, y1: element.y1, y2: element.y2 };
@@ -41,7 +44,7 @@ export class OnMouseMoveMeasureUpdateClientBehavior {
         command: "preview_update",
         battleMapId,
         data: [
-          { previewId: element.previewId, ...shape },
+          { previewId: element.previewId, ...shape, ...(glow !== undefined ? { glow } : {}) },
           { previewId: measure.previewId, left: measure.left, top: measure.top, text: measure.text },
         ],
       });
