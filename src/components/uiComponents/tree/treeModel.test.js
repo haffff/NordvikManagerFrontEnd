@@ -61,6 +61,23 @@ describe("buildTree", () => {
     expect(r[0].children.map((n) => n.name)).toEqual(["Dungeon Map", "Deep"]);
   });
 
+  // For whoever can't edit folders (a player): a folder with nothing they see in it is clutter.
+  it("hideEmptyFolders leaves out folders with nothing shown inside, at any depth", () => {
+    const r = buildTree(entries, [{ id: "goblin", name: "Goblin" }], { hideEmptyFolders: true });
+    expect(r.map((n) => n.name)).toEqual(["Goblin"]);
+
+    const deepOnly = buildTree(entries, [{ id: "crypt", name: "Crypt map" }], { hideEmptyFolders: true });
+    expect(deepOnly.map((n) => n.name)).toEqual(["Maps"]);
+    expect(deepOnly[0].children.map((n) => n.name)).toEqual(["Deep"]);
+    expect(deepOnly[0].children[0].children.map((n) => n.name)).toEqual(["Crypt map"]);
+  });
+
+  it("hideEmptyFolders counts what additionalFilter leaves out as not shown", () => {
+    const r = buildTree(entries, [{ id: "goblin", name: "Goblin" }, { id: "crypt", name: "Crypt map" }],
+      { hideEmptyFolders: true, additionalFilter: (e) => e.id !== "crypt" });
+    expect(r.map((n) => n.name)).toEqual(["Goblin"]);
+  });
+
   it("survives a folder that is its own ancestor", () => {
     const loop = [{ id: "f", isFolder: true, name: "F", parentId: "g" }, { id: "g", isFolder: true, name: "G", parentId: "f" }];
     expect(() => buildTree(loop, [])).not.toThrow();

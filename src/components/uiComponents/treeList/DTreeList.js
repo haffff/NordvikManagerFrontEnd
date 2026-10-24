@@ -283,7 +283,10 @@ export const DTreeList = ({
     }).current;
 
     // ── tree ───────────────────────────────────────────────────────────────────
-    const nodes = React.useMemo(() => buildTree(treeItems, items ?? []), [treeItems, items]);
+    // Whoever can't edit folders doesn't see the ones with nothing in it for them.
+    const nodes = React.useMemo(
+        () => buildTree(treeItems, items ?? [], { hideEmptyFolders: !canEditFolders }),
+        [treeItems, items, canEditFolders]);
 
     // Drop remembered open folders that no longer exist.
     React.useEffect(() => {
