@@ -44,12 +44,15 @@ import { SearchInput } from "../../../uiComponents/SearchInput";
 import { LAYER_STATES, layerFlagUpdate, layerLabel, layerState } from "../../../BattleMap/Helpers/layerVisibility";
 import AddonMenuItems from "../../../uiComponents/base/DDItems/AddonMenuItems";
 import { setMenuContext } from "../../../uiComponents/base/DDItems/menuItemsStore";
+import { inspectedToken } from "./inspectedToken";
 import { battleMapMenuContexts } from "./battleMapMenuContexts";
 
 export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) => {
   // Read when the menu opens: selecting on the canvas doesn't re-render this component,
   // so a value read at render time would still be the selection from before.
   const [selectedObjects, setSelectedObjects] = React.useState(() => canvas?.getActiveObjects() || []);
+  // A token right-clicked that the player sees but can't select: a read-only menu for it.
+  const [inspected, setInspected] = React.useState(null);
   const { hasEntityPermission } = usePermissions();
 
   // Resolve the current map id for entity-level permission checks
@@ -416,10 +419,12 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
         if (d.open) {
           const opened = canvas?.getActiveObjects() || [];
           setSelectedObjects(opened);
+          const token = inspectedToken(canvas);
+          setInspected(token);
           // What addon items in these menus get as variables when clicked.
           const position = ClientMediator.sendCommand("BattleMap", "GetLastClickPos", { contextId: battleMapId });
           const mapId = ClientMediator.sendCommand("BattleMap", "GetSelectedMapID", { contextId: battleMapId });
-          const contexts = battleMapMenuContexts({ battleMapId, mapId, position, selected: opened });
+          const contexts = battleMapMenuContexts({ battleMapId, mapId, position, selected: token ? [token] : opened });
           Object.entries(contexts).forEach(([viewId, context]) => setMenuContext(viewId, context));
         }
     }}>
@@ -528,6 +533,15 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
               />
             )}
             {permissionsMenu}
+            <AddonMenuItems viewId="battlemap_element" />
+          </>
+        ) : inspected ? (
+          <>
+            {/* Seen, not controlled: only its name and what addons offer for tokens
+                (their actions check permissions on the server). */}
+            <Heading size={"xs"} style={{ textAlign: "center" }}>
+              {inspected.name}
+            </Heading>
             <AddonMenuItems viewId="battlemap_element" />
           </>
         ) : selectedObjects.length > 1 ? (

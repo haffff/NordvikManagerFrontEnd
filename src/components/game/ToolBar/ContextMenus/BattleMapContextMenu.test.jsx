@@ -30,6 +30,7 @@ vi.mock('../../../uiComponents/hooks/useCustomLayers', () => ({
 vi.mock('../../turnOrder/TurnOrderService', () => ({ TurnOrderService: { Add: vi.fn(() => Promise.resolve(true)) } }));
 
 import BattleMapContextMenu from './BattleMapContextMenu';
+import { getMenuContext } from '../../../uiComponents/base/DDItems/menuItemsStore';
 import { TurnOrderService } from '../../turnOrder/TurnOrderService';
 import { ActiveTransportManager } from '../../../../helpers/transport';
 
@@ -125,6 +126,41 @@ describe('BattleMapContextMenu', () => {
     fireEvent.click(await screen.findByText('Add to turn order'));
 
     expect(TurnOrderService.Add).toHaveBeenCalledWith(expect.objectContaining({ elementIds: ['tok-1'] }));
+  });
+});
+
+describe('BattleMapContextMenu on a token the player only sees', () => {
+  const goblin = { id: 'tok-1', name: 'Goblin', isToken: true, selectable: false };
+  const open = (canvas) => {
+    renderWithProviders(
+      <BattleMapContextMenu battleMapId="bm" canvas={{ ...canvasStub, ...canvas }}>
+        <canvas data-testid="map" />
+      </BattleMapContextMenu>
+    );
+    fireEvent.contextMenu(screen.getByTestId('map').closest('[data-part="context-trigger"]'));
+  };
+
+  it('shows a read-only menu for that token, not the empty-map one', async () => {
+    open({ lastClickTarget: goblin });
+
+    expect(await screen.findByText('Goblin')).toBeInTheDocument();
+    for (const item of ['Delete', 'Copy', 'Paste', 'Properties', 'Permissions', 'Battle Map']) {
+      expect(screen.queryByText(item)).not.toBeInTheDocument();
+    }
+  });
+
+  it("gives addon token items that token, as when it's selected", async () => {
+    open({ lastClickTarget: goblin });
+    await screen.findByText('Goblin');
+
+    expect(getMenuContext('battlemap_element')).toMatchObject({ elementId: 'tok-1', elementIds: ['tok-1'] });
+  });
+
+  it('leaves a selection of several as it is', async () => {
+    open({ lastClickTarget: goblin, getActiveObjects: () => [{ id: 'a' }, { id: 'b' }], discardActiveObject: vi.fn(), requestRenderAll: vi.fn() });
+
+    expect(await screen.findByText('2 selected')).toBeInTheDocument();
+    expect(screen.queryByText('Goblin')).not.toBeInTheDocument();
   });
 });
 
