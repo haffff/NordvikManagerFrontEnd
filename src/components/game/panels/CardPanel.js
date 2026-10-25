@@ -364,8 +364,11 @@ export const CardPanel = ({ id, name, data }) => {
   const iframeRef = React.useRef(null);
   const cleanupRef = React.useRef(null);
 
+  // A view opened by an action (ShowView, view_show) comes with only the card's id and data:
+  // the window then takes the card's own name, once it's loaded, not the dock's "Content N".
+  const [loadedName, setLoadedName] = React.useState(null);
   const ctx = Dockable.useContentContext();
-  ctx.setTitle(name);
+  ctx.setTitle(name || loadedName || "Card");
 
   React.useEffect(() => {
     if (!panelId) return;
@@ -380,6 +383,7 @@ export const CardPanel = ({ id, name, data }) => {
       ]);
 
       if (cancelled || !iframeRef.current) return;
+      if (response?.name) setLoadedName(response.name);
 
       // `data` is a per-panel-instance value passed in via props (e.g. HandleViewShow
       // threading a ShowView step's Data payload through) — takes priority since it's

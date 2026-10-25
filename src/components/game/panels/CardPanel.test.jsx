@@ -3,12 +3,12 @@ import { act, render, waitFor } from '@testing-library/react';
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 const { server, dock } = vi.hoisted(() => ({
-  server: { appStyles: undefined },
-  dock: { layoutContent: null, calls: [] },
+  server: { appStyles: undefined, cardName: undefined },
+  dock: { layoutContent: null, calls: [], titles: [] },
 }));
 
 vi.mock('@hlorenzi/react-dockable', () => ({
-  useContentContext: () => ({ setTitle: vi.fn(), layoutContent: dock.layoutContent }),
+  useContentContext: () => ({ setTitle: (title) => dock.titles.push(title), layoutContent: dock.layoutContent }),
   removeContent: vi.fn((...args) => dock.calls.push(['removeContent', ...args])),
   coallesceEmptyPanels: vi.fn((...args) => dock.calls.push(['coallesceEmptyPanels', ...args])),
 }));
@@ -27,7 +27,7 @@ vi.mock('../../../helpers/transport', () => ({
   ActiveWebHelper: {
     ApiAddress: 'https://gm.example/api',
     getAsync: vi.fn(async (path) => {
-      if (path.startsWith('materials/getcard')) return { mainResource: 'main', additionalResources: ['css1'] };
+      if (path.startsWith('materials/getcard')) return { name: server.cardName, mainResource: 'main', additionalResources: ['css1'] };
       if (path.startsWith('properties/QueryProperties')) {
         return server.appStyles === undefined ? [] : [{ name: 'app_styles', value: server.appStyles }];
       }
@@ -74,6 +74,25 @@ async function openCard(name = 'Note') {
   };
   return { frame, posted, fromFrame, hostReady };
 }
+
+// A view opened by an action (ShowView, view_show) gets only the card's id and data: the
+// window is titled with the card's own name instead of the dock's "Content N".
+describe('CardPanel, window title', () => {
+  beforeEach(() => { dock.titles.length = 0; server.cardName = undefined; });
+
+  it('uses the name it is opened with', async () => {
+    server.cardName = 'Stored name';
+    render(<CardPanel id="card-1" name="Goblin" />);
+    await waitFor(() => expect(dock.titles.at(-1)).toBe('Goblin'));
+  });
+
+  it('without one, uses the name of the card once it is loaded', async () => {
+    server.cardName = 'Postać hafo - Horst "Klekot"';
+    render(<CardPanel id="card-1" data='{"view":"viewer"}' />);
+    await waitFor(() => expect(dock.titles.at(-1)).toBe('Postać hafo - Horst "Klekot"'));
+    expect(dock.titles.every((t) => !t || !/^Content/.test(t))).toBe(true);
+  });
+});
 
 describe('CardPanel, sandbox page', () => {
   it('loads the card into the sandbox page shipped with the app, not a blob: URL', async () => {
