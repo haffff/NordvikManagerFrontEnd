@@ -13,6 +13,8 @@ export const CREDITS = [
   { name: "JSONEditor", by: "Jos de Jong", license: "Apache-2.0", url: "https://jsoneditoronline.org", what: "the JSON editor" },
   { name: "driver.js", by: "Kamran Ahmed", license: "MIT", url: "https://driverjs.com", what: "the guided tour" },
   { name: "dnd kit", by: "Claudéric Demers", license: "MIT", url: "https://dndkit.com", what: "drag and drop lists" },
+  { name: "markdown-it", by: "Vitaly Puzrin, Alex Kocharin and contributors", license: "MIT", url: "https://github.com/markdown-it/markdown-it", what: "addon readmes" },
+  { name: "DOMPurify", by: "Cure53 and contributors", license: "MPL-2.0 OR Apache-2.0", url: "https://github.com/cure53/DOMPurify", what: "keeping addon readmes safe" },
   { name: "React Icons", by: "Goran Gajic and contributors", license: "MIT", url: "https://react-icons.github.io/react-icons", what: "the icons" },
   { name: "Jint", by: "Sébastien Ros and contributors", license: "BSD-2-Clause", url: "https://github.com/sebastienros/jint", what: "the server's action scripts" },
   { name: "MediatR", by: "Jimmy Bogard", license: "Apache-2.0", url: "https://github.com/jbogard/MediatR", what: "the server's commands" },

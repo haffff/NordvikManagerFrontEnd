@@ -24,8 +24,9 @@ import DListItem from "../../../../uiComponents/base/List/DListItem";
 import DLabel from "../../../../uiComponents/base/Text/DLabel";
 import { DUIBox } from "../../../../uiComponents/base/List/DUIBox";
 import { safeExternalUrl } from "../../../../../helpers/safeUrl";
+import AddonReadme from "./AddonReadme";
 
-export const BrowseInstalledTab = ({ handleReload, addons, loading }) => {
+export const BrowseInstalledTab = ({ handleReload, addons, loading, repository }) => {
   const [search, setSearch] = useState("");
   const [selectedKey, setSelectedKey] = useState(null);
   const [uninstalling, setUninstalling] = useState(null);
@@ -42,6 +43,12 @@ export const BrowseInstalledTab = ({ handleReload, addons, loading }) => {
   const currentSelected = useMemo(
     () => (selectedKey ? (Array.isArray(addons) ? addons : []).find((x) => (x.key ?? x.id) === selectedKey) ?? null : null),
     [addons, selectedKey]
+  );
+
+  // The registry's entry for it, for its readme (installed addons don't carry one).
+  const registryEntry = useMemo(
+    () => (currentSelected?.key ? (Array.isArray(repository) ? repository : []).find((x) => x.key === currentSelected.key) ?? null : null),
+    [repository, currentSelected]
   );
 
   const uninstall = async (addon) => {
@@ -199,6 +206,13 @@ export const BrowseInstalledTab = ({ handleReload, addons, loading }) => {
               <FaTrash /> Uninstall
             </Button>
           </HStack>
+
+          {registryEntry?.readme && (
+            <>
+              <Separator />
+              <AddonReadme addon={registryEntry} />
+            </>
+          )}
         </Flex>
       ) : (
         <Flex flex={1} align="center" justify="center" opacity={0.4} fontSize="sm">

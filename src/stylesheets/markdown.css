@@ -1,0 +1,88 @@
+/* Rendered markdown (addon readmes, helpers/markdown.js), in the app's colours. */
+.nm_markdown {
+  font-size: 13px;
+  line-height: 1.55;
+  overflow-wrap: anywhere;
+  color: var(--nordvik-text-color);
+}
+
+.nm_markdown h1,
+.nm_markdown h2,
+.nm_markdown h3,
+.nm_markdown h4 {
+  margin: 1em 0 0.4em;
+  line-height: 1.25;
+  font-weight: 600;
+  color: var(--nordvik-text-strong, var(--nordvik-text-color));
+}
+
+.nm_markdown h1 { font-size: 1.4em; }
+.nm_markdown h2 { font-size: 1.2em; border-bottom: 1px solid var(--nordvik-divider, rgba(255, 255, 255, 0.15)); padding-bottom: 0.2em; }
+.nm_markdown h3 { font-size: 1.05em; }
+.nm_markdown > :first-child { margin-top: 0; }
+
+.nm_markdown p,
+.nm_markdown ul,
+.nm_markdown ol,
+.nm_markdown table,
+.nm_markdown pre,
+.nm_markdown blockquote {
+  margin: 0 0 0.75em;
+}
+
+.nm_markdown ul,
+.nm_markdown ol { padding-left: 1.4em; }
+.nm_markdown ul { list-style: disc; }
+.nm_markdown ol { list-style: decimal; }
+
+.nm_markdown a {
+  color: var(--nordvik-accent-blue, rgb(100, 150, 230));
+  text-decoration: underline;
+}
+
+.nm_markdown img {
+  max-width: 100%;
+  height: auto;
+}
+
+.nm_markdown code {
+  font-family: ui-monospace, Consolas, monospace;
+  font-size: 0.9em;
+  padding: 0 3px;
+  border-radius: 3px;
+  background: var(--nordvik-surface-sunken, rgba(0, 0, 0, 0.3));
+}
+
+.nm_markdown pre {
+  padding: 8px 10px;
+  border-radius: 4px;
+  overflow-x: auto;
+  background: var(--nordvik-surface-sunken, rgba(0, 0, 0, 0.3));
+}
+
+.nm_markdown pre code { padding: 0; background: none; }
+
+.nm_markdown blockquote {
+  padding: 0.2em 0.8em;
+  border-left: 3px solid var(--nordvik-border, rgb(65, 65, 65));
+  opacity: 0.9;
+}
+
+.nm_markdown table {
+  border-collapse: collapse;
+  display: block;
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+.nm_markdown th,
+.nm_markdown td {
+  padding: 4px 8px;
+  border: 1px solid var(--nordvik-border, rgb(65, 65, 65));
+}
+
+.nm_markdown hr {
+  border: none;
+  border-top: 1px solid var(--nordvik-divider, rgba(255, 255, 255, 0.15));
+  margin: 1em 0;
+}

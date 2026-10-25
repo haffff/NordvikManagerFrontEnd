@@ -94,11 +94,34 @@ const basicsAddon = {
   description: 'Ships with NordvikManager and is added to every new game: a generic token with two bars and a private Note card.',
 };
 
+const DEMO_README = 'https://raw.githubusercontent.com/haffff/NordvikManager-5E/demo/README.md';
 const registry = [
-  { key: 'basics', name: 'Basics', version: '0.1.0', author: 'haffff', license: 'AGPL-3.0-only', repositoryUrl: null, description: basicsAddon.description },
-  { key: 'dnd5e', name: 'Fifth Edition (SRD)', version: '1.4.0', author: 'haffff', license: 'OGL / CC-BY-4.0', repositoryUrl: null, description: 'Character sheets, monsters, spells and items for 5th-edition games, from the SRD.' },
-  { key: 'themes', name: 'Themes', version: '0.3.0', author: 'haffff', license: 'AGPL-3.0-only', repositoryUrl: null, description: 'Ready-made looks for your game: parchment, sci-fi and more.' },
+  { key: 'basics', name: 'Basics', version: '0.1.0', author: 'haffff', license: 'AGPL-3.0-only', repositoryUrl: null, categories: ['tools'], description: basicsAddon.description },
+  { key: 'dnd5e', name: 'Fifth Edition (SRD)', version: '1.4.0', author: 'haffff', license: 'OGL / CC-BY-4.0', repositoryUrl: null, categories: ['game-system'], readme: DEMO_README, description: 'Character sheets, monsters, spells and items for 5th-edition games, from the SRD.' },
+  { key: 'themes', name: 'Themes', version: '0.3.0', author: 'haffff', license: 'AGPL-3.0-only', repositoryUrl: null, categories: ['theme'], description: 'Ready-made looks for your game: parchment, sci-fi and more.' },
 ];
+const registryCategories = [
+  { key: 'game-system', name: 'Game systems' },
+  { key: 'theme', name: 'Themes' },
+  { key: 'tools', name: 'Tools' },
+];
+const dnd5eReadme = {
+  key: 'dnd5e',
+  url: DEMO_README,
+  markdown: [
+    '# Fifth Edition (SRD)',
+    '',
+    "Character sheets that roll for you, with the SRD's monsters, spells and items.",
+    '',
+    '## What you get',
+    '',
+    '- A **character sheet** with abilities, skills, attacks and spells',
+    '- **Monsters** ready to drop on the map',
+    '- Rolls straight to chat',
+    '',
+    '> In the demo nothing is installed for real.',
+  ].join('\n'),
+};
 
 const arg = (name, type, description, extra = {}) => ({ name, type, description, conditionField: null, conditionValue: null, isOutput: false, deferred: false, ...extra });
 
@@ -185,6 +208,8 @@ export function mockExtraAnswers({ gameId, gm }) {
     ['api/materials/getcustomwiews', {}, []],
     ['api/addon/installed', {}, [basicsAddon]],
     ['api/addon/repository', {}, registry],
+    ['api/addon/categories', {}, registryCategories],
+    ['api/addon/readme', { key: 'dnd5e' }, dnd5eReadme],
     ['api/addon/actions', {}, [{ id: action.id, name: action.name, prefix: action.prefix, hook: action.hook, isEnabled: action.isEnabled }]],
     ['api/addon/action', { id: action.id }, action],
     ['api/addon/stepdefinitions', {}, { stepDefinitions }],

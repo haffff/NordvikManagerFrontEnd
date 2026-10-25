@@ -7,7 +7,7 @@ describe('CREDITS', () => {
     for (const c of CREDITS) {
       expect(c.name, JSON.stringify(c)).toBeTruthy();
       expect(c.by, c.name).toBeTruthy();
-      expect(c.license, c.name).toMatch(/^(MIT|Apache-2\.0|BSD-[23]-Clause)$/);
+      expect(c.license, c.name).toMatch(/^(MIT|Apache-2\.0|BSD-[23]-Clause|MPL-2\.0 OR Apache-2\.0)$/);
       expect(c.url, c.name).toMatch(/^https:\/\//);
       expect(c.what, c.name).toBeTruthy();
     }
