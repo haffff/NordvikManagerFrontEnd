@@ -27,3 +27,10 @@ Under section 7(b), the following author attributions must be preserved:
 
 Third-party components bundled with this program keep their own licenses, as stated next to
 them.
+
+- react-dockable, (C) hlorenzi, under the Apache License 2.0
+  (https://github.com/hlorenzi/react-dockable): the dockable windows use a modified fork of it,
+  https://github.com/haffff/react-dockable-expanded.
+- The other bundled packages (React, Chakra UI, Fabric.js, CodeMirror and more) are listed with
+  their authors and licenses in the app's About window and in package.json; each keeps its own
+  license.

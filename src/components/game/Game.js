@@ -26,6 +26,7 @@ import PointRequestManager from "./PointRequestManager";
 import PlayerTour from "./tutorial/PlayerTour";
 import LayoutAutoSaveManager from "./LayoutAutoSaveManager";
 import MinimizedWindowsBar from "./MinimizedWindowsBar";
+import GameDock from "./GameDock";
 import { useDockModifier } from "../../helpers/dockSettings";
 import GameStylesheets from "./theme/GameStylesheets";
 import themeColors from "../../helpers/themeColors";
@@ -232,7 +233,7 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
         battlemapsRef={battleMapContexts}
         forceRefreshGame={forceUpdate}
       />      <Flex className="nm_dock" data-tour="dock" style={{ height: "100%", overflow: "hidden" }}>
-      <Dockable.Container state={state} dockModifier={dockModifier} onPopOut={DockableHelper.getPopOutHandler()} />
+      <GameDock state={state} dockModifier={dockModifier} battleMaps={battleMapContexts} />
       </Flex><QuickCommandDialog state={dockState} openRef={quickCommandDialogOpenRef} />
       
       {portaledPanels}

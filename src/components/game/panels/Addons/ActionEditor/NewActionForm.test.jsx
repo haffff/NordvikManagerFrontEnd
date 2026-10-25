@@ -43,6 +43,19 @@ describe('NewActionForm', () => {
     });
   });
 
+  it('passes the hook filter of a pasted Chat Command action on', () => {
+    const onCreate = vi.fn();
+    renderWithProviders(<NewActionForm onCreate={onCreate} onCancel={vi.fn()} stepTypes={['SendChat']} />);
+
+    fireEvent.change(screen.getByLabelText('Start from'), { target: { value: 'json' } });
+    fireEvent.change(screen.getByLabelText('Action JSON'), {
+      target: { value: '{ "name": "chat", "hook": 19, "hookFilter": "poll, vote", "content": [] }' },
+    });
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+    expect(onCreate).toHaveBeenCalledWith('', 'chat', expect.objectContaining({ hook: 19, hookFilter: 'poll, vote' }));
+  });
+
   it('shows what is wrong with the JSON and creates nothing', () => {
     const onCreate = vi.fn();
     renderWithProviders(<NewActionForm onCreate={onCreate} onCancel={vi.fn()} stepTypes={['SendChat']} />);

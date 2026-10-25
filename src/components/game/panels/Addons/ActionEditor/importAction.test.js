@@ -18,6 +18,11 @@ describe('parseActionJson', () => {
     }]);
   });
 
+  it('keeps the hook filter of a Chat Command action', () => {
+    const r = parseActionJson(JSON.stringify({ name: 'chat', hook: 19, hookFilter: 'poll, vote', content: [] }), KNOWN);
+    expect(r.actions[0]).toMatchObject({ hook: 19, hookFilter: 'poll, vote' });
+  });
+
   it('takes the text inside a ```json fence', () => {
     const r = parseActionJson('Here it is:\n```json\n{ "name": "a", "prefix": "me", "content": [] }\n```\nEnjoy.', KNOWN);
     expect(r.actions[0]).toMatchObject({ prefix: 'me', name: 'a', content: [] });
