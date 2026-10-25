@@ -30,25 +30,28 @@ export const LayoutHelper = {
                 }
             }
 
-            // Save serializable props only — skip undefined, functions,
-            // React refs (.current) and dockable state (.ref).
-            const propsObject = {};
-            Object.entries(x.content.element.props).forEach(([key, val]) => {
-                if (val === undefined || typeof val === 'function') return;
-                if (val !== null && typeof val === 'object' && ('current' in val || 'ref' in val)) return;
-                propsObject[key] = val;
-            });
-
             return {
                 contentId: x.id,
                 type: LayoutHelper._resolvePanelKey(x.content.element.type),
                 syncId: bmId,
                 mapId: mapId,
-                props: propsObject
+                props: LayoutHelper.SerializableProps(x.content.element.props)
             };
         });
 
         return res;
+    },
+
+    // A panel's props that can be saved or sent: skips undefined, functions,
+    // React refs (.current) and dockable state (.ref).
+    SerializableProps: (props) => {
+        const propsObject = {};
+        Object.entries(props ?? {}).forEach(([key, val]) => {
+            if (val === undefined || typeof val === 'function') return;
+            if (val !== null && typeof val === 'object' && ('current' in val || 'ref' in val)) return;
+            propsObject[key] = val;
+        });
+        return propsObject;
     },
 
     // Non-mutating variant for automatic/background saves — never touches the live

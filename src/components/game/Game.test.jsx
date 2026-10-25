@@ -23,6 +23,7 @@ vi.mock('./PlaybackManager', () => ({ default: () => null }));
 vi.mock('./turnOrder/TurnOrderManager', () => ({ default: () => null }));
 vi.mock('./RequestInputManager', () => ({ default: () => null }));
 vi.mock('./LayoutAutoSaveManager', () => ({ default: () => null }));
+vi.mock('./GameDock', () => ({ default: () => null }));
 vi.mock('./theme/GameStylesheets', () => ({ default: () => null }));
 vi.mock('../QuickCommandDialog', () => ({ default: () => null }));
 vi.mock('../uiComponents/WebSocketStatus', () => ({ default: () => null }));
