@@ -42,3 +42,37 @@ export function showToPlayersItems(content, { canEditGame, battleMaps, resolveKe
   if (!panel) return [];
   return [{ label: "Show to players", onClick: () => send({ command: "show_panel", data: panel }) }];
 }
+
+// Same type and the same serializable props (in any key order).
+const sameAs = (a, b) => a?.type === b?.type && (a.type === "Battlemap"
+  ? a.syncId === b.syncId
+  : stableJson(a.props) === stableJson(b.props));
+
+const stableJson = (value) => JSON.stringify(value ?? {}, (key, val) =>
+  val && typeof val === "object" && !Array.isArray(val)
+    ? Object.fromEntries(Object.keys(val).sort().map((k) => [k, val[k]]))
+    : val);
+
+/**
+ * The open panel (and tab) already showing what show_panel describes, so a player who still has
+ * it gets it brought forward instead of a second copy; null when it isn't open.
+ */
+export function findOpenPanel(dockState, wanted, battleMaps, resolveKey) {
+  if (!dockState) return null;
+  const stack = [dockState.rootPanel, ...(dockState.floatingPanels ?? [])].filter(Boolean);
+  while (stack.length) {
+    const panel = stack.pop();
+    const tabIndex = (panel.contentList ?? []).findIndex((content) =>
+      sameAs(panelForPlayers(content, battleMaps, resolveKey) ?? describe(content, resolveKey), wanted));
+    if (tabIndex !== -1) return { panel, tabIndex };
+    stack.push(...(panel.splitPanels ?? []));
+  }
+  return null;
+}
+
+// Any panel's description (not only player panels): a player may have opened it themselves.
+function describe(content, resolveKey) {
+  const element = content?.element;
+  const type = element ? resolveKey(element.type) : undefined;
+  return type ? { type, props: LayoutHelper.SerializableProps(element.props) } : null;
+}

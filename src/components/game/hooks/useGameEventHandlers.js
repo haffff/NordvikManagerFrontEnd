@@ -1,6 +1,9 @@
 import React, { useCallback } from 'react';
 import UtilityHelper from '../../../helpers/UtilityHelper';
 import DockableHelper from '../../../helpers/DockableHelper';
+import * as Dockable from '@hlorenzi/react-dockable';
+import { getPanelKeyForComponent } from '../../../helpers/PanelsList';
+import { findOpenPanel } from '../../../helpers/showToPlayers';
 import addonOpLog from '../../../helpers/addonOpLog';
 import ClientMediator from '../../../ClientMediator';
 import { toaster } from '../../ui/toaster';
@@ -127,6 +130,15 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
     if (resp.data?.type === 'Battlemap') {
       const syncId = resp.data.syncId;
       if (syncId && battleMapsContextsRef.current[syncId]) return;
+    }
+    // Already open (e.g. the GM's "Show to players" reaches everyone, not only the player who
+    // closed it): bring that one forward instead of opening a second copy.
+    const open = findOpenPanel(state.ref.current, resp.data, battleMapsContextsRef.current, getPanelKeyForComponent);
+    if (open) {
+      open.panel.currentTabIndex = open.tabIndex;
+      Dockable.restorePanel(state.ref.current, open.panel);
+      state.commit();
+      return;
     }
     const panel = DockableHelper.NewFloating(state, CreateLayoutElement(resp.data));
     panel.rect = panel.rect.withX(50).withY(50);

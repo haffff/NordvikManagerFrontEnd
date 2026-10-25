@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from 'vitest';
-import { showToPlayersItems, panelForPlayers } from './showToPlayers';
+import { showToPlayersItems, panelForPlayers, findOpenPanel } from './showToPlayers';
 
 const CardPanel = () => null;
 const ActionsPanel = () => null;
@@ -43,5 +43,29 @@ describe('showToPlayersItems', () => {
     const send = vi.fn();
     expect(showToPlayersItems(content(CardPanel, { cardId: 'c1' }), { canEditGame: false, battleMaps: {}, resolveKey, send })).toEqual([]);
     expect(showToPlayersItems(content(ActionsPanel, {}), { canEditGame: true, battleMaps: {}, resolveKey, send })).toEqual([]);
+  });
+});
+
+describe('findOpenPanel', () => {
+  // A dock: a docked split with two tabs on one side, plus a minimized floating panel.
+  const panel = (contents, extra = {}) => ({ contentList: contents, currentTabIndex: 0, splitPanels: [], isMinimized: false, ...extra });
+  const chat = content(CardPanel, { id: 'chat-card' }, 1);
+  const goblin = content(CardPanel, { id: 'goblin', name: 'Goblin', gameDataManagerRef: ref }, 2);
+  const docked = panel([chat, goblin]);
+  const floating = panel([content(CardPanel, { id: 'orc', data: '{"view":"vote"}' }, 3)], { floating: true, isMinimized: true });
+  const dock = { rootPanel: panel([], { splitPanels: [panel([]), docked] }), floatingPanels: [floating] };
+  const battleMaps = { a: { id: 'bm1', PanelContentID: 9 } };
+
+  it('finds the open copy of a shown panel, with its tab, wherever it sits', () => {
+    expect(findOpenPanel(dock, { type: 'CardPanel', props: { id: 'goblin', name: 'Goblin' } }, battleMaps, resolveKey))
+      .toEqual({ panel: docked, tabIndex: 1 });
+    expect(findOpenPanel(dock, { type: 'CardPanel', props: { data: '{"view":"vote"}', id: 'orc' } }, battleMaps, resolveKey))
+      .toEqual({ panel: floating, tabIndex: 0 });
+  });
+
+  it('finds nothing when no open panel shows the same thing', () => {
+    expect(findOpenPanel(dock, { type: 'CardPanel', props: { id: 'troll' } }, battleMaps, resolveKey)).toBeNull();
+    expect(findOpenPanel(dock, { type: 'CardPanel', props: { id: 'orc', data: '{"view":"new"}' } }, battleMaps, resolveKey)).toBeNull();
+    expect(findOpenPanel(undefined, { type: 'CardPanel', props: {} }, battleMaps, resolveKey)).toBeNull();
   });
 });
