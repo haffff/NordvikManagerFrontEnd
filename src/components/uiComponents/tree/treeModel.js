@@ -8,7 +8,9 @@
  * Builds the displayed tree.
  * @param entries tree entries from the server
  * @param items   entities that leaves point at (by id)
- * @param options { additionalFilter?: (entity) => boolean }
+ * @param options { additionalFilter?: (entity) => boolean, hideEmptyFolders?: boolean }
+ *   hideEmptyFolders: leave out folders with nothing shown inside (for whoever can't edit
+ *   folders, e.g. a player: a folder they can't use is clutter).
  * @returns root nodes: { id, entry, isFolder, name, entity, parentId, children }
  */
 export function buildTree(entries, items, options = {}) {
@@ -42,6 +44,7 @@ export function buildTree(entries, items, options = {}) {
       if (node.isFolder && !seenFolders.has(node.id)) {
         node.children = build(node.id, new Set([...seenFolders, node.id]));
       }
+      if (node.isFolder && options.hideEmptyFolders && node.children.length === 0) continue;
       nodes.push(node);
     }
     return nodes;

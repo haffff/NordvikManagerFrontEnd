@@ -47,8 +47,9 @@ vi.mock('../../uiComponents/hooks/useBattleMapName', () => ({
   default: () => 'Test BM',
 }));
 
+let canEditGame = true;
 vi.mock('../../../contexts/PermissionsContext', () => ({
-  usePermissions: () => ({ canEditGame: true, hasEntityPermission: () => true }),
+  usePermissions: () => ({ canEditGame, hasEntityPermission: () => true }),
 }));
 
 import { ActiveWebHelper, ActiveTransportManager } from '../../../helpers/transport';
@@ -74,6 +75,7 @@ const mockState = {};
 describe('MapSelector', () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    canEditGame = true;
     // Clear captured handlers between tests
     Object.keys(subscribableHandlers).forEach((k) => delete subscribableHandlers[k]);
     ActiveWebHelper.getAsync.mockResolvedValue(MAPS);
@@ -209,6 +211,28 @@ describe('MapSelector', () => {
     // Cave sits in the folder: it shows once the folder is open
     if (!screen.queryByText('Cave')) await user.dblClick(screen.getByText('Dungeons'));
     expect(screen.getByText('Cave')).toBeInTheDocument();
+  });
+
+  it('hides folders with nothing in them from whoever cannot edit folders', async () => {
+    canEditGame = false;
+    treeEntries = [
+      { id: 'f-empty', isFolder: true, name: 'Empty folder', head: true, next: 'f-dungeons' },
+      { id: 'f-dungeons', isFolder: true, name: 'Dungeons', next: 'e-1' },
+      { id: 'e-2', targetId: 'map-2', parentId: 'f-dungeons', head: true },
+      { id: 'e-1', targetId: 'map-1' },
+    ];
+    renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
+    await waitFor(() => expect(screen.getByText('Dungeons')).toBeInTheDocument());
+    expect(screen.queryByText('Empty folder')).not.toBeInTheDocument();
+  });
+
+  it('keeps empty folders for whoever can edit them', async () => {
+    treeEntries = [
+      { id: 'f-empty', isFolder: true, name: 'Empty folder', head: true, next: 'e-1' },
+      { id: 'e-1', targetId: 'map-1' },
+    ];
+    renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
+    await waitFor(() => expect(screen.getByText('Empty folder')).toBeInTheDocument());
   });
 
   it('offers folders to whoever can edit the game', async () => {
