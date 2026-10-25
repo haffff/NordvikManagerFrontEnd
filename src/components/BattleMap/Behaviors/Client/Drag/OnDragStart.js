@@ -11,6 +11,9 @@ export class OnDragStartClientBehavior {
     });
 
     canvas.lastAbsolutePointer = canvas.getPointer(opt.e);
+    // What was under the pointer, selectable or not: the context menu offers a token the
+    // player only sees (inspectedToken).
+    canvas.lastClickTarget = opt.target ?? null;
 
     var evt = opt.e;
     if(opt.button === 2 || canvas.draggingMode)
