@@ -241,13 +241,13 @@ export const ActionsPanel = () => {
     if (target) navigate({ type: "action", id: target.id });
   };
 
-  // template: one of ActionEditor/actionTemplates, pasted JSON ({ hook, description, content }), or null for an empty action.
+  // template: one of ActionEditor/actionTemplates, pasted JSON ({ hook, hookFilter, description, content }), or null for an empty action.
   const create = (prefix, name, template) => {
     createdRef.current = prefix ? `${prefix}/${name}` : name;
     WebSocketManagerInstance.Send({
       command: "action_add",
       data: {
-        prefix, name, hook: template?.hook ?? 0, description: template?.description ?? "",
+        prefix, name, hook: template?.hook ?? 0, hookFilter: template?.hookFilter ?? null, description: template?.description ?? "",
         content: JSON.stringify(template?.content ?? []),
       },
     });

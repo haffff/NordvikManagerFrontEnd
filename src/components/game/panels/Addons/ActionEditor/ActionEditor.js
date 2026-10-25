@@ -21,6 +21,7 @@ import { computeInputs, outputsOf, variablesAvailableAt } from "./variableScope"
 import { findStep, stepsBefore } from "./stepTree";
 import { runFromMapArgs } from "./runFromMap";
 import { T } from "./editorTheme";
+import { filterField, filterHint, hookChange } from "./hookFilter";
 
 // Editor for one action. `draft` comes from useActionDraft (owned by ActionsPanel so it can
 // warn about unsaved changes when switching actions).
@@ -64,6 +65,7 @@ const SettingsTab = ({ action, update, hooks, onExport, onDelete }) => {
     return Object.entries(map).sort(([a], [b]) => a.localeCompare(b));
   }, [hookItems]);
   const hook = hooks.find((h) => Number(h.value) === Number(action.hook));
+  const filter = filterField(hook);
   const permVal = (v) => (v == null ? "" : String(v));
 
   return (
@@ -87,7 +89,7 @@ const SettingsTab = ({ action, update, hooks, onExport, onDelete }) => {
       <Field.Root>
         <Field.Label fontSize="xs" color="gray.400">Trigger</Field.Label>
         <SelectRoot collection={hookCollection} value={[String(action.hook ?? 0)]} size="sm"
-          onValueChange={(e) => update({ hook: Number(e.value[0]) })}>
+          onValueChange={(e) => update(hookChange(e.value[0], hooks, action.hookFilter))}>
           <SelectTrigger><SelectValueText placeholder="Called by name">{(items) => items[0]?.name ?? "Called by name"}</SelectValueText></SelectTrigger>
           <SelectContent>
             {hooksByCategory.map(([category, items]) => (
@@ -104,6 +106,15 @@ const SettingsTab = ({ action, update, hooks, onExport, onDelete }) => {
           <Text fontSize="xs" color={T.muted}>Gives the action: {hook.variables.map((v) => `%${v}%`).join(", ")}</Text>
         )}
       </Field.Root>
+
+      {filter && (
+        <Field.Root required={filter.required} invalid={filter.required && !String(action.hookFilter ?? "").trim()}>
+          <Field.Label fontSize="xs" color="gray.400">Hook filter{filter.required ? " (required)" : ""}</Field.Label>
+          <Input size="sm" value={action.hookFilter ?? ""} placeholder="poll, vote" aria-label="Hook filter"
+            onChange={(e) => update({ hookFilter: e.target.value }, "hookFilter")} />
+          <Text fontSize="xs" color={T.muted} mt={1}>{filter.help}</Text>
+        </Field.Root>
+      )}
 
       <Field.Root>
         <Field.Label fontSize="xs" color="gray.400">Permission for all players</Field.Label>
@@ -156,7 +167,7 @@ export const ActionEditor = ({ draft, stepDefinitions, hooks, actions, onSave, o
   const actionOptions = React.useMemo(() => (actions ?? []).map((a) => ({
     value: fullActionName(a),
     label: fullActionName(a),
-    hint: hooks.find((h) => Number(h.value) === Number(a.hook))?.name ?? (a.isEnabled ? "" : "off"),
+    hint: filterHint(a) || (hooks.find((h) => Number(h.value) === Number(a.hook))?.name ?? (a.isEnabled ? "" : "off")),
   })), [actions, hooks]);
 
   // The selected step may sit in a block; its number reads like its path, e.g. "2 › Then › 1".

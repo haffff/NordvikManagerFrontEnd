@@ -1,6 +1,6 @@
 // Actions pasted as JSON: one exported from the editor, an addon's action file, what an AI
 // assistant wrote (often inside a ```json fence, around some prose), or a list of those. Gives
-// { actions: [{ prefix, name, hook, description, content }] } or { error } saying what's wrong.
+// { actions: [{ prefix, name, hook, hookFilter?, description, content }] } or { error } saying what's wrong.
 
 // The text of every ```json block, or the whole text when there is none.
 const unfence = (text) => {
@@ -45,6 +45,7 @@ const readAction = (source, knownTypes) => {
       name: typeof source.name === "string" ? source.name : "",
       hook: Number.isNaN(hook) ? 0 : hook,
       description: typeof source.description === "string" ? source.description : "",
+      ...(typeof source.hookFilter === "string" && source.hookFilter.trim() ? { hookFilter: source.hookFilter } : {}),
       content,
     },
   };

@@ -25,7 +25,7 @@ export const NewActionForm = ({ onCreate, onCancel, stepTypes }) => {
     const named = actions.map((a) => ({ ...a, name: (actions.length === 1 && name.trim()) || a.name.trim() }));
     if (named.some((a) => !a.name)) { setError(actions.length === 1 ? "Give the action a name." : "Every action in the list needs a \"name\"."); return; }
     named.forEach((a) => onCreate(prefix.trim() || a.prefix.trim(), a.name,
-      { hook: a.hook, description: a.description, content: a.content }));
+      { hook: a.hook, hookFilter: a.hookFilter, description: a.description, content: a.content }));
   };
   const count = pasting ? (parseActionJson(json).actions?.length ?? 1) : 1;
 
