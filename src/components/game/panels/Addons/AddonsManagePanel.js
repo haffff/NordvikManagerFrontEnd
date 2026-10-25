@@ -10,6 +10,7 @@ import { BrowseAddonsTab } from "./AddonsManagePanel/BrowseAddonsTab";
 export const AddonsManagePanel = ({ state }) => {
   const [addons, setAddons] = React.useState([]);
   const [repository, setRepository] = React.useState([]);
+  const [categories, setCategories] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
   const [repositoryError, setRepositoryError] = React.useState(false);
 
@@ -26,10 +27,13 @@ export const AddonsManagePanel = ({ state }) => {
   const handleReload = async () => {
     setLoading(true);
     try {
-      const [installed, repo] = await Promise.allSettled([
+      const [installed, repo, cats] = await Promise.allSettled([
         WebHelper.getAsync("addon/installed"),
         WebHelper.getAsync("addon/repository"),
+        // Older servers have no categories list: the filter then shows category keys.
+        WebHelper.getAsync("addon/categories"),
       ]);
+      setCategories(cats.status === "fulfilled" && Array.isArray(cats.value) ? cats.value : []);
       if (installed.status === "fulfilled") setAddons(Array.isArray(installed.value) ? installed.value : []);
       const repoOk = repo.status === "fulfilled" && Array.isArray(repo.value);
       setRepository(repoOk ? repo.value : []);
@@ -52,13 +56,14 @@ export const AddonsManagePanel = ({ state }) => {
             <BrowseAddonsTab
               handleReload={handleReload}
               repository={repository}
+              categories={categories}
               repositoryError={repositoryError}
               addons={addons}
               loading={loading}
             />
           </Tabs.Content>
           <Tabs.Content value="installed" flex={1} overflow="hidden" padding={0}>
-            <BrowseInstalledTab handleReload={handleReload} addons={addons} loading={loading} />
+            <BrowseInstalledTab handleReload={handleReload} addons={addons} loading={loading} repository={repository} />
           </Tabs.Content>
           <Tabs.Content value="install" flex={1} overflow="hidden" padding={0}>
             <InstallFromFileTab handleReload={handleReload} />

@@ -25,6 +25,7 @@ import BasePanel from "../uiComponents/base/BasePanel";
 import { _entityPermissionSetter } from "../../contexts/PermissionsContext";
 import { ENTITY_TYPES, PERM } from "./Helpers/permissionBits";
 import UtilityHelper from "../../helpers/UtilityHelper";
+import { fitFloatingSize } from "../../helpers/floatingSize";
 
 const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
   // Performance monitor: track renders for this component
@@ -218,7 +219,11 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
   const panelHeight = ctx.layoutContent.layoutPanel.rect.h;
 
   React.useEffect(() => {
-    if (map && panel.floating) ctx.setPreferredSize(map.width, map.height);
+    if (!map || !panel.floating) return;
+    // The map's size, but never more than 4/5 of the screen: a big map (e.g. one shown
+    // to a player) would otherwise open with its window edges out of reach.
+    const { width, height } = fitFloatingSize(map.width, map.height);
+    ctx.setPreferredSize(width, height);
   }, [map?.width, map?.height, panel, panel.floating]);
 
   React.useEffect(() => {
