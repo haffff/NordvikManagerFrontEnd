@@ -9,6 +9,13 @@ body {
   height: 100%;
 }
 
+/* The canvas of a card's frame is white. A theme's surfaces can be see-through (in the app
+   they sit on the dock), so a card painting its body with one would turn grey: the page
+   itself always stands on the theme's opaque background. */
+html {
+  background-color: var(--nordvik-background-color);
+}
+
 body {
   background: var(--nordvik-background-color);
   color: var(--nordvik-text-color);

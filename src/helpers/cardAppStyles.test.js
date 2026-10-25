@@ -80,6 +80,14 @@ describe('cardAppStyles', () => {
     expect(decodeLink(html, 'nm-app-base')).toContain('.nm_basePanel');
   });
 
+  // A theme's surfaces can be see-through (they sit on the dock in the app). In a card's
+  // frame the canvas under the page is white, so whatever the card paints its body with
+  // must land on the theme's opaque background, not on white.
+  it('puts the opaque theme background under the whole card page', () => {
+    const base = baseCardCss();
+    expect(base).toMatch(/html\s*\{[^}]*background(-color)?:\s*var\(--nordvik-background-color/);
+  });
+
   it("turns a stylesheet's rules back into text", () => {
     expect(sheetText({ cssRules: [{ cssText: 'a { color: red; }' }, { cssText: 'b { color: blue; }' }] }))
       .toBe('a { color: red; }\nb { color: blue; }');
