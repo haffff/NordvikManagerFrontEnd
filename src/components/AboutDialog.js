@@ -9,6 +9,7 @@ import {
   DialogHeader,
   DialogRoot,
 } from "./ui/dialog";
+import { CREDITS } from "./aboutCredits";
 
 export const PROJECT_URL = "https://nordvikmanager.pl";
 export const SOURCE_URL = "https://github.com/haffff/NordvikManager";
@@ -46,6 +47,15 @@ export const AboutDialog = ({ openRef }) => {
             <Link href={SOURCE_URL} target="_blank" rel="noopener noreferrer" colorPalette="teal" fontSize="sm">
               Source code and license
             </Link>
+            <Heading size="sm" mt={2}>Built with</Heading>
+            <Stack as="ul" gap={1} fontSize="sm" listStyleType="none" m={0} p={0} maxH="40vh" overflowY="auto">
+              {CREDITS.map((c) => (
+                <Text as="li" key={c.name}>
+                  <Link href={c.url} target="_blank" rel="noopener noreferrer" colorPalette="teal">{c.name}</Link>
+                  {" "}by {c.by} ({c.license}): {c.what}
+                </Text>
+              ))}
+            </Stack>
           </Stack>
         </DialogBody>
         <DialogFooter>
