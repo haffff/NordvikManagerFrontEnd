@@ -199,6 +199,75 @@ export function computeMove(entries, dragId, targetId, position) {
 }
 
 /**
+ * The `tree_update` payloads that move several entries (`ids`, in tree order) to one drop
+ * point, keeping their order; [] when the move is invalid. An entry inside a moved folder
+ * goes with its folder, not on its own. Sent one after another, each lands right after the
+ * previous one: they all go before the same unmoved entry (or last).
+ * @param position as computeMove
+ */
+export function computeMoveMany(entries, ids, targetId, position) {
+  const entryById = new Map((entries ?? []).map((e) => [e.id, e]));
+  const moving = new Set(ids.filter((id) => entryById.has(id)));
+  const top = [...moving].filter((id) => ![...moving].some((other) => other !== id && isInside(entryById, id, other)));
+  if (!top.length) return [];
+
+  if (position === "end") return top.map((id) => ({ id, parentId: null, next: null }));
+
+  const target = entryById.get(targetId);
+  if (!target || moving.has(targetId)) return [];
+  // No folder into itself or anything inside it.
+  if (top.some((id) => entryById.get(id).isFolder && isInside(entryById, targetId, id))) return [];
+
+  if (position === "inside") {
+    if (!target.isFolder) return [];
+    return top.map((id) => ({ id, parentId: target.id, next: null }));
+  }
+
+  const parentId = target.parentId ?? null;
+  if (position === "before") return top.map((id) => ({ id, parentId, next: target.id }));
+  if (position === "after") {
+    // The first entry after the target that stays where it is.
+    let next = target.next ? entryById.get(target.next) : null;
+    const seen = new Set();
+    while (next && moving.has(next.id) && !seen.has(next.id)) {
+      seen.add(next.id);
+      next = next.next ? entryById.get(next.next) : null;
+    }
+    return top.map((id) => ({ id, parentId, next: next?.id ?? null }));
+  }
+  return [];
+}
+
+/**
+ * The selection after a click with modifier keys, over the rows in `order` (ids as shown):
+ * `toggle` (Ctrl/⌘) adds or takes off the clicked row and makes it the anchor; `range`
+ * (Shift) selects from the anchor to the clicked row, keeping the anchor — added to the
+ * selection with `toggle` too, else replacing it.
+ * @returns {{ ids: Set, anchorId }}
+ */
+export function selectWithModifiers(order, { ids, anchorId }, clickedId, { toggle = false, range = false } = {}) {
+  if (range) {
+    const from = order.indexOf(anchorId);
+    const to = order.indexOf(clickedId);
+    if (from === -1 || to === -1) return { ids: new Set([clickedId]), anchorId: clickedId };
+    const span = order.slice(Math.min(from, to), Math.max(from, to) + 1);
+    return { ids: new Set([...(toggle ? ids : []), ...span]), anchorId };
+  }
+  const next = new Set(ids);
+  if (toggle && next.has(clickedId)) next.delete(clickedId);
+  else next.add(clickedId);
+  return { ids: toggle ? next : new Set([clickedId]), anchorId: clickedId };
+}
+
+/** Every node's id in tree order (folders before what's in them), open or not. */
+export function treeOrder(roots) {
+  const out = [];
+  const walk = (nodes) => nodes.forEach((n) => { out.push(n.id); walk(n.children); });
+  walk(roots ?? []);
+  return out;
+}
+
+/**
  * Everything inside a folder, children before their folder (safe deletion order).
  * The folder itself isn't included.
  */

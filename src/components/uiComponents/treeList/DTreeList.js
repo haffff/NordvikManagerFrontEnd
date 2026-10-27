@@ -24,7 +24,7 @@ import AddonMenuItems from '../base/DDItems/AddonMenuItems';
 import { getMenuItems, setMenuContext, subscribeMenuItems } from '../base/DDItems/menuItemsStore';
 import themeColors from '../../../helpers/themeColors';
 import { TreeView } from '../tree/TreeView';
-import { buildTree, collectDescendants, computeMove, entryPath, splitMatch } from '../tree/treeModel';
+import { buildTree, collectDescendants, computeMove, computeMoveMany, entryPath, splitMatch, treeOrder } from '../tree/treeModel';
 import { useRememberedOpenFolders } from '../tree/useRememberedOpenFolders';
 
 // Folder tree for a game's materials, cards, … backed by the server's tree entries.
@@ -231,6 +231,9 @@ export const DTreeList = ({
     // ── state ──────────────────────────────────────────────────────────────────
     const [treeItems, setTreeItems] = React.useState([]);
     const [selected,  setSelected]  = React.useState(null);
+    // Every selected entry (Ctrl/⌘, Shift-click), with the Shift range's anchor; dragging
+    // one of them moves them all.
+    const [selection, setSelection] = React.useState({ ids: new Set(), anchorId: null });
     const [filter,    setFilter]    = React.useState("");
     const [loading,   setLoading]   = React.useState(false);
     const [openIds, setOpen, pruneOpen] = useRememberedOpenFolders(entityType);
@@ -240,8 +243,11 @@ export const DTreeList = ({
     const itemsRef      = React.useRef(items ?? []);
     const treeItemsRef  = React.useRef([]);
     const entityTypeRef = React.useRef(entityType);
+    const selectionRef  = React.useRef(selection);
+    const nodesRef      = React.useRef([]);
     itemsRef.current      = items ?? [];
     treeItemsRef.current  = treeItems;
+    selectionRef.current  = selection;
     entityTypeRef.current = entityType;
 
     const onDeleteItemRef = React.useRef(onDeleteItem);
@@ -287,6 +293,7 @@ export const DTreeList = ({
     const nodes = React.useMemo(
         () => buildTree(treeItems, items ?? [], { hideEmptyFolders: !canEditFolders }),
         [treeItems, items, canEditFolders]);
+    nodesRef.current = nodes;
 
     // Drop remembered open folders that no longer exist.
     React.useEffect(() => {
@@ -298,6 +305,8 @@ export const DTreeList = ({
     React.useEffect(() => {
         if (selectedItemOverwrite === undefined) return;
         setSelected(selectedItemOverwrite ?? null);
+        const id = selectedItemOverwrite?.id;
+        setSelection({ ids: new Set(id ? [id] : []), anchorId: id ?? null });
     }, [selectedItemOverwrite]);
 
     // ── loading ────────────────────────────────────────────────────────────────
@@ -354,11 +363,27 @@ export const DTreeList = ({
         if (command === "tree_remove") {
             setTreeItems(prev => prev.filter(x => x.id !== data));
             setSelected(sel => sel?.id === data ? null : sel);
+            setSelection(s => {
+                if (!s.ids.has(data)) return s;
+                const ids = new Set(s.ids);
+                ids.delete(data);
+                return { ids, anchorId: s.anchorId === data ? null : s.anchorId };
+            });
         }
     }, [fetchTree]);
 
     // ── moving ─────────────────────────────────────────────────────────────────
+    // A row of a multi-selection takes the whole selection with it, in tree order; one
+    // update each, sent in that order so they land in it.
     const handleMove = React.useCallback((dragId, targetId, position) => {
+        const { ids } = selectionRef.current;
+        if (ids.size > 1 && ids.has(dragId)) {
+            const ordered = treeOrder(nodesRef.current).filter(id => ids.has(id));
+            for (const payload of computeMoveMany(treeItemsRef.current, ordered, targetId, position)) {
+                WebSocketManagerInstance.Send({ command: "tree_update", data: payload });
+            }
+            return;
+        }
         const payload = computeMove(treeItemsRef.current, dragId, targetId, position);
         if (payload) WebSocketManagerInstance.Send({ command: "tree_update", data: payload });
     }, []);
@@ -426,8 +451,13 @@ export const DTreeList = ({
     const handleSelect = React.useCallback((nodeOrSelection) => {
         const sel = nodeOrSelection?.entry ? toSelection(nodeOrSelection) : nodeOrSelection;
         setSelected(sel);
+        setSelection({ ids: new Set(sel?.id ? [sel.id] : []), anchorId: sel?.id ?? null });
         onSelect?.(sel);
     }, [onSelect]);
+
+    // Ctrl/⌘ and Shift clicks only change which rows are selected; the toolbar and the
+    // panel keep following the last plainly clicked one.
+    const handleSelectionChange = React.useCallback((next) => setSelection(next), []);
 
     handleSelectRef.current        = handleSelect;
     handleDeleteFolderRef.current  = handleDeleteFolder;
@@ -526,6 +556,9 @@ export const DTreeList = ({
                         query={filter}
                         selectedId={selected?.id ?? null}
                         onSelect={handleSelect}
+                        selectedIds={selection.ids}
+                        anchorId={selection.anchorId}
+                        onSelectionChange={handleSelectionChange}
                         renderLabel={renderLabel}
                         draggable
                         onMove={handleMove}

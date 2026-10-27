@@ -5,7 +5,7 @@ import { FaChevronRight } from "@react-icons/all-files/fa/FaChevronRight";
 import { FaGripVertical } from "@react-icons/all-files/fa/FaGripVertical";
 import themeColors from "../../../helpers/themeColors";
 import UtilityHelper from "../../../helpers/UtilityHelper";
-import { flattenVisible } from "./treeModel";
+import { flattenVisible, selectWithModifiers } from "./treeModel";
 
 // Generic folder tree: virtualized rows (heights measured, so rows may differ), native
 // drag & drop (so rows can also be dropped onto the battle map), keyboard navigation.
@@ -73,7 +73,12 @@ export const TreeView = ({
   onToggle,               // (id, open) => void
   query = "",
   selectedId,
-  onSelect,               // (node) => void
+  onSelect,               // (node) => void — a plain click
+  // Several rows: with onSelectionChange, Ctrl/⌘-click and Shift-click change the
+  // selection ({ ids: Set, anchorId }) instead of selecting one row.
+  selectedIds,
+  anchorId = null,
+  onSelectionChange,      // ({ ids, anchorId }) => void
   renderLabel,            // (node, { query }) => ReactNode
   draggable = false,
   onMove,                 // (dragId, targetId, position) => void
@@ -214,6 +219,19 @@ export const TreeView = ({
     e.stopPropagation();
   };
 
+  // ── clicks ──────────────────────────────────────────────────────────────
+  const onRowClick = (e, node) => {
+    setKeyboardNav(false);
+    setFocusedId(node.id);
+    const toggle = e.ctrlKey || e.metaKey;
+    if (onSelectionChange && (toggle || e.shiftKey)) {
+      const order = rows.map((r) => r.node.id);
+      onSelectionChange(selectWithModifiers(order, { ids: selectedIds ?? new Set(), anchorId }, node.id, { toggle, range: e.shiftKey }));
+      return;
+    }
+    onSelect?.(node);
+  };
+
   // ── drag & drop ─────────────────────────────────────────────────────────
   const clearAutoOpen = () => {
     clearTimeout(autoOpenRef.current.timer);
@@ -335,7 +353,7 @@ export const TreeView = ({
         {rows.slice(start, end).map((row, k) => {
           const i = start + k;
           const { node } = row;
-          const isSelected = node.id === selectedId;
+          const isSelected = selectedIds ? selectedIds.has(node.id) : node.id === selectedId;
           const isFocused = keyboardNav && node.id === activeId && focusedId != null;
           return (
             <MeasuredRow
@@ -351,7 +369,9 @@ export const TreeView = ({
               onDragEnd={endDrag}
               onDragOver={(e) => onRowDragOver(e, row)}
               onDrop={(e) => onRowDrop(e, row)}
-              onClick={() => { setKeyboardNav(false); setFocusedId(node.id); onSelect?.(node); }}
+              onClick={(e) => onRowClick(e, node)}
+              // Shift-click selects rows, not the text in them.
+              onMouseDown={(e) => { if (e.shiftKey && onSelectionChange) e.preventDefault(); }}
               onDoubleClick={() => node.isFolder && !query && onToggle?.(node.id, !row.isOpen)}
               cursor="pointer"
               bg={isSelected ? selectedBg : undefined}
