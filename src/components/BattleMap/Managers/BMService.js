@@ -440,10 +440,8 @@ class BMService {
   UnsetTokenSelectMode({ isCommand }) {
     const canvas = this._canvas;
 
-    if (!canvas.modeLock || !canvas.tokenSelectMode) {
-      console.warn("Cannot unset token select mode.");
-      return;
-    }
+    // Not on: nothing to undo (DisableAllModes asks every mode to turn off).
+    if (!canvas.tokenSelectMode) return;
 
     canvas.tokenSelectMode = undefined;
     canvas.modeLock = undefined;
@@ -881,6 +879,12 @@ class BMService {
         canvas.dragModeLock = false;
 
         this._removePopupAndOverlay();
+
+        // Measuring made everything unselectable: give each object what it had.
+        canvas.getObjects().forEach((object) => {
+          if (object.beforeMeasureSelectable !== undefined)
+            object.set({ selectable: object.beforeMeasureSelectable, beforeMeasureSelectable: undefined });
+        });
 
         ClientMediator.fireEvent("BattleMap_ModeChanged", {
           battleMapId: this.contextId,

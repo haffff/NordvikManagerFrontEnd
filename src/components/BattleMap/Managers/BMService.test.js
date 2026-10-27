@@ -4,7 +4,7 @@ vi.mock('../../../helpers/transport', () => ({
   ActiveTransportManager: { Send: vi.fn() },
 }));
 vi.mock('../../../ClientMediator', () => ({
-  default: { sendCommand: vi.fn(), sendCommandAsync: vi.fn() },
+  default: { sendCommand: vi.fn(), sendCommandAsync: vi.fn(), fireEvent: vi.fn() },
 }));
 vi.mock('../../ui/toaster', () => ({ toaster: { create: vi.fn() } }));
 
@@ -111,6 +111,53 @@ describe('BMService.CleanPreviews', () => {
       battleMapId: 'bm-1',
       data: [{ previewId: 'p1', playerId: 'player-1' }],
     });
+  });
+});
+
+// Measuring makes everything unselectable; leaving it (the Tools panel's DisableAllModes)
+// must give tokens back the selectability they had, or they can't be selected until the
+// player picks a layer again.
+describe('BMService measure mode', () => {
+  const measuringService = (objects) => {
+    const service = new BMService();
+    service._canvas = {
+      getObjects: () => objects,
+      discardActiveObject: vi.fn(),
+      requestRenderAll: vi.fn(),
+      remove: vi.fn(),
+    };
+    service._addPopupAndOverlay = vi.fn();
+    service._removePopupAndOverlay = vi.fn();
+    service.SetDragMode = vi.fn();
+    ClientMediator.sendCommand.mockReturnValue({ id: 'player-1' });
+    ClientMediator.sendCommandAsync.mockImplementation(async (_panel, command) =>
+      command === 'GetSelectedMap' ? { id: 'map-1' } : command === 'GetGameId' ? 'game-1' : []);
+    return service;
+  };
+
+  it('gives objects their selectability back when measuring ends', async () => {
+    const token = makeFakeObject({ id: 't1', selectable: true });
+    const background = makeFakeObject({ id: 'bg', selectable: false });
+    const service = measuringService([token, background]);
+
+    await service.SetMeasureMode({ enabled: true, type: 'Circle', playerColor: 'red', measureObject: {} });
+    expect(token.selectable).toBe(false);
+    service.DisableAllModes();
+
+    expect(token.selectable).toBe(true);
+    expect(background.selectable).toBe(false);
+    expect(token.beforeMeasureSelectable).toBeUndefined();
+  });
+
+  it('does not complain about modes that are not on', () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const service = measuringService([]);
+    service.SetLayerEditMode = vi.fn();
+
+    service.DisableAllModes();
+
+    expect(warn).not.toHaveBeenCalledWith('Cannot unset token select mode.');
+    warn.mockRestore();
   });
 });
 
