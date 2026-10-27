@@ -10,7 +10,7 @@ vi.mock('../../uiComponents/base/Subscribable', () => ({
   },
 }));
 
-vi.mock('../theme/StylesheetSettings', () => ({ GameStylesheetSettings: () => null }));
+
 vi.mock('@hlorenzi/react-dockable', () => ({
   useContentContext: () => ({ setTitle: vi.fn(), setPreferredSize: vi.fn() }),
 }));
@@ -31,7 +31,7 @@ vi.mock('../../uiComponents/hooks/useGameHook', () => ({
 }));
 
 vi.mock('./LayerListEditor', () => ({ default: () => null }));
-vi.mock('./SystemAssetsSettingsPanel', () => ({ default: () => null }));
+vi.mock('./AppearanceSettings', () => ({ default: () => null }));
 vi.mock('./SecuritySettingsPanel', () => ({ default: () => null }));
 vi.mock('./PropertiesSettingsPanel', () => ({ default: () => null }));
 vi.mock('../../uiComponents/base/BasePanel', () => ({ BasePanel: ({ children }) => <div>{children}</div> }));

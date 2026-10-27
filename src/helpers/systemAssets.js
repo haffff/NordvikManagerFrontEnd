@@ -6,7 +6,7 @@ import { applyVolume } from "./audioVolume";
 
 // Well-known per-game Resource keys (see MaterialsController Resource/CreateResource/
 // ResourceData). A GM can override any of these for their game by uploading a file
-// under the matching key (SystemAssetsSettingsPanel) — until they do, every game gets
+// under the matching key (Game Settings → Appearance, AppearanceSettings) — until they do, every game gets
 // the bundled default below via resolveSystemAssetUrl()/fallback wiring.
 export const SYSTEM_ASSET_KEYS = Object.freeze({
   EMPTY_IMAGE: "emptyImage",

@@ -1,16 +1,13 @@
 import * as React from "react";
 import { pickableTemplates } from "../../../helpers/pickableTemplates";
-import {
-  Heading,
-  Tabs,
-} from "@chakra-ui/react";
+import { Tabs } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import Subscribable from "../../uiComponents/base/Subscribable";
 import SecuritySettingsPanel from "./SecuritySettingsPanel";
 import PropertiesSettingsPanel from "./PropertiesSettingsPanel";
-import SystemAssetsSettingsPanel from "./SystemAssetsSettingsPanel";
+import AppearanceSettings from "./AppearanceSettings";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
 import { SettingsPanelWithPropertySettings } from "./SettingsPanelWithPropertySettings";
 import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
@@ -18,7 +15,6 @@ import useGame from "../../uiComponents/hooks/useGameHook";
 import ClientMediator from "../../../ClientMediator";
 import { toaster } from "../../ui/toaster";
 import LayerListEditor from "./LayerListEditor";
-import { GameStylesheetSettings } from "../theme/StylesheetSettings";
 import { usePermissions } from "../../../contexts/PermissionsContext";
 
 export const GameSettingsPanel = () => {
@@ -278,9 +274,7 @@ export const GameSettingsPanel = () => {
             />
           </Tabs.Content>
           <Tabs.Content value="appearance">
-            <GameStylesheetSettings gameId={gameData.id} />
-            <Heading size="sm" px={2} mt={4} mb={2}>Sounds & images</Heading>
-            <SystemAssetsSettingsPanel />
+            <AppearanceSettings gameId={gameData.id} />
           </Tabs.Content>
           <Tabs.Content value="adv">
             <SettingsPanelWithPropertySettings
