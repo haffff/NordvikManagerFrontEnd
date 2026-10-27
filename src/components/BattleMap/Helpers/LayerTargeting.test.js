@@ -89,6 +89,18 @@ describe('installLayerTargeting', () => {
     c.selectedLayer = -100; // working on the map layer
     expect(c._checkTarget({}, openCard, {})).toBeFalsy();
   });
+
+  // A token on a custom layer: its UI is clicked with it, while that layer is worked on.
+  it("counts token UI as part of its own token's layer", () => {
+    const c = { ...canvas(), selectedLayer: 140 };
+    installLayerTargeting(c);
+    const openCard = { isTokenUI: true, layer: 110, visible: true, selectable: false, uiOf: { layer: 140 } };
+
+    expect(c._checkTarget({}, openCard, {})).toBe(true);
+
+    c.selectedLayer = 100;
+    expect(c._checkTarget({}, openCard, {})).toBeFalsy();
+  });
 });
 
 // GM-only and hidden custom layers (see layerVisibility.js): not drawn / drawn faded,
@@ -121,6 +133,25 @@ describe('layer view on the canvas', () => {
     expect(drawn[0][1]).toBeLessThan(1);
     expect(drawn[1][1]).toBe(1);
     expect(ctx.globalAlpha).toBe(1);
+  });
+
+  // A token moved to a hidden custom layer takes its bars and name with it.
+  it("leaves out a token's UI with the token, and fades it with it", () => {
+    const c = canvas();
+    installLayerTargeting(c);
+    setLayerView(c, view);
+    const { ctx, drawn, element } = recordingCtx();
+    const hiddenToken = element('hidden token', 150);
+    const gmToken = element('gm token', 140);
+
+    c._renderObjects(ctx, [
+      hiddenToken, element('hidden bar', 110, { isTokenUI: true, uiOf: hiddenToken }),
+      gmToken, element('gm bar', 110, { isTokenUI: true, uiOf: gmToken }),
+    ]);
+
+    expect(drawn.map(([n]) => n)).toEqual(['gm token', 'gm bar']);
+    expect(drawn[1][1]).toBeLessThan(1);
+    expect(c._checkTarget({}, { isTokenUI: true, layer: 110, visible: true, uiOf: hiddenToken }, {})).toBeFalsy();
   });
 
   it('draws everything as before without a view', () => {

@@ -100,5 +100,42 @@ describe('OnUpdateElementBehavior', () => {
       expect(bar.visible).toBe(true);
       expect(bar.visibleBeforeDrag).toBeUndefined();
     });
+
+    // The parts stay where a freshly loaded token has them (the token UI layer, never
+    // selectable), so a token looks and works the same before and after a refresh.
+    it("leaves the token's parts on the token UI layer, unselectable", async () => {
+      const bar = { layer: 110, selectable: false, isTokenUI: true, visible: true, set(props, val) { typeof props === 'string' ? (this[props] = val) : Object.assign(this, props); } };
+      const obj = { id: 'obj-1', layer: 100, selectablePermission: true, additionalObjects: [bar] };
+      obj.set = vi.fn((key, val) => { obj[key] = val; });
+      const canvas = { getObjects: () => [obj], requestRenderAll: vi.fn(), renderAll: vi.fn(), _objects: [obj] };
+      convertFromDTOMock.mockReturnValue({ layer: 140, insideLayerIndex: 0 });
+      clientMediatorMock.sendCommand.mockReturnValue(140); // the player works on that layer
+      const response = { data: { id: 'obj-1', layer: 140, insideLayerIndex: 0 }, action: 'layer' };
+
+      await new OnUpdateElementBehavior().Handle(response, canvas, 'bm-1');
+      await flushMicrotasks();
+
+      expect(obj.selectable).toBe(true);
+      expect(bar.layer).toBe(110);
+      expect(bar.selectable).toBe(false);
+    });
+
+    it('lets go of a token moved to a layer this player cannot see', async () => {
+      const obj = { id: 'obj-1', layer: 100, selectablePermission: true };
+      obj.set = vi.fn((key, val) => { obj[key] = val; });
+      const canvas = {
+        getObjects: () => [obj], requestRenderAll: vi.fn(), renderAll: vi.fn(), _objects: [obj],
+        layerView: { hidden: new Set([150]), dimmed: new Set() },
+        getActiveObjects: () => [obj], discardActiveObject: vi.fn(),
+      };
+      convertFromDTOMock.mockReturnValue({ layer: 150, insideLayerIndex: 0 });
+      clientMediatorMock.sendCommand.mockReturnValue(100);
+      const response = { data: { id: 'obj-1', layer: 150, insideLayerIndex: 0 }, action: 'layer' };
+
+      await new OnUpdateElementBehavior().Handle(response, canvas, 'bm-1');
+      await flushMicrotasks();
+
+      expect(canvas.discardActiveObject).toHaveBeenCalled();
+    });
   });
 });

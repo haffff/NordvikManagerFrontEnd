@@ -97,13 +97,13 @@ export class OnUpdateElementBehavior {
                 "selectable",
                 obj.selectablePermission && obj.layer === selectedLayer
               );
-              obj?.additionalObjects?.forEach((element) => {
-                element.set("layer", parsedJson.layer);
-                element.set(
-                  "selectable",
-                  obj.selectablePermission && obj.layer === selectedLayer
-                );
-              }, options);
+              // The token's parts stay on the token UI layer and unselectable, as a freshly
+              // loaded token has them; they're drawn and clicked with the token's layer
+              // (drawLayerOf), so they follow it there.
+              // Moved to a layer this player doesn't see: no selection left on it.
+              if (canvas.layerView?.hidden.has(obj.layer) && canvas.getActiveObjects?.().includes(obj)) {
+                canvas.discardActiveObject();
+              }
               // Hidden above like for any update — nothing animates here to show them again.
               obj?.additionalObjects?.forEach((element) => {
                 if (element.visibleBeforeDrag !== undefined) {
