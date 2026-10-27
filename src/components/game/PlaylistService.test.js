@@ -27,4 +27,21 @@ describe('PlaylistService volumes', () => {
 
     expect(WebHelper.postAsync).toHaveBeenCalledWith('Soundboard/PlaySound', { ResourceId: 'r1', SoundboardId: 'b1' });
   });
+
+  it("SetLoopedSounds saves which of a soundboard's sounds loop, keeping everything else as it is", async () => {
+    const board = { id: 'b1', name: 'Weather', description: '', mode: 0, shuffle: false, repeat: true, kind: 1, resources: [{ id: 'rain' }] };
+
+    await PlaylistService.SetLoopedSounds({ playlist: board, resourceIds: ['rain'] });
+
+    expect(WebHelper.putAsync).toHaveBeenCalledWith('Playlist/UpdatePlaylist', {
+      Id: 'b1', Name: 'Weather', Description: '', Mode: 0, Shuffle: false, Repeat: true, Kind: 1,
+      ResourceIds: ['rain'], LoopedResourceIds: ['rain'],
+    });
+  });
+
+  it('StopAllSounds silences every sound', async () => {
+    await PlaylistService.StopAllSounds();
+
+    expect(WebHelper.postAsync).toHaveBeenCalledWith('Soundboard/StopAllSounds', {});
+  });
 });

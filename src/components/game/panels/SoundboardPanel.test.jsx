@@ -1,5 +1,5 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { screen, waitFor, fireEvent } from '@testing-library/react';
+import { screen, waitFor, fireEvent, act } from '@testing-library/react';
 import { renderWithProviders } from '../../../setupTests';
 
 // The soundboard panel shows its boards in a folder tree (tree entries labelled "Soundboard").
@@ -40,6 +40,7 @@ vi.mock('../../../helpers/transport', () => ({
 import ClientMediator from '../../../ClientMediator';
 import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
 import { SoundboardPanel } from './SoundboardPanel';
+import { playingSounds } from '../../../helpers/playingSounds';
 
 const treeRequests = () => WebHelper.get.mock.calls.filter(([url]) => url.startsWith('battlemap/getTree'));
 
@@ -47,6 +48,7 @@ describe('SoundboardPanel folder tree', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     localStorage.clear();
+    playingSounds.clear();
     ClientMediator.sendCommandAsync.mockImplementation(async (panel, cmd) => {
       if (cmd === 'GetPlaylists') return playlists;
       if (cmd === 'GetCurrentPlayback') return [];
@@ -104,6 +106,57 @@ describe('SoundboardPanel folder tree', () => {
     fireEvent.click(await screen.findByText('Door creak'));
 
     await waitFor(() => expect(ClientMediator.sendCommandAsync).toHaveBeenCalledWith('Playlist', 'PlaySound', { resourceId: 'r2', soundboardId: 'p2' }));
+  });
+
+  // One button per sound: a click plays it, a click while it plays stops it.
+  it('a playing sound lights up, with its progress, and a click stops it', async () => {
+    renderWithProviders(<SoundboardPanel />);
+    fireEvent.click(await screen.findByText('Tavern'));
+    expect(await screen.findByRole('button', { name: 'Play Door creak' })).toBeInTheDocument();
+
+    act(() => playingSounds.started('r2', { currentTime: 1, duration: 4 }));
+
+    const stop = await screen.findByRole('button', { name: 'Stop Door creak' });
+    expect(screen.getByRole('progressbar', { name: 'Door creak' })).toBeInTheDocument();
+    fireEvent.click(stop);
+    await waitFor(() => expect(ClientMediator.sendCommandAsync).toHaveBeenCalledWith('Playlist', 'StopSound', { resourceId: 'r2' }));
+    expect(ClientMediator.sendCommandAsync).not.toHaveBeenCalledWith('Playlist', 'PlaySound', expect.anything());
+
+    act(() => playingSounds.ended('r2'));
+    expect(await screen.findByRole('button', { name: 'Play Door creak' })).toBeInTheDocument();
+  });
+
+  it('Stop all silences every sound', async () => {
+    renderWithProviders(<SoundboardPanel />);
+    fireEvent.click(await screen.findByText('Tavern'));
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Stop all sounds' }));
+
+    await waitFor(() => expect(ClientMediator.sendCommandAsync).toHaveBeenCalledWith('Playlist', 'StopAllSounds', {}));
+  });
+
+  it("a sound's loop button saves it as looped on its soundboard, and back", async () => {
+    renderWithProviders(<SoundboardPanel />);
+    fireEvent.click(await screen.findByText('Tavern'));
+
+    const loop = await screen.findByRole('button', { name: 'Loop Door creak' });
+    expect(loop).toHaveAttribute('aria-pressed', 'false');
+    fireEvent.click(loop);
+
+    await waitFor(() => expect(ClientMediator.sendCommandAsync).toHaveBeenCalledWith('Playlist', 'SetLoopedSounds', { playlist: playlists[1], resourceIds: ['r2'] }));
+  });
+
+  it('a looped sound shows it, and its loop button takes it off', async () => {
+    const looped = [{ ...playlists[0] }, { ...playlists[1], loopedResourceIds: ['r2'] }];
+    ClientMediator.sendCommandAsync.mockImplementation(async (panel, cmd) => (cmd === 'GetPlaylists' ? looped : { status: 200, body: {} }));
+    renderWithProviders(<SoundboardPanel />);
+    fireEvent.click(await screen.findByText('Tavern'));
+
+    const loop = await screen.findByRole('button', { name: 'Loop Door creak' });
+    expect(loop).toHaveAttribute('aria-pressed', 'true');
+    fireEvent.click(loop);
+
+    await waitFor(() => expect(ClientMediator.sendCommandAsync).toHaveBeenCalledWith('Playlist', 'SetLoopedSounds', { playlist: looped[1], resourceIds: [] }));
   });
 
   it('each soundboard has a volume slider that saves its volume', async () => {

@@ -52,13 +52,21 @@ export const PlaylistService = {
       description: 'Stops a music playlist by ID and tears down its playback state.',
       args: [{ name: 'playlistId', type: 'playlistid', required: true }],
     },
+    SetLoopedSounds: {
+      description: "Sets which of a soundboard's sounds repeat until stopped (resource IDs); they loop from their next play.",
+      args: [{ name: 'playlist', type: 'object', required: true }, { name: 'resourceIds', type: 'array', required: true }],
+    },
     PlaySound: {
-      description: "Plays a one-shot soundboard sound by resource ID. soundboardId (optional): the soundboard it's from, whose volume applies.",
+      description: "Plays a soundboard sound by resource ID. soundboardId (optional): the soundboard it's from, whose volume applies and which may loop it.",
       args: [{ name: 'resourceId', type: 'audioresourceid', required: true }, { name: 'soundboardId', type: 'string', required: false }],
     },
     StopSound: {
       description: 'Stops a currently playing soundboard sound by resource ID.',
       args: [{ name: 'resourceId', type: 'audioresourceid', required: true }],
+    },
+    StopAllSounds: {
+      description: 'Stops every soundboard sound playing, for everyone.',
+      args: [],
     },
   },
 
@@ -67,18 +75,8 @@ export const PlaylistService = {
   GetCurrentPlayback: () => WebHelper.getAsync("Playlist/GetCurrentPlayback"),
   AddPlaylist: (data) => WebHelper.postAsync("Playlist/AddPlaylist", data),
   UpdatePlaylist: (data) => WebHelper.putAsync("Playlist/UpdatePlaylist", data),
-  // UpdatePlaylist replaces the whole playlist, so everything else is sent unchanged.
-  SetVolume: ({ playlist, volume }) => WebHelper.putAsync("Playlist/UpdatePlaylist", {
-    Id: playlist.id,
-    Name: playlist.name,
-    Description: playlist.description ?? "",
-    Mode: Number(playlist.mode ?? 0),
-    Shuffle: playlist.shuffle ?? false,
-    Repeat: playlist.repeat ?? true,
-    Kind: Number(playlist.kind ?? 0),
-    ResourceIds: (playlist.resources ?? []).map((r) => r.id),
-    Volume: volume,
-  }),
+  SetVolume: ({ playlist, volume }) => updateOne(playlist, { Volume: volume }),
+  SetLoopedSounds: ({ playlist, resourceIds }) => updateOne(playlist, { LoopedResourceIds: resourceIds }),
   // Accepts either a bare id (direct panel calls) or { id } (CommandExecutionHelper
   // wraps positional Run-dialog args into { [metaArgName]: value }) — same dual-shape
   // handling as useGameApi's GetPlayer.
@@ -93,6 +91,23 @@ export const PlaylistService = {
   PlaySound: ({ resourceId, soundboardId }) => WebHelper.postAsync("Soundboard/PlaySound",
     soundboardId ? { ResourceId: resourceId, SoundboardId: soundboardId } : { ResourceId: resourceId }),
   StopSound: ({ resourceId }) => WebHelper.postAsync("Soundboard/StopSound", { ResourceId: resourceId }),
+  StopAllSounds: () => WebHelper.postAsync("Soundboard/StopAllSounds", {}),
 };
+
+// Changes one thing of a playlist: UpdatePlaylist replaces the whole playlist, so
+// everything else is sent unchanged.
+function updateOne(playlist, change) {
+  return WebHelper.putAsync("Playlist/UpdatePlaylist", {
+    Id: playlist.id,
+    Name: playlist.name,
+    Description: playlist.description ?? "",
+    Mode: Number(playlist.mode ?? 0),
+    Shuffle: playlist.shuffle ?? false,
+    Repeat: playlist.repeat ?? true,
+    Kind: Number(playlist.kind ?? 0),
+    ResourceIds: (playlist.resources ?? []).map((r) => r.id),
+    ...change,
+  });
+}
 
 export default PlaylistService;

@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Box, Button, Flex, HStack, Icon, SimpleGrid, Stack, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, HStack, Icon, IconButton, SimpleGrid, Stack, Text } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import { FaChevronLeft } from "@react-icons/all-files/fa/FaChevronLeft";
 import { FaChevronRight } from "@react-icons/all-files/fa/FaChevronRight";
@@ -7,9 +7,12 @@ import { FaEdit } from "@react-icons/all-files/fa/FaEdit";
 import { FaMinus } from "@react-icons/all-files/fa/FaMinus";
 import { FaMusic } from "@react-icons/all-files/fa/FaMusic";
 import { FaPlus } from "@react-icons/all-files/fa/FaPlus";
+import { FaRedo } from "@react-icons/all-files/fa/FaRedo";
 import { FaStop } from "@react-icons/all-files/fa/FaStop";
 import { FaVolumeUp } from "@react-icons/all-files/fa/FaVolumeUp";
 import { toaster } from "../../ui/toaster";
+import { Tooltip } from "../../ui/tooltip";
+import { playingSounds, usePlayingSounds } from "../../../helpers/playingSounds";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
 import Subscribable from "../../uiComponents/base/Subscribable";
 import DTreeList from "../../uiComponents/treeList/DTreeList";
@@ -60,28 +63,85 @@ const EmptyState = ({ message = "Select a soundboard to play or edit it" }) => (
   </Flex>
 );
 
-const SoundTile = React.memo(({ resource, onPlay, onStop }) => (
-  <Flex
-    direction="column"
-    align="center"
-    justify="center"
-    gap="6px"
-    p="10px"
-    borderWidth="1px"
-    borderColor="whiteAlpha.200"
-    borderRadius="md"
+// How far a playing sound is (0..1), read off its audio element while it plays.
+const useSoundProgress = (resourceId) => {
+  const [progress, setProgress] = React.useState(0);
+  React.useEffect(() => {
+    const read = () => {
+      const audio = playingSounds.get(resourceId);
+      setProgress(audio?.duration ? Math.min(1, audio.currentTime / audio.duration) : 0);
+    };
+    read();
+    const timer = setInterval(read, 250);
+    return () => clearInterval(timer);
+  }, [resourceId]);
+  return progress;
+};
+
+const SoundProgress = ({ resource }) => {
+  const progress = useSoundProgress(resource.id);
+  return (
+    <Box
+      role="progressbar"
+      aria-label={resource.name}
+      aria-valuemin={0}
+      aria-valuemax={100}
+      aria-valuenow={Math.round(progress * 100)}
+      position="absolute"
+      left={0}
+      bottom={0}
+      height="3px"
+      width="100%"
+      bg={themeColors.controlStrong}
+    >
+      <Box height="100%" width={`${progress * 100}%`} bg={themeColors.accent} />
+    </Box>
+  );
+};
+
+// One button per sound: a click plays it, a click while it plays stops it. The loop button
+// (top right) makes it repeat until stopped, from its next play.
+const SoundTile = React.memo(({ resource, playing, looped, onPlay, onStop, onToggleLoop }) => (
+  <Box
     position="relative"
+    borderWidth="1px"
+    borderColor={playing ? themeColors.accent : "whiteAlpha.200"}
+    bg={playing ? themeColors.surfaceRaised : undefined}
+    borderRadius="md"
+    overflow="hidden"
   >
-    <Button variant="outline" size="sm" width="100%" onClick={() => onPlay(resource)}>
-      <Flex align="center" gap="6px">
-        <Icon as={FaMusic} />
+    <Button
+      variant="ghost"
+      width="100%"
+      height="56px"
+      pr="30px"
+      aria-label={`${playing ? "Stop" : "Play"} ${resource.name}`}
+      onClick={() => (playing ? onStop(resource) : onPlay(resource))}
+    >
+      <Flex align="center" gap="6px" minW={0}>
+        <Icon as={playing ? FaStop : FaMusic} color={playing ? themeColors.accent : undefined} flexShrink={0} />
         <Text fontSize="xs" overflow="hidden" textOverflow="ellipsis" whiteSpace="nowrap">
           {resource.name}
         </Text>
       </Flex>
     </Button>
-    <DListItemButton icon={FaStop} label="Stop" size="xs" onClick={() => onStop(resource)} />
-  </Flex>
+    <Tooltip openDelay={300} content={looped ? "Loops until stopped" : "Plays once"}>
+      <IconButton
+        aria-label={`Loop ${resource.name}`}
+        aria-pressed={looped}
+        size="2xs"
+        variant="ghost"
+        position="absolute"
+        top="2px"
+        right="2px"
+        color={looped ? themeColors.accent : themeColors.textMuted}
+        onClick={() => onToggleLoop(resource)}
+      >
+        <Icon as={FaRedo} />
+      </IconButton>
+    </Tooltip>
+    {playing && <SoundProgress resource={resource} />}
+  </Box>
 ));
 
 // A resize divider with a collapse/expand toggle riding on it — the idiomatic
@@ -122,10 +182,14 @@ const CollapsibleDivider = ({ isCollapsed, onToggle, onMouseDown }) => (
   </Box>
 );
 
-const RightPaneHeader = ({ board, viewMode, onToggleView, confirmDelete, onDelete, onConfirmDelete, onCancelDelete }) => (
+const RightPaneHeader = ({ board, viewMode, onToggleView, onStopAll, confirmDelete, onDelete, onConfirmDelete, onCancelDelete }) => (
   <Flex align="center" px="12px" py="8px" borderBottomWidth="1px" borderColor={themeColors.divider} gap="10px" flexShrink={0}>
     <DLabel>{board.name}</DLabel>
     <Flex grow={1} />
+    <Button size="xs" variant="outline" onClick={onStopAll} aria-label="Stop all sounds">
+      <Icon as={FaStop} />
+      Stop all
+    </Button>
     <DListItemButton
       icon={FaEdit}
       color={viewMode === "edit" ? "blue.300" : undefined}
@@ -271,9 +335,25 @@ export const SoundboardPanel = () => {
     ClientMediator.sendCommandAsync("Playlist", "StopSound", { resourceId: resource.id });
   };
 
+  const handleStopAll = () => {
+    ClientMediator.sendCommandAsync("Playlist", "StopAllSounds", {});
+  };
+
+  const handleToggleLoop = async (resource) => {
+    const looped = selectedBoard.loopedResourceIds ?? [];
+    const resourceIds = looped.includes(resource.id) ? looped.filter((id) => id !== resource.id) : [...looped, resource.id];
+    const { status, body } = await ClientMediator.sendCommandAsync("Playlist", "SetLoopedSounds", { playlist: selectedBoard, resourceIds }) ?? {};
+    if (status < 200 || status >= 300) {
+      toaster.create({ title: "Failed to change the loop", description: body?.error, type: "error", duration: 5000 });
+      return;
+    }
+    await loadBoards();
+  };
+
   // ── Derived state ────────────────────────────────────────────────────────────
 
   const sounds = selectedBoard?.resources ?? [];
+  const playing = usePlayingSounds();
 
   if (!canEditGame) {
     return (
@@ -347,6 +427,7 @@ export const SoundboardPanel = () => {
                 board={selectedBoard}
                 viewMode={viewMode}
                 onToggleView={() => setViewMode((v) => (v === "edit" ? "play" : "edit"))}
+                onStopAll={handleStopAll}
                 confirmDelete={confirmDelete}
                 onDelete={() => setConfirmDelete(true)}
                 onConfirmDelete={() => {
@@ -368,7 +449,15 @@ export const SoundboardPanel = () => {
                 ) : (
                   <SimpleGrid columns={3} gap="10px">
                     {sounds.map((resource) => (
-                      <SoundTile key={resource.id} resource={resource} onPlay={handlePlay} onStop={handleStop} />
+                      <SoundTile
+                        key={resource.id}
+                        resource={resource}
+                        playing={playing.has(resource.id)}
+                        looped={(selectedBoard.loopedResourceIds ?? []).includes(resource.id)}
+                        onPlay={handlePlay}
+                        onStop={handleStop}
+                        onToggleLoop={handleToggleLoop}
+                      />
                     ))}
                   </SimpleGrid>
                 )}
