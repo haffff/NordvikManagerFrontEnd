@@ -108,6 +108,7 @@ export const CardsPanel = ({ state }) => {
       <DTreeList
         withAddItem={canAddCards}
         entityType={"CardModel"}
+        transferKind="card"
         estimatedRowHeight={52}
         addonMenu={CARD_ADDON_MENU}
         items={panels}

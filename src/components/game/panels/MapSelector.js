@@ -175,6 +175,7 @@ export const MapSelector = ({ battleMapId, state }) => {
             <Flex flex={1} minH={0} direction="column" px="4px" pt="4px">
               <DTreeList
                 entityType="MapModel"
+                transferKind="map"
                 items={maps}
                 canEditFolders={canEditGame}
                 withAddItem={true}

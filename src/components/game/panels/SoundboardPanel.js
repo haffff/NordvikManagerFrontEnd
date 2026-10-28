@@ -386,6 +386,7 @@ export const SoundboardPanel = () => {
           <Flex flex={1} minH={0} direction="column" px="4px" pt="4px">
             <DTreeList
               entityType="Soundboard"
+              transferKind="soundboard"
               items={boards}
               canEditFolders={canEditGame}
               refreshRef={treeRefreshRef}

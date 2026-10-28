@@ -337,6 +337,7 @@ export const TemplatesPanel = ({ gameDataRef }) => {
           <Flex flex={1} minH={0} direction="column" px="4px" pt="4px">
             <DTreeList
               entityType="CardTemplate"
+              transferKind="template"
               items={templates}
               canEditFolders
               refreshRef={treeRefreshRef}

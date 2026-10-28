@@ -1,5 +1,6 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { screen, fireEvent, createEvent } from '@testing-library/react';
+import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../../setupTests';
 
 // Selecting several entries (Ctrl/⌘, Shift) and moving them together by dragging one.
@@ -10,8 +11,18 @@ vi.mock('../../../helpers/transport', () => ({
   ActiveWebHelper: { get: vi.fn() },
   ActiveTransportManager: { Send: vi.fn() },
 }));
+vi.mock('../../../helpers/entityTransfer', async (importOriginal) => ({
+  ...(await importOriginal()),
+  duplicateEntity: vi.fn(),
+  exportEntity: vi.fn(),
+  importEntity: vi.fn(),
+  downloadJson: vi.fn(),
+}));
+vi.mock('../../ui/toaster', () => ({ toaster: { create: vi.fn() } }));
 
 import { ActiveWebHelper as WebHelper, ActiveTransportManager } from '../../../helpers/transport';
+import { duplicateEntity, exportEntity, importEntity, downloadJson } from '../../../helpers/entityTransfer';
+import { toaster } from '../../ui/toaster';
 import { DTreeList } from './DTreeList';
 
 // Root: Maps(folder) → Goblin → Orc ; Maps: Dungeon
@@ -77,5 +88,93 @@ describe('DTreeList with several entries selected', () => {
     drop(row('e-orc'), dt, 80);
 
     expect(updates()).toEqual([{ id: 'maps', parentId: null, next: null }]);
+  });
+});
+
+describe('DTreeList Duplicate / Export JSON / Import JSON', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    WebHelper.get.mockImplementation((url, ok) => ok(tree));
+    duplicateEntity.mockResolvedValue({ id: 'copy', missing: [] });
+  });
+
+  const renderTree = (props = {}) =>
+    renderWithProviders(<div style={{ height: 600 }}><DTreeList entityType="Card" items={items} canEditFolders transferKind="card" {...props} /></div>);
+
+  it('duplicates the selected item right after it', async () => {
+    renderTree();
+    await screen.findByText('Orc');
+
+    fireEvent.click(row('e-goblin'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Duplicate' }));
+
+    await vi.waitFor(() => expect(duplicateEntity).toHaveBeenCalledTimes(1));
+    expect(duplicateEntity).toHaveBeenCalledWith('card', 'goblin', expect.objectContaining({ id: 'e-goblin' }));
+  });
+
+  it('duplicates every selected item, in tree order, but no folders', async () => {
+    renderTree();
+    await screen.findByText('Orc');
+
+    fireEvent.click(row('e-orc'));
+    fireEvent.click(row('e-goblin'), { ctrlKey: true });
+    fireEvent.click(row('maps'), { ctrlKey: true });
+    fireEvent.click(await screen.findByRole('button', { name: 'Duplicate' }));
+
+    await vi.waitFor(() => expect(duplicateEntity).toHaveBeenCalledTimes(2));
+    expect(duplicateEntity.mock.calls.map(([, id]) => id)).toEqual(['goblin', 'orc']);
+  });
+
+  it('exports the selected item as a file, with its files when asked', async () => {
+    const exported = { format: 'nordvik-entity', kind: 'card', name: 'Orc', data: {} };
+    exportEntity.mockResolvedValue(exported);
+    renderTree();
+    await screen.findByText('Orc');
+
+    fireEvent.click(row('e-orc'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Export JSON' }));
+    await userEvent.click(await screen.findByRole('checkbox', { name: /Include files/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+
+    await vi.waitFor(() => expect(downloadJson).toHaveBeenCalledWith('Orc.card.json', exported));
+    expect(exportEntity).toHaveBeenCalledWith('card', 'orc', { includeFiles: true });
+  });
+
+  it('imports pasted JSON into the selected folder and says what was not found', async () => {
+    importEntity.mockResolvedValue({ id: 'new', missing: ['portrait.png'] });
+    renderTree();
+    await screen.findByText('Orc');
+
+    fireEvent.click(row('maps'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Import JSON' }));
+    const json = { format: 'nordvik-entity', version: 1, kind: 'card', name: 'Hero', data: { name: 'Hero' } };
+    fireEvent.change(await screen.findByLabelText('Exported JSON'), { target: { value: JSON.stringify(json) } });
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+
+    await vi.waitFor(() => expect(importEntity).toHaveBeenCalledWith(json, { kind: 'card', parentId: 'maps' }));
+    await vi.waitFor(() => expect(toaster.create).toHaveBeenCalledWith(expect.objectContaining({ description: expect.stringContaining('portrait.png') })));
+  });
+
+  it('shows why an import failed', async () => {
+    renderTree();
+    await screen.findByText('Orc');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Import JSON' }));
+    fireEvent.change(await screen.findByLabelText('Exported JSON'), { target: { value: '{"nope":1}' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+
+    expect(await screen.findByText(/isn't an exported map, card or playlist/)).toBeTruthy();
+    expect(importEntity).not.toHaveBeenCalled();
+  });
+
+  it('offers none of it to whoever cannot edit the game', async () => {
+    renderTree({ canEditFolders: false });
+    await screen.findByText('Orc');
+
+    fireEvent.click(row('e-orc'));
+
+    expect(screen.queryByRole('button', { name: 'Duplicate' })).toBeNull();
+    expect(screen.queryByRole('button', { name: 'Import JSON' })).toBeNull();
   });
 });
