@@ -14,8 +14,13 @@ import { ServerSettingsTab } from "./appSettings/ServerSettingsTab";
 
 export const AppSettingsDialog = ({ openRef }) => {
   const [open, setOpen] = React.useState(false);
+  const [tab, setTab] = React.useState("backups");
 
-  openRef.current = () => setOpen(true);
+  // openRef.current("server") opens on that tab (the lobby's update notice).
+  openRef.current = (startTab) => {
+    if (typeof startTab === "string") setTab(startTab);
+    setOpen(true);
+  };
 
   return (
     <DialogRoot
@@ -29,7 +34,7 @@ export const AppSettingsDialog = ({ openRef }) => {
         <DialogCloseTrigger />
         <DialogHeader>Application Settings</DialogHeader>
         <DialogBody>
-          <Tabs.Root defaultValue="backups" lazyMount size="md" variant="enclosed">
+          <Tabs.Root value={tab} onValueChange={(e) => setTab(e.value)} lazyMount size="md" variant="enclosed">
             <Tabs.List>
               <Tabs.Trigger value="backups">Backups</Tabs.Trigger>
               <Tabs.Trigger value="server">Server</Tabs.Trigger>

@@ -22,7 +22,7 @@ import { IoMdLogOut } from "@react-icons/all-files/io/IoMdLogOut";
 import { FaInfoCircle } from "@react-icons/all-files/fa/FaInfoCircle";
 import { UserManagementDialog } from "./UserManagementDialog";
 import { AppSettingsDialog } from "./AppSettingsDialog";
-import { NewVersionDialog } from "./NewVersionDialog";
+import { UpdateNoticeDialog } from "./UpdateNoticeDialog";
 import CentralSettings from "../CentralSettings";
 import { AboutDialog } from "../AboutDialog";
 
@@ -32,9 +32,6 @@ export const GameList = ({ OnSuccess, OnLogout }) => {
   const [gameList, setGameList] = React.useState(undefined);
   const [userData, setUserData] = React.useState(null);   // null = loading
   const [meta, setMeta] = React.useState(null);
-
-  const [updateAvailable, setUpdateAvailable] = React.useState(false);
-  const [versionInfo, setVersionInfo] = React.useState(undefined);
 
   const [publicGames, setPublicGames] = React.useState([]);
   const [publicPage, setPublicPage] = React.useState(1);
@@ -54,14 +51,6 @@ export const GameList = ({ OnSuccess, OnLogout }) => {
     setGameList(games);
     setUserData(user);
     setMeta(serverMeta);
-
-    if (user?.localAdmin) {
-      const ver = await WebHelper.getAsync("gamelist/versioninfo");
-      if (ver?.isUpdateAvailable) {
-        setUpdateAvailable(true);
-        setVersionInfo(ver);
-      }
-    }
   }, []);
 
   const loadPublicGames = React.useCallback(async (page) => {
@@ -93,7 +82,7 @@ export const GameList = ({ OnSuccess, OnLogout }) => {
       <UserManagementDialog openRef={openUserManagementRef} />
       <AppSettingsDialog openRef={openAppSettingsRef} />
       <AboutDialog openRef={openAboutRef} />
-      <NewVersionDialog open={updateAvailable} versionInfo={versionInfo} onClose={() => setUpdateAvailable(false)} />
+      <UpdateNoticeDialog enabled={!!userData?.localAdmin} onOpenSettings={() => openAppSettingsRef.current("server")} />
       <JoinDialog OnSuccess={(r) => OnSuccess(r)} />
       <Stack
         style={{

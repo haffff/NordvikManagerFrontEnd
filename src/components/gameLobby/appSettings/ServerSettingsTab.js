@@ -5,6 +5,7 @@ import { FaTimes } from "@react-icons/all-files/fa/FaTimes";
 
 import WebHelper from "../../../helpers/WebHelper";
 import { showError } from "./serverErrors";
+import { UpdateSection } from "./UpdateSection";
 
 /**
  * One list setting: entries from appsettings (locked, shown with a lock) and the ones saved
@@ -148,6 +149,8 @@ export const ServerSettingsTab = () => {
           </Text>
         </Box>
       )}
+      <UpdateSection />
+
       <Text fontSize="sm" color="fg.muted">
         Entries with a lock come from the server's appsettings and can only be changed there. Changes made
         here apply at once.
