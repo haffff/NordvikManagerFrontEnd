@@ -1,17 +1,18 @@
-import { fabric } from 'fabric';
-import DTOConverter from '../../DTOConverter';
+import { OnAddElementBehavior } from './OnAddElementBehavior';
 
+// The group goes; each part comes in as an added element would (its properties, whether
+// it can be selected), with the rights this player had on the group: the parts get its rows.
 export class OnUngroupBehavior {
-    Handle(response, canvas) {
-        let objects = canvas.getObjects().filter(x => response.elementIds.includes(x.id));
-        objects.forEach(element => {
-            canvas.remove(element);
+    Handle(response, canvas, battleMapId) {
+        const groups = canvas.getObjects().filter(x => response.elementIds?.includes(x.id));
+        const permission = groups[0]?.permission;
+        groups.forEach(group => {
+            group.additionalObjects?.forEach(x => canvas.remove(x));
+            canvas.remove(group);
         });
-        
-        fabric.util.enlivenObjects(response.data.map(x => DTOConverter.ConvertFromDTO(x)), (e) => {
-            e.forEach(element => {
-                canvas.add(element);
-            });
-        });
+
+        const add = new OnAddElementBehavior();
+        (response.data ?? []).forEach(part => add.Handle({ ...response, data: { ...part, permission } }, canvas, battleMapId));
+        canvas.requestRenderAll();
     }
 }

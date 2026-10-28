@@ -17,6 +17,22 @@ import { buildAreaObject, placeArea } from "../Helpers/buildArea";
 import PickPointOverlay from "../Overlays/PickPointOverlay";
 import { cleanSketches, undoSketch } from "../Behaviors/Client/Draw/sketches";
 
+/** A group's parts as fabric JSON, each placed on the map as it shows inside the group. */
+export function ungroupedParts(group) {
+  const groupMatrix = group.calcTransformMatrix();
+  return group.getObjects().map((part) => {
+    const at = fabric.util.qrDecompose(fabric.util.multiplyTransformMatrices(groupMatrix, part.calcOwnMatrix()));
+    return {
+      ...part.toObject(),
+      id: part.id,
+      originX: "center", originY: "center",
+      left: at.translateX, top: at.translateY,
+      angle: at.angle, scaleX: at.scaleX, scaleY: at.scaleY, skewX: at.skewX, skewY: at.skewY,
+      flipX: false, flipY: false,
+    };
+  });
+}
+
 class BMService {
   _clipboard = undefined;
   _canvas = undefined;
@@ -216,30 +232,48 @@ class BMService {
     };
   }
 
+  // Tokens stay out of groups: in one, a token would be no token any more (no card, UI,
+  // turn order); the server refuses them too. The group is written as JSON from the
+  // parts' positions on the map, without touching the parts until the server answers.
   GroupSelected() {
     const selectedObjects = this._BMQueryService.GetSelectedObjects();
     if (!selectedObjects?.length) return;
 
-    // filter ungrouped objects
-    const objectsToAdd = selectedObjects.filter((x) => x._objects === undefined);
-    const mapId = this._BMQueryService.GetSelectedMapID();
-    const coords = this._BMQueryService.GetSelectedGroupCoords();
-    const group = new fabric.Group(objectsToAdd, {
-      originX: "left",
-      originY: "top",
-      left: coords[0].x,
-      top: coords[0].y,
-      layer: objectsToAdd[0].layer,
-    })
-      .setObjectsCoords()
-      .setCoords();
+    const isToken = (x) => x.isToken || x.isTokenUI;
+    const parts = selectedObjects.filter((x) => !isToken(x) && x._objects === undefined);
+    if (selectedObjects.some(isToken)) {
+      toaster.create({
+        title: "Tokens can't be grouped",
+        description: parts.length >= 2 ? "Grouped the rest of the selection." : "Select at least two other things to group.",
+        type: "info",
+        duration: 5000,
+      });
+    }
+    if (parts.length < 2) return;
+
+    // Out of the selection, the parts' coordinates are the map's again.
+    this._canvas.discardActiveObject();
+    const boxes = parts.map((x) => x.getBoundingRect(true, true));
+    const left = Math.min(...boxes.map((b) => b.left));
+    const top = Math.min(...boxes.map((b) => b.top));
+    const width = Math.max(...boxes.map((b) => b.left + b.width)) - left;
+    const height = Math.max(...boxes.map((b) => b.top + b.height)) - top;
+    const center = { x: left + width / 2, y: top + height / 2 };
+    const layer = parts[0].layer;
+
+    // A group's parts sit relative to its centre, each by its own centre here.
+    const objects = parts.map((x) => {
+      const at = x.getCenterPoint();
+      return { ...x.toObject(), id: x.id, originX: "center", originY: "center", left: at.x - center.x, top: at.y - center.y };
+    });
+    const group = {
+      type: "group", version: fabric.version, originX: "left", originY: "top",
+      left, top, width, height, layer, objects,
+    };
+
     const cmd = CommandFactory.CreateGroupCommand(
-      {
-        object: JSON.stringify(group),
-        mapId: mapId,
-        layer: selectedObjects[0].layer,
-      },
-      selectedObjects.map((x) => x.id)
+      { object: JSON.stringify(group), mapId: this._BMQueryService.GetSelectedMapID(), layer },
+      parts.map((x) => x.id)
     );
     WebSocketManagerInstance.Send(cmd);
   }
@@ -269,25 +303,21 @@ class BMService {
       Object.assign(this._BMQueryService._map, mapData);
     }
   }
-  //Not working properly, need a fix
+  // Each part goes back where it shows on the map, the group's move, turn and scale
+  // applied to it (as fabric's own applyTransformToObject does). The server gives the
+  // parts back their properties and the group's rights.
   UngroupSelected() {
     const selectedObjects = this._BMQueryService.GetSelectedObjects();
-    if (selectedObjects !== undefined && selectedObjects.length == 1) {
-      // Resolve coords once outside the map loop
-      const groupCoords = this._BMQueryService.GetSelectedGroupCoords()[0];
-      const children = selectedObjects[0]._objects.map((element) => {
-        element.left = element.aCoords.tl.x + groupCoords.x;
-        element.top = element.aCoords.tl.y + groupCoords.y;
-        element.layer = selectedObjects[0].layer;
-        return DTOConverter.ConvertToDTO(element);
-      });
+    if (selectedObjects?.length !== 1 || !selectedObjects[0]._objects) return;
 
-      const cmd = CommandFactory.CreateUngroupCommand(
-        selectedObjects[0].id,
-        children
-      );
-      WebSocketManagerInstance.Send(cmd);
-    }
+    const group = selectedObjects[0];
+    const children = ungroupedParts(group).map((object) => ({
+      id: object.id,
+      object: JSON.stringify(object),
+      layer: group.layer,
+      mapId: group.mapId,
+    }));
+    WebSocketManagerInstance.Send(CommandFactory.CreateUngroupCommand(group.id, children));
   }
 
   RemoveSelected() {
