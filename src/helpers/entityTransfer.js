@@ -16,8 +16,9 @@ export const TRANSFER_KINDS = Object.freeze({
 const FORMAT = "nordvik-entity";
 const NOT_AN_EXPORT = "This isn't an exported map, card or playlist.";
 
-export async function exportEntity(kind, id, { includeFiles = false } = {}) {
-  const exported = await WebHelper.getAsync(`transfer/Export?kind=${kind}&id=${id}&includeFiles=${includeFiles}`);
+/** includeCards (a map): its tokens' cards come along, for another game. */
+export async function exportEntity(kind, id, { includeFiles = false, includeCards = false } = {}) {
+  const exported = await WebHelper.getAsync(`transfer/Export?kind=${kind}&id=${id}&includeFiles=${includeFiles}${includeCards ? "&includeCards=true" : ""}`);
   if (!exported) throw new Error("Couldn't export it.");
   return exported;
 }

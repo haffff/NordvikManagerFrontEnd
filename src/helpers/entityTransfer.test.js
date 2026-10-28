@@ -62,3 +62,13 @@ describe('entityTransfer', () => {
     expect(exportFileName({ kind: 'soundboard' })).toBe('soundboard.soundboard.json');
   });
 });
+
+describe('exportEntity with the cards', () => {
+  it("asks for a map's token cards", async () => {
+    WebHelper.getAsync.mockResolvedValue(exported);
+
+    await exportEntity('map', 'm1', { includeCards: true });
+
+    expect(WebHelper.getAsync).toHaveBeenCalledWith('transfer/Export?kind=map&id=m1&includeFiles=false&includeCards=true');
+  });
+});

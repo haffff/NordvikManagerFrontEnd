@@ -13,16 +13,17 @@ import { downloadJson, exportEntity, exportFileName, importEntity, parseExport }
 /** Downloads `entity` as a .json file; "Include files" puts the pictures, sounds and code it uses in too. */
 export const ExportJsonDialog = ({ kind, entity, onClose }) => {
     const [includeFiles, setIncludeFiles] = React.useState(false);
+    const [includeCards, setIncludeCards] = React.useState(false);
     const [busy, setBusy] = React.useState(false);
     const [error, setError] = React.useState(null);
 
-    React.useEffect(() => { setIncludeFiles(false); setError(null); }, [entity]);
+    React.useEffect(() => { setIncludeFiles(false); setIncludeCards(false); setError(null); }, [entity]);
 
     const download = async () => {
         setBusy(true);
         setError(null);
         try {
-            const exported = await exportEntity(kind, entity.id, { includeFiles });
+            const exported = await exportEntity(kind, entity.id, kind === "map" ? { includeFiles, includeCards } : { includeFiles });
             downloadJson(exportFileName(exported), exported);
             onClose();
         } catch (e) {
@@ -46,6 +47,11 @@ export const ExportJsonDialog = ({ kind, entity, onClose }) => {
                         <Checkbox size="sm" checked={includeFiles} onCheckedChange={(e) => setIncludeFiles(!!e.checked)}>
                             Include files (pictures, sounds, card pages): bigger, but complete in a game without them
                         </Checkbox>
+                        {kind === "map" && (
+                            <Checkbox size="sm" checked={includeCards} onCheckedChange={(e) => setIncludeCards(!!e.checked)}>
+                                Include the tokens' cards, so another game gets them too (with their own files, if files are included)
+                            </Checkbox>
+                        )}
                         {error && <Text fontSize="sm" color="red.400">{error}</Text>}
                     </VStack>
                 </DialogBody>

@@ -4,6 +4,8 @@ import uploadMaterials from '../../../helpers/uploadMaterials';
 import CommandFactory from '../Factories/CommandFactory';
 import { ActiveTransportManager as WebSocketManagerInstance } from '../../../helpers/transport';
 import ClientMediator from '../../../ClientMediator';
+import { takeDroppedExports } from '../../../helpers/droppedExports';
+import { askImportDropped, reportImported, reportImportFailed } from '../../uiComponents/ImportDropPrompt';
 
 // Factory that returns a drop handler bound to provided refs/instances
 export default function createHandleDrop({ editor, mapRef, battleMapObjectRef, battleMapModel }) {
@@ -68,10 +70,21 @@ export default function createHandleDrop({ editor, mapRef, battleMapObjectRef, b
         .filter((item) => item.kind === 'file')
         .map((item) => item.getAsFile())
         .filter(Boolean);
+      // An Export JSON file is offered for import: a map then shows here, a card's token
+      // lands where it was dropped.
+      const onImported = (result, exported) => {
+        reportImported(result, exported);
+        const battleMapId = battleMapObjectRef?.current?.id;
+        if (exported.kind === 'map') {
+          WebSocketManagerInstance.Send(CommandFactory.CreateChangeMapCommand(result.id, battleMapId));
+        } else if (exported.kind === 'card') {
+          ClientMediator.sendCommand('BattleMap_token', 'CreateToken', { contextId: battleMapId, cardId: result.id, position: coords });
+        }
+      };
       // Each upload lands as an image at the drop point, offset a little per file.
-      uploadMaterials(files, {
+      takeDroppedExports(files, { ask: askImportDropped, onImported, onError: reportImportFailed }).then((rest) => uploadMaterials(rest, {
         onUploaded: (result, file) => {
-          const i = files.indexOf(file);
+          const i = rest.indexOf(file);
           fabric.Image.fromURL(WebHelper.getResourceString(result.id), (img) => {
             const obj = img;
             obj.left = coords.x + 10 * i;
@@ -82,7 +95,7 @@ export default function createHandleDrop({ editor, mapRef, battleMapObjectRef, b
             WebSocketManagerInstance.Send(cmd);
           });
         },
-      });
+      }));
     } catch (e) {
       console.error('Battlemap HandleDrop error', e);
     }

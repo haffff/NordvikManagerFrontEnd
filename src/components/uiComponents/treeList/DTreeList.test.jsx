@@ -178,3 +178,35 @@ describe('DTreeList Duplicate / Export JSON / Import JSON', () => {
     expect(screen.queryByRole('button', { name: 'Import JSON' })).toBeNull();
   });
 });
+
+describe('DTreeList Export JSON of a map', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    WebHelper.get.mockImplementation((url, ok) => ok(tree));
+  });
+
+  it("offers to bring the tokens' cards", async () => {
+    exportEntity.mockResolvedValue({ format: 'nordvik-entity', kind: 'map', name: 'Orc', data: {} });
+    renderWithProviders(<div style={{ height: 600 }}><DTreeList entityType="Card" items={items} canEditFolders transferKind="map" /></div>);
+    await screen.findByText('Orc');
+
+    fireEvent.click(row('e-orc'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Export JSON' }));
+    await userEvent.click(await screen.findByRole('checkbox', { name: /tokens' cards/ }));
+    fireEvent.click(screen.getByRole('button', { name: 'Download' }));
+
+    await vi.waitFor(() => expect(exportEntity).toHaveBeenCalledWith('map', 'orc', { includeFiles: false, includeCards: true }));
+  });
+
+  it('offers no cards for anything but a map', async () => {
+    renderWithProviders(<div style={{ height: 600 }}><DTreeList entityType="Card" items={items} canEditFolders transferKind="card" /></div>);
+    await screen.findByText('Orc');
+
+    fireEvent.click(row('e-orc'));
+    fireEvent.click(await screen.findByRole('button', { name: 'Export JSON' }));
+
+    await screen.findByRole('checkbox', { name: /Include files/ });
+    expect(screen.queryByRole('checkbox', { name: /tokens' cards/ })).toBeNull();
+  });
+});

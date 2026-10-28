@@ -43,6 +43,8 @@ import {
 } from '../../ui/dialog';
 import ProgressToastManager from '../../../helpers/ProgressToastManager';
 import uploadMaterials from '../../../helpers/uploadMaterials';
+import { takeDroppedExports } from '../../../helpers/droppedExports';
+import { askImportDropped, reportImported, reportImportFailed } from '../../uiComponents/ImportDropPrompt';
 import themeColors from "../../../helpers/themeColors";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -316,7 +318,10 @@ export const MaterialsPanel = ({ state }) => {
 
     // ── upload ──────────────────────────────────────────────────────────────
 
-    const handleFiles = React.useCallback((files) => {
+    // An Export JSON file among them is offered for import instead.
+    const handleFiles = React.useCallback(async (dropped) => {
+        if (!dropped.length) return;
+        const files = await takeDroppedExports(dropped, { ask: askImportDropped, onImported: reportImported, onError: reportImportFailed });
         if (!files.length) return;
         setIgnoreRefresh(true);
         setUploading(true);
