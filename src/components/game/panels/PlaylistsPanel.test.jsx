@@ -87,7 +87,7 @@ describe('PlaylistsPanel folder tree', () => {
     renderWithProviders(<PlaylistsPanel />);
     await screen.findByText('Tavern');
     const before = treeRequests().length;
-    fireEvent.click(screen.getByText('New Playlist'));
+    fireEvent.click(screen.getByRole('button', { name: 'New playlist' }));
     await waitFor(() => expect(treeRequests().length).toBeGreaterThan(before));
   });
 

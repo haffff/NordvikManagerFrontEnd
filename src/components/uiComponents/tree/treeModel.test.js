@@ -1,6 +1,6 @@
 import { describe, it, expect } from "vitest";
 import {
-  buildTree, orderSiblings, flattenVisible, splitMatch, computeMove, computeMoveMany, collectDescendants, entryPath, selectWithModifiers,
+  buildTree, orderSiblings, flattenVisible, splitMatch, computeMove, computeMoveMany, collectDescendants, entryPath, selectWithModifiers, withAddRows,
 } from "./treeModel";
 
 // Root: [Maps(folder) → goblin] ; Maps: [dungeon → forest] ; Maps/Deep(folder) inside Maps after forest
@@ -242,5 +242,34 @@ describe("computeMoveMany", () => {
   it("does nothing when dropped on one of the moved rows, or a folder into itself", () => {
     expect(computeMoveMany(entries, ["e-goblin", "e-forest"], "e-forest", "before")).toEqual([]);
     expect(computeMoveMany(entries, ["maps", "e-goblin"], "deep", "inside")).toEqual([]);
+  });
+});
+
+// A greyed "+ New … here" row closes every open folder, and the top level.
+describe("withAddRows", () => {
+  const row = (id, depth, isOpen = false) => ({ node: { id, isFolder: isOpen || id.startsWith("f") }, depth, isOpen });
+  const shape = (rows) => rows.map((r) => (r.add ? `+${r.parentId ?? "top"}@${r.depth}` : `${r.node.id}@${r.depth}`));
+
+  it("ends each open folder and the top level with one", () => {
+    const rows = [row("fA", 0, true), row("a1", 1), row("fB", 1, true), row("b1", 2), row("a2", 1), row("fC", 0), row("x", 0)];
+
+    expect(shape(withAddRows(rows))).toEqual([
+      "fA@0", "a1@1", "fB@1", "b1@2", "+fB@2", "a2@1", "+fA@1", "fC@0", "x@0", "+top@0",
+    ]);
+  });
+
+  it("gives an open but empty folder its row too", () => {
+    expect(shape(withAddRows([row("fA", 0, true)]))).toEqual(["fA@0", "+fA@1", "+top@0"]);
+    expect(shape(withAddRows([]))).toEqual(["+top@0"]);
+  });
+
+  it("closes nested folders that end together", () => {
+    const rows = [row("fA", 0, true), row("fB", 1, true), row("b1", 2)];
+
+    expect(shape(withAddRows(rows))).toEqual(["fA@0", "fB@1", "b1@2", "+fB@2", "+fA@1", "+top@0"]);
+  });
+
+  it("keys them apart from the entries", () => {
+    expect(withAddRows([row("fA", 0, true)]).filter((r) => r.add).map((r) => r.key)).toEqual(["add:fA", "add:"]);
   });
 });

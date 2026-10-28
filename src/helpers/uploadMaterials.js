@@ -7,11 +7,12 @@ import UtilityHelper from "./UtilityHelper";
  * follows the bytes sent, the text names the file being sent (or the last one
  * done), then success or how many failed.
  *
+ * parentFolder: the Materials folder they go into (null: the top level).
  * onUploaded(result, file) runs as each upload succeeds — result is the server's
  * new resource ({ id, key, ... }).
  * Resolves once every file has finished: { uploaded: result[], failed: File[] }.
  */
-export function uploadMaterials(files, { onUploaded } = {}) {
+export function uploadMaterials(files, { onUploaded, parentFolder = null } = {}) {
   if (!files?.length) return Promise.resolve({ uploaded: [], failed: [] });
 
   const total = files.length;
@@ -68,7 +69,8 @@ export function uploadMaterials(files, { onUploaded } = {}) {
         },
         fail,
         fail,
-        (fraction) => progress(file, fraction)
+        (fraction) => progress(file, fraction),
+        parentFolder
       );
     });
 

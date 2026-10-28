@@ -305,3 +305,26 @@ export function entryPath(entryId, entries) {
   }
   return parts.length ? parts.join("/") + "/" : "";
 }
+
+/**
+ * `rows` (from flattenVisible) with a "+ New … here" row closing every open folder and,
+ * last, the top level: { add: true, parentId (null at the top), depth, key }.
+ */
+export function withAddRows(rows) {
+  const out = [];
+  const open = [];
+  const close = (depth) => {
+    while (open.length && open[open.length - 1].depth >= depth) {
+      const folder = open.pop();
+      out.push({ add: true, parentId: folder.node.id, depth: folder.depth + 1, key: `add:${folder.node.id}` });
+    }
+  };
+  for (const row of rows) {
+    close(row.depth);
+    out.push(row);
+    if (row.node.isFolder && row.isOpen) open.push(row);
+  }
+  close(0);
+  out.push({ add: true, parentId: null, depth: 0, key: "add:" });
+  return out;
+}

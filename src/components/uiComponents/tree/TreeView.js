@@ -5,7 +5,7 @@ import { FaChevronRight } from "@react-icons/all-files/fa/FaChevronRight";
 import { FaGripVertical } from "@react-icons/all-files/fa/FaGripVertical";
 import themeColors from "../../../helpers/themeColors";
 import UtilityHelper from "../../../helpers/UtilityHelper";
-import { flattenVisible, selectWithModifiers } from "./treeModel";
+import { flattenVisible, selectWithModifiers, withAddRows } from "./treeModel";
 
 // Generic folder tree: virtualized rows (heights measured, so rows may differ), native
 // drag & drop (so rows can also be dropped onto the battle map), keyboard navigation.
@@ -39,6 +39,9 @@ const MeasuredRow = React.forwardRef(function MeasuredRow({ observer, ...props }
 const focusRing = `inset 0 0 0 1px ${themeColors.accentText}`;
 
 // Where in a row the pointer is → drop position. Folders take "inside" in the middle half.
+// A laid-out row's key: an entry's id, or an add row's own key.
+const rowKey = (row) => (row.add ? row.key : row.node.id);
+
 export function dropPositionFor(offsetY, height, isFolder) {
   const ratio = height > 0 && Number.isFinite(offsetY) ? offsetY / height : 0.5;
   if (isFolder) {
@@ -86,6 +89,9 @@ export const TreeView = ({
   estimatedRowHeight = 28,
   emptyState = null,
   ariaLabel = "Tree",
+  // (parentId, { depth }) => ReactNode: a greyed "+ New … here" row closing every open
+  // folder and the top level (parentId null). Not while searching.
+  renderAddRow,
 }) => {
   const treeKey = React.useRef(UtilityHelper.GenerateUUID()).current;
   const containerRef = React.useRef(null);
@@ -101,18 +107,22 @@ export const TreeView = ({
 
   const rows = React.useMemo(() => flattenVisible(nodes ?? [], openIds ?? new Set(), query), [nodes, openIds, query]);
   const indexById = React.useMemo(() => new Map(rows.map((r, i) => [r.node.id, i])), [rows]);
+  // What's laid out: the rows, plus the add rows. Keyboard and selection go by `rows`.
+  const withAdd = Boolean(renderAddRow) && !query.trim();
+  const layout = React.useMemo(() => (withAdd ? withAddRows(rows) : rows), [rows, withAdd]);
+  const layoutIndex = React.useMemo(() => new Map(layout.map((r, i) => [rowKey(r), i])), [layout]);
 
   // Row tops from measured (or estimated) heights.
   const { offsets, total } = React.useMemo(() => {
     const heights = heightsRef.current;
-    const offs = new Array(rows.length);
+    const offs = new Array(layout.length);
     let y = 0;
-    for (let i = 0; i < rows.length; i++) {
+    for (let i = 0; i < layout.length; i++) {
       offs[i] = y;
-      y += heights.get(rows[i].node.id) ?? estimatedRowHeight;
+      y += heights.get(rowKey(layout[i])) ?? estimatedRowHeight;
     }
     return { offsets: offs, total: y };
-  }, [rows, measureVersion, estimatedRowHeight]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [layout, measureVersion, estimatedRowHeight]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Container size.
   React.useEffect(() => {
@@ -158,9 +168,9 @@ export const TreeView = ({
 
   // Visible window.
   const height = viewport || FALLBACK_VIEWPORT;
-  const start = rows.length ? rowAt(offsets, Math.max(0, scrollTop - OVERSCAN_PX)) : 0;
+  const start = layout.length ? rowAt(offsets, Math.max(0, scrollTop - OVERSCAN_PX)) : 0;
   let end = start;
-  while (end < rows.length && offsets[end] < scrollTop + height + OVERSCAN_PX) end++;
+  while (end < layout.length && offsets[end] < scrollTop + height + OVERSCAN_PX) end++;
 
   const onScroll = (e) => setScrollTop(e.currentTarget.scrollTop);
 
@@ -177,7 +187,8 @@ export const TreeView = ({
   const scrollIntoView = (index) => {
     const el = containerRef.current;
     if (!el || index < 0) return;
-    const top = offsets[index];
+    const at = layoutIndex.get(rows[index].node.id);
+    const top = offsets[at];
     const bottom = top + (heightsRef.current.get(rows[index].node.id) ?? estimatedRowHeight);
     if (top < el.scrollTop) el.scrollTop = top;
     else if (bottom > el.scrollTop + el.clientHeight) el.scrollTop = bottom - el.clientHeight;
@@ -350,8 +361,24 @@ export const TreeView = ({
     >
       {!rows.length && emptyState}
       <div style={{ position: "relative", height: total, boxShadow: drop?.end ? `inset 0 -2px 0 ${themeColors.accent}` : undefined }}>
-        {rows.slice(start, end).map((row, k) => {
+        {layout.slice(start, end).map((row, k) => {
           const i = start + k;
+          if (row.add) {
+            return (
+              <MeasuredRow
+                key={row.key}
+                observer={rowObserver}
+                data-row-id={row.key}
+                data-row-top={offsets[i]}
+                data-add-row={row.parentId ?? ""}
+                style={{ position: "absolute", left: 0, right: 0, top: offsets[i] }}
+              >
+                <Flex align="center" pr="2px" style={{ minHeight: MIN_ROW_HEIGHT, paddingLeft: row.depth * INDENT_PX + 2 + (draggable ? 14 : 0) + 16 }}>
+                  {renderAddRow(row.parentId, { depth: row.depth })}
+                </Flex>
+              </MeasuredRow>
+            );
+          }
           const { node } = row;
           const isSelected = selectedIds ? selectedIds.has(node.id) : node.id === selectedId;
           const isFocused = keyboardNav && node.id === activeId && focusedId != null;

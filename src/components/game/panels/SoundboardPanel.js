@@ -6,7 +6,6 @@ import { FaChevronRight } from "@react-icons/all-files/fa/FaChevronRight";
 import { FaEdit } from "@react-icons/all-files/fa/FaEdit";
 import { FaMinus } from "@react-icons/all-files/fa/FaMinus";
 import { FaMusic } from "@react-icons/all-files/fa/FaMusic";
-import { FaPlus } from "@react-icons/all-files/fa/FaPlus";
 import { FaRedo } from "@react-icons/all-files/fa/FaRedo";
 import { FaStop } from "@react-icons/all-files/fa/FaStop";
 import { FaVolumeUp } from "@react-icons/all-files/fa/FaVolumeUp";
@@ -265,9 +264,11 @@ export const SoundboardPanel = () => {
 
   // ── Actions ─────────────────────────────────────────────────────────────────
 
-  const handleAdd = async () => {
+  // From the toolbar's + or a folder's "+ New soundboard here" row.
+  const handleAdd = async (_selected, { parentId = null } = {}) => {
     const { status, body } = await ClientMediator.sendCommandAsync("Playlist", "AddPlaylist", {
       Name: "New Soundboard",
+      TreeParentId: parentId,
       Description: "",
       Mode: 0,
       Shuffle: false,
@@ -389,6 +390,9 @@ export const SoundboardPanel = () => {
               transferKind="soundboard"
               items={boards}
               canEditFolders={canEditGame}
+              withAddItem={canEditGame}
+              onAddItem={handleAdd}
+              addRowLabel="New soundboard"
               refreshRef={treeRefreshRef}
               estimatedRowHeight={44}
               onSelect={(sel) => { if (sel?.itemRef) setSelectedId(sel.itemRef.id); }}
@@ -404,14 +408,6 @@ export const SoundboardPanel = () => {
             />
           </Flex>
 
-          <Box px="6px" py="6px" borderTopWidth="1px" borderColor={themeColors.divider}>
-            <Button variant="outline" size="sm" width="100%" onClick={handleAdd}>
-              <HStack gap="6px">
-                <Icon as={FaPlus} />
-                <span>New Soundboard</span>
-              </HStack>
-            </Button>
-          </Box>
         </Stack>
 
         <CollapsibleDivider

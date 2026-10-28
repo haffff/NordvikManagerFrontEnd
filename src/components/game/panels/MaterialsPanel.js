@@ -20,10 +20,8 @@ import { FaLink } from '@react-icons/all-files/fa/FaLink';
 import { FaMinusCircle } from '@react-icons/all-files/fa/FaMinusCircle';
 import { FaMusic } from '@react-icons/all-files/fa/FaMusic';
 import { FaPen } from '@react-icons/all-files/fa/FaPen';
-import { FaPlus } from '@react-icons/all-files/fa/FaPlus';
-import { FaUpload } from '@react-icons/all-files/fa/FaUpload';
 import UtilityHelper from '../../../helpers/UtilityHelper';
-import DTreeList from '../../uiComponents/treeList/DTreeList';
+import DTreeList, { AddRow } from '../../uiComponents/treeList/DTreeList';
 import CollectionSyncer from '../../uiComponents/base/CollectionSyncer';
 import InputModal from '../../uiComponents/base/Modals/InputModal';
 import { resourceEditFields, resourceEditDto, resourceUpdateData } from './resourceEdit';
@@ -49,61 +47,6 @@ import themeColors from "../../../helpers/themeColors";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
-const BORDER_CLR  = "whiteAlpha.200";
-const BG_DROP     = themeColors.dropZone;
-const BG_DROP_HOV = themeColors.dropZoneHover;
-
-// ─── UploadZone ───────────────────────────────────────────────────────────────
-
-const UploadZone = React.memo(({ uploading, onFiles }) => {
-    const [isDragOver, setIsDragOver] = React.useState(false);
-    const fileInputRef = React.useRef(null);
-
-    const handleDrop = (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        setIsDragOver(false);
-        const files = [...e.dataTransfer.items]
-            .filter((i) => i.kind === "file")
-            .map((i) => i.getAsFile())
-            .filter(Boolean);
-        onFiles(files);
-    };
-
-    return (
-        <Box
-            border="1px dashed"
-            borderColor={isDragOver ? themeColors.accent : BORDER_CLR}
-            borderRadius="md"
-            bg={isDragOver ? BG_DROP_HOV : BG_DROP}
-            transition="all 0.15s"
-            px={3} py={3}
-            cursor="pointer"
-            onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragOver(true); }}
-            onDragEnter={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragOver(true); }}
-            onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setIsDragOver(false); }}
-            onDrop={handleDrop}
-            onClick={() => fileInputRef.current?.click()}
-        >
-            <input
-                ref={fileInputRef}
-                type="file"
-                multiple
-                style={{ display: "none" }}
-                onChange={(e) => { onFiles([...e.target.files]); e.target.value = ""; }}
-            />
-            <Flex align="center" justify="center" gap={2} pointerEvents="none">
-                {uploading
-                    ? <><Spinner size="xs" color="blue.300" /><Text fontSize="xs" color="gray.400">Uploading…</Text></>
-                    : <><Icon as={FaUpload} color={isDragOver ? themeColors.accentText : "gray.500"} />
-                        <Text fontSize="xs" color={isDragOver ? themeColors.accentText : "gray.500"}>
-                            Drop files or click to upload
-                        </Text></>
-                }
-            </Flex>
-        </Box>
-    );
-});
 
 // ─── Storage badge ──────────────────────────────────────────────────────────
 // ResourceModel.Storage: 0 = Blob (in the DB), 1 = ManagedFile (on disk, app-owned),
@@ -125,7 +68,7 @@ const StorageBadge = React.memo(({ storage }) => {
 // copying its bytes. A browser can't hand JS a real OS path (File System Access API only
 // exposes sandboxed handles), so this has to be a small server-driven browser instead of a
 // native picker.
-const LinkBrowserModal = ({ open, onClose, onLinked }) => {
+const LinkBrowserModal = ({ open, onClose, onLinked, parentFolder }) => {
     const [currentPath, setCurrentPath] = React.useState(null); // null = drive roots
     const [entries, setEntries] = React.useState([]);
     const [loading, setLoading] = React.useState(false);
@@ -166,6 +109,7 @@ const LinkBrowserModal = ({ open, onClose, onLinked }) => {
         const { status, body } = await WebHelper.postAsync("Materials/LinkResource", {
             Name: entry.name,
             LocalPath: entry.fullPath,
+            ParentFolder: parentFolder ?? null,
         });
         setBusy(false);
         if (status < 200 || status >= 300) {
@@ -184,6 +128,7 @@ const LinkBrowserModal = ({ open, onClose, onLinked }) => {
         // complete/failed via ProgressToastManager.
         const { status, body } = await WebHelper.postAsync("Materials/LinkDirectory", {
             LocalDirectoryPath: currentPath,
+            ParentFolder: parentFolder ?? null,
         });
         setBusy(false);
         if (status < 200 || status >= 300 || !body?.started) {
@@ -273,7 +218,6 @@ const LinkBrowserModal = ({ open, onClose, onLinked }) => {
 export const MaterialsPanel = ({ state }) => {
     const [resources, setResources]     = React.useState([]);
     const [ignoreRefresh, setIgnoreRefresh] = React.useState(false);
-    const [uploading, setUploading]     = React.useState(false);
     const [linkModalOpen, setLinkModalOpen] = React.useState(false);
     const onFolderRenameOpenRef         = React.useRef(null);
     const editingAudioRef               = React.useRef(false);
@@ -319,20 +263,40 @@ export const MaterialsPanel = ({ state }) => {
     // ── upload ──────────────────────────────────────────────────────────────
 
     // An Export JSON file among them is offered for import instead.
-    const handleFiles = React.useCallback(async (dropped) => {
+    const handleFiles = React.useCallback(async (dropped, parentFolder = null) => {
         if (!dropped.length) return;
         const files = await takeDroppedExports(dropped, { ask: askImportDropped, onImported: reportImported, onError: reportImportFailed });
         if (!files.length) return;
         setIgnoreRefresh(true);
-        setUploading(true);
 
-        uploadMaterials(files).then(() => {
-            setUploading(false);
+        uploadMaterials(files, { parentFolder }).then(() => {
             setIgnoreRefresh(false);
             loadData();
             treeRefreshRef.current?.();
         });
     }, [loadData]);
+
+    // ── "+ Upload files here" / "Link local file or folder…" rows ─────────────
+    // Each open folder (and the top level) ends with them; they add into that folder.
+    const fileInputRef = React.useRef(null);
+    const uploadFolderRef = React.useRef(null);
+    const [linkFolder, setLinkFolder] = React.useState(null);
+
+    const pickFiles = (parentId) => {
+        uploadFolderRef.current = parentId;
+        fileInputRef.current?.click();
+    };
+
+    const renderAddRow = (parentId) => (
+        <AddRow label={parentId ? "Upload files here" : "Upload files"} onClick={() => pickFiles(parentId)}>
+            {isLocalAdmin && (
+                <Box as="button" type="button" bg="transparent" border="none" p={0} cursor="pointer" color="inherit" fontStyle="italic"
+                    onClick={() => { setLinkFolder(parentId); setLinkModalOpen(true); }}>
+                    Link local file or folder…
+                </Box>
+            )}
+        </AddRow>
+    );
 
     // ── external drag-onto-panel ────────────────────────────────────────────
 
@@ -509,6 +473,7 @@ export const MaterialsPanel = ({ state }) => {
                     entityType="ResourceModel"
                     refreshRef={readOnly ? undefined : treeRefreshRef}
                     onRefresh={loadData}
+                    renderAddRow={readOnly ? undefined : renderAddRow}
                 />
             </DList>
         </Flex>
@@ -530,10 +495,20 @@ export const MaterialsPanel = ({ state }) => {
             {isLocalAdmin && (
                 <LinkBrowserModal
                     open={linkModalOpen}
+                    parentFolder={linkFolder}
                     onClose={() => setLinkModalOpen(false)}
                     onLinked={handleLinked}
                 />
             )}
+
+            <input
+                ref={fileInputRef}
+                type="file"
+                multiple
+                aria-label="Upload files"
+                style={{ display: "none" }}
+                onChange={(e) => { handleFiles([...e.target.files], uploadFolderRef.current); e.target.value = ""; }}
+            />
 
             <DContainer height="100%" display="flex" flexDirection="column">
                 <CollectionSyncer
@@ -554,17 +529,6 @@ export const MaterialsPanel = ({ state }) => {
 
                         <Tabs.Content value="mine" display="flex" flexDirection="column" flex="1" minH={0} p={0}>
                             {renderResourceList(myResources)}
-                            <Box px={2} py={2} borderTop="1px solid" borderColor={BORDER_CLR} flexShrink={0} display="flex" flexDirection="column" gap={2}>
-                                <UploadZone uploading={uploading} onFiles={handleFiles} />
-                                {isLocalAdmin && (
-                                    <Button size="xs" variant="outline" onClick={() => setLinkModalOpen(true)}>
-                                        <Flex align="center" gap={2}>
-                                            <Icon as={FaPlus} boxSize={3} />
-                                            <span>Link local file or folder…</span>
-                                        </Flex>
-                                    </Button>
-                                )}
-                            </Box>
                         </Tabs.Content>
 
                         <Tabs.Content value="all" display="flex" flexDirection="column" flex="1" minH={0} p={0}>
@@ -572,12 +536,7 @@ export const MaterialsPanel = ({ state }) => {
                         </Tabs.Content>
                     </Tabs.Root>
                 ) : (
-                    <>
-                        {renderResourceList(resources)}
-                        <Box px={2} py={2} borderTop="1px solid" borderColor={BORDER_CLR} flexShrink={0}>
-                            <UploadZone uploading={uploading} onFiles={handleFiles} />
-                        </Box>
-                    </>
+                    renderResourceList(resources)
                 )}
             </DContainer>
         </BasePanel>

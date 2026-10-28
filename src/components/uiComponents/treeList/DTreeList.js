@@ -156,6 +156,20 @@ const LeafLabelContextMenu = React.memo(({ node, entity, actions, children }) =>
     );
 });
 
+/** The greyed "+ New … here" row closing each open folder (and the top level). */
+export const AddRow = ({ label, onClick, children }) => (
+    <Flex align="center" gap="10px" py="3px" fontSize="xs" color="gray.500" opacity={0.75} _hover={{ opacity: 1 }}>
+        {label && (
+            <Box as="button" type="button" onClick={onClick} display="flex" alignItems="center" gap="6px"
+                bg="transparent" border="none" p={0} cursor="pointer" color="inherit" fontStyle="italic">
+                <Icon as={FaPlus} boxSize="9px" />
+                <span>{label}</span>
+            </Box>
+        )}
+        {children}
+    </Flex>
+);
+
 const EmptyState = ({ searching }) => (
     <Flex direction="column" align="center" justify="center" gap="8px" py="32px"
         color="gray.500" userSelect="none">
@@ -235,6 +249,11 @@ export const DTreeList = ({
     // "template", "view", "playlist", "soundboard"; see helpers/entityTransfer.js). Offered
     // to whoever can edit folders (Edit on the game, which the server checks too).
     transferKind,
+    // A greyed "+ <addRowLabel> here" row ends every open folder and the top level (with
+    // withAddItem); it calls onAddItem(selected, { parentId }), parentId null at the top.
+    // renderAddRow(parentId) draws that row instead, e.g. with more than one action.
+    addRowLabel,
+    renderAddRow,
 }) => {
     const _generateItem = React.useMemo(
         () => generateItem ?? ((x) => x?.name ?? ""),
@@ -263,6 +282,8 @@ export const DTreeList = ({
     selectionRef.current  = selection;
     entityTypeRef.current = entityType;
 
+    const onAddItemRef = React.useRef(onAddItem);
+    onAddItemRef.current = onAddItem;
     const onDeleteItemRef = React.useRef(onDeleteItem);
     onDeleteItemRef.current = onDeleteItem;
     const onGenerateEditButtonsRef = React.useRef(onGenerateEditButtons);
@@ -532,6 +553,16 @@ export const DTreeList = ({
     const importParentId = selected?.isFolder ? selected.id : (selected?.parentId ?? null);
     const openImport = React.useCallback(() => setImportOpen(true), []);
 
+    const selectedRef = React.useRef(selected);
+    selectedRef.current = selected;
+    const drawAddRow = React.useCallback((parentId) => (
+        <AddRow
+            label={parentId ? `${addRowLabel} here` : addRowLabel}
+            onClick={() => onAddItemRef.current?.(selectedRef.current, { parentId })}
+        />
+    ), [addRowLabel]);
+    const addRow = renderAddRow ?? (withAddItem && addRowLabel ? drawAddRow : undefined);
+
     handleSelectRef.current        = handleSelect;
     handleDeleteFolderRef.current  = handleDeleteFolder;
     handleOpenDeleteAllRef.current = handleOpenDeleteAll;
@@ -638,6 +669,7 @@ export const DTreeList = ({
                         onMove={handleMove}
                         onRowDragStart={handleRowDragStart}
                         estimatedRowHeight={estimatedRowHeight}
+                        renderAddRow={addRow}
                         emptyState={<EmptyState searching={!!filter.trim()} />}
                         ariaLabel={entityType ? `${entityType} tree` : "Tree"}
                     />

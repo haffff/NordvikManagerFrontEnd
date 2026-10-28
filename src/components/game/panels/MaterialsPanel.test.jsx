@@ -11,7 +11,11 @@ vi.mock('@hlorenzi/react-dockable', () => ({ useContentContext: () => ({ setTitl
 vi.mock('../../../contexts/PermissionsContext', () => ({
   usePermissions: () => ({ ...perms, hasEntityPermission: () => perms.canEditGame }),
 }));
-vi.mock('../../uiComponents/treeList/DTreeList', () => ({ default: () => null }));
+// The tree draws each folder's add row (Upload files / Link local file or folder…).
+vi.mock('../../uiComponents/treeList/DTreeList', () => ({
+  default: ({ renderAddRow }) => (renderAddRow ? renderAddRow(null) : null),
+  AddRow: ({ label, onClick, children }) => <div><button onClick={onClick}>{label}</button>{children}</div>,
+}));
 vi.mock('../../uiComponents/base/Modals/InputModal', () => ({ default: () => null }));
 vi.mock('../../../ClientMediator', () => ({
   default: {
@@ -57,7 +61,7 @@ describe('MaterialsPanel', () => {
 
     renderWithProviders(<MaterialsPanel state={{}} />);
 
-    await waitFor(() => expect(screen.queryByText(LINK)).not.toBeNull());
+    await waitFor(() => expect(screen.queryAllByText(LINK).length).toBeGreaterThan(0));
   });
 
   it('a player sees only their own materials and no link button', async () => {

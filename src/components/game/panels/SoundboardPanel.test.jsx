@@ -95,7 +95,7 @@ describe('SoundboardPanel folder tree', () => {
     renderWithProviders(<SoundboardPanel />);
     await screen.findByText('Tavern');
     const before = treeRequests().length;
-    fireEvent.click(screen.getByText('New Soundboard'));
+    fireEvent.click(screen.getByRole('button', { name: 'New soundboard' }));
     await waitFor(() => expect(treeRequests().length).toBeGreaterThan(before));
   });
 

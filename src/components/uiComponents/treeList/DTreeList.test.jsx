@@ -210,3 +210,31 @@ describe('DTreeList Export JSON of a map', () => {
     expect(screen.queryByRole('checkbox', { name: /tokens' cards/ })).toBeNull();
   });
 });
+
+describe('DTreeList "+ New … here" rows', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    WebHelper.get.mockImplementation((url, ok) => ok(tree));
+  });
+
+  it('adds at the top level, and inside an open folder', async () => {
+    const onAddItem = vi.fn();
+    renderWithProviders(<div style={{ height: 600 }}><DTreeList entityType="Card" items={items} withAddItem addRowLabel="New card" onAddItem={onAddItem} /></div>);
+    await screen.findByText('Orc');
+
+    fireEvent.click(screen.getByRole('button', { name: 'New card' }));
+    expect(onAddItem).toHaveBeenLastCalledWith(null, { parentId: null });
+
+    fireEvent.doubleClick(row('maps'));
+    fireEvent.click(await screen.findByRole('button', { name: 'New card here' }));
+    expect(onAddItem).toHaveBeenLastCalledWith(null, { parentId: 'maps' });
+  });
+
+  it('shows none to whoever cannot add, nor while searching', async () => {
+    renderWithProviders(<div style={{ height: 600 }}><DTreeList entityType="Card" items={items} addRowLabel="New card" /></div>);
+    await screen.findByText('Orc');
+
+    expect(screen.queryByRole('button', { name: 'New card' })).toBeNull();
+  });
+});

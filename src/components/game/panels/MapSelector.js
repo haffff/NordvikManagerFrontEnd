@@ -95,8 +95,9 @@ export const MapSelector = ({ battleMapId, state }) => {
     WebSocketManagerInstance.Send(command);
   };
 
-  const HandleAdd = () => {
-    WebSocketManagerInstance.Send(CommandFactory.CreateMapAddCommand());
+  // From the toolbar's + or a folder's "+ New map here" row.
+  const HandleAdd = (_selected, { parentId = null } = {}) => {
+    WebSocketManagerInstance.Send(CommandFactory.CreateMapAddCommand(parentId));
   };
 
   return (
@@ -130,6 +131,7 @@ export const MapSelector = ({ battleMapId, state }) => {
           canEditFolders={canEditGame}
           withAddItem={canEditGame}
           onAddItem={HandleAdd}
+          addRowLabel="New map"
           onRefresh={Reload}
           estimatedRowHeight={52}
           // "Delete All" on a folder: the map on show stays, as it has no Remove
