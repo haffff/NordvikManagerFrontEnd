@@ -149,7 +149,15 @@ export const SHOTS = [
     steps: async (p) => { await openWindow(p, 'GameSettingsPanel', ['Settings', 'Game'], { width: 760, height: 600 }); await clickText(p, 'General Settings'); },
     clip: (p) => panelClip(p, 'GameSettingsPanel'),
   },
-  { name: 'addons-manage', role: 'gm', steps: (p) => openWindow(p, 'AddonsManagePanel', ['Addons', 'Addons Manage', 'Addons']), clip: (p) => panelClip(p, 'AddonsManagePanel') },
+  {
+    // Browse with an addon picked: the list (category badges), and its details and readme.
+    name: 'addons-manage', role: 'gm',
+    steps: async (p) => {
+      await openWindow(p, 'AddonsManagePanel', ['Addons', 'Addons Manage', 'Addons'], { width: 1000, height: 600 });
+      await clickText(p, 'Fifth Edition (SRD)');
+    },
+    clip: (p) => panelClip(p, 'AddonsManagePanel'),
+  },
   {
     name: 'actions-editor', role: 'gm',
     steps: async (p) => {
