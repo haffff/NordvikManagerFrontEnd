@@ -18,6 +18,7 @@ import {
   clientPathForProtocol,
   clientExistsForProtocol,
   navigateTo,
+  isServedFrom,
 } from '../../helpers/protocol';
 
 const CENTRAL_URL = process.env.REACT_APP_CENTRAL_URL || '';
@@ -631,9 +632,21 @@ class WebRTCManager {
   async _switchToProtocolClient(gmProtocol) {
     const sessionId = this._sessionId;
     this._log('warn', `GM backend uses protocol ${gmProtocol}, this client ${PROTOCOL_VERSION} — switching client`);
+    const target = clientPathForProtocol(gmProtocol);
+    // Already there, yet this build speaks another protocol: the site holds the wrong build
+    // in that folder. Switching again would reload this same page forever.
+    if (isServedFrom(target)) {
+      const err = new Error(
+        `This site has the wrong player client at ${target} (protocol ${PROTOCOL_VERSION}, the game's server needs ${gmProtocol}). ` +
+        "Tell whoever runs this site; reloading won't help until it's redeployed."
+      );
+      err.isVersionMismatch = true;
+      this._handleError(err);
+      return;
+    }
     if (await clientExistsForProtocol(gmProtocol)) {
       this.Close();
-      navigateTo(`${clientPathForProtocol(gmProtocol)}?game=${encodeURIComponent(sessionId)}`);
+      navigateTo(`${target}?game=${encodeURIComponent(sessionId)}`);
       return;
     }
     const err = new Error(

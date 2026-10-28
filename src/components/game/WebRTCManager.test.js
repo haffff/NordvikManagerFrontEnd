@@ -61,6 +61,7 @@ const { protocolMock } = vi.hoisted(() => ({
     clientPathForProtocol: (n) => `/client/p${n}/`,
     clientExistsForProtocol: vi.fn(),
     navigateTo: vi.fn(),
+    isServedFrom: vi.fn(() => false),
   },
 }));
 vi.mock('../../helpers/protocol', () => protocolMock);
@@ -159,6 +160,23 @@ describe('WebRTCManager', () => {
       expect(startPeer).not.toHaveBeenCalled();
       expect(protocolMock.clientExistsForProtocol).toHaveBeenCalledWith(2);
       expect(protocolMock.navigateTo).toHaveBeenCalledWith('/client/p2/?game=session-1');
+    });
+
+    // A deploy that put the wrong build in /client/p2/ made that page switch to itself,
+    // reloading forever. Already there: stop and say the site is broken.
+    it('never switches to the folder it is already served from', async () => {
+      protocolMock.clientExistsForProtocol.mockResolvedValue(true);
+      protocolMock.isServedFrom.mockReturnValue(true);
+      const onError = WebRTCManagerInstance._onErrorCallback;
+
+      sessionInfo({ gmPeerId: 'gm-1', gmProtocol: 2 });
+      await flush();
+
+      expect(protocolMock.isServedFrom).toHaveBeenCalledWith('/client/p2/');
+      expect(protocolMock.navigateTo).not.toHaveBeenCalled();
+      expect(onError).toHaveBeenCalledWith(expect.objectContaining({ isVersionMismatch: true }));
+      expect(onError.mock.calls.at(-1)[0].message).toMatch(/wrong player client/);
+      protocolMock.isServedFrom.mockReturnValue(false);
     });
 
     it('reports a version mismatch when no client build exists for the GM protocol', async () => {
