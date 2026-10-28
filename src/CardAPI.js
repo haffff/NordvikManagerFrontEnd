@@ -1,277 +1,1132 @@
 import ClientMediator from "./ClientMediator";
-import WebSocketManagerInstance from "./components/game/WebSocketManager";
+import { ActiveTransportManager as WebSocketManagerInstance, ActiveWebHelper as WebHelper } from "./helpers/transport";
 import UtilityHelper from "./helpers/UtilityHelper";
-import CommandExecutionHelper from "./helpers/CommandExecutionHelper";
+
+// ─── Security: allowlists ─────────────────────────────────────────────────────
+
+/**
+ * Panel commands card code may call through CardAPI.ClientMediator.
+ * Format: "Panel.Command" → true. Panels named addon_* (registered by cards, see
+ * ClientMediator.register below) are callable too. Anything else is refused.
+ */
+export const CARD_COMMANDS = Object.freeze({
+  // Read-only game queries
+  "Game.GetPlayers": true,
+  "Game.GetCurrentPlayer": true,
+  "Game.GetGameId": true,
+  "Game.GetIsGM": true, // e.g. to keep GM-only entries out of a player's lists
+  "Game.GetCanEditGame": true, // the player may edit the game (GM, or given Edit on it)
+
+  // BattleMap read-only
+  "BattleMap.GetSelectedMap": true,
+
+  // Turn order read-only (whose turn it is, e.g. to show "your turn" on a sheet)
+  "TurnOrder.GetState": true,
+
+  // Chat (sending only — receiving is via WS subscription). Sent to the server as a
+  // chat message, never through the chat panel: there "/c" runs local commands.
+  "Chat.SendMessage": true,
+});
+
+/**
+ * Property commands CardAPI's own Properties methods send (parentId already forced to
+ * the card, or explicit for Properties.Global). Not callable from card code.
+ */
+const INTERNAL_COMMANDS = Object.freeze({
+  "Properties.GetByNames": true,
+  "Properties.Add": true,
+  "Properties.Update": true,
+  "Properties.Remove": true,
+  "Properties.GetProperties": true,
+  "Properties.ListAdd": true,
+  "Properties.ListRemove": true,
+  "Properties.ListUpdate": true,
+  "Properties.ListReorder": true,
+});
+
+// Panels with their own CardAPI group; mediator calls to them are pointed there.
+const API_GROUPS = Object.freeze({ properties: "Properties", resources: "Resources", rolls: "Rolls" });
+
+// Command names a registered addon panel can't use (ClientMediator's own fields).
+const RESERVED_COMMANDS = Object.freeze(["id", "panel", "contextId", "onEvent"]);
+
+/**
+ * WebSocket commands that card addons are permitted to send to the server. Nothing
+ * else: "custom_*" in particular are real server commands (custom_panel_*, the views;
+ * custom_layer_*, map layers), run with the permissions of whoever's browser the card
+ * is in.
+ */
+export const ALLOWED_WS_COMMANDS = Object.freeze({
+  chat_push: true,
+  execute_action: true,
+});
+
+/**
+ * WebSocket event prefixes that card addons are permitted to receive.
+ * Notifications about their own properties, chat, custom events and the turn order.
+ * Also applied by CardPanel's bridge when forwarding events into the sandbox.
+ */
+export const ALLOWED_WS_RECEIVE_PREFIXES = Object.freeze([
+  "property_",
+  "chat_",
+  "custom_",
+  "action_",
+  "turnorder_", // only notices (map, round, whose turn unless hidden)
+]);
+
+// ─── Constants ───────────────────────────────────────────────────────────────
+
+const ADDON_PANEL_PREFIX = "addon_";
+
+// ─── Resource data helpers ────────────────────────────────────────────────────
+
+/** Encode any supported data type to a base64 string. */
+async function _toBase64(data) {
+  if (typeof data === "string") {
+    const bytes = new TextEncoder().encode(data);
+    return _uint8ToBase64(bytes);
+  }
+  if (data instanceof Uint8Array)  return _uint8ToBase64(data);
+  if (data instanceof ArrayBuffer) return _uint8ToBase64(new Uint8Array(data));
+  if (data instanceof Blob) {
+    return new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload  = () => resolve(reader.result.split(",")[1]);
+      reader.onerror = reject;
+      reader.readAsDataURL(data);
+    });
+  }
+  throw new Error("CardAPI.Resources: unsupported data type — expected string, Uint8Array, ArrayBuffer, or Blob");
+}
+
+/** Loop-based uint8 → base64 that avoids call-stack overflow on large buffers. */
+function _uint8ToBase64(bytes) {
+  let binary = "";
+  for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary);
+}
+
+/** Infer a MIME type string from a value when the caller doesn't specify one. */
+function _mimeTypeOf(data) {
+  if (typeof data === "string") return "text/plain";
+  if (data instanceof Blob)     return data.type || "application/octet-stream";
+  return "application/octet-stream";
+}
+
+/**
+ * Decode a base64 payload from the server into the right JS type.
+ * Text and JSON types become strings; everything else becomes a Blob.
+ */
+function _decodeResourceData(base64, mimeType) {
+  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+  const mt = (mimeType ?? "").toLowerCase();
+  if (mt.startsWith("text/") || mt === "application/json")
+    return new TextDecoder().decode(bytes);
+  return new Blob([bytes], { type: mt || "application/octet-stream" });
+}
+
+// ─── CardAPI ──────────────────────────────────────────────────────────────────
 
 class CardAPI {
   _propertySubscriptions = {};
-  _propertyCache = {};
+  _propertyCache = new Map();
+  _registeredPanels = new Set();
   _cardId = null;
+  _destroyed = false;
 
   _id = UtilityHelper.GenerateUUID();
+  _subscriptionKey;
 
   constructor(cardId) {
     this._cardId = cardId;
+    this._subscriptionKey = "CardAPI_" + this._id;
 
-    WebSocketManagerInstance.Subscribe("CardAPI_" + this._id, (command) => {
-      if (command.command.startsWith("property")) {
-        if (command.command === "property_notify") {
-          //Check if the command is for this card
-          if (command.data.id !== this._cardId) {
-            return;
-          }
-
-          this.GetMany(command.data.names).then((x) => {
-            x.forEach((y) => {
-              if (this._propertySubscriptions[y.name]) {
-                this._propertySubscriptions[y.name].forEach((callback) => {
-                  callback(y);
-                });
-              }
-            });
-          });
-        }
-
-        if (command.command === "property_add") {
-          //Check if the command is for this card
-          if (command.data.parentId !== this._cardId) {
-            return;
-          }
-
-          if (this._propertySubscriptions[command.data.name]) {
-            this._propertySubscriptions[command.data.name].forEach(
-              (callback) => {
-                callback(command.data);
-              }
-            );
-          }
-        }
-
-        if (command.command === "property_update") {
-          //Check if the command is for this card
-          if (command.data.parentId !== this._cardId) {
-            return;
-          }
-
-          if (this._propertySubscriptions[command.data.name]) {
-            this._propertySubscriptions[command.data.name].forEach(
-              (callback) => {
-                callback(command.data);
-              }
-            );
-          }
-        }
-      }
+    WebSocketManagerInstance.Subscribe(this._subscriptionKey, (message) => {
+      if (this._destroyed) return;
+      this._handleWebSocketMessage(message);
     });
   }
 
-  async InitApi() {}
+  // ── WebSocket message router ────────────────────────────────────────────
 
-  destroy() {
-    WebSocketManagerInstance.Unsubscribe("CardAPI_" + this._id);
+  _handleWebSocketMessage(message) {
+    const { command, data } = message;    
+    
+    if (command === "property_add" || command === "property_update") {
+      // PropertyDTO.ParentID is explicitly tagged [JsonProperty("parentId")]
+      // server-side (matches WebSocketCommandNames.DataKeyParentId, which
+      // GameLobby's permission-filtered broadcast also keys off of) — the
+      // server always broadcasts a freshly serialized, canonical PropertyDTO
+      // now, so this casing is consistent regardless of what triggered the change.
+      if (data.parentId !== this._cardId) return;
+      this._updateCache(data);
+      this._notifySubscribers(data.name, data);
+      return;
+    }
+
+    if (command === "property_remove") {
+      // Also a full PropertyDTO now (previously a bare property ID string).
+      if (data.parentId !== this._cardId) return;
+      this._propertyCache.delete(data.name);
+      this._notifySubscribers(data.name, null);
+      return;
+    }
   }
 
-  Properties = {
-    Init: async (propertyName, value) => {
-      const propsFound = await ClientMediator.sendCommandAsync(
-        "Properties",
-        "GetByNames",
-        {
-          parentId: this._cardId,
-          names: propertyName,
-        }
-      );
+  _notifySubscribers(propertyName, data) {
+    const callbacks = this._propertySubscriptions[propertyName];
+    if (!callbacks?.length) return;
+    for (const cb of callbacks) {
+      try {
+        cb(data);
+      } catch (err) {
+        console.error(`CardAPI: subscriber error for "${propertyName}"`, err);
+      }
+    }
+  }
 
-      if (propsFound.length === 0) {
-        await ClientMediator.sendCommandAsync("Properties", "Add", {
+  _updateCache(property) {
+    if (property?.name) {
+      this._propertyCache.set(property.name, property);
+    }
+  }
+
+  _invalidateCache(names) {
+    if (Array.isArray(names)) {
+      for (const n of names) this._propertyCache.delete(n);
+    } else {
+      this._propertyCache.delete(names);
+    }
+  }
+
+  // ── Lifecycle ───────────────────────────────────────────────────────────
+  async InitApi() {
+    // Bulk-fetch ALL properties for this card up front and warm the cache.
+    // This means the first Get/GetMany calls from the sandbox hit the cache
+    // instead of making individual server round-trips.
+    try {
+      const props = await WebHelper.getAsync(
+        `properties/QueryProperties?parentIds=${this._cardId}`
+      );
+      if (Array.isArray(props)) {
+        for (const prop of props) {
+          this._updateCache(prop);
+        }
+      }
+    } catch (err) {
+      // Non-fatal — the cache stays empty and individual calls will fetch lazily
+      console.warn("CardAPI: prefetch properties failed", err);
+    }
+  }
+  destroy() {
+    this._destroyed = true;
+    this._propertySubscriptions = {};
+    this._propertyCache.clear();
+    WebSocketManagerInstance.Unsubscribe(this._subscriptionKey);
+
+    // Unregister all addon panels registered by this card instance
+    for (const panelId of this._registeredPanels) {
+      ClientMediator.unregister(panelId);
+    }
+    this._registeredPanels.clear();
+  }
+
+  // ── Properties API ──────────────────────────────────────────────────────
+
+  Properties = {
+    /**
+     * Initialise a single property — creates it only if it doesn't exist.
+     */
+    Init: async (propertyName, value) => {
+      const existing = await this.Properties.GetMany([propertyName]);
+
+      if (!existing?.length) {
+        const added = await this._sendCommand("Properties", "Add", {
           property: {
             entityName: "CardModel",
             name: propertyName,
-            value: value,
+            value,
             parentId: this._cardId,
           },
         });
+        if (added) this._updateCache(added);
       }
     },
+
+    /**
+     * Initialise multiple properties — creates only those that don't exist yet.
+     * Waits for all Add operations to complete before returning.
+     */
     InitMany: async (properties) => {
-      const propsFound = await ClientMediator.sendCommandAsync(
-        "Properties",
-        "GetByNames",
-        {
-          parentId: this._cardId,
-          names: properties.map((x) => x.name),
-        }
-      );
+      const existing = await this.Properties.GetMany(properties.map((p) => p.name));
 
-      const missingProps = properties.filter(
-        (x) => !propsFound.find((y) => y.name === x.name)
-      );
+      const existingNames = new Set(existing?.map((p) => p.name) ?? []);
+      const missing = properties.filter((p) => !existingNames.has(p.name));
 
-      missingProps.forEach((x) => {
-        ClientMediator.sendCommandAsync("Properties", "Add", {
-          property: {
-            entityName: "CardModel",
-            name: x.name,
-            value: x.value,
-            parentId: this._cardId,
-          },
-        });
-      });
+      if (!missing.length) return;
+
+      await Promise.all(
+        missing.map((p) =>
+          this._sendCommand("Properties", "Add", {
+            property: {
+              entityName: "CardModel",
+              name: p.name,
+              value: p.value,
+              parentId: this._cardId,
+            },
+          }).then((added) => { if (added) this._updateCache(added); })
+        )
+      );
     },
 
+    /**
+     * Get a single property by name. Uses cache if available.
+     */
     Get: async (propertyName) => {
-      const result = await ClientMediator.sendCommandAsync("Properties", "GetByNames", {
-        parentId: this._cardId,
-        names: propertyName,
-      });
+      const cached = this._propertyCache.get(propertyName);
+      if (cached) return cached;
 
-      return result[0];
+      // Direct fetch into this card's own cache (scoped to _cardId)
+      const fetched = await WebHelper.getAsync(
+        `properties/QueryProperties?parentIds=${this._cardId}&names=${encodeURIComponent(propertyName)}`
+      );
+      const prop = fetched?.[0];
+      if (prop) this._updateCache(prop);
+      return prop;
     },
 
+    /**
+     * Get multiple properties by name. Fetches only uncached ones from the server.
+     * Also exposed as GetByNames for compatibility with cards that call it directly.
+     */
     GetMany: async (propertyNames) => {
-      const result =  await ClientMediator.sendCommandAsync("Properties", "GetByNames", {
-        parentId: this._cardId,
-        names: propertyNames,
-      });
+      const names = Array.isArray(propertyNames) ? propertyNames : [propertyNames];
+      const results = [];
+      const uncached = [];
 
-      return result;
+      for (const name of names) {
+        const cached = this._propertyCache.get(name);
+        if (cached) results.push(cached);
+        else uncached.push(name);
+      }
+
+      if (uncached.length) {
+        // Direct fetch into this card's own cache (scoped to _cardId)
+        const fetched = await WebHelper.getAsync(
+          `properties/QueryProperties?parentIds=${this._cardId}&names=${uncached.map(encodeURIComponent).join(",")}`
+        );
+        if (fetched?.length) {
+          for (const prop of fetched) {
+            this._updateCache(prop);
+            results.push(prop);
+          }
+        }
+      }
+
+      return results;
     },
 
-    Set: async (propertyName, value) => {
-      let prop = await this.Properties.Get(propertyName);
-      if (prop && prop.value === value) {
-        return;
+    /**
+     * GetByNames — alias for GetMany, accepts { names } data object or a names array.
+     * Cards that call ClientMediator.sendCommandAsync("Properties","GetByNames",{names})
+     * are routed here so they benefit from the cache.
+     */
+    GetByNames: async (propertyNames) => {
+      return this.Properties.GetMany(propertyNames);
+    },
+
+    /**
+     * GetProperties — returns ALL cached properties for this card.
+     * Falls back to a fresh server fetch only if the cache is completely empty
+     * (i.e. InitApi prefetch failed).
+     */
+    GetProperties: async () => {
+      if (this._propertyCache.size > 0) {
+        return Array.from(this._propertyCache.values());
       }
+      // Cache is empty — re-run the bulk fetch
+      const props = await WebHelper.getAsync(
+        `properties/QueryProperties?parentIds=${this._cardId}`
+      );
+      if (Array.isArray(props)) {
+        for (const prop of props) this._updateCache(prop);
+      }
+      return props ?? [];
+    },
+
+    /**
+     * Set a single property — updates if it exists (and value changed),
+     * creates if it doesn't.
+     */    Set: async (propertyName, value) => {
+      const prop = await this.Properties.Get(propertyName);
+
       if (prop) {
-        ClientMediator.sendCommandAsync("Properties", "Update", {
+        // Compare as strings — the server may return numbers as strings or vice
+        // versa, so a strict === would falsely detect a change and send an
+        // unnecessary property_update for every computed field on card open.
+        // eslint-disable-next-line eqeqeq
+        if (prop.value == value) return; // No change (type-coerced)
+
+        // Optimistically update cache with new value BEFORE the round-trip so
+        // any concurrent Get/Set calls for the same name don't go to the server.
+        this._updateCache({ ...prop, value });
+        await this._sendCommand("Properties", "Update", {
           property: {
             id: prop.id,
             name: propertyName,
-            value: value,
+            value,
             parentId: this._cardId,
             entityName: "CardModel",
           },
         });
       } else {
-        ClientMediator.sendCommandAsync("Properties", "Add", {
+        const added = await this._sendCommand("Properties", "Add", {
           property: {
             name: propertyName,
-            value: value,
+            value,
             parentId: this._cardId,
             entityName: "CardModel",
           },
         });
+        if (added) this._updateCache(added);
       }
-    },
-
+    },    /**
+     * Set multiple properties — batches updates and adds.
+     * Waits for all operations to complete.
+     */
     SetMany: async (properties) => {
-      const propsFound = await ClientMediator.sendCommandAsync(
-        "Properties",
-        "GetByNames",
-        {
-          parentId: this._cardId,
-          names: properties.map((x) => x.name),
+      const existing = await this.Properties.GetMany(properties.map((p) => p.name));
+
+      const existingMap = new Map(
+        (existing ?? []).map((p) => [p.name, p])
+      );
+
+      const updates = [];
+      const adds = [];
+
+      for (const prop of properties) {
+        const found = existingMap.get(prop.name);
+        if (found) {
+          // eslint-disable-next-line eqeqeq
+          if (found.value == prop.value) continue; // No change (type-coerced)
+          // Optimistically update cache so concurrent reads don't go to server
+          this._updateCache({ ...found, value: prop.value });
+          updates.push(
+            this._sendCommand("Properties", "Update", {
+              property: {
+                id: found.id,
+                name: prop.name,
+                value: prop.value,
+                parentId: this._cardId,
+                entityName: "CardModel",
+              },
+            })
+          );
+        } else {
+          adds.push(
+            this._sendCommand("Properties", "Add", {
+              property: {
+                name: prop.name,
+                value: prop.value,
+                parentId: this._cardId,
+                entityName: "CardModel",
+              },
+            }).then((added) => { if (added) this._updateCache(added); })
+          );
         }
-      );
+      }
 
-      const propsToUpdate = propsFound.filter((x) => {
-        const prop = properties.find((y) => y.name === x.name);
-        return prop && prop.value !== x.value;
-      });
-
-      const propsToAdd = properties.filter(
-        (x) => !propsFound.find((y) => y.name === x.name)
-      );
-
-      propsToUpdate.forEach((x) => {
-        ClientMediator.sendCommandAsync("Properties", "Update", {
-          property: {
-            id: x.id,
-            name: x.name,
-            value: x.value,
-            parentId: this._cardId,
-            entityName: "CardModel",
-          },
-        });
-      });
-
-      propsToAdd.forEach((x) => {
-        ClientMediator.sendCommandAsync("Properties", "Add", {
-          property: {
-            name: x.name,
-            value: x.value,
-            parentId: this._cardId,
-            entityName: "CardModel",
-          },
-        });
-      });
+      await Promise.all([...updates, ...adds]);
     },
 
+    /**
+     * Remove a property by name.
+     */
     Remove: async (propertyName) => {
       const prop = await this.Properties.Get(propertyName);
+      if (!prop) return;
 
-      ClientMediator.sendCommandAsync("Properties", "Remove", {
+      this._invalidateCache(propertyName);
+      await this._sendCommand("Properties", "Remove", {
         propertyId: prop.id,
       });
     },
 
+    /**
+     * Subscribe to property changes.
+     */
     Subscribe: (propertyName, callback) => {
       if (!this._propertySubscriptions[propertyName]) {
         this._propertySubscriptions[propertyName] = [];
       }
-
       this._propertySubscriptions[propertyName].push(callback);
     },
+
+    /**
+     * Unsubscribe from property changes.
+     */
     Unsubscribe: (propertyName, callback) => {
-      if (this._propertySubscriptions[propertyName]) {
-        const index =
-          this._propertySubscriptions[propertyName].indexOf(callback);
-        if (index !== -1) {
-          this._propertySubscriptions[propertyName].splice(index, 1);
-        }
+      const subs = this._propertySubscriptions[propertyName];
+      if (!subs) return;
+
+      const index = subs.indexOf(callback);
+      if (index !== -1) {
+        subs.splice(index, 1);
       }
     },
+
+    /**
+     * Access properties of any entity without being locked to this card's parentId.
+     * Use this to read/write properties on other cards, tokens, or game entities.
+     * parentId must be supplied explicitly for every call.
+     */
+    Global: {
+      Get: async (parentId, propertyName) => {
+        const fetched = await WebHelper.getAsync(
+          `properties/QueryProperties?parentIds=${encodeURIComponent(parentId)}&names=${encodeURIComponent(propertyName)}`
+        );
+        return fetched?.[0] ?? null;
+      },
+
+      GetMany: async (parentId, propertyNames) => {
+        const names = Array.isArray(propertyNames) ? propertyNames : [propertyNames];
+        const fetched = await WebHelper.getAsync(
+          `properties/QueryProperties?parentIds=${encodeURIComponent(parentId)}&names=${names.map(encodeURIComponent).join(",")}`
+        );
+        return fetched ?? [];
+      },
+
+      GetByNames: async (parentId, propertyNames) => {
+        return this.Properties.Global.GetMany(parentId, propertyNames);
+      },
+
+      GetProperties: async (parentId) => {
+        const fetched = await WebHelper.getAsync(
+          `properties/QueryProperties?parentIds=${encodeURIComponent(parentId)}`
+        );
+        return fetched ?? [];
+      },
+
+      Set: async (parentId, propertyName, value) => {
+        const prop = await this.Properties.Global.Get(parentId, propertyName);
+        if (prop) {
+          // eslint-disable-next-line eqeqeq
+          if (prop.value == value) return;
+          await this._sendCommand("Properties", "Update", {
+            property: { id: prop.id, name: propertyName, value, parentId, entityName: "CardModel" },
+          });
+        } else {
+          await this._sendCommand("Properties", "Add", {
+            property: { name: propertyName, value, parentId, entityName: "CardModel" },
+          });
+        }
+      },
+
+      SetMany: async (parentId, properties) => {
+        const existing = await this.Properties.Global.GetMany(parentId, properties.map((p) => p.name));
+        const existingMap = new Map((existing ?? []).map((p) => [p.name, p]));
+        await Promise.all(
+          properties.map((prop) => {
+            const found = existingMap.get(prop.name);
+            if (found) {
+              // eslint-disable-next-line eqeqeq
+              if (found.value == prop.value) return Promise.resolve();
+              return this._sendCommand("Properties", "Update", {
+                property: { id: found.id, name: prop.name, value: prop.value, parentId, entityName: "CardModel" },
+              });
+            }
+            return this._sendCommand("Properties", "Add", {
+              property: { name: prop.name, value: prop.value, parentId, entityName: "CardModel" },
+            });
+          })
+        );
+      },
+
+      Init: async (parentId, propertyName, value) => {
+        const existing = await this.Properties.Global.Get(parentId, propertyName);
+        if (!existing) {
+          await this._sendCommand("Properties", "Add", {
+            property: { name: propertyName, value, parentId, entityName: "CardModel" },
+          });
+        }
+      },
+
+      InitMany: async (parentId, properties) => {
+        const existing = await this.Properties.Global.GetMany(parentId, properties.map((p) => p.name));
+        const existingNames = new Set((existing ?? []).map((p) => p.name));
+        await Promise.all(
+          properties
+            .filter((p) => !existingNames.has(p.name))
+            .map((p) =>
+              this._sendCommand("Properties", "Add", {
+                property: { name: p.name, value: p.value, parentId, entityName: "CardModel" },
+              })
+            )
+        );
+      },
+
+      Remove: async (parentId, propertyName) => {
+        const prop = await this.Properties.Global.Get(parentId, propertyName);
+        if (!prop) return;
+        await this._sendCommand("Properties", "Remove", { propertyId: prop.id });
+      },
+    },
+
+    /**
+     * Repeating-row data for a single property — the value is a JSON array of
+     * {id, fields} rows stored server-side. The target property must already
+     * exist (Properties.Init(name, "[]") first); rows are addressed by their
+     * own stable id, not position, so remove/reorder never shift other rows.
+     * Updates arrive back through the normal property_update broadcast/cache,
+     * same as Properties.Set — no separate subscription needed.
+     */
+    List: {
+      // itemId is optional — omit it to let the server generate one (the
+      // normal case). Pass one when a caller already handed the row's id out
+      // before the row exists server-side (e.g. a Roll20 sheet worker's
+      // generateRowID(), which must be usable as a setAttrs() key immediately).
+      // The server rejects a duplicate id, it never silently reassigns one.
+      Add: async (propertyName, fields, itemId) => {
+        const prop = await this.Properties.Get(propertyName);
+        if (!prop) {
+          throw new Error(
+            `Properties.List.Add: property "${propertyName}" does not exist — call Properties.Init(name, "[]") first`
+          );
+        }
+        await this._sendCommand("Properties", "ListAdd", { propertyId: prop.id, fields, itemId });
+      },
+
+      Remove: async (propertyName, itemId) => {
+        const prop = await this.Properties.Get(propertyName);
+        if (!prop) return;
+        await this._sendCommand("Properties", "ListRemove", { propertyId: prop.id, itemId });
+      },
+
+      Update: async (propertyName, itemId, fields) => {
+        const prop = await this.Properties.Get(propertyName);
+        if (!prop) return;
+        await this._sendCommand("Properties", "ListUpdate", { propertyId: prop.id, itemId, fields });
+      },
+
+      Reorder: async (propertyName, orderedItemIds) => {
+        const prop = await this.Properties.Get(propertyName);
+        if (!prop) return;
+        await this._sendCommand("Properties", "ListReorder", { propertyId: prop.id, orderedItemIds });
+      },
+    },
   };
-  
+
+  // ── Resources API ───────────────────────────────────────────────────────
+  //
+  // Keys are automatically scoped to this card: the raw key supplied by the
+  // addon is prefixed with "{cardId}/" before hitting the server, so two
+  // different card instances can safely use the same logical key name without
+  // colliding.  Addon authors always work with bare keys.
+  //
+  // Accepts:  string | Uint8Array | ArrayBuffer | Blob
+  // Returns:  string for text/* / application/json, Blob for everything else
+
+  _scopeKey(key) {
+    return `${this._cardId}/${key}`;
+  }
+
+  Resources = {
+    /**
+     * Create a new resource identified by a unique key.
+     * The key is automatically scoped to this card — no need to namespace it manually.
+     * @param {string} key         - Logical key (scoped to this card automatically).
+     * @param {string|Uint8Array|ArrayBuffer|Blob} data - Content to store.
+     * @param {string} [name]      - Display name (defaults to key).
+     * @param {string} [mimeType]  - MIME type string. Auto-detected when omitted.
+     * @returns {Promise<string>}  GUID of the new resource.
+     */
+    Create: async (key, data, name, mimeType) => {
+      const scopedKey = this._scopeKey(key);
+      const mt = mimeType ?? _mimeTypeOf(data);
+      const content = await _toBase64(data);
+      const resp = await WebHelper.postAsync("materials/createresource", {
+        key: scopedKey, content, mimeType: mt, name: name ?? key,
+      });
+      if (resp?.status === 409)
+        throw new Error(resp.body?.error ?? "Resource with that key already exists.");
+      if (!resp || resp.status >= 300)
+        throw new Error(resp?.body?.error ?? "Failed to create resource.");
+      return resp.body?.id;
+    },
+
+    /**
+     * Read a resource's content by key.
+     * @param {string} key  - Logical key (scoped to this card automatically).
+     * @returns {Promise<string|Blob|null>} string for text/json types, Blob otherwise, null if not found.
+     */
+    Read: async (key) => {
+      const scopedKey = this._scopeKey(key);
+      const resp = await WebHelper.getAsync(
+        `materials/resource?key=${encodeURIComponent(scopedKey)}`
+      );
+      if (!resp?.data) return null;
+      return _decodeResourceData(resp.data, resp.mimeType);
+    },
+
+    /**
+     * Overwrite the content of an existing resource by key.
+     * @param {string} key  - Logical key (scoped to this card automatically).
+     * @param {string|Uint8Array|ArrayBuffer|Blob} data
+     * @param {string} [mimeType]  - New MIME type. Keeps existing type when omitted.
+     */
+    Update: async (key, data, mimeType) => {
+      const scopedKey = this._scopeKey(key);
+      const content = await _toBase64(data);
+      const mt = mimeType ?? _mimeTypeOf(data);
+      const resp = await WebHelper.putAsync("materials/resourcedata", { key: scopedKey, content, mimeType: mt });
+      if (!resp || resp.status >= 300)
+        throw new Error(resp?.body?.error ?? "Failed to update resource.");
+    },
+
+    /**
+     * Delete a resource by key.
+     * @param {string} key  - Logical key (scoped to this card automatically).
+     */
+    Delete: async (key) => {
+      const scopedKey = this._scopeKey(key);
+      const resp = await WebHelper.deleteAsync(
+        `materials/resourcedata?key=${encodeURIComponent(scopedKey)}`
+      );
+      if (resp?.error) throw new Error(resp.error);
+    },    /**
+     * Create the resource if it doesn't exist, otherwise update its content.
+     * Falls back to Update ONLY on a 409 / "already exists" error from Create.
+     * Any other error (network failure, permission denied, etc.) is re-thrown
+     * so callers get a clear failure rather than a misleading Update attempt.
+     * @param {string} key  - Logical key (scoped to this card automatically).
+     * @returns {Promise<string|undefined>} GUID on create, undefined on update.
+     */
+    Upsert: async (key, data, name, mimeType) => {
+      try {
+        return await this.Resources.Create(key, data, name, mimeType);
+      } catch (err) {
+        const msg = String(err?.message ?? err).toLowerCase();
+        if (!msg.includes("already exists")) throw err;
+        await this.Resources.Update(key, data, mimeType);
+      }
+    },
+
+    /**
+     * Access game-wide shared resources without card-scoped key prefixing.
+     * Use this when reading resources created by other cards or the GM
+     * (e.g. shared token images, global config blobs).
+     */
+    Global: {
+      Create: async (key, data, name, mimeType) => {
+        const mt = mimeType ?? _mimeTypeOf(data);
+        const content = await _toBase64(data);
+        const resp = await WebHelper.postAsync("materials/createresource", {
+          key, content, mimeType: mt, name: name ?? key,
+        });
+        if (resp?.status === 409)
+          throw new Error(resp.body?.error ?? "Resource with that key already exists.");
+        if (!resp || resp.status >= 300)
+          throw new Error(resp?.body?.error ?? "Failed to create resource.");
+        return resp.body?.id;
+      },
+
+      Read: async (key) => {
+        const resp = await WebHelper.getAsync(
+          `materials/resource?key=${encodeURIComponent(key)}`
+        );
+        if (!resp?.data) return null;
+        return _decodeResourceData(resp.data, resp.mimeType);
+      },
+
+      Update: async (key, data, mimeType) => {
+        const content = await _toBase64(data);
+        const mt = mimeType ?? _mimeTypeOf(data);
+        const resp = await WebHelper.putAsync("materials/resourcedata", { key, content, mimeType: mt });
+        if (!resp || resp.status >= 300)
+          throw new Error(resp?.body?.error ?? "Failed to update resource.");
+      },
+
+      Delete: async (key) => {
+        const resp = await WebHelper.deleteAsync(
+          `materials/resourcedata?key=${encodeURIComponent(key)}`
+        );
+        if (resp?.error) throw new Error(resp.error);
+      },      Upsert: async (key, data, name, mimeType) => {
+        try {
+          return await this.Resources.Global.Create(key, data, name, mimeType);
+        } catch (err) {
+          const msg = String(err?.message ?? err).toLowerCase();
+          if (!msg.includes("already exists")) throw err;
+          await this.Resources.Global.Update(key, data, mimeType);
+        }
+      },
+    },
+  };
+
+  // ── Sandboxed ClientMediator────────────────────────────────────────────
+
+  /** Internal: CardAPI's own property commands (see INTERNAL_COMMANDS). */
+  async _sendCommand(panel, command, data) {
+    if (!INTERNAL_COMMANDS[`${panel}.${command}`]) {
+      throw new Error(`CardAPI: internal command "${panel}.${command}" is not allowed`);
+    }
+    return ClientMediator.sendCommandAsync(panel, command, data);
+  }
+
+  /** The scoped name of this card's addon panel "addon_<name>". */
+  _scopedPanelName(name) {
+    if (typeof name !== "string" || !name.startsWith(ADDON_PANEL_PREFIX) || name.length === ADDON_PANEL_PREFIX.length) {
+      throw new Error(`CardAPI: panel name must start with "${ADDON_PANEL_PREFIX}" — got "${name}"`);
+    }
+    return `${ADDON_PANEL_PREFIX}${this._cardId}_${name.slice(ADDON_PANEL_PREFIX.length)}`;
+  }
+
+  /**
+   * What card code can reach through ClientMediator: CARD_COMMANDS and addon_* panels.
+   * Anything else rejects, so a mistake shows up in the card instead of as null.
+   */
   ClientMediator = {
-    sendCommand: (command, data, additionalArgs) => {
-      return ClientMediator.sendCommand(command, data, additionalArgs);
+    sendCommandAsync: async (panel, command, data) => {
+      const key = `${panel}.${command}`;
+      const group = API_GROUPS[String(panel).toLowerCase()];
+      if (group) throw new Error(`CardAPI: "${key}" — use CardAPI.${group} instead`);
+
+      if (CARD_COMMANDS[key]) {
+        if (key === "Chat.SendMessage") {
+          this.SendChatMessage(data);
+          return undefined;
+        }
+        return ClientMediator.sendCommandAsync(panel, command, data);
+      }
+      if (typeof panel === "string" && panel.startsWith(ADDON_PANEL_PREFIX) && !RESERVED_COMMANDS.includes(command)) {
+        return ClientMediator.sendCommandAsync(panel, command, data);
+      }
+      throw new Error(`CardAPI: "${key}" is not available to cards`);
     },
-    sendCommandAsync: (command, data, additionalArgs) => {
-      return ClientMediator.sendCommandAsync(command, data, additionalArgs);
+    sendCommand: (panel, command, data) => this.ClientMediator.sendCommandAsync(panel, command, data),
+
+    /**
+     * Registers an addon panel for this card: "addon_<name>" becomes
+     * "addon_<cardId>_<name>", so two cards never collide. Each command is handed to
+     * `invoke(name, command, data)` — CardPanel forwards it into the card's frame,
+     * where the handler functions live. Registering the same name again replaces its
+     * commands (the card reloaded). Removed on unregister or when the card closes.
+     *
+     * Reachable from actions (RunClientCommand step) and from other cards.
+     * @returns {string} the scoped name to call it by.
+     */
+    register: (name, commands, invoke) => {
+      const scopedName = this._scopedPanelName(name);
+      const client = { id: scopedName, panel: scopedName };
+      for (const command of commands ?? []) {
+        if (typeof command !== "string" || RESERVED_COMMANDS.includes(command)) continue;
+        client[command] = (data) => invoke(name, command, data);
+      }
+      if (this._registeredPanels.has(scopedName)) ClientMediator.unregister(scopedName);
+      ClientMediator.register(client);
+      this._registeredPanels.add(scopedName);
+      return scopedName;
     },
-    register: (client) => {
-      return ClientMediator.register(client);
+
+    /** Removes one of this card's own addon panels. */
+    unregister: (name) => {
+      const scopedName = this._scopedPanelName(name);
+      if (!this._registeredPanels.delete(scopedName)) return false;
+      ClientMediator.unregister(scopedName);
+      return true;
     },
   };
+
+  // ── Chat ────────────────────────────────────────────────────────────────
 
   SendChatMessage(message) {
-    WebSocketManagerInstance.Send({
-      command: "chat_message",
-      data: message,
-    });
+    this._sendWsCommand("chat_push", message);
   }
+
+  // ── Rolls ───────────────────────────────────────────────────────────────
+  // "Roll now, post later" (backend RollsController). Start evaluates a batch
+  // of formulas server-side WITHOUT posting and resolves to
+  // { rollId, results: [{ key, roll }] } — one request for the whole batch.
+  // Finish posts one "Html" chat message for that rollId; the inline roll
+  // numbers it shows are the server-held ones, filled into the HTML's
+  // [data-roll-key] placeholders by the chat renderer (HtmlChatTemplate.js).
+
+  Rolls = {
+    /** @param {{ key: string, formula: string }[]} formulas */
+    Start: async (formulas) => {
+      const resp = await WebHelper.postAsync("rolls/start", { formulas });
+      if (!resp || resp.status >= 300) throw new Error(resp?.body?.error ?? "Failed to roll.");
+      return resp.body;
+    },
+
+    /**
+     * @param {{ rollId: string, html: string, cssResourceKey?: string, title?: string }} payload
+     *   cssResourceKey names a game resource holding the message's CSS, fetched
+     *   once per client and shared by every message that references it.
+     */
+    Finish: async ({ rollId, html, cssResourceKey, title } = {}) => {
+      const resp = await WebHelper.postAsync("rolls/finish", { rollId, html, cssResourceKey, title });
+      if (!resp || resp.status >= 300) throw new Error(resp?.body?.error ?? "Failed to post roll.");
+    },
+  };
+
+  // ── Actions ─────────────────────────────────────────────────────────────
 
   FireAction(action, args) {
-    WebSocketManagerInstance.Send({
-      command: "action_execute",
-      data: {
-        action: action,
-        args: args,
-      },
+    // cardID is always appended for action to use
+    const safeArgs = args && typeof args === "object" ? args : {};
+    this._sendWsCommand("execute_action", {
+      Action: action,
+      Args: { ...safeArgs, cardId: this._cardId },
     });
   }
 
-  RunClientCommand = (commandString) => CommandExecutionHelper.RunCommand(commandString);
+  // ── Sandboxed WebSocket send ────────────────────────────────────────────
 
-  SendCustomCommandToServer(command, data, additionalArgs) {
-    WebSocketManagerInstance.Send({
-      command: command,
-      data: data,
-      ...additionalArgs,
-    });
+  /**
+   * Send a command to the server. Only ALLOWED_WS_COMMANDS are permitted (the bridge
+   * already refuses anything else in the card's frame).
+   */
+  SendCustomCommandToServer(command, data) {
+    this._sendWsCommand(command, data);
+  }
+
+  _sendWsCommand(command, data) {
+    if (!ALLOWED_WS_COMMANDS[command]) {
+      console.error(
+        `CardAPI: blocked WS command "${command}" — not in allowlist`
+      );
+      return;
+    }
+
+    WebSocketManagerInstance.Send({ command, data });
   }
 }
+
+// ─── PropertiesManager (global, non-sandboxed) ───────────────────────────────
+
+/**
+ * Global property manager registered as the "Properties" ClientMediator panel.
+ * Handles property operations on behalf of any non-addon application code.
+ *
+ * Unlike CardAPI (per-card, sandboxed), PropertiesManager operates across any
+ * parentId and maintains a shared cache for the entire session.
+ */
+class PropertiesManager {
+  panel = "Properties";
+  id = "PropertiesHelper";
+
+  _propertyCache = {};
+
+  constructor() {
+    WebSocketManagerInstance.Subscribe("PropertiesManager_subs", (command) => {
+      if (command.command === "property_update" || command.command === "property_add") {
+        this._propertyCache[command.data.id] = command.data;
+      }
+      if (command.command === "property_remove") {
+        // Server now broadcasts a full PropertyDTO for removes too (previously
+        // a bare property ID string).
+        delete this._propertyCache[command.data.id];
+      }
+    });
+  }
+
+  async Get({ parentId, isCommand }) {
+    if (isCommand && !parentId) return "--parentId is required";
+
+    const properties = await WebHelper.getAsync(
+      `properties/QueryProperties?parentIds=${encodeURIComponent(parentId)}`
+    );
+    properties?.forEach((x) => { this._propertyCache[x.id] = x; });
+    return properties;
+  }
+
+  async GetProperties({ parentId, isCommand }) {
+    if (isCommand && !parentId) return "--parentId is required";
+
+    const properties = await WebHelper.getAsync(
+      `properties/QueryProperties?parentIds=${encodeURIComponent(parentId)}`
+    );
+    properties?.forEach((x) => { this._propertyCache[x.id] = x; });
+    return properties ?? [];
+  }
+
+  async AddToCache({ properties, isCommand }) {
+    if (isCommand && !properties) {
+      return "--properties is required, since its complex object type this command is not supported (for now)";
+    }
+    properties.forEach((x) => { this._propertyCache[x.id] = x; });
+  }
+
+  async LoadToCache({ parentId, isCommand }) {
+    if (isCommand && !parentId) return "--parentId is required";
+
+    const properties = await WebHelper.getAsync(
+      `properties/QueryProperties?parentIds=${encodeURIComponent(parentId)}`
+    );
+    properties?.forEach((x) => { this._propertyCache[x.id] = x; });
+  }
+
+  async GetByNames({ parentId, names, isCommand }) {
+    if (isCommand && (!parentId || !names)) {
+      return "--parentId and --names are required";
+    }
+    if (!parentId) {
+      console.error("PropertiesManager.GetByNames: parentId is required");
+      return [];
+    }
+
+    const namesArr = Array.isArray(names) ? names : names.split(",");
+
+    const cached = [];
+    namesArr.forEach((name) => {
+      const found = Object.values(this._propertyCache).find(
+        (x) => x.name === name && x.parentId === parentId
+      );
+      if (found) cached.push(found);
+    });
+
+    if (cached.length === namesArr.length) return cached;
+
+    const missing = namesArr.filter((n) => !cached.find((c) => c.name === n));
+    const fetched = await WebHelper.getAsync(
+      `properties/QueryProperties?parentIds=${encodeURIComponent(parentId)}&names=${missing.map(encodeURIComponent).join(",")}`
+    );
+    fetched?.forEach((x) => { this._propertyCache[x.id] = x; });
+
+    return [...cached, ...(fetched ?? [])];
+  }
+
+  async GetByPrefix({ parentId, prefix, getFromCache, isCommand }) {
+    if (isCommand && !parentId) return "--parentId is required";
+
+    if (getFromCache) {
+      return Object.values(this._propertyCache).filter(
+        (x) => x.parentId === parentId && x.name.startsWith(prefix)
+      );
+    }
+
+    const properties = await WebHelper.getAsync(
+      `properties/QueryProperties?parentIds=${encodeURIComponent(parentId)}&prefix=${encodeURIComponent(prefix)}`
+    );
+    properties?.forEach((x) => { this._propertyCache[x.id] = x; });
+    return properties;
+  }
+
+  async GetByIds({ parentId, ids, isCommand }) {
+    if (isCommand && (!parentId || !ids)) {
+      return "--parentId and --ids are required";
+    }
+
+    const idsArr = Array.isArray(ids) ? ids : ids.split(",");
+
+    const cached = idsArr
+      .filter((id) => this._propertyCache[id])
+      .map((id) => this._propertyCache[id]);
+
+    if (cached.length === idsArr.length) return cached;
+
+    const missing = idsArr.filter((id) => !this._propertyCache[id]);
+    const fetched = await WebHelper.getAsync(
+      `properties/QueryProperties?parentIds=${encodeURIComponent(parentId)}&ids=${missing.join(",")}`
+    );
+    fetched?.forEach((x) => { this._propertyCache[x.id] = x; });
+
+    return [...cached, ...(fetched ?? [])];
+  }
+
+  async Update({ property, isCommand, propertyName, propertyValue, propertyId, parentId }) {
+    if (isCommand && (!propertyId || (!propertyName && !parentId))) {
+      return "either --propertyId or --propertyName and --parentId are required";
+    }
+
+    let finalProperty = property;
+    if (!finalProperty) {
+      if (propertyId === undefined) {
+        const found = await this.GetByNames({ parentId, names: propertyName });
+        finalProperty = Array.isArray(found) ? found[0] : found;
+      } else {
+        finalProperty = { id: propertyId };
+      }
+      finalProperty = { ...finalProperty, value: propertyValue };
+    }
+
+    WebSocketManagerInstance.Send({ command: "property_update", data: finalProperty });
+  }
+
+  async UpdateBulk({ properties, isCommand }) {
+    if (isCommand && !properties) {
+      return "--properties is required, since its complex object type this command is not supported (for now)";
+    }
+
+    // The server broadcasts a property_update per saved row, which refreshes the cache.
+    await WebHelper.postAsync(`properties/UpdateBulk`, properties);
+    properties.forEach((x) => { this._propertyCache[x.id] = x; });
+  }
+
+  async Add({ property, isCommand, parentId, name, value, entityName }) {
+    if (isCommand && (!parentId || !name || !value || !entityName)) {
+      return "--parentId --name --value and --entityType are required";
+    }
+
+    if (isCommand) {
+      property = { parentId, name, value, entityName };
+    }
+
+    WebSocketManagerInstance.Send({ command: "property_add", data: property });
+  }
+
+  async AddMany({ properties, isCommand }) {
+    if (isCommand && !properties) {
+      return "--properties is required, since its complex object type this command is not supported (for now)";
+    }
+
+    // New rows have no id yet; the server's property_add broadcast fills the cache.
+    await WebHelper.postAsync(`properties/AddBulk`, properties);
+  }
+
+  async Remove({ propertyId, isCommand }) {
+    if (isCommand && !propertyId) return "--propertyId is required";
+
+    delete this._propertyCache[propertyId];
+    WebSocketManagerInstance.Send({ command: "property_remove", data: propertyId });
+  }
+
+  // ── Property-list ops ─────────────────────────────────────────────────
+  // Rows live inside a single property's Value as a JSON array of {id, fields}.
+  // The server rewrites its broadcast to plain property_update, so the result
+  // lands in _propertyCache via the constructor's subscription, same as Add/
+  // Update/Remove above — no extra cache-handling needed here.
+
+  async ListAdd({ propertyId, fields, itemId, isCommand }) {
+    if (isCommand && !propertyId) return "--propertyId is required";
+    WebSocketManagerInstance.Send({ command: "property_list_item_add", data: { propertyId, fields, itemId } });
+  }
+
+  async ListRemove({ propertyId, itemId, isCommand }) {
+    if (isCommand && (!propertyId || !itemId)) return "--propertyId and --itemId are required";
+    WebSocketManagerInstance.Send({ command: "property_list_item_remove", data: { propertyId, itemId } });
+  }
+
+  async ListUpdate({ propertyId, itemId, fields, isCommand }) {
+    if (isCommand && (!propertyId || !itemId)) return "--propertyId and --itemId are required";
+    WebSocketManagerInstance.Send({ command: "property_list_item_update", data: { propertyId, itemId, fields } });
+  }
+
+  async ListReorder({ propertyId, orderedItemIds, isCommand }) {
+    if (isCommand && !propertyId) return "--propertyId is required";
+    WebSocketManagerInstance.Send({ command: "property_list_reorder", data: { propertyId, orderedItemIds } });
+  }
+
+  GetCardId()
+  {
+    return this._cardId;
+  }
+}
+
+export const PropertiesManagerInstance = new PropertiesManager();
+
+// ─── CardAPI factory ──────────────────────────────────────────────────────────
 
 export default async (cardId) => {
   const api = new CardAPI(cardId);

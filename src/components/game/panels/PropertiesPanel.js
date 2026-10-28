@@ -1,55 +1,33 @@
 import * as React from 'react';
 import * as Dockable from "@hlorenzi/react-dockable"
-import UtilityHelper from '../../../helpers/UtilityHelper';
+import { Text } from '@chakra-ui/react';
 import ElementSettingsPanel from '../settings/ElementsSettingsPanel';
-import BasePanel from '../../uiComponents/base/BasePanel';
+import { BasePanel } from '../../uiComponents/base/BasePanel';
 import ClientMediator from '../../../ClientMediator';
 import useBMName from '../../uiComponents/hooks/useBattleMapName';
 
-export const PropertiesPanel = ({ battlemapId, lockedObject, customTitle }) => {
-    const [selectedObjects, setSelectedObjects] = React.useState(lockedObject ? [lockedObject] : []);
-    const [uuid, _setUUID] = React.useState(UtilityHelper.GenerateUUID());
-    const [, forceUpdate] = React.useReducer(x => x + 1, 0);
+/**
+ * Settings of the element selected when the panel was opened. It stays on that element:
+ * selecting something else on the map doesn't change what is being edited — open
+ * Properties again for that.
+ */
+export const PropertiesPanel = ({ battlemapId }) => {
+    const [element, setElement] = React.useState(null);
     const bmName = useBMName(battlemapId);
-    const HandleSelection = (e) => {
-
-        if (lockedObject) {
-            return;
-        }
-
-        let selected = [];
-        if (e.selected) {
-            e.selected.forEach(item => selected.push(item));
-        }
-
-        if (e.deselected) {
-            selected = selected.filter(x => !e.deselected.includes(x));
-        }
-
-        setSelectedObjects(selected);
-    }
 
     React.useEffect(() => {
-        ClientMediator.sendCommandWaitForRegister("BattleMap", "SubscribeSelectionChanged", { contextId: battlemapId, name:uuid, method:HandleSelection }, true);
-        ClientMediator.sendCommandWaitForRegister("BattleMap", "GetSelectedObjects", { contextId: battlemapId }, true).then((r) => { setSelectedObjects(r) });
-
-        return () => {
-            ClientMediator.sendCommand("BattleMap", "UnSubscribeSelectionChanged", { name:uuid });
-        }
-
+        ClientMediator.sendCommandWaitForRegister("BattleMap", "GetSelectedObjects", { contextId: battlemapId }, true)
+            .then((selected) => setElement(selected?.length === 1 ? selected[0] : null));
     }, []);
 
     const ctx = Dockable.useContentContext();
-    if (lockedObject) {
-        ctx.setTitle(`Element Settings - ` + (lockedObject.name));
-    }
-    else {
-        ctx.setTitle(bmName + ` - Element Settings`);
-    }
+    ctx.setTitle(element ? `${bmName} - ${element.name} - Element Settings` : `${bmName} - Element Settings`);
 
     return (
         <BasePanel>
-            {selectedObjects.length === 1 ? (<ElementSettingsPanel battlemapId={battlemapId} dto={selectedObjects[0]} />) : <></>}
+            {element
+                ? <ElementSettingsPanel battlemapId={battlemapId} dto={element} />
+                : <Text padding="10px">Select one element, then open Properties from its right-click menu.</Text>}
         </BasePanel>
     )
 }

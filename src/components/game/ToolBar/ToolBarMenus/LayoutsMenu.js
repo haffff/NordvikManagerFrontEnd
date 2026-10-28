@@ -1,9 +1,8 @@
 import * as React from "react";
 import LayoutHelper from "../../../../helpers/LayoutCloneHelper";
-import UtilityHelper from "../../../../helpers/UtilityHelper";
-import WebSocketManagerInstance from "../../WebSocketManager";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../../../../helpers/transport";
 import CommandFactory from "../../../BattleMap/Factories/CommandFactory";
-import { FaBook } from "react-icons/fa";
+import { FaBook } from "@react-icons/all-files/fa/FaBook";
 import LayoutsManagerPanel from "../../panels/LayoutsManagerPanel";
 import DropDownMenu from "../../../uiComponents/base/DDItems/DropDownMenu";
 import DropDownItem from "../../../uiComponents/base/DDItems/DropDownItem";
@@ -12,33 +11,57 @@ import CreateDropDownButton from "../../../uiComponents/base/DDItems/SpecialButt
 import DeletableDropDownButton from "../../../uiComponents/base/DDItems/SpecialButtons/DeletableDropDownButton";
 import ClientMediator from "../../../../ClientMediator";
 import CollectionSyncer from "../../../uiComponents/base/CollectionSyncer";
-import WebHelper from "../../../../helpers/WebHelper";
+import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import InputModal from "../../../uiComponents/base/Modals/InputModal";
+import LayoutPersistence from "../../../../helpers/LayoutPersistence";
+import Subscribable from "../../../uiComponents/base/Subscribable";
 
-export const LayoutsMenu = ({ state, battlemapsRef }) => {
+export const LayoutsMenu = ({ state, battlemapsRef, canSave = true }) => {
   const width = 200;
   const [serverLayouts, setServerLayouts] = React.useState(undefined);
 
-  const openRef = React.createRef();
+  const openRef = React.useRef();
+
+  const refreshLayouts = React.useCallback(() => {
+    WebHelper.get("Battlemap/GetLayouts", setServerLayouts);
+  }, []);
 
   React.useEffect(() => {
-    WebHelper.get("Battlemap/GetLayouts", setServerLayouts);
-    const id = UtilityHelper.GenerateUUID();
-  }, []);
+    refreshLayouts();
+  }, [refreshLayouts]);
+
+  // The server-side layout list is filtered by permission — a share/unshare
+  // doesn't touch the layout entity itself, so the "layout" CollectionSyncer
+  // below never fires for it. Re-fetch on any LayoutModel permission change
+  // so a newly-shared (or un-shared) layout appears/disappears live.
+  const onPermissionUpdate = (event) => {
+    if (event?.data?.entityType !== "LayoutModel") return;
+    refreshLayouts();
+  };
 
   function DeleteServerLayout({ id }) {
     WebSocketManagerInstance.Send(CommandFactory.CreateLayoutRemoveCommand(id));
   }
 
+  function ResetMyLayout() {
+    const game = ClientMediator.sendCommand("Game", "GetGame");
+    const player = ClientMediator.sendCommand("Game", "GetCurrentPlayer");
+    if (game?.id && player?.id) LayoutPersistence.clear(game.id, player.id);
+    if (game?.defaultLayout?.id) ClientMediator.sendCommand("Game", "SetLayout", game.defaultLayout.id);
+  }
+
   return (
+  <>
     <DropDownMenu viewId={"layouts"} width={width} name={"Layouts"}>
-      <DropDownItem
-        width={width}
-        name={"Save current"}
-        onClick={() => {
-          openRef.current({ name: "My new layout" });
-        }}
-      />
+      {canSave && (
+        <DropDownItem
+          width={width}
+          name={"Save current"}
+          onClick={() => {
+            openRef.current({ name: "My new layout" });
+          }}
+        />
+      )}
 
       <DropDownSeparator title="Layouts" />
 
@@ -60,49 +83,56 @@ export const LayoutsMenu = ({ state, battlemapsRef }) => {
       )}
 
       <DropDownSeparator />
+      <DropDownItem
+        width={width}
+        name={"Reset my layout"}
+        onClick={ResetMyLayout}
+      />
       <CreateDropDownButton
-        gmOnly
+        requiresEdit
         icon={FaBook}
         width={width}
         name={"Layout Manager"}
         state={state}
-        element={<LayoutsManagerPanel state={state} />}
-      />
-      <CollectionSyncer
-        incrementalUpdate={true}
-        collection={serverLayouts}
-        setCollection={setServerLayouts}
-        commandPrefix={"layout"}
-      />
-      <InputModal
-        openRef={openRef}
-        title={"Save current layout"}
-        getConfigDict={() => [
-          {
-            key: "name",
-            required: true,
-            label: "Name",
-            toolTip: "Name of layout.",
-            type: "string",
-          },
-        ]}
-        onCloseModal={(data, success) => {
-          if (success) {
-            let rootPanel = state.ref.current.rootPanel;
-            let clone = LayoutHelper.GetCloneForSaving(
-              rootPanel,
-              battlemapsRef
-            );
-            let newObj = {
-              name: data.name,
-              value: JSON.stringify(clone),
-            };
-            let cmd = CommandFactory.CreateLayoutAddCommand(newObj);
-            WebSocketManagerInstance.Send(cmd);
-          }
-        }}
+        element={<LayoutsManagerPanel state={state} battlemapsRef={battlemapsRef} />}
       />
     </DropDownMenu>
+    <CollectionSyncer
+      incrementalUpdate={true}
+      collection={serverLayouts}
+      setCollection={setServerLayouts}
+      commandPrefix={"layout"}
+    />
+    <Subscribable commandPrefix="permission_update" onMessage={onPermissionUpdate} />
+    <InputModal
+      openRef={openRef}
+      title={"Save current layout"}
+      getConfigDict={() => [
+        {
+          key: "name",
+          required: true,
+          label: "Name",
+          toolTip: "Name of layout.",
+          type: "string",
+        },
+      ]}
+      onCloseModal={(data, success) => {
+        if (success) {
+          let rootPanel = state.ref.current.rootPanel;
+          let clone = LayoutHelper.GetCloneForSaving(
+            rootPanel,
+            battlemapsRef
+          );
+          let newObj = {
+            name: data.name,
+            value: JSON.stringify(clone),
+          };
+          let cmd = CommandFactory.CreateLayoutAddCommand(newObj);
+          WebSocketManagerInstance.Send(cmd);
+        }
+      }}
+    />
+  </>
   );
 };
 export default LayoutsMenu;

@@ -36,8 +36,9 @@ export const CommandFactory = {
     CreateMapRemoveCommand: (mapId) => {
         return { command: "map_remove", data: mapId };
     },
-    CreateMapAddCommand: () => {
-        return { command: "map_add", data: {} };
+    // treeParentId: the folder of the Map Selector it goes into.
+    CreateMapAddCommand: (treeParentId) => {
+        return treeParentId ? { command: "map_add", data: { treeParentId } } : { command: "map_add" };
     },
     CreateLayoutAddCommand: (layout) => {
         return { command: "layout_add", data: layout };
@@ -52,7 +53,7 @@ export const CommandFactory = {
         return { command: "layout_forcechange", data: id };
     },
     CreateUpdatePermissionsCommand: (id, dtoType, permissions) => {
-        return { command: "permissions_update", data: { id, entityType: dtoType, permissions } }
+        return { command: "permission_update", data: { id, entityType: dtoType, permissions } }
     },
     CreateDeleteBattleMap: (id) => {
         return { command: "battlemap_remove", data: id }
@@ -72,8 +73,12 @@ export const CommandFactory = {
     CreateKickPlayerCommand: (id) => {
         return { command: "player_kick", data: id }
     },
-    CreateShowBattleMapCommand: (battleMapContext) => {
-        return { command: "battlemap_show", data: battleMapContext.Id }
+    // GM only. Without playerId it opens for every other player. The target goes in data:
+    // the server overwrites the command's own playerId with the sender's.
+    CreateShowBattleMapCommand: (battleMapId, playerId) => {
+        const data = { type: "Battlemap", syncId: battleMapId };
+        if (playerId) data.targetPlayerId = playerId;
+        return { command: "show_panel", data };
     },
     CreatePropertyRemoveCommand: (id) => {
         return { command: "property_remove", data: id }
@@ -83,6 +88,27 @@ export const CommandFactory = {
     },
     CreatePropertyAddCommand: (dto) => {
         return { command: "property_add", data:  dto  }
+    },
+    CreatePropertyListItemAddCommand: (propertyId, fields) => {
+        return { command: "property_list_item_add", data: { propertyId, fields } }
+    },
+    CreatePropertyListItemRemoveCommand: (propertyId, itemId) => {
+        return { command: "property_list_item_remove", data: { propertyId, itemId } }
+    },
+    CreatePropertyListItemUpdateCommand: (propertyId, itemId, fields) => {
+        return { command: "property_list_item_update", data: { propertyId, itemId, fields } }
+    },
+    CreatePropertyListReorderCommand: (propertyId, orderedItemIds) => {
+        return { command: "property_list_reorder", data: { propertyId, orderedItemIds } }
+    },
+    CreateCustomLayerAddCommand: (name, afterLayerId) => {
+        return { command: "custom_layer_add", data: { name, afterLayerId } }
+    },
+    CreateCustomLayerRemoveCommand: (itemId) => {
+        return { command: "custom_layer_remove", data: { itemId } }
+    },
+    CreateCustomLayerMoveCommand: (itemId, direction) => {
+        return { command: "custom_layer_move", data: { itemId, direction } }
     },
 }
 

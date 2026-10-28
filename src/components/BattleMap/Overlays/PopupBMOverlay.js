@@ -7,9 +7,16 @@ export const PopupBMOverlay = ({ battleMapId, canvas }) => {
   const popupRef = useRef(undefined);
 
   useEffect(() => {
+    if (!battleMapId) {
+      console.warn('PopupBMOverlay: no battleMapId provided, skipping registration');
+      return;
+    }
+
+    const regId = "BattleMap_Popup_" + battleMapId;
+    ClientMediator.unregister(regId); // ensure clean state
     ClientMediator.register({
       panel: "BattleMap",
-      id: "BattleMap_Popup_" + battleMapId,
+      id: regId,
       contextId: battleMapId,
       ShowPopup: ({ content }) => {
         setPopupContent(content);
@@ -22,9 +29,9 @@ export const PopupBMOverlay = ({ battleMapId, canvas }) => {
     });
 
     return () => {
-      ClientMediator.unregister("BattleMap_Popup_" + battleMapId);
+      ClientMediator.unregister(regId);
     };
-  },[]);
+  }, [battleMapId]);
 
   useEffect(() => {
     const updatePos = (e) => {

@@ -1,0 +1,84 @@
+/* The dock library declares its colours on its own root element (a styled-components
+   class), so :root can't override them. They're re-declared here one step more
+   specific, from --nordvik-dock-* variables a game stylesheet can set. The fallbacks
+   are the library's own defaults, except the highlight, which follows --nordvik-accent. */
+.nm_dock > div {
+    --dockable-voidBkg: var(--nordvik-dock-void, #1a1a1a);
+    --dockable-panelBkg: var(--nordvik-dock-panel, #1e1e1e);
+    --dockable-panelInactiveBorder: var(--nordvik-dock-border, #333333);
+    --dockable-panelActiveBorder: var(--nordvik-dock-border-active, #555555);
+    --dockable-panelTabBkg: var(--nordvik-dock-tab, #272727);
+    --dockable-panelTabTextColor: var(--nordvik-dock-tab-text, #e8e8e8);
+    /* The current tab, apart from the panel body (by default the panel colour). */
+    --dockable-panelTabActiveBkg: var(--nordvik-dock-tab-active, var(--nordvik-dock-panel, #1e1e1e));
+    --dockable-panelTabActiveTextColor: var(--nordvik-dock-tab-active-text, var(--nordvik-dock-tab-text, #e8e8e8));
+    --dockable-panelTabInactiveButtonColor: var(--nordvik-dock-tab-button, rgba(255,255,255,0.2));
+    --dockable-overlayColor: var(--nordvik-dock-overlay, color-mix(in srgb, var(--nordvik-accent, #bd1818) 10%, transparent));
+    --dockable-anchorColor: var(--nordvik-dock-accent, var(--nordvik-accent, #bd1818));
+    --dockable-buttonHoverBkg: var(--nordvik-dock-button-hover, #3a3a3a);
+    --dockable-scrollbarColor: var(--nordvik-dock-scrollbar, #555555);
+}
+
+/* Minimized floating windows, as chips in the status bar (MinimizedWindowsBar). */
+.nm_minimizedWindows {
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    gap: 6px;
+    overflow-x: auto;
+    scrollbar-width: thin;
+}
+
+.nm_minimizedWindow {
+    display: inline-flex;
+    flex-shrink: 0;
+    align-items: center;
+    gap: 6px;
+    max-width: 200px;
+    height: 22px;
+    padding: 0 4px 0 10px;
+    border: 1px solid var(--nordvik-dock-border, #333333);
+    border-bottom: 2px solid var(--nordvik-dock-accent, var(--nordvik-accent, #bd1818));
+    border-radius: 4px;
+    background-color: var(--nordvik-dock-tab, #272727);
+    color: var(--nordvik-dock-tab-text, #e8e8e8);
+    font-size: 12px;
+    cursor: pointer;
+    user-select: none;
+    transition: background-color 0.1s ease;
+}
+
+.nm_minimizedWindow:hover,
+.nm_minimizedWindow:focus-visible {
+    background-color: var(--nordvik-dock-button-hover, #3a3a3a);
+}
+
+.nm_minimizedWindow_title {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+}
+
+.nm_minimizedWindow_count {
+    opacity: 0.6;
+}
+
+.nm_minimizedWindow_close {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border: 0;
+    border-radius: 3px;
+    background: transparent;
+    color: inherit;
+    opacity: 0.6;
+    cursor: pointer;
+}
+
+.nm_minimizedWindow_close:hover {
+    opacity: 1;
+    background-color: rgba(255, 255, 255, 0.1);
+}

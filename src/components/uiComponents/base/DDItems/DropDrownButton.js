@@ -1,6 +1,7 @@
 import { Box, Button, Icon } from "@chakra-ui/react";
 import * as React from "react";
-import { IoMdArrowDropdown } from "react-icons/io";
+import { IoMdArrowDropdown } from "@react-icons/all-files/io/IoMdArrowDropdown";
+import { usePermissions } from "../../../../contexts/PermissionsContext";
 
 export const DropDownButton = ({
   accessKey,
@@ -9,11 +10,10 @@ export const DropDownButton = ({
   onClick,
   width,
   height,
-  gmOnly,
+  requiresEdit,
 }) => {
-  if (gmOnly && localStorage.getItem("gmMode") !== "true") {
-    return null;
-  }
+  const { canEditGame } = usePermissions();
+  if (requiresEdit && !canEditGame) return null;
 
   return (
     <Button

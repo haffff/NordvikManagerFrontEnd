@@ -2,8 +2,9 @@ import { Box, Button, Center, Heading, Input, Stack } from "@chakra-ui/react";
 import React from "react";
 import { toaster } from "../ui/toaster";
 import WebHelper from "../../helpers/WebHelper";
+import { removeUrlParam } from "../../helpers/UrlParamHelper";
 
-export const RegisterForm = ({ OnSuccess, code }) => {
+export const RegisterForm = ({ OnSuccess, code, requiresCode, onBack }) => {
   const [form, setForm] = React.useState({ inviteCode: code });
   const [error, setError] = React.useState(false);
   const [codeError, setCodeError] = React.useState(false);
@@ -62,8 +63,9 @@ export const RegisterForm = ({ OnSuccess, code }) => {
       isClosable: true,
     });
 
-    //remove "code" parameter from query string
-    window.history.replaceState({}, document.title, window.location.pathname);
+    // Remove only the "code" parameter — preserve any other param (e.g. a GM
+    // deep-linked "game" id) so it survives this reload.
+    removeUrlParam("code");
     window.location.reload();
   };
 
@@ -137,19 +139,28 @@ export const RegisterForm = ({ OnSuccess, code }) => {
           onInput={(input) => setField("email", input.target.value)}
         />
 
-        <Heading as="h6" size="xs">
-          Invite code
-        </Heading>
-        <Input
-          pr="4.5rem"
-          type="text"
-          placeholder="Code"
-          value={form.inviteCode}
-          disabled={code}
-          onInput={(input) => setField("code", input.target.value)}
-          borderColor={code && !codeError ? "green" : "gray.200"}
-        />
+        {requiresCode && (
+          <>
+            <Heading as="h6" size="xs">
+              Invite code
+            </Heading>
+            <Input
+              pr="4.5rem"
+              type="text"
+              placeholder="Code"
+              value={form.inviteCode}
+              disabled={Boolean(code)}
+              onInput={(input) => setField("inviteCode", input.target.value)}
+              borderColor={code && !codeError ? "green" : "gray.200"}
+            />
+          </>
+        )}
         <Button onClick={onFormSubmit}>Register</Button>
+        {onBack && (
+          <Button variant="ghost" size="sm" onClick={onBack}>
+            Back to login
+          </Button>
+        )}
       </Stack>
     </form>
   );

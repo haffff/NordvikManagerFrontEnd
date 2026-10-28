@@ -1,32 +1,17 @@
 import * as React from "react";
-import {
-  HStack,
-  Button,
-  Box,
-  Stack,
-  Textarea,
-  Grid,
-  GridItem,
-  Flex,
-  Card,
-  CardHeader,
-  CardBody,
-  Heading,
-  Center,
-  Badge,
-  FormLabel,
-  Input,
-  Checkbox,
-  NumberInput,
-  NumberInputField,
-} from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import SettingsPanel from "./SettingsPanel";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
-import WebSocketManagerInstance from "../WebSocketManager";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import Subscribable from "../../uiComponents/base/Subscribable";
 import ClientMediator from "../../../ClientMediator";
 import { toaster } from "../../ui/toaster";
+import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
+import { PersonalStylesheetSettings } from "../theme/StylesheetSettings";
+import ResourceCacheSettings from "./ResourceCacheSettings";
+import AudioVolumeSettings from "./AudioVolumeSettings";
+import { Tabs } from "@chakra-ui/react";
+import { BasePanel } from "../../uiComponents/base/BasePanel";
 
 export const PlayerSettingsPanel = ({ player }) => {
   const [playerData, setPlayerData] = React.useState();
@@ -50,15 +35,24 @@ export const PlayerSettingsPanel = ({ player }) => {
     },
   ];
 
+  // Without a player (Settings → Player, or restored from a saved layout, which drops
+  // it) these are your own settings.
+  const currentPlayerId = ClientMediator.sendCommand("Game", "GetCurrentPlayer")?.id;
+  const playerId = player?.id ?? currentPlayerId;
+
+  // Personal stylesheets, sound volumes and the offline cache live in this browser, so only your own player has them.
+  const isCurrentPlayer = !!playerId && playerId === currentPlayerId;
+
   const ctx = Dockable.useContentContext();
   ctx.setTitle(`Player settings`);
 
   ctx.setPreferredSize(600, 800);
-
   const sendSettingsUpdate = (dtoToSend) => {
-    dtoToSend.id = playerData.id;
-    let command = CommandFactory.CreatePlayerSettingsCommand(dtoToSend);
-    WebSocketManagerInstance.Send(command);
+    const cmd = CommandFactory.CreatePlayerSettingsCommand({
+      ...dtoToSend,
+      id: playerData.id,
+    });
+    WebSocketManagerInstance.Send(cmd);
   };
 
   const updateSettings = (event) => {
@@ -81,23 +75,42 @@ export const PlayerSettingsPanel = ({ player }) => {
       const newPlayer = await ClientMediator.sendCommandWaitForRegisterAsync(
         "Game",
         "GetPlayer",
-        { id: player.id },
+        { id: playerId },
         true
       );
       setPlayerData(newPlayer);
     };
 
-    GetData();
-  }, [player]);
+    if (playerId) GetData();
+  }, [playerId]);
 
   return (
     <Subscribable commandPrefix={"settings_player"} onMessage={updateSettings}>
-      <SettingsPanel
-        dto={playerData}
-        editableKeyLabelDict={editables}
-        onSave={sendSettingsUpdate}
-        normalize={true}
-      />
+      {/* Tabs: the player form is full height (its Save button sits at the bottom),
+          so anything placed under it was clipped out of view. */}
+      <BasePanel>
+        <Tabs.Root defaultValue="player" size="md" variant="enclosed" lazyMount height="100%" display="flex" flexDirection="column">
+          <Tabs.List>
+            <Tabs.Trigger value="player">Player</Tabs.Trigger>
+            {isCurrentPlayer && <Tabs.Trigger value="browser">This browser</Tabs.Trigger>}
+          </Tabs.List>
+          <Tabs.Content value="player" flex="1" minHeight={0}>
+            <SettingsPanel
+              dto={playerData}
+              editableKeyLabelDict={editables}
+              onSave={sendSettingsUpdate}
+              normalize={true}
+            />
+          </Tabs.Content>
+          {isCurrentPlayer && (
+            <Tabs.Content value="browser" flex="1" minHeight={0} overflowY="auto">
+              <PersonalStylesheetSettings gameId={WebHelper.GameId} />
+              <AudioVolumeSettings />
+              <ResourceCacheSettings />
+            </Tabs.Content>
+          )}
+        </Tabs.Root>
+      </BasePanel>
     </Subscribable>
   );
 };

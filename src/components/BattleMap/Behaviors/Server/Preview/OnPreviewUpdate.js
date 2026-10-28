@@ -1,4 +1,6 @@
 import ClientMediator from "../../../../../ClientMediator";
+import { applyAreaUpdate } from "../../../Helpers/buildArea";
+import { glowTokensIn, remoteGlowKey } from "../../../Helpers/areaGlow";
 
 export class OnPreviewUpdateBehavior {
   currentPlayer = null;
@@ -13,7 +15,11 @@ export class OnPreviewUpdateBehavior {
 
     const updates = response.data;
     if (updates && response.battleMapId === battleMapId && this.currentPlayer.id !== response.playerId) {
-      updates.forEach((update) => {
+      updates.forEach(({ glow, ...update }) => {
+        // Measuring or aiming with "Highlight tokens": the tokens it covers glow here too.
+        if (glow !== undefined)
+          glowTokensIn(canvas, glow?.area ?? null, glow?.color, remoteGlowKey(response.playerId), glow?.exceptId);
+
         //Find object by previewId
         const obj = canvas
           .getObjects()
@@ -21,7 +27,8 @@ export class OnPreviewUpdateBehavior {
         if (!obj) {
           return;
         }
-        obj.set(update);
+        // An area being aimed may turn: its polygon's box is worked out again.
+        applyAreaUpdate(obj, update);
       });
       canvas.requestRenderAll();
     }

@@ -1,10 +1,10 @@
-import { FormLabel, Heading } from '@chakra-ui/react';
+import { Heading } from '@chakra-ui/react';
 import * as React from 'react';
 
 export const DLabel = ({children}) => {
     
     return (
-        <Heading size={'xs'} padding={'2px'}>
+        <Heading className="nm_label" size={'xs'} padding={'2px'}>
             {children}
         </Heading>
     );

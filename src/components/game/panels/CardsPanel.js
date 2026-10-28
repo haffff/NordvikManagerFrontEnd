@@ -1,28 +1,39 @@
 import * as React from "react";
+import { pickableTemplates } from "../../../helpers/pickableTemplates";
 import * as Dockable from "@hlorenzi/react-dockable";
-import BasePanel from "../../uiComponents/base/BasePanel";
-import DListItem from "../../uiComponents/base/List/DListItem";
-import DLabel from "../../uiComponents/base/Text/DLabel";
-import WebHelper from "../../../helpers/WebHelper";
+import { BasePanel } from "../../uiComponents/base/BasePanel";
+import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import DockableHelper from "../../../helpers/DockableHelper";
-import WebSocketManagerInstance from "../WebSocketManager";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import CardPanel from "./CardPanel";
 import DTreeList from "../../uiComponents/treeList/DTreeList";
 import InputModal from "../../uiComponents/base/Modals/InputModal";
 import ClientMediator from "../../../ClientMediator";
+import { usePermissions } from "../../../contexts/PermissionsContext";
+import { ENTITY_TYPES, PERM } from "../../BattleMap/Helpers/permissionBits";
 import CollectionSyncer from "../../uiComponents/base/CollectionSyncer";
 import DListItemButton from "../../uiComponents/base/List/ListItemDetails/DListItemButton";
-import { FaMinusCircle } from "react-icons/fa";
-import { Image } from "@chakra-ui/react";
+import { FaMinusCircle } from "@react-icons/all-files/fa/FaMinusCircle";
+import { Box, Flex, Image, Text } from "@chakra-ui/react";
 import CardSettingsPanel from "../settings/CardSettingsPanel";
-import { GiGears } from "react-icons/gi";
+import { GiGears } from "@react-icons/all-files/gi/GiGears";
 import DTreeListItem from "../../uiComponents/base/List/DTreeListItem";
+
+// Right-click on a card: addon items in "cards_item" get the card's id as %cardId%.
+const CARD_ADDON_MENU = { viewId: "cards_item", context: (card) => ({ cardId: card?.id }) };
 
 export const CardsPanel = ({ state }) => {
   const [panels, setPanels] = React.useState([]);
   const [currentPlayer, setCurrentPlayer] = React.useState(null);
   const openRef = React.useRef(null);
+  // The folder a "+ New card here" row asked for, until the dialog closes.
+  const addParentRef = React.useRef(null);
+  const treeRefreshRef = React.useRef(null);
   const [templates, setTemplates] = React.useState([]);
+
+  const { hasEntityPermission } = usePermissions();
+  const gameId = React.useMemo(() => ClientMediator.sendCommand("Game", "GetGameId"), []);
+  const canEditFolders = hasEntityPermission(ENTITY_TYPES.GAME, gameId, PERM.EDIT);
   const createConfig = [
     {
       key: "name",
@@ -37,43 +48,36 @@ export const CardsPanel = ({ state }) => {
       label: "Template",
       toolTip: "Name of template.",
       type: "select",
-      options: templates.map((x) => {
+      options: pickableTemplates(templates).map((x) => {
         return { value: x.id, label: x.name };
       }),
     },
-    {
+    // A player's card is their own (the server also gives the GM full rights).
+    ...(canEditFolders ? [{
       key: "owner",
       required: false,
       label: "Owner",
       toolTip: "Owner of card.",
       type: "playerSelect",
-    },
+    }] : []),
   ];
+  // A player may create cards only from templates the GM has shared with them.
+  const canAddCards = canEditFolders || pickableTemplates(templates).length > 0;
 
   const panelRef = React.useRef(panels);
   panelRef.current = panels;
 
-  React.useEffect(() => {
-    const getData = async () => {
-      let cards = await WebHelper.getAsync("materials/getcards");
-      setPanels(cards);
-      let currentPlayer = ClientMediator.sendCommand(
-        "Game",
-        "GetCurrentPlayer",
-        {},
-        true
-      );
-
-      var ownerId = ClientMediator.sendCommand("Game", "GetOwner");
-
-      if (currentPlayer.id === ownerId) {
-        let templates = await WebHelper.getAsync("materials/gettemplatesfull");
-        setTemplates(templates);
-      }
-      setCurrentPlayer(currentPlayer);
-    };
-    getData();
+  const loadData = React.useCallback(async () => {
+    let cards = await WebHelper.getAsync("materials/getcards");
+    setPanels(cards);
+    let currentPlayer = ClientMediator.sendCommand("Game", "GetCurrentPlayer", {}, true);
+    // Everyone: the server only returns the templates this player can read.
+    let templates = await WebHelper.getAsync("materials/gettemplatesfull");
+    setTemplates(templates ?? []);
+    setCurrentPlayer(currentPlayer);
   }, []);
+
+  React.useEffect(() => { loadData(); }, [loadData]);
 
   const ctx = Dockable.useContentContext();
   ctx.setTitle(`Cards`);
@@ -97,6 +101,7 @@ export const CardsPanel = ({ state }) => {
                 ...data,
                 id: null,
                 templateId: selectedTemplate?.id,
+                treeParentId: addParentRef.current,
               },
             });
           }
@@ -104,11 +109,20 @@ export const CardsPanel = ({ state }) => {
       />
 
       <DTreeList
-        withAddItem={true}
+        withAddItem={canAddCards}
         entityType={"CardModel"}
+        transferKind="card"
+        estimatedRowHeight={52}
+        addonMenu={CARD_ADDON_MENU}
         items={panels}
-        onAddItem={() => {
-          openRef.current({ template: templates[0]?.id });
+        refreshRef={treeRefreshRef}
+        onRefresh={loadData}
+        canEditFolders={canEditFolders}
+        onDeleteItem={(item) => WebSocketManagerInstance.Send({ command: "card_delete", data: item.id })}
+        addRowLabel="New card"
+        onAddItem={(_selected, { parentId = null } = {}) => {
+          addParentRef.current = parentId;
+          openRef.current({ template: pickableTemplates(templates)[0]?.id });
         }}
         onGenerateEditButtons={(item) => {
           return (
@@ -137,29 +151,75 @@ export const CardsPanel = ({ state }) => {
             </>
           );
         }}
-        generateItem={(x) => (
-          <DTreeListItem
-            gap={"15px"}
-            width={"300"}
-            entityId={x.id}
-            entityType={"CardModel"}
-            key={x.id}
-            onClick={() => {
-              DockableHelper.NewFloating(
-                state,
-                <CardPanel name={x.name} state={state} id={x.id} />
-              );
-            }}
-          >
-            <Image src={x.image} width={"50px"} height={"50px"} />
-            <DLabel>{x.name}</DLabel>
-          </DTreeListItem>
-        )}
+        generateItem={(x) => {
+          const templateName = templates.find((t) => t.id === x.templateId)?.name;
+          // Derive a stable accent color from the card name for the initial avatar
+          const AVATAR_COLORS = ["blue.800","teal.800","purple.800","orange.800","cyan.800","pink.800"];
+          const colorIdx = (x.name?.charCodeAt(0) ?? 0) % AVATAR_COLORS.length;
+          const avatarBg = AVATAR_COLORS[colorIdx];
+
+          return (
+            <DTreeListItem
+              gap="10px"
+              padding="2px"
+              entityId={x.id}
+              entityType={"CardModel"}
+              key={x.id}
+              onClick={() => {
+                DockableHelper.NewFloating(
+                  state,
+                  <CardPanel name={x.name} state={state} id={x.id} />
+                );
+              }}
+            >
+              {/* Thumbnail or initial avatar */}
+              {x.image
+                ? <Image
+                    src={x.image}
+                    boxSize="40px"
+                    borderRadius="md"
+                    objectFit="cover"
+                    flexShrink={0}
+                    border="1px solid"
+                    borderColor="whiteAlpha.200"
+                  />
+                : <Flex
+                    boxSize="40px"
+                    borderRadius="md"
+                    bg={avatarBg}
+                    align="center"
+                    justify="center"
+                    flexShrink={0}
+                    border="1px solid"
+                    borderColor="whiteAlpha.100"
+                  >
+                    <Text fontWeight="bold" fontSize="md" color="whiteAlpha.800">
+                      {x.name?.[0]?.toUpperCase() ?? "?"}
+                    </Text>
+                  </Flex>
+              }
+
+              {/* Name + template subtitle */}
+              <Box flex="1" minW={300}>
+                <Text fontWeight="semibold" fontSize="sm" noOfLines={1}>
+                  {x.name}
+                </Text>
+                {templateName && (
+                  <Text fontSize="xs" color="gray.400" noOfLines={1}>
+                    {templateName}
+                  </Text>
+                )}
+              </Box>
+            </DTreeListItem>
+          );
+        }}
       ></DTreeList>
       <CollectionSyncer
         collection={panels}
         setCollection={setPanels}
         commandPrefix={"card"}
+        // The server files the new card in the folder tree but only announces the card.
+        onAdd={() => treeRefreshRef.current?.()}
       />
       <CollectionSyncer
         collection={templates}

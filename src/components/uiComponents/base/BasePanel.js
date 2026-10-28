@@ -1,17 +1,127 @@
-import { Button, Flex } from '@chakra-ui/react';
+import { Button, Flex, Heading, Text } from '@chakra-ui/react';
 import * as React from 'react';
+import { MdOpenWith } from '@react-icons/all-files/md/MdOpenWith';
 import '../../../stylesheets/panel.css';
 import DockableHelper from '../../../helpers/DockableHelper';
-import { useDockable } from '@hlorenzi/react-dockable';
+import * as Dockable from "@hlorenzi/react-dockable";
+import { useDragOptimization } from './DragOptimizationContext';
+import { HelpIcon } from './HelpIcon';
+import LayoutHelper from "../../../helpers/LayoutCloneHelper";
+import { ErrorBoundary } from './ErrorBoundary';
+import { panelHelp } from '../../../helpers/panelHelp';
 
-export const BasePanel = (props) => {
-    const {children, baseRef} = props;
+// ── Drag overlay ──────────────────────────────────────────────────────────────
+// Consumes the drag context and renders the overlay + visibility wrapper.
+// Kept as a separate component so that drag-context re-renders are isolated here
+// and never propagate into the panel's children.
+const DragOverlay = React.memo(({ children, currentPanel }) => {
+    const { isDragging, draggedPanel } = useDragOptimization();
+    const isThisPanelDragged = isDragging && draggedPanel && draggedPanel === currentPanel;
 
     return (
-        <Flex ref={baseRef} {...props}
-        className='nm_basePanel'>
-            {children}
+        <>
+            <Flex
+                direction="column"
+                width="100%"
+                height="100%"
+                visibility={isThisPanelDragged ? 'hidden' : 'visible'}
+                aria-hidden={isThisPanelDragged}
+            >
+                {children}
+            </Flex>
+
+            {isThisPanelDragged && (
+                <Flex
+                    position="absolute"
+                    inset={0}
+                    direction="column"
+                    align="center"
+                    justify="center"
+                    gap="8px"
+                    color="#888"
+                    fontSize="13px"
+                    userSelect="none"
+                    pointerEvents="none"
+                >
+                    <MdOpenWith size={32} style={{ opacity: 0.5 }} />
+                    Moving panel...
+                </Flex>
+            )}
+        </>
+    );
+});
+
+// Shown in place of a panel body that threw while rendering — the rest of the
+// game (and the panel's own header) keeps working.
+const PanelError = ({ reset }) => (
+    <Flex direction="column" align="center" justify="center" gap="8px" padding="16px" flex={1} textAlign="center">
+        <Text fontSize="13px">This panel ran into a problem.</Text>
+        <Button size="xs" variant="outline" onClick={reset}>Retry</Button>
+    </Flex>
+);
+
+// ── Base panel ────────────────────────────────────────────────────────────────
+
+const BasePanelComponent = (props) => {
+    // title/helpText/docUrl are opt-in panel-level help — pulled out explicitly
+    // so they never leak into `...rest` (title would otherwise collide with
+    // the native HTML `title` attribute, producing a plain browser tooltip on
+    // the whole panel instead of nothing; helpText/docUrl aren't valid DOM
+    // props at all). Omitting `title` renders no header row — every existing
+    // panel is unaffected.
+    const { children, baseRef, title, helpText, docUrl, ...rest } = props;
+
+    const ctx = Dockable.useContentContext();
+    const currentPanel = ctx?.layoutContent?.panel;
+    // Which panel this is (ChatPanel, SoundboardPanel, ...), so a custom
+    // stylesheet can target one: .nm_basePanel[data-panel="ChatPanel"].
+    const panelType = ctx?.layoutContent?.content?.element?.type;
+    const panelKey = panelType ? LayoutHelper._resolvePanelKey(panelType) : undefined;
+    // Without a title row, the help (its own, or the panel's page in the user guide,
+    // helpers/panelHelp.js) is a small icon in the top-right corner.
+    const help = panelHelp(panelKey, { text: helpText, docUrl });
+
+    return (
+        <Flex ref={baseRef} {...rest} className='nm_basePanel' data-panel={panelKey} position="relative">
+            <DragOverlay currentPanel={currentPanel}>
+                {title ? (
+                    <Flex align="center" gap="6px" padding="6px 8px" flexShrink={0}>
+                        <Heading size="xs">{title}</Heading>
+                        <HelpIcon text={help?.text} docUrl={help?.docUrl} />
+                    </Flex>
+                ) : help && (
+                    <Flex className="nm_panelHelp" position="absolute" top="2px" right="4px" zIndex={2} opacity={0.7} _hover={{ opacity: 1 }}>
+                        <HelpIcon text={help.text} docUrl={help.docUrl} />
+                    </Flex>
+                )}
+                <ErrorBoundary name={panelKey ?? 'panel'} fallback={({ reset }) => <PanelError reset={reset} />}>
+                    {children}
+                </ErrorBoundary>
+            </DragOverlay>
         </Flex>
     );
-}
+};
+
+// Memoize with custom comparison to prevent re-renders during drag operations
+export const BasePanel = React.memo(BasePanelComponent, (prevProps, nextProps) => {
+    const globalState = DockableHelper.getGlobalState();
+    const isDraggingAnyPanel = globalState?.ref?.current?.draggedPanel !== undefined && globalState?.ref?.current?.draggedPanel !== null;
+
+    if (isDraggingAnyPanel) {
+        return true; // Prevent re-render
+    }
+
+    // When not dragging, use shallow comparison of props
+    const prevKeys = Object.keys(prevProps);
+    const nextKeys = Object.keys(nextProps);
+
+    if (prevKeys.length !== nextKeys.length) return false;
+
+    for (const key of prevKeys) {
+        if (prevProps[key] !== nextProps[key]) return false;
+    }
+
+    return true;
+});
+
 export default BasePanel;

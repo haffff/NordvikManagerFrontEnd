@@ -1,9 +1,14 @@
 import * as React from 'react';
 
-import { FaCode, FaHammer, FaWpforms } from 'react-icons/fa';
+import { FaCode } from '@react-icons/all-files/fa/FaCode';
+import { FaHammer } from '@react-icons/all-files/fa/FaHammer';
+import { FaList } from '@react-icons/all-files/fa/FaList';
+import { FaWpforms } from '@react-icons/all-files/fa/FaWpforms';
 import DebugConsolePanel from '../../panels/Addons/DebugConsolePanel';
+import EventLogPanel from '../../panels/Addons/EventLogPanel';
 import ActionsPanel from '../../panels/Addons/ActionsPanel';
-import { IoMdDocument, IoMdFolder } from 'react-icons/io';
+import { IoMdDocument } from '@react-icons/all-files/io/IoMdDocument';
+import { IoMdFolder } from '@react-icons/all-files/io/IoMdFolder';
 import CustomViewsPanel from '../../panels/Addons/CustomViewsPanel';
 import AddonsManagePanel from '../../panels/Addons/AddonsManagePanel';
 import TemplatesPanel from '../../panels/Addons/TemplatesPanel';
@@ -12,7 +17,7 @@ import CreateDropDownButton from '../../../uiComponents/base/DDItems/SpecialButt
 
 export const AddonsMenu = ({ state, gameDataManagerRef }) => {
     return (
-        <DropDownMenu viewId={"addons"} gmOnly name="Addons" width={150} >
+        <DropDownMenu viewId={"addons"} requiresEdit name="Addons" width={150} >
             <DropDownMenu viewId={"addons_addons"} name="Addons" submenu={true} width={150} expandableLocationName={"addons"} expandableWithAction={true} state={state} gameDataRef={gameDataManagerRef}>
                 <CreateDropDownButton width={150} name="Addons Manage" icon={IoMdDocument} state={state} element={(<AddonsManagePanel gameDataRef={gameDataManagerRef} />)} />
             </DropDownMenu>
@@ -25,6 +30,7 @@ export const AddonsMenu = ({ state, gameDataManagerRef }) => {
             <DropDownMenu viewId={"addons_code"} name="Code" submenu={true} width={150} expandableLocationName={"addons"} expandableWithAction={true} state={state} gameDataRef={gameDataManagerRef}>
                 <CreateDropDownButton width={150} name="Actions" icon={FaHammer} state={state} element={(<ActionsPanel state={state} gameDataRef={gameDataManagerRef} />)} />
                 <CreateDropDownButton width={150} name="Debug Console" icon={FaCode} state={state} element={(<DebugConsolePanel state={state} />)} />
+                <CreateDropDownButton width={150} name="Event Log" icon={FaList} state={state} element={(<EventLogPanel state={state} />)} />
             </DropDownMenu>
 
         </DropDownMenu>

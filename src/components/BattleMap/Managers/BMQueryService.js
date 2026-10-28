@@ -9,18 +9,116 @@ class BMQueryService {
   _selectionChangedSubscriptions = [];
 
   Load() {
-    this._canvas.off("selection:created");
-    this._canvas.off("selection:updated");
-    this._canvas.off("selection:cleared");
+    // Targeted removal (own handler reference only) — NOT a bare
+    // this._canvas.off("selection:created") etc. Fabric's off(eventName) with no
+    // handler argument clears EVERY listener for that event, not just this class's
+    // own, which would wipe out BehaviorDictionaryClient's selection handlers
+    // (LoadBMSubscriptions registers those for the same 3 event names) whenever
+    // Load() is called a second time — see LoadCanvas.js for why it is.
+    if (this._onSelChanged) {
+      this._canvas.off("selection:created", this._onSelChanged);
+      this._canvas.off("selection:updated", this._onSelChanged);
+      this._canvas.off("selection:cleared", this._onSelChanged);
+    }
 
-    let onSelChanged = this._onSelectionChanged.bind(this);
-    this._canvas.on("selection:created", (e) => onSelChanged(e));
-    this._canvas.on("selection:updated", (e) => onSelChanged(e));
-    this._canvas.on("selection:cleared", (e) => onSelChanged(e));
+    this._onSelChanged = (e) => this._onSelectionChanged(e);
+    this._canvas.on("selection:created", this._onSelChanged);
+    this._canvas.on("selection:updated", this._onSelChanged);
+    this._canvas.on("selection:cleared", this._onSelChanged);
 
     this.panel = "battlemap";
     this.contextId = this._battleMapModel.id;
     this.id = "BMQueryService" + this._battleMapModel.id;
+  }
+
+  // ── $meta ──────────────────────────────────────────────────────────────────
+  // Picked up by CommandExecutionHelper.LoadSuggestions via prototype reflection.
+  get $meta() {
+    return {
+      SubscribeSelectionChanged: {
+        description: 'Registers a named callback that fires whenever the canvas selection changes.',
+        args: [
+          { name: 'name', type: 'string', required: true },
+          { name: 'method', type: 'function', required: true },
+        ],
+      },
+      UnSubscribeSelectionChanged: {
+        description: 'Removes a previously registered selection-change callback by name.',
+        args: [{ name: 'name', type: 'string', required: true }],
+      },
+      GetSelectedLayer: {
+        description: 'Returns the currently active layer ID on the canvas.',
+        args: [],
+      },
+      GetOperationMode: {
+        description: 'Returns the current operation mode string from the mode ref.',
+        args: [],
+      },
+      GetSelectedGroupCoords: {
+        description: 'Returns the corner coordinates of the active selection / group.',
+        args: [],
+      },
+      GetSelectedObjects: {
+        description: 'Returns the array of all currently selected canvas objects.',
+        args: [],
+      },
+      GetSelectedObjectGroup: {
+        description: 'Returns the single active object or active selection group.',
+        args: [],
+      },
+      GetName: {
+        description: 'Returns the display name of the BattleMap.',
+        args: [],
+      },
+      GetSelectedMapID: {
+        description: 'Returns the ID of the map currently loaded in this BattleMap.',
+        args: [],
+      },
+      GetSelectedMap: {
+        description: 'Returns the full map object currently loaded in this BattleMap.',
+        args: [],
+      },
+      GetLastClickPos: {
+        description: 'Returns the last absolute canvas pointer position ({x, y}), e.g. for spawning something at the point a context menu was opened from.',
+        args: [],
+      },
+      GetDragMode: {
+        description: 'Returns true when canvas pan/drag mode is active, otherwise null.',
+        args: [],
+      },
+      GetCreateElement: {
+        description: 'Returns the element template used in simple-create mode.',
+        args: [],
+      },
+      GetModeType: {
+        description: 'Returns the sub-type string of the current canvas mode (e.g. "Ruler").',
+        args: [],
+      },
+      GetBrush: {
+        description: 'Returns the active freehand drawing brush, or undefined when not drawing.',
+        args: [],
+      },
+      GetAlign: {
+        description: 'Returns the current snap-align mode string (e.g. "grid", "object").',
+        args: [],
+      },
+      GetSketchOptions: {
+        description: 'Returns the sketch-mode options ({ visibleToOthers }), or undefined when not sketching.',
+        args: [],
+      },
+      GetMeasureOptions: {
+        description: 'Returns the full measure-mode options object (units, distancePerSquare, etc.).',
+        args: [],
+      },
+      GetCurrentMode: {
+        description: 'Returns the name of the active exclusive mode ("TokenSelect", "SimpleCreate", "Draw", "Ruler"), or "None" when no exclusive mode is locked.',
+        args: [],
+      },
+      SubscribeBattleMapDestruction: {
+        description: 'Registers a callback that fires when this BattleMap component is destroyed.',
+        args: [{ name: 'method', type: 'function', required: true }],
+      },
+    };
   }
 
   SubscribeSelectionChanged({ name, method, isCommand }) {
@@ -72,6 +170,10 @@ class BMQueryService {
     return this._map;
   }
 
+  GetLastClickPos() {
+    return this._canvas.lastAbsolutePointer;
+  }
+
   GetDragMode() {
     return this._canvas.draggingMode ?? null;
   }
@@ -99,6 +201,10 @@ class BMQueryService {
     return this._canvas.measure;
   }
 
+  GetSketchOptions() {
+    return this._canvas.freeDrawSketch;
+  }
+
   GetCurrentMode() {
     const canvas = this._canvas;
     if (canvas.modeLock) {
@@ -114,9 +220,14 @@ class BMQueryService {
       if (canvas.rulerMode) {
         return "Ruler";
       }
+      if (canvas.actionTool) {
+        return "ActionTool";
+      }
     }
 
-    return undefined;
+    // A representable value rather than bare undefined, so callers that render
+    // the result (Run dialog, chat /c) show an answer instead of nothing.
+    return "None";
   }
 
   _onDestruction = () => {

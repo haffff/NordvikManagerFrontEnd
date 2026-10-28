@@ -14,8 +14,11 @@ import { OnPreviewEndBehavior } from "./Server/Preview/OnPreviewEnd";
 import { OnPropertyAddBehavior } from "./Server/Properties/OnPropertyAddBehavior";
 import { OnPropertyUpdateBehavior } from "./Server/Properties/OnPropertyUpdateBehavior";
 import { OnPropertyDeleteBehavior } from "./Server/Properties/OnPropertyDeleteBehavior";
-import { OnPropertyNotifyBehavior } from "./Server/Properties/OnPropertyNotifyBehavior";
 import { OnTokenClickedInSelectModeClientBehavior } from "./Client/OnTokenClickedInSelectModeBehavior";
+import { OnMouseDownActionToolClientBehavior } from "./Client/ActionTool/OnMouseDownActionTool";
+import { OnMouseDownPickTargetsClientBehavior } from "./Client/PickTargets/OnMouseDownPickTargets";
+import { OnMouseDownPickPointClientBehavior, OnMouseMovePickPointClientBehavior } from "./Client/PickPoint/OnPickPoint";
+import { OnTokenUIActionClickClientBehavior } from "./Client/OnTokenUIActionClickBehavior";
 import { OnDragStartClientBehavior } from "./Client/Drag/OnDragStart";
 import { OnDragEndClientBehavior } from "./Client/Drag/OnDragEnd";
 import { OnDragMoveClientBehavior } from "./Client/Drag/OnDragMove";
@@ -26,6 +29,7 @@ import { OnMouseMovePopupLocationUpdateClientBehavior } from "./Client/OnMouseMo
 import { OnMouseDownSimpleCreateClientBehavior } from "./Client/SimpleCreate/OnMouseDownSimpleCreate";
 import { OnMouseUpSimpleCreateClientBehavior } from "./Client/SimpleCreate/OnMouseUpSimpleCreate";
 import { OnMouseMoveSimpleCreateClientBehavior } from "./Client/SimpleCreate/OnMouseMoveSimpleCreate";
+import { OnSelectionStopFreeDrawClientBehavior } from "./Client/Draw/OnSelectionStopFreeDraw";
 import { OnPathCreatedFreeDrawClientBehavior } from "./Client/Draw/OnPathCreatedFreeDraw";
 import { OnMouseDownMeasureStartClientBehavior } from "./Client/Measure/OnMouseDownMeasureStart";
 import { OnMouseUpMeasureEndsClientBehavior } from "./Client/Measure/OnMouseUpMeasureEnds";
@@ -40,11 +44,10 @@ export const BehaviorDictionaryServer = {
   element_ungroup: new OnUngroupBehavior(),
   settings_map: new OnMapSettingsUpdateBehavior(),
   map_change: new OnMapChangeBehavior(),
-  permissions_update: new OnPermissionsChangedBehavior(),
+  permission_update: new OnPermissionsChangedBehavior(),
   property_add: new OnPropertyAddBehavior(),
   property_update: new OnPropertyUpdateBehavior(),
   property_remove: new OnPropertyDeleteBehavior(),
-  property_notify: new OnPropertyNotifyBehavior(),
 
   //Previewing, for example ruler
   preview_start: new OnPreviewStartBehavior(),
@@ -56,10 +59,12 @@ export const BehaviorDictionaryClient = {
   "object:modified": [new OnNativeObjectModifiedClientBehavior()],
   "object:moving": [new OnObjectMoveHideTokenUIClientBehavior()],
   "selection:created": [
-    new OnTokenSelectedClientBehavior()
+    new OnTokenSelectedClientBehavior(),
+    new OnSelectionStopFreeDrawClientBehavior(),
   ],
   "selection:updated": [
     new OnTokenSelectedClientBehavior(),
+    new OnSelectionStopFreeDrawClientBehavior(),
     new OnObjectDeselectedDisableGridEdit(),
   ],
   "selection:cleared": [
@@ -71,9 +76,13 @@ export const BehaviorDictionaryClient = {
     new OnClickContextMenuHandleClientBehavior(),
     new OnMouseDownSimpleCreateClientBehavior(),
     new OnMouseDownMeasureStartClientBehavior(),
+    new OnMouseDownActionToolClientBehavior(),
+    new OnMouseDownPickTargetsClientBehavior(),
+    new OnMouseDownPickPointClientBehavior(),
   ],
   "mouse:up": [
     new OnDragEndClientBehavior(),
+    new OnTokenUIActionClickClientBehavior(),
     new OnTokenClickedInSelectModeClientBehavior(),
     new OnMouseUpSimpleCreateClientBehavior(),
     new OnMouseUpMeasureEndsClientBehavior(),
@@ -83,6 +92,7 @@ export const BehaviorDictionaryClient = {
     new OnMouseMovePopupLocationUpdateClientBehavior(),
     new OnMouseMoveSimpleCreateClientBehavior(),
     new OnMouseMoveMeasureUpdateClientBehavior(),
+    new OnMouseMovePickPointClientBehavior(),
   ],
   "mouse:wheel": [new OnMouseWheelChangeZoomClientBehavior()],
   "path:created": [new OnPathCreatedFreeDrawClientBehavior()],

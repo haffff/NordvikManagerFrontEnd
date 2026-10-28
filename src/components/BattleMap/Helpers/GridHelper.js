@@ -1,0 +1,36 @@
+import GridFactoryInstance from "../Factories/GridFactory";
+import { RESERVED_LAYERS } from "../Constants/layers";
+
+export default function drawGrid(canvas, map) {
+  if (!canvas || !map) return null;
+
+  try {
+    // remove the existing grid (any type: it used to be a group of lines)
+    const existingGridObjects = (canvas.getObjects() || []).filter((x) => x.name === ".grid");
+    if (existingGridObjects.length) {
+      existingGridObjects.forEach((g) => {
+        try { canvas.remove(g); } catch (e) { /* ignore */ }
+      });
+    }
+
+    if (map.gridVisible) {
+      const grid = GridFactoryInstance.DrawGrid(map.gridSize, [map.width, map.height], map.id, map.gridColor);
+      // find first indexed layer object (layer >= 0) and insert before it, otherwise push to end
+      const found = (canvas._objects || []).findIndex((x) => x.layer >= RESERVED_LAYERS.GRID);
+      const insertIndex = found >= 0 ? found : (canvas._objects ? canvas._objects.length : 0);
+      try {
+        canvas.insertAt(grid, insertIndex);
+      } catch (e) {
+        // fallback to add
+        try { canvas.add(grid); } catch (e2) { /* ignore */ }
+      }
+      return grid;
+    }
+  } catch (e) {
+    // do not throw further
+    // eslint-disable-next-line no-console
+    console.warn('GridHelper.drawGrid failed', e);
+  }
+
+  return null;
+}

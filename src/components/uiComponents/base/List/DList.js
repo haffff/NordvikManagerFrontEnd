@@ -1,17 +1,18 @@
 import { Button, Center, Flex, Icon, Stack } from '@chakra-ui/react';
 import * as React from 'react';
-import { FaPlus } from 'react-icons/fa';
+import { FaPlus } from '@react-icons/all-files/fa/FaPlus';
 
 export const DList = (props) => {
     const {mainComponent, withAddButton, withSearch, handleAdd, children} = props;
     return (
         <Stack 
         {...props}
+        className={props.className ? `nm_list ${props.className}` : "nm_list"}
         width={mainComponent ? "100%" : undefined} 
         overflowY={mainComponent ? "auto" : undefined}>
             {children}
             {withAddButton ? 
-            (<Button variant={'outline'} onClick={handleAdd} padding={3} margin={1} size='sm' width="97%">
+            (<Button aria-label="Add item" variant={'outline'} onClick={handleAdd} padding={3} margin={1} size='sm' width="97%">
                 <Center><Icon as={FaPlus} /></Center>
             </Button>) : 
             undefined}

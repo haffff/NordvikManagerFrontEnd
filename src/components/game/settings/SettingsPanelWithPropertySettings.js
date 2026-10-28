@@ -1,79 +1,88 @@
 import * as React from 'react';
-import WebHelper from '../../../helpers/WebHelper';
+import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
 import SettingsPanel from './SettingsPanel';
 import ClientMediator from '../../../ClientMediator';
-import WebSocketManagerInstance from '../WebSocketManager';
+import { ActiveTransportManager as WebSocketManagerInstance } from '../../../helpers/transport';
+import { propertyNamesOf, readPropertyFields, splitPropertyValues } from '../../../helpers/propertyFields';
 
-export const SettingsPanelWithPropertySettings = ({ dto, editableKeyLabelDict, onSave, withExport, onValidation, entityName, hideSaveButton, saveOnLeave, showSearch }) => {
+export const SettingsPanelWithPropertySettings = ({
+    dto,
+    editableKeyLabelDict,
+    onSave,
+    withExport,
+    onValidation,
+    entityName,
+    hideSaveButton,
+    saveOnLeave,
+    showSearch,
+}) => {
     const [properties, setProperties] = React.useState([]);
-    const [savedDto, setSavedDto] = React.useState(structuredClone(dto));
-    const [show, setShow] = React.useState(false);
+    const [mergedDto, setMergedDto] = React.useState(null);
 
-    React.useState(() => {
+    // Ref so propertySave always sees the latest loaded properties
+    const propertiesRef = React.useRef(properties);
+    propertiesRef.current = properties;
+
+    React.useEffect(() => {
         WebHelper.get("properties/QueryProperties?parentIds=" + dto.id, (data) => {
-            let propsEditable = editableKeyLabelDict.filter(x => x.property);
-            let propsEditableKeys = propsEditable.map(x => x.key);
-            setProperties(data.filter(x => propsEditableKeys.includes(x.name)));
-            propsEditable.forEach(prop => {
-                let propKey = prop.key;
-                if (!savedDto[propKey]) {
+            const names = propertyNamesOf(editableKeyLabelDict);
+            setProperties(data.filter((x) => names.includes(x.name)));
 
-                    let value = data.find(x => x.name === propKey)?.value
-                    if(prop.type === "number")
-                    {
-                        value = parseFloat(value);
-                    }
-                    if(prop.type === "boolean")
-                    {
-                        value = value === "true" || value === true || value === "True";
-                    }
-
-                    savedDto[prop.key] = value;
-                }
-            });
-            setShow(true);
+            // Build a merged snapshot: dto fields + property values (never mutate the incoming dto)
+            setMergedDto({ ...structuredClone(dto), ...readPropertyFields(editableKeyLabelDict, data) });
         });
-    }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [dto.id]);
 
-    const propertySave = (dtoToUpdate) => {
-        let propsToUpdate = [];
-        Object.keys(dtoToUpdate).forEach(key => {
-            let prop = properties.find(x => x.name === key);
-            if (prop) {
-                prop.value = dtoToUpdate[key].toString();
-                propsToUpdate.push(prop);
-                delete dtoToUpdate[key];
+    const propertySave = async (dtoToUpdate) => {
+        // Always reload properties before saving so we have accurate IDs.
+        // Without this, property_add silently fails with AlreadyExists when the
+        // property was created in a previous session and isn't in propertiesRef.
+        const freshData = await WebHelper.getAsync("properties/QueryProperties?parentIds=" + mergedDto.id);
+        if (freshData) {
+            const names = propertyNamesOf(editableKeyLabelDict);
+            const freshProps = freshData.filter((x) => names.includes(x.name));
+            setProperties(freshProps);
+            propertiesRef.current = freshProps;
+        }
+
+        // A field kept in several properties is written out into each of them.
+        const { properties: propertyValues, rest: remaining } = splitPropertyValues(editableKeyLabelDict, dtoToUpdate);
+        const propsToUpdate = [];
+
+        Object.entries(propertyValues).forEach(([name, value]) => {
+            const existingProp = propertiesRef.current.find((x) => x.name === name);
+            if (existingProp) {
+                propsToUpdate.push({ ...existingProp, value: value?.toString() ?? "" });
                 return;
             }
-
-            if (editableKeyLabelDict.find(x => x.key === key)?.property) {
-                WebSocketManagerInstance.Send({command: "property_add", data: { name: key, value: dtoToUpdate[key], parentId: savedDto.id, EntityName: entityName }}); // TODO: check if this is correct
-                delete dtoToUpdate[key];
-            }
+            WebSocketManagerInstance.Send({
+                command: "property_add",
+                data: { name, value, parentId: mergedDto.id, EntityName: entityName },
+            });
         });
 
         if (propsToUpdate.length > 0) {
-            ClientMediator.sendCommandAsync("properties", "UpdateBulk", { properties: propsToUpdate });
+            await ClientMediator.sendCommandAsync("properties", "UpdateBulk", { properties: propsToUpdate });
         }
 
-        if (onSave)
-            onSave(dtoToUpdate);
+        onSave?.(remaining);
     };
 
-    return (
-        <>
-            {show ? <SettingsPanel
-                showSearch={showSearch}
-                dto={savedDto}
-                withExport={withExport}
-                editableKeyLabelDict={editableKeyLabelDict}
-                onSave={propertySave}
-                onValidation={onValidation}
-                hideSaveButton={hideSaveButton}
-                saveOnLeave={saveOnLeave}
-            /> : <></>}
-        </>
-    );
-}
+    if (!mergedDto) return null;
 
-export default SettingsPanel; 
+    return (
+        <SettingsPanel
+            showSearch={showSearch}
+            dto={mergedDto}
+            withExport={withExport}
+            editableKeyLabelDict={editableKeyLabelDict}
+            onSave={propertySave}
+            onValidation={onValidation}
+            hideSaveButton={hideSaveButton}
+            saveOnLeave={saveOnLeave}
+        />
+    );
+};
+
+export default SettingsPanelWithPropertySettings;

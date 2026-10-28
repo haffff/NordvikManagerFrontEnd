@@ -1,18 +1,17 @@
-import { Flex, Input, Stack, Text } from "@chakra-ui/react";
+import { Flex, Stack, Text } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 import DListItemButton from "../../../uiComponents/base/List/ListItemDetails/DListItemButton";
-import { IoMdClose, IoMdExit } from "react-icons/io";
+import { IoMdClose } from "@react-icons/all-files/io/IoMdClose";
+import { IoMdExit } from "@react-icons/all-files/io/IoMdExit";
 import ClientMediator from "../../../../ClientMediator";
-import { MdCircle, MdLineWeight, MdTextIncrease } from "react-icons/md";
-import { MdOutlineFormatColorFill } from "react-icons/md";
-import { MdBorderColor } from "react-icons/md";
+import { MdOutlineFormatColorFill } from "../../../uiComponents/icons/extraIcons";
+import { MdBorderColor } from "@react-icons/all-files/md/MdBorderColor";
 import { DColorPicker } from "../../../uiComponents/settingsComponents/ColorPicker";
 
 export const AddTextOptions = ({ battleMapId }) => {
   const [fillColor, setFillColor] = useState("rgba(0,0,0,1)");
   const [strokeColor, setStrokeColor] = useState("rgba(0,0,0,1)");
   const [fontColor, setFontColor] = useState("rgba(0,0,0,1)");
-  const [fontSize, setFontSize] = useState(12);
   //const [font, setFont] = useState("Arial");
 
   useEffect(() => {
@@ -22,7 +21,6 @@ export const AddTextOptions = ({ battleMapId }) => {
     if (element) {
       setFillColor(element.fill);
       setStrokeColor(element.stroke);
-      setFontSize(element.fontSize);
     }
     return () => {};
   }, []);
@@ -61,20 +59,6 @@ export const AddTextOptions = ({ battleMapId }) => {
           }}
           initColor={strokeColor}
           isAbsolute={true}
-        />
-      </Stack>
-      <Stack alignItems={"center"}>
-        <Text>
-          <MdTextIncrease />
-        </Text>
-        <Input
-          type={"number"}
-          value={fontSize}
-          width={"75px"}
-          onChange={(e) => {
-            handleUpdate("fontSize", e.target.value);
-            setFontSize(e.target.value);
-          }}
         />
       </Stack>
       <Stack alignItems={"center"}>

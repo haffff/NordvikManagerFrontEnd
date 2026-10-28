@@ -8,10 +8,16 @@ export const InfoBMOverlay = ({ battleMapId }) => {
   const popupRef = useRef(undefined);
 
   useEffect(() => {
+    if (!battleMapId) {
+      console.warn('InfoBMOverlay: no battleMapId provided, skipping registration');
+      return;
+    }
+    const regId = "BattleMap_Overlay_" + battleMapId;
     console.log("Registering overlay for battlemap " + battleMapId);
+    ClientMediator.unregister(regId);
     ClientMediator.register({
       panel: "battlemap",
-      id: "BattleMap_Overlay_" + battleMapId,
+      id: regId,
       contextId: battleMapId,
       ShowOverlay: ({ content }) => {
         setPopupContent(content);
@@ -24,9 +30,9 @@ export const InfoBMOverlay = ({ battleMapId }) => {
     });
 
     return () => {
-      ClientMediator.unregister("BattleMap_Overlay_" + battleMapId);
+      ClientMediator.unregister(regId);
     };
-  }, []);
+  }, [battleMapId]);
 
   useEffect(() => {
     if (show) {

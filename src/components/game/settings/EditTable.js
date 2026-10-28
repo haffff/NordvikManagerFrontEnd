@@ -2,17 +2,15 @@ import * as React from "react";
 import {
   Flex,
   Input,
-  Checkbox,
   Image,
   Table,
-  Tr,
-  Td,
-  Select,
+  Textarea,
   createListCollection,
   For,
 } from "@chakra-ui/react";
-import WebHelper from "../../../helpers/WebHelper";
-import BasePanel from "../../uiComponents/base/BasePanel";
+import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
+import { BasePanel } from "../../uiComponents/base/BasePanel";
+import { HelpIcon } from "../../uiComponents/base/HelpIcon";
 import DButtonHorizontalContainer from "../../uiComponents/base/Containers/DButtonHorizontalContainer";
 import DropDownButton from "../../uiComponents/base/DDItems/DropDrownButton";
 import { NumberInputRoot, NumberInputField } from "../../ui/number-input";
@@ -26,6 +24,18 @@ import {
 } from "../../ui/select";
 import { Switch } from "../../ui/switch";
 
+// ── LabelCell — field name + optional description tooltip ────────────────────
+const LabelCell = ({ label, description, docUrl }) => (
+  <Table.Cell>
+    <Flex align="center" gap="5px">
+      {label}
+      {description && description !== label && (
+        <HelpIcon text={description} docUrl={docUrl} />
+      )}
+    </Flex>
+  </Table.Cell>
+);
+
 export const EditTable = ({
   keyBase,
   dto,
@@ -37,6 +47,7 @@ export const EditTable = ({
 }) => {
   const [updatedDto, setUpdatedDto] = React.useState({});
   const [validationDict, setValidationDict] = React.useState({});
+  const comboListId = React.useId();
 
   const updateDtoRef = React.useRef(updatedDto);
   updateDtoRef.current = updatedDto;
@@ -69,8 +80,9 @@ export const EditTable = ({
       }
     });
 
+    // Always replaced, so a field that was invalid is unmarked once it's fixed.
+    setValidationDict(validationResult);
     if (Object.keys(validationResult).length > 0) {
-      setValidationDict(validationResult);
       return false;
     }
 
@@ -101,14 +113,13 @@ export const EditTable = ({
     editableKeyLabelDict.forEach((editable) => {
       let element = { category: editable.category || "default" };
       const key = editable.key;
-      switch (editable.type) {
-        case "string":
+      switch (editable.type) {        case "string":
           element.value = (
             <Table.Row key={keyBase + editable.key}>
-              <Table.Cell>{editable.label}</Table.Cell>
+              <LabelCell label={editable.label} description={editable.toolTip} docUrl={editable.docUrl} />
               <Table.Cell>
                 <Input
-                  isInvalid={validationDict[key]}
+                  aria-invalid={!!validationDict[key]}
                   size={"xs"}
                   defaultValue={dto[editable.key]}
                   onChange={(e) => OnChange(editable.key, e.target.value)}
@@ -116,12 +127,28 @@ export const EditTable = ({
               </Table.Cell>
             </Table.Row>
           );
-          break;
-        case "select":
+          break;        case "textarea":
+          element.value = (
+            <Table.Row key={keyBase + editable.key}>
+              <LabelCell label={editable.label} description={editable.toolTip} docUrl={editable.docUrl} />
+              <Table.Cell>
+                <Textarea
+                  size="xs"
+                  rows={6}
+                  resize="vertical"
+                  fontFamily="mono"
+                  fontSize="xs"
+                  defaultValue={dto[editable.key]}
+                  onChange={(e) => OnChange(editable.key, e.target.value)}
+                />
+              </Table.Cell>
+            </Table.Row>
+          );
+          break;        case "select":
           const collection = createListCollection({ items: editable.options });
           element.value = (
             <Table.Row key={keyBase + editable.key}>
-              <Table.Cell>{editable.label}</Table.Cell>
+              <LabelCell label={editable.label} description={editable.toolTip} docUrl={editable.docUrl} />
               <Table.Cell>
                 <SelectRoot
                   collection={collection}
@@ -154,7 +181,35 @@ export const EditTable = ({
               </Table.Cell>
             </Table.Row>
           );
+          break;        case "combo": {
+          // A plain text input with a native autocomplete list — start typing to filter
+          // known values (e.g. audio materials by name), or just enter a raw id / %variable%.
+          const listId = `${comboListId}-${editable.key}`.replace(/[^a-zA-Z0-9_-]/g, "");
+          const options = Array.isArray(editable.options) ? editable.options : [];
+          element.value = (
+            <Table.Row key={keyBase + editable.key}>
+              <LabelCell label={editable.label} description={editable.toolTip} docUrl={editable.docUrl} />
+              <Table.Cell>
+                <Input
+                  aria-invalid={!!validationDict[key]}
+                  size={"xs"}
+                  list={options.length ? listId : undefined}
+                  placeholder={options.length ? "start typing to pick, or enter an id / %variable%" : "id or %variable%"}
+                  defaultValue={dto[editable.key]}
+                  onChange={(e) => OnChange(editable.key, e.target.value)}
+                />
+                {options.length > 0 && (
+                  <datalist id={listId}>
+                    {options.map((opt) => (
+                      <option key={opt.value} value={opt.value}>{opt.label}</option>
+                    ))}
+                  </datalist>
+                )}
+              </Table.Cell>
+            </Table.Row>
+          );
           break;
+        }
         case "number":
           let infoAboutMinimumMaximum = "";
           if (editable.min || editable.max) {
@@ -168,12 +223,14 @@ export const EditTable = ({
 
           element.value = (
             <Table.Row key={keyBase + editable.key}>
-              <Table.Cell>
-                {editable.label} {infoAboutMinimumMaximum}
-              </Table.Cell>
+              <LabelCell
+                label={`${editable.label}${infoAboutMinimumMaximum}`}
+                description={editable.toolTip}
+                docUrl={editable.docUrl}
+              />
               <Table.Cell>
                 <NumberInputRoot
-                  isInvalid={validationDict[key]}
+                  invalid={!!validationDict[key]}
                   defaultValue={dto[key]}
                   min={editable.min}
                   max={editable.max}
@@ -187,11 +244,10 @@ export const EditTable = ({
               </Table.Cell>
             </Table.Row>
           );
-          break;
-        case "boolean":
+          break;        case "boolean":
           element.value = (
             <Table.Row key={keyBase + editable.key}>
-              <Table.Cell>{editable.label}</Table.Cell>
+              <LabelCell label={editable.label} description={editable.toolTip} docUrl={editable.docUrl} />
               <Table.Cell>
                 <Switch
                   checked={dto[key]}
@@ -202,11 +258,10 @@ export const EditTable = ({
               </Table.Cell>
             </Table.Row>
           );
-          break;
-        case "color":
+          break;        case "color":
           element.value = (
             <Table.Row key={keyBase + editable.key}>
-              <Table.Cell>{editable.label}</Table.Cell>
+              <LabelCell label={editable.label} description={editable.toolTip} docUrl={editable.docUrl} />
               <Table.Cell>
                 <DColorPicker
                   isDisabled={editable.disableOn && editable.disableOn(dto)}
@@ -217,11 +272,10 @@ export const EditTable = ({
               </Table.Cell>
             </Table.Row>
           );
-          break;
-        case "image":
+          break;        case "image":
           element.value = (
             <Table.Row key={keyBase + editable.key}>
-              <Table.Cell>{editable.label} (You can drag & drop)</Table.Cell>
+              <LabelCell label={`${editable.label} (You can drag & drop)`} description={editable.toolTip} docUrl={editable.docUrl} />
               <Table.Cell onDrop={(e) => HandleDrop(e, key)}>
                 <Image src={dto[key]} boxSize="300px" objectFit={"contain"} />
                 {updatedDto[key] ? (
@@ -269,14 +323,11 @@ export const EditTable = ({
   //     return map;
   // }
 
-  const getGroupless = () => {
-    let grouped = Object.groupBy(mappedItems, (x) => x.category);
-    return grouped["default"] ? grouped["default"].map((x) => x.value) : [];
-  };
-
+  // A plain filter, not Object.groupBy: that's ES2024 and missing in Node 20 and older browsers.
+  const getGroupless = () =>
+    mappedItems.filter((x) => x.category === "default").map((x) => x.value);
   let mappedItems = PrepareItems();
   let groupless = getGroupless();
-  let grouped = Object.groupBy(mappedItems, (x) => x.category);
 
   return (
     <BasePanel>

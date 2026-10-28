@@ -1,12 +1,14 @@
 import { fabric } from 'fabric';
 import DTOConverter from '../../DTOConverter';
 import ClientMediator from '../../../../ClientMediator';
+import { canControl } from '../../Helpers/permissionBits';
 
 export class OnGroupBehavior {
     Handle(response, canvas, battleMapId) {
         let objects = canvas.getObjects().filter(x => response.elementIds.includes(x.id));
 
         objects.forEach(element => {
+            element.additionalObjects?.forEach(x => canvas.remove(x));
             canvas.remove(element);
         });
 
@@ -15,9 +17,11 @@ export class OnGroupBehavior {
         fabric.util.enlivenObjects([finalObject], (e) => {
             e.forEach(element => {
                 element.id = response.data.id;
-                element.selectable = (response.data.permission & 4) == 4 && response.data.layer == selectedLayer;
+                element.selectable = canControl(response.data.permission) && response.data.layer == selectedLayer;
 
-                let found = canvas._objects.findIndex(x => x.layer >= element.layer);
+                // Strict '>' so the regrouped element lands on top of any existing
+                // same-layer objects (newest-on-top), same fix as OnAddElementBehavior.
+                let found = canvas._objects.findIndex(x => x.layer > element.layer);
                 if (found == -1) {
                     if (!element.properties) {
                         element.properties = [];
@@ -28,10 +32,11 @@ export class OnGroupBehavior {
                     canvas.insertAt(element, found);
                 }
 
-                ClientMediator.sendCommandWaitForRegister("Game","GetCurrentPlayer", {},true).then((response) => {
-                    if (response.playerId === response.id)
+                ClientMediator.sendCommandWaitForRegister("Game","GetCurrentPlayer", {},true).then((currentPlayer) => {
+                    if (response.playerId === currentPlayer.id) {
                         canvas.setActiveObject(element);
-                        canvas.requestRenderAll();
+                    }
+                    canvas.requestRenderAll();
                 });
             });
         });

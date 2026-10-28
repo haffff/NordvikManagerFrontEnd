@@ -7,27 +7,21 @@ import {
   IconButton,
   Menu,
   Stack,
-  Td,
 } from "@chakra-ui/react";
 import * as React from "react";
-import { FaArrowLeft } from "react-icons/fa";
-import { IoMdClose } from "react-icons/io";
+import { FaArrowLeft } from "@react-icons/all-files/fa/FaArrowLeft";
+import { IoMdClose } from "@react-icons/all-files/io/IoMdClose";
 import { MenuItem } from "../../../../ui/menu";
 
 export const DeletableDropDownButton = ({
   id,
   name,
   icon,
-  gmOnly,
   onClick,
   onDeleteClick,
   width,
   height,
 }) => {
-  if (gmOnly && localStorage.getItem("gmMode") !== "true") {
-    return null;
-  }
-
   //TODO get access key from settings
 
   return (

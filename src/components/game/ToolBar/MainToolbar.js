@@ -1,22 +1,23 @@
-import { FaCode, FaMailBulk, FaMailchimp, FaTerminal } from "react-icons/fa";
+import * as React from "react";
+import { FaMailBulk } from "@react-icons/all-files/fa/FaMailBulk";
+import { FaTerminal } from "@react-icons/all-files/fa/FaTerminal";
+import { FaQuestionCircle } from "@react-icons/all-files/fa/FaQuestionCircle";
+import { FaInfoCircle } from "@react-icons/all-files/fa/FaInfoCircle";
 import { DropDownItem } from "../../uiComponents/base/DDItems/DropDownItem";
 import { DropDownMenu } from "../../uiComponents/base/DDItems/DropDownMenu";
 import ToolBar from "./ToolBar";
 import SettingsMenu from "./ToolBarMenus/SettingsMenu";
 import ViewsMenu from "./ToolBarMenus/ViewsMenu";
 import LayoutsMenu from "./ToolBarMenus/LayoutsMenu";
-import { IoIosExit } from "react-icons/io";
+import { IoIosExit } from "@react-icons/all-files/io/IoIosExit";
 import UtilityHelper from "../../../helpers/UtilityHelper";
 import AddonsMenu from "./ToolBarMenus/AddonsMenu";
 import ClientMediator from "../../../ClientMediator";
-import {
-  MenuContent,
-  MenuContextTrigger,
-  MenuItem,
-  MenuRoot,
-} from "../../ui/menu";
+import { usePermissions } from "../../../contexts/PermissionsContext";
+import { Button } from "@chakra-ui/react";
 
 import { toaster } from "../../ui/toaster";
+import { AboutDialog } from "../../AboutDialog";
 
 export const MainToolbar = ({
   Dockable,
@@ -25,13 +26,47 @@ export const MainToolbar = ({
   gameMethods,
   forceRefreshGame,
 }) => {
+  const [additionalButtons, setAdditionalButtons] = React.useState([]);
+  const openAboutRef = React.useRef();
+
+  React.useEffect(() => {
+    ClientMediator.register({
+      panel: "Toolbar",
+      id: "main-toolbar",
+      AddButton: (buttonData) => {
+        let element;
+        if (buttonData.menuId) {
+          // Create a dropdown menu button so AddMenuItem steps can populate it
+          element = React.createElement(DropDownMenu, {
+            key: buttonData.menuId,
+            viewId: buttonData.menuId,
+            name: buttonData.menuName || buttonData.name,
+          });
+        } else {
+          element = React.createElement(Button, {
+            key: buttonData.name,
+            height: "30px",
+            size: "xs",
+            borderRadius: 0,
+            variant: "outline",
+            onClick: buttonData.onClick,
+          }, buttonData.name);
+        }
+        setAdditionalButtons(prev => [...prev, element]);
+      },
+    });
+    return () => {
+      ClientMediator.unregister("main-toolbar");
+      setAdditionalButtons([]);
+    };
+  }, []);
+
   const GenerateInviteLink = () => {
     let game = ClientMediator.sendCommand("Game", "GetGame", {});
+    const centralServerUrl = process.env.REACT_APP_CENTRAL_URL;
     let url =
-      `${window.location.origin}?iid=${game.id}` +
-      (game.requirePassword
-        ? `&rp=${game.requirePassword}`
-        : "");
+      `${centralServerUrl}/client?game=${game.centralSessionId}` +
+      (game.requirePassword ? `&rp=1` : "");
     if (navigator && navigator.clipboard) {
       navigator.clipboard.writeText(url);
     } else {
@@ -40,11 +75,18 @@ export const MainToolbar = ({
     toaster.create(UtilityHelper.GenerateCopiedToast());
   };
 
+  // Whether the player may create/overwrite layouts. Whoever may edit the game always can;
+  // otherwise the per-game "disallowPlayerLayouts" toggle decides. Read from the init
+  // snapshot, so a change mid-session takes effect for players on their next reload.
+  const { canEditGame } = usePermissions();
+  const gameSnapshot = ClientMediator.sendCommand("Game", "GetGame", {});
+  const canSaveLayouts = canEditGame || !gameSnapshot?.disallowPlayerLayouts;
+
   return (
     <ToolBar>
       <DropDownMenu viewId={"game"} name={"Game"} width={100}>
         <DropDownItem
-          gmOnly
+          requiresEdit
           width={150}
           name={"Get Invite URL"}
           onClick={GenerateInviteLink}
@@ -55,6 +97,18 @@ export const MainToolbar = ({
           name={"Run command"}
           icon={<FaTerminal />}
           onClick={() => ClientMediator.sendCommand("game", "OpenRun")}
+        />
+        <DropDownItem
+          width={150}
+          name={"Show tutorial"}
+          icon={<FaQuestionCircle />}
+          onClick={() => ClientMediator.sendCommand("Tutorial", "Start")}
+        />
+        <DropDownItem
+          width={150}
+          name={"About"}
+          icon={<FaInfoCircle />}
+          onClick={() => openAboutRef.current()}
         />
         <DropDownItem
           width={150}
@@ -77,21 +131,11 @@ export const MainToolbar = ({
         gameMethods={gameMethods}
         state={state}
         battlemapsRef={battlemapsRef}
+        canSave={canSaveLayouts}
       />
       <AddonsMenu state={state} />
-      <DropDownMenu viewId={"experimental"} name={"Experimental"} width={100}>
-        <DropDownItem
-          width={150}
-          name={"Chat (Window)"}
-          state={state}
-          onClick={() => {
-            ClientMediator.sendCommand("Game", "CreateNewPanel", {
-              type: "ChatPanel",
-              inWindow: true,
-            });
-          }}
-        />
-      </DropDownMenu>
+      {additionalButtons}
+      <AboutDialog openRef={openAboutRef} />
     </ToolBar>
   );
 };

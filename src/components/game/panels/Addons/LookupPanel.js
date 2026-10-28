@@ -1,5 +1,5 @@
 import * as React from 'react';
-import { Flex, FormLabel, HStack, Image, Textarea } from '@chakra-ui/react'
+import { Flex, HStack, Image, Textarea } from '@chakra-ui/react'
 import * as Dockable from "@hlorenzi/react-dockable"
 import Subscribable from '../../../uiComponents/base/Subscribable';
 import DList from '../../../uiComponents/base/List/DList';
@@ -7,11 +7,11 @@ import DContainer from '../../../uiComponents/base/Containers/DContainer';
 import DListItem from '../../../uiComponents/base/List/DListItem';
 import DText from '../../../uiComponents/base/Text/DText';
 import DListItemButton from '../../../uiComponents/base/List/ListItemDetails/DListItemButton';
-import { FaEye } from 'react-icons/fa';
+import { FaEye } from '@react-icons/all-files/fa/FaEye';
 import DLabel from '../../../uiComponents/base/Text/DLabel';
-import { JSONTree } from 'react-json-tree';
-import BasePanel from '../../../uiComponents/base/BasePanel';
-import WebHelper from '../../../../helpers/WebHelper';
+import { JsonEditor } from '../../../uiComponents/JsonEditor';
+import { BasePanel } from '../../../uiComponents/base/BasePanel';
+import { ActiveWebHelper as WebHelper } from '../../../../helpers/transport';
 
 export const LookupPanel = ({ name, content, contentType }) => {
     //let gameData = gamedata.current;
@@ -33,14 +33,14 @@ export const LookupPanel = ({ name, content, contentType }) => {
         case 9:
             try {
                 let newContent = JSON.parse(content);
-                elementToShow = <JSONTree data={newContent} />;
+                elementToShow = <JsonEditor value={newContent} readOnly />;
             }
             catch (e) {
                 elementToShow = <>{content}</>;
             }
             break;
         case "object":
-            elementToShow = <JSONTree data={content} />;
+            elementToShow = <JsonEditor value={content} readOnly />;
             break;
         case "text/plain":
         case "text/css":

@@ -10,6 +10,7 @@
 
 # production
 /build
+/dist
 
 # misc
 .DS_Store
@@ -23,3 +24,14 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 my-credentials
+
+#.playwright-test-results
+.playwright-cli
+.playwright
+
+.copilot
+
+.local
+.local/*
+.claude/settings.local.json
+.claude

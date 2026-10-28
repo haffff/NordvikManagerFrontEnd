@@ -1,11 +1,12 @@
 import { Flex, Input, Stack, Text } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 import DListItemButton from "../../../uiComponents/base/List/ListItemDetails/DListItemButton";
-import { IoMdClose, IoMdExit } from "react-icons/io";
+import { IoMdClose } from "@react-icons/all-files/io/IoMdClose";
+import { IoMdExit } from "@react-icons/all-files/io/IoMdExit";
 import ClientMediator from "../../../../ClientMediator";
-import { MdLineWeight } from "react-icons/md";
-import { MdOutlineFormatColorFill } from "react-icons/md";
-import { MdBorderColor } from "react-icons/md";
+import { MdLineWeight } from "@react-icons/all-files/md/MdLineWeight";
+import { MdOutlineFormatColorFill } from "../../../uiComponents/icons/extraIcons";
+import { MdBorderColor } from "@react-icons/all-files/md/MdBorderColor";
 import { DColorPicker } from "../../../uiComponents/settingsComponents/ColorPicker";
 
 export const AddShapeOptions = ({ battleMapId }) => {

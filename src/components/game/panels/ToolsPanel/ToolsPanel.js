@@ -1,34 +1,43 @@
 import * as React from "react";
 import * as Dockable from "@hlorenzi/react-dockable";
-import BasePanel from "../../../uiComponents/base/BasePanel";
+import { BasePanel } from "../../../uiComponents/base/BasePanel";
 import useBMName from "../../../uiComponents/hooks/useBattleMapName";
 import DListItem from "../../../uiComponents/base/List/DListItem";
-import {
-  FaBorderNone,
-  FaBox,
-  FaChess,
-  FaCircle,
-  FaDotCircle,
-  FaHandPaper,
-  FaMap,
-  FaMousePointer,
-  FaPaintBrush,
-  FaRuler,
-  FaSquare,
-} from "react-icons/fa";
+import { FaBorderNone } from "@react-icons/all-files/fa/FaBorderNone";
+import { FaBox } from "@react-icons/all-files/fa/FaBox";
+import { FaChess } from "@react-icons/all-files/fa/FaChess";
+import { FaCircle } from "@react-icons/all-files/fa/FaCircle";
+import { FaDotCircle } from "@react-icons/all-files/fa/FaDotCircle";
+import { FaHandPaper } from "@react-icons/all-files/fa/FaHandPaper";
+import { FaLayerGroup } from "@react-icons/all-files/fa/FaLayerGroup";
+import { FaMap } from "@react-icons/all-files/fa/FaMap";
+import { FaMousePointer } from "@react-icons/all-files/fa/FaMousePointer";
+import { FaPaintBrush } from "@react-icons/all-files/fa/FaPaintBrush";
+import { FaRuler } from "@react-icons/all-files/fa/FaRuler";
+import { FaSquare } from "@react-icons/all-files/fa/FaSquare";
+import { FaPlay } from "@react-icons/all-files/fa/FaPlay";
+import { FaMagic } from "@react-icons/all-files/fa/FaMagic";
+import { FaPencilAlt } from "@react-icons/all-files/fa/FaPencilAlt";
+import { FaVectorSquare } from "@react-icons/all-files/fa/FaVectorSquare";
 import ClientMediator from "../../../../ClientMediator";
 import UtilityHelper from "../../../../helpers/UtilityHelper";
 import DLabel from "../../../uiComponents/base/Text/DLabel";
 import { useDimensions } from "../../../uiComponents/hooks/useDimensions";
 import { fabric } from "fabric";
 import { AddShapeOptions } from "./AddShapeOptions";
-import { MdTextFields } from "react-icons/md";
+import { MdTextFields } from "@react-icons/all-files/md/MdTextFields";
 import { AddCircleOptions } from "./AddCircleOptions";
 import { AddTextOptions } from "./AddTextOptions";
 import { DrawOptions } from "./DrawOptions";
 import { MeasureOptions } from "./MeasureOptions";
+import { MeasureConeOptions } from "./MeasureConeOptions";
+import { SketchOptions } from "./SketchOptions";
 import { Box, For, Separator } from "@chakra-ui/react";
 import { DWrapItem } from "../../../uiComponents/base/DWrapItem";
+import { useCustomLayers } from "../../../uiComponents/hooks/useCustomLayers";
+import { usePermissions } from "../../../../contexts/PermissionsContext";
+import { PERM, ENTITY_TYPES } from "../../../BattleMap/Helpers/permissionBits";
+import { getMapTools, subscribeMapTools } from "../../../BattleMap/mapToolsStore";
 
 export const ToolsPanel = ({ battleMapId }) => {
   const panelRef = React.useRef(null);
@@ -39,8 +48,19 @@ export const ToolsPanel = ({ battleMapId }) => {
   const [alignMode, setAlign] = React.useState(undefined);
   const [_battleMapId, set_battleMapId] = React.useState(battleMapId);
   const [playerColor, setPlayerColor] = React.useState("rgba(0,0,0,1)");
+  const gameId = React.useMemo(() => ClientMediator.sendCommand("Game", "GetGameId"), []);
+  const { layers } = useCustomLayers(gameId);
 
-  const colorRef = React.useRef(playerColor);
+  // Layer switching and simple-shape creation both edit the map's own element
+  // tree — hide them for a player who can only see (not edit) the current map.
+  const { hasEntityPermission } = usePermissions();
+  const currentMap = ClientMediator.sendCommand("BattleMap", "GetSelectedMap", { contextId: _battleMapId });
+  const canEditMap = hasEntityPermission(ENTITY_TYPES.MAP, currentMap?.id, PERM.EDIT);
+
+  const registrationIdRef = React.useRef(null);
+
+  // Tools added by addons (Add Map Tool step): clicking the map runs their action.
+  const mapTools = React.useSyncExternalStore(subscribeMapTools, getMapTools);
 
   const config = [
     { type: "label", name: "Select", ignoreAsSeparator: true },
@@ -59,58 +79,101 @@ export const ToolsPanel = ({ battleMapId }) => {
       selected: drag,
       enabled: !mode || mode === "_",
     },
-    { type: "label", name: "Layer" },
-    {
-      type: "option",
-      icon: <FaChess />,
-      name: "Token",
-      onClick: () => handleLayer(100),
-      selected: layer === 100,
-    },
-    {
-      type: "option",
-      icon: <FaMap />,
-      name: "Map",
-      onClick: () => handleLayer(-100, true),
-      selected: layer === -100,
-    },
-    { type: "label", name: "Draw" },
-    {
-      type: "option",
-      icon: <FaSquare />,
-      name: "Rectangle",
-      onClick: () => handleRect(),
-      selected: mode === "SimpleCreate_Rectangle",
-    },
-    {
-      type: "option",
-      icon: <FaCircle />,
-      name: "Circle",
-      onClick: () => handleCircle(),
-      selected: mode === "SimpleCreate_Circle",
-    },
-    {
-      type: "option",
-      icon: <MdTextFields />,
-      name: "Text",
-      onClick: () => handleText(),
-      selected: mode === "SimpleCreate_Text",
-    },
-    {
-      type: "option",
-      icon: <FaPaintBrush />,
-      name: "Paint",
-      onClick: () => handleFreeDraw(),
-      selected: mode === "Draw_undefined",
-    },
+    // Layer switching and simple-shape creation both edit the map's element
+    // tree, so both are hidden entirely (not just disabled) for a player who
+    // can only see the current map, not edit it.
+    ...(canEditMap ? [
+      { type: "label", name: "Layer" },
+      // Grid is never a placeable layer (no button for it) — everything else,
+      // reserved or custom, renders in correct top-to-bottom stacking order.
+      ...layers.filter((l) => l.kind !== "reserved-grid").map((l) => ({
+        type: "option",
+        icon: l.kind === "reserved-token" ? <FaChess /> : l.kind === "reserved-map" ? <FaMap /> : <FaLayerGroup />,
+        name: l.name,
+        onClick: () => handleLayer(l.layerId, l.kind === "reserved-map"),
+        selected: layer === l.layerId,
+      })),
+    ] : []),
+    // Freehand drawing edits the map's element tree the same as the shape
+    // tools above, so it's gated (and hidden, label included) the same way.
+    ...(canEditMap ? [
+      { type: "label", name: "Draw" },
+      {
+        type: "option",
+        icon: <FaSquare />,
+        name: "Rectangle",
+        onClick: () => handleRect(),
+        selected: mode === "SimpleCreate_Rectangle",
+      },
+      {
+        type: "option",
+        icon: <FaCircle />,
+        name: "Circle",
+        onClick: () => handleCircle(),
+        selected: mode === "SimpleCreate_Circle",
+      },
+      {
+        type: "option",
+        icon: <MdTextFields />,
+        name: "Text",
+        onClick: () => handleText(),
+        selected: mode === "SimpleCreate_Text",
+      },
+      {
+        type: "option",
+        icon: <FaPaintBrush />,
+        name: "Paint",
+        onClick: () => handleFreeDraw(),
+        selected: mode === "Draw_undefined",
+      },
+    ] : []),
     { type: "label", name: "Measure" },
+    // Sketches are previews, not map elements, so anyone may draw them.
+    {
+      type: "option",
+      icon: <FaPencilAlt />,
+      name: "Sketch",
+      onClick: () => handleSketch(),
+      selected: mode === "Draw_Sketch",
+    },
     {
       type: "option",
       icon: <FaRuler />,
       name: "Line",
       onClick: () => handleMeasureLine(),
-      selected: mode === "Measure_Line",
+      selected: mode === "Measure_undefined",
     },
+    {
+      type: "option",
+      icon: <FaCircle />,
+      name: "Radius",
+      onClick: () => handleMeasureCircle(),
+      selected: mode === "Measure_Circle",
+    },
+    {
+      type: "option",
+      icon: <FaPlay style={{ transform: "rotate(270deg)" }} />,
+      name: "Cone",
+      onClick: () => handleMeasureCone(),
+      selected: mode === "Measure_Cone",
+    },
+    {
+      type: "option",
+      icon: <FaVectorSquare />,
+      name: "Square",
+      onClick: () => handleMeasureRect(),
+      selected: mode === "Measure_Rect",
+    },
+    ...(mapTools.length > 0 ? [
+      { type: "label", name: "Addon tools" },
+      ...mapTools.map((tool) => ({
+        type: "option",
+        icon: <FaMagic />,
+        name: tool.uiName || tool.name,
+        onClick: () => handleActionTool(tool),
+        selected: mode === "ActionTool_" + tool.name,
+      })),
+    ] : []),
     { type: "label", name: "Align" },
     {
       type: "option",
@@ -140,10 +203,10 @@ export const ToolsPanel = ({ battleMapId }) => {
   let name = useBMName(_battleMapId);
   ctx.setTitle(`Tools - ` + name);
 
-  const handleDragMode = (mode) => {
+  const handleDragMode = (enabled) => {
     ClientMediator.sendCommand("BattleMap", "SetDragMode", {
       contextId: _battleMapId,
-      enabled: mode,
+      enabled,
     });
   };
 
@@ -155,19 +218,33 @@ export const ToolsPanel = ({ battleMapId }) => {
     });
   };
 
-  const sendCreateMode = (element, sizing, type, overlayOptionsRender) => {
+  const sendCreateMode = (element, sizing, type, overlayContent) => {
     ClientMediator.sendCommandAsync("BattleMap", "SetSimpleCreateMode", {
       contextId: _battleMapId,
       enabled: true,
-      element: element,
+      element,
       withSizing: sizing,
-      overlayContent: overlayOptionsRender(),
-      type: type,
+      overlayContent,
+      type,
+    });
+  };
+
+  const handleActionTool = (tool) => {
+    if (mode === "ActionTool_" + tool.name) {
+      clearMode();
+      return;
+    }
+    clearMode();
+
+    ClientMediator.sendCommand("BattleMap", "SetActionToolMode", {
+      contextId: _battleMapId,
+      enabled: true,
+      tool,
     });
   };
 
   const clearMode = () => {
-    if (mode !== "_" || mode !== undefined) {
+    if (mode !== "_" && mode !== undefined) {
       ClientMediator.sendCommand("BattleMap", "DisableAllModes", {
         contextId: _battleMapId,
       });
@@ -188,9 +265,9 @@ export const ToolsPanel = ({ battleMapId }) => {
       height: 21,
     });
 
-    sendCreateMode(obj, true, "Rectangle", () => (
-      <AddShapeOptions key={mode} battleMapId={_battleMapId} />
-    ));
+    sendCreateMode(obj, "box", "Rectangle",
+      <AddShapeOptions key={_battleMapId + "_Rectangle"} battleMapId={_battleMapId} />
+    );
   };
 
   const handleCircle = () => {
@@ -207,9 +284,9 @@ export const ToolsPanel = ({ battleMapId }) => {
       height: 100,
       radius: 100,
     });
-    sendCreateMode(obj, false, "Circle", () => (
-      <AddCircleOptions key={mode} battleMapId={_battleMapId} />
-    ));
+    sendCreateMode(obj, "radius", "Circle",
+      <AddCircleOptions key={_battleMapId + "_Circle"} battleMapId={_battleMapId} />
+    );
   };
 
   const handleText = () => {
@@ -224,9 +301,9 @@ export const ToolsPanel = ({ battleMapId }) => {
       stroke: "rgba(0,0,0,1)",
       text: "Text",
     });
-    sendCreateMode(obj, false, "Text", () => (
-      <AddTextOptions key={mode} battleMapId={_battleMapId} />
-    ));
+    sendCreateMode(obj, "fontSize", "Text",
+      <AddTextOptions key={_battleMapId + "_Text"} battleMapId={_battleMapId} />
+    );
   };
 
   const handleFreeDraw = () => {
@@ -243,8 +320,29 @@ export const ToolsPanel = ({ battleMapId }) => {
 
     ClientMediator.sendCommand("BattleMap", "SetFreeDrawMode", {
       contextId: _battleMapId,
-      overlayContent: <DrawOptions key={mode} battleMapId={_battleMapId} />,
+      overlayContent: <DrawOptions key={_battleMapId + "_Draw"} battleMapId={_battleMapId} />,
       enabled: true,
+      brush: brush,
+    });
+  };
+
+  const handleSketch = () => {
+    if (mode === "Draw_Sketch") {
+      clearMode();
+      return;
+    }
+
+    clearMode();
+
+    const brush = new fabric.PencilBrush();
+    brush.color = playerColor;
+    brush.width = 3;
+
+    ClientMediator.sendCommand("BattleMap", "SetFreeDrawMode", {
+      contextId: _battleMapId,
+      overlayContent: <SketchOptions key={_battleMapId + "_Sketch"} battleMapId={_battleMapId} />,
+      enabled: true,
+      sketch: true,
       brush: brush,
     });
   };
@@ -259,13 +357,18 @@ export const ToolsPanel = ({ battleMapId }) => {
 
   const updateTools = async () => {
     if (!_battleMapId) {
-      var bmId = await ClientMediator.sendCommandWaitForRegisterAsync("Game", "GetActiveBattleMapId");
+      const bmId = await ClientMediator.sendCommandWaitForRegisterAsync("Game", "GetActiveBattleMapId");
       set_battleMapId(bmId);
       return;
     }
 
-    // Register changes on
     const uuid = UtilityHelper.GenerateUUID();
+    const registrationId = "ToolsPanel" + uuid;
+
+    if (registrationIdRef.current) {
+      ClientMediator.unregister(registrationIdRef.current);
+    }
+    registrationIdRef.current = registrationId;
 
     const dragMode = ClientMediator.sendCommand("BattleMap", "GetDragMode", {
       contextId: _battleMapId,
@@ -273,10 +376,13 @@ export const ToolsPanel = ({ battleMapId }) => {
 
     setDrag(dragMode);
 
-    // get mode and mode type
-    const mode = ClientMediator.sendCommand("BattleMap", "GetCurrentMode", {
+    // GetCurrentMode now returns "None" (not undefined) when no exclusive mode is
+    // locked; keep the historical "undefined_<type>" mode string this panel builds
+    // so its selection checks are unaffected.
+    const currentModeRaw = ClientMediator.sendCommand("BattleMap", "GetCurrentMode", {
       contextId: _battleMapId,
     });
+    const currentMode = currentModeRaw === "None" ? undefined : currentModeRaw;
 
     const modeType = ClientMediator.sendCommand(
       "BattleMap",
@@ -297,17 +403,16 @@ export const ToolsPanel = ({ battleMapId }) => {
     });
     setAlign(align);
 
-    // get player color
-    const playerColor = ClientMediator.sendCommand(
+    const currentPlayerColor = ClientMediator.sendCommand(
       "Game",
       "GetCurrentPlayerColor"
     );
-    setPlayerColor(playerColor);
-    setMode(mode + "_" + modeType);
+    setPlayerColor(currentPlayerColor);
+    setMode(currentMode + "_" + modeType);
 
     ClientMediator.register({
       panel: "ToolsPanel",
-      id: "ToolsPanel" + uuid,
+      id: registrationId,
       onEvent: (event, data) => {
         if (event === "ActivePanelChanged") {
           if (data.panel !== "BattleMap" || data.contextId === _battleMapId) {
@@ -315,8 +420,23 @@ export const ToolsPanel = ({ battleMapId }) => {
           }
 
           set_battleMapId(data.contextId);
+          ClientMediator.unregister(registrationId);
+          registrationIdRef.current = null;
+          return;
+        }
 
-          ClientMediator.unregister(uuid);
+        if (event === "BattleMapsChanged") {
+          // data is the full {contextId: context} dictionary, not a single
+          // battlemap's own event payload — the generic `data.battleMapId`
+          // guard below doesn't apply here. If this panel's own battlemap
+          // context is the one that just got removed (closed), it no longer
+          // has an active battlemap: fall back to undefined so every tool
+          // disables (see resolveEnabled) instead of staying bound to a
+          // context that no longer exists.
+          if (_battleMapId && !data[_battleMapId]) {
+            set_battleMapId(undefined);
+          }
+          return;
         }
 
         if (
@@ -341,17 +461,17 @@ export const ToolsPanel = ({ battleMapId }) => {
         if (event === "BattleMap_AlignChanged") {
           setAlign(data.align);
         }
-        if (event === "BattleMapsChanged") {
-          set_battleMapId(data.battleMapId);
-        }
       },
     });
-  }
+  };
 
   React.useEffect(() => {
     updateTools();
     return () => {
-      ClientMediator.unregister("ToolsPanel" + _battleMapId);
+      if (registrationIdRef.current) {
+        ClientMediator.unregister(registrationIdRef.current);
+        registrationIdRef.current = null;
+      }
     };
   }, [_battleMapId]);
 
@@ -362,8 +482,10 @@ export const ToolsPanel = ({ battleMapId }) => {
         justifyContent={"center"}
         flexWrap={"wrap"}
         tooltip={name}
-        opacity={enabled ? 1 : 0.5}
-        onClick={onClick}
+        opacity={enabled ? 1 : 0.4}
+        cursor={enabled ? "pointer" : "not-allowed"}
+        pointerEvents={enabled ? "auto" : "none"}
+        onClick={enabled ? onClick : undefined}
         key={"Tools_" + _battleMapId + "_" + name + enabled}
       >
         {icon}
@@ -376,10 +498,11 @@ export const ToolsPanel = ({ battleMapId }) => {
       <DListItem
         isSelected={selected}
         flexProps={{ gap: "10px" }}
-        withHover
+        withHover={enabled}
         justifyContent={"center"}
-        onClick={onClick}
-        opacity={enabled ? 1 : 0.5}
+        onClick={enabled ? onClick : undefined}
+        opacity={enabled ? 1 : 0.4}
+        cursor={enabled ? "pointer" : "not-allowed"}
         key={"Tools_" + _battleMapId + "_" + name + enabled}
       >
         {icon}
@@ -399,11 +522,62 @@ export const ToolsPanel = ({ battleMapId }) => {
       contextId: _battleMapId,
       enabled: true,
       playerColor: playerColor,
-      overlayContent: <MeasureOptions key={mode} battleMapId={_battleMapId} />,
+      overlayContent: <MeasureOptions key={_battleMapId + "_Measure"} battleMapId={_battleMapId} />,
+    });
+  };
+
+  const handleMeasureCircle = () => {
+    if (mode === "Measure_Circle") {
+      clearMode();
+      return;
+    }
+    clearMode();
+
+    ClientMediator.sendCommand("BattleMap", "SetMeasureMode", {
+      contextId: _battleMapId,
+      enabled: true,
+      playerColor: playerColor,
+      type: "Circle",
+      overlayContent: <MeasureOptions key={_battleMapId + "_Measure_Circle"} battleMapId={_battleMapId} />,
+    });
+  };
+
+  const handleMeasureCone = () => {
+    if (mode === "Measure_Cone") {
+      clearMode();
+      return;
+    }
+    clearMode();
+
+    ClientMediator.sendCommand("BattleMap", "SetMeasureMode", {
+      contextId: _battleMapId,
+      enabled: true,
+      playerColor: playerColor,
+      type: "Cone",
+      overlayContent: <MeasureConeOptions key={_battleMapId + "_Measure_Cone"} battleMapId={_battleMapId} />,
+    });
+  };
+
+  const handleMeasureRect = () => {
+    if (mode === "Measure_Rect") {
+      clearMode();
+      return;
+    }
+    clearMode();
+
+    ClientMediator.sendCommand("BattleMap", "SetMeasureMode", {
+      contextId: _battleMapId,
+      enabled: true,
+      playerColor: playerColor,
+      type: "Rect",
+      overlayContent: <MeasureOptions key={_battleMapId + "_Measure_Rect"} battleMapId={_battleMapId} />,
     });
   };
 
   // List
+
+  const resolveEnabled = (item) =>
+    _battleMapId ? (item.enabled !== undefined ? item.enabled : true) : false;
 
   let items = undefined;
 
@@ -412,21 +586,14 @@ export const ToolsPanel = ({ battleMapId }) => {
       <For each={config}>
         {(item) => {
           if (item.type === "label") {
-            return <DLabel>{item.name}</DLabel>;
+            return <DLabel key={item.name}>{item.name}</DLabel>;
           } else {
-            let enabled = item.enabled !== undefined ? item.enabled : true;
-            if(!_battleMapId)
-            {
-              enabled = false;
-            }
-
-
             return optionDefinition(
               item.icon,
               item.name,
               item.onClick,
               item.selected,
-              enabled
+              resolveEnabled(item)
             );
           }
         }}
@@ -454,20 +621,14 @@ export const ToolsPanel = ({ battleMapId }) => {
                 };
               }
 
-              return <Separator size={"lg"} {...additionalProps} />;
+              return <Separator key={item.name} size={"lg"} {...additionalProps} />;
             } else {
-              let enabled = item.enabled !== undefined ? item.enabled : true;
-              if(!_battleMapId)
-              {
-                enabled = false;
-              }
-
               return wrapOptionDefinition(
                 item.icon,
                 item.name,
                 item.onClick,
                 item.selected,
-                enabled
+                resolveEnabled(item)
               );
             }
           }}

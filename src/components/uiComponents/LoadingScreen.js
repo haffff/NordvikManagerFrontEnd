@@ -1,4 +1,4 @@
-import { Fade, Spinner, Stack } from "@chakra-ui/react";
+import { Spinner, Stack } from "@chakra-ui/react";
 import "../../stylesheets/generic.css";
 
 export const LoadingScreen = ({ children }) => {

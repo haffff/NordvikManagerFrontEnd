@@ -1,11 +1,13 @@
 import { Box, Flex, Input, Stack, Text } from "@chakra-ui/react";
 import { useEffect, useState } from "react";
 import DListItemButton from "../../../uiComponents/base/List/ListItemDetails/DListItemButton";
-import { IoMdClose, IoMdExit } from "react-icons/io";
+import { IoMdClose } from "@react-icons/all-files/io/IoMdClose";
+import { IoMdExit } from "@react-icons/all-files/io/IoMdExit";
 import ClientMediator from "../../../../ClientMediator";
-import { MdCircle, MdLineWeight } from "react-icons/md";
-import { MdOutlineFormatColorFill } from "react-icons/md";
-import { MdBorderColor } from "react-icons/md";
+import { MdLineWeight } from "@react-icons/all-files/md/MdLineWeight";
+import { MdCircle } from "../../../uiComponents/icons/extraIcons";
+import { MdOutlineFormatColorFill } from "../../../uiComponents/icons/extraIcons";
+import { MdBorderColor } from "@react-icons/all-files/md/MdBorderColor";
 import { DColorPicker } from "../../../uiComponents/settingsComponents/ColorPicker";
 import { DWrapItem } from "../../../uiComponents/base/DWrapItem";
 
@@ -13,7 +15,6 @@ export const AddCircleOptions = ({ battleMapId }) => {
   const [fillColor, setFillColor] = useState("rgba(0,0,0,1)");
   const [strokeColor, setStrokeColor] = useState("rgba(0,0,0,1)");
   const [lineWidth, setLineWidth] = useState(1);
-  const [radius, setRadius] = useState(1);
   useEffect(() => {
     let element = ClientMediator.sendCommand("BattleMap", "GetCreateElement", {
       contextId: battleMapId,
@@ -22,7 +23,6 @@ export const AddCircleOptions = ({ battleMapId }) => {
     if (element) {
       setFillColor(element.fill);
       setStrokeColor(element.stroke);
-      setRadius(100);
     }
     return () => {};
   }, []);
@@ -78,19 +78,6 @@ export const AddCircleOptions = ({ battleMapId }) => {
 
             handleUpdate("strokeWidth", e.target.value);
             setLineWidth(e.target.value);
-          }}
-        />
-      </Stack>
-      <Stack alignItems={"center"}>
-        <Text fontSize={"10px"}>Radius</Text>
-        <Input
-          type={"number"}
-          width={"75px"}
-          variant={"outline"}
-          value={radius}
-          onChange={(e) => {
-            handleUpdate("radius", e.target.value);
-            setRadius(e.target.value);
           }}
         />
       </Stack>

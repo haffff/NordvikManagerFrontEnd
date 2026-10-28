@@ -1,0 +1,248 @@
+import InteractionsManger from "../Managers/BMQueryService";
+import BattleMapBMService from "../Managers/BMService";
+import TokenManager from "../Managers/TokenManager";
+import ClientMediator from "../../../ClientMediator";
+import LoadBMSubscriptions from "../Loaders/LoadBMSubscriptions";
+import DTOConverter from "../DTOConverter";
+import GridHelper from '../Helpers/GridHelper';
+import { syncControlsVisibility } from "../Helpers/TokenControlsHelper";
+import { fabric } from "fabric";
+import { RESERVED_LAYERS, compareLayers } from "../Constants/layers";
+import { installLayerTargeting } from "../Helpers/LayerTargeting";
+
+// Factory that creates a LoadCanvas async function bound to provided dependencies
+export default function createLoadCanvas(deps) {
+  const {
+    editor,
+    mapRef,
+    battleMapModel,
+    forceUpdate,
+    keyboardEventsManagerRef,
+    battleMapObjectRef,
+    battleMapContainerRef,
+    ctx,
+    uuid,
+    // optional:
+    setLoading,
+    // optional callbacks provided by Battlemap component so services can trigger full reload/change
+    reloadBattleMap,
+    changeMap,
+  } = deps;
+
+  return async function LoadCanvas() {
+    const map = mapRef.current;
+
+    const BattleMapServices = {
+      BMQueryService: new InteractionsManger(),
+      BMService: new BattleMapBMService(),
+    };
+
+    // Wire optional commands so BMService.ReloadBattleMapComponent will invoke the component-provided reload
+    if (typeof reloadBattleMap === 'function') {
+      BattleMapServices.BMService._reloadCommand = reloadBattleMap;
+    }
+    if (typeof changeMap === 'function') {
+      BattleMapServices.BMService._changeMapCommand = changeMap;
+    }
+
+    BattleMapServices.BMService._BMQueryService =
+      BattleMapServices.BMQueryService;
+
+    let oldEditGridMode = editor.canvas.editGridMode;
+    let oldSelectedLayer = editor.canvas.selectedLayer;
+    editor.canvas.clear();
+    editor.canvas.editGridMode = oldEditGridMode;
+    editor.canvas.fireRightClick = true;
+    editor.canvas.fireMiddleClick = true;
+    editor.canvas.align = "left";
+    editor.canvas.selectedLayer = oldSelectedLayer ?? RESERVED_LAYERS.TOKEN;
+    // Clicks only reach elements of the layer being worked on.
+    installLayerTargeting(editor.canvas);
+    editor.canvas.defaultCursor = "default";
+    editor.canvas.hoverCursor = "default";
+
+    // Assign battlemap instance when necessary
+    BattleMapServices.BMQueryService._canvas = editor.canvas;
+    BattleMapServices.BMQueryService._battleMapModel = battleMapModel;
+    // Load() here (before ClientMediator.register() below) sets .panel/.id/.contextId,
+    // which register() requires to already be set. It's called again after
+    // LoadBMSubscriptions() further down — see the comment there for why.
+    BattleMapServices.BMQueryService.Load();
+    BattleMapServices.BMService._canvas = editor.canvas;
+    BattleMapServices.BMService._refreshCommand = forceUpdate;
+    BattleMapServices.BMService._battleMapModel = battleMapModel;
+    BattleMapServices.BMService.Load();
+
+    BattleMapServices.TokenManager = new TokenManager();
+    BattleMapServices.TokenManager._canvas = editor.canvas;
+    BattleMapServices.TokenManager._battleMapModel = battleMapModel;
+    BattleMapServices.TokenManager._refreshCommand = forceUpdate;
+    BattleMapServices.TokenManager.Load(() => editor.canvas);
+
+    // Assign Selected map instance when necessary
+    BattleMapServices.BMQueryService._map = map;
+
+    ClientMediator.register(BattleMapServices.BMQueryService);
+    ClientMediator.register(BattleMapServices.BMService);
+    ClientMediator.register(BattleMapServices.TokenManager);
+
+    let bmObj = {
+      Panel: ctx.layoutContent.panel,
+      PanelContentID: ctx.layoutContent.content?.contentId ?? uuid,
+      id: uuid,
+    };
+
+    battleMapObjectRef.current = bmObj;
+    ClientMediator.sendCommand("Game", "AddBattleMapContext", {
+      battleMapContext: bmObj,
+    });
+
+    const references = {
+      mapRef,
+      keyboardEventsManagerRef,
+      battleMapObjectRef,
+      battleMapContainerRef,
+    };
+
+    LoadBMSubscriptions(editor.canvas, references);
+
+    // Re-run BMQueryService.Load() here, after LoadBMSubscriptions(). LoadBMSubscriptions
+    // does canvas.off(key) for every key it manages — including
+    // "selection:created/updated/cleared" — and fabric's off(eventName) with no handler
+    // argument clears ALL listeners for that event, not just the caller's own. The
+    // earlier BMQueryService.Load() call above (needed before ClientMediator.register()
+    // so .panel/.id are set) was getting its selection handlers wiped out immediately
+    // after being set up, silently breaking SubscribeSelectionChanged for the canvas's
+    // entire lifetime. Load() is idempotent (off-then-on for its own 3 events each
+    // time), so calling it again here is safe and just re-establishes what got wiped.
+    BattleMapServices.BMQueryService.Load();
+
+    // extend toObject for serialization
+    fabric.Object.prototype.toObject = (function (toObject) {
+      return function () {
+        return fabric.util.object.extend(toObject.call(this), {
+          id: this.id,
+          name: this.name === undefined ? this.type : this.name,
+          text: this.text,
+          radius: this.radius,
+          tokenUiElements: this.tokenUiElements,
+          tokenData: this.tokenData,
+          isTokenUI: this.isTokenUI,
+          // Not in fabric's own default whitelist — without these, isToken/cardId
+          // survive only in-memory for the client that created the token. After a
+          // send-to-server round trip or a page reload, the reconstructed object
+          // loses them, so anything checking the live object (rather than going
+          // through the separate Properties system, e.g. TokenManager.IsToken)
+          // silently stops recognising it as a token.
+          isToken: this.isToken,
+          cardId: this.cardId,
+          parentId: this.parentId,
+          originalLeft: this.originalLeft,
+          originalTop: this.originalTop,
+          fontSize: this.fontSize,
+          previewId: this.previewId,
+          playerId: this.playerId,
+          resourceId: this.resourceId,
+          resourceKey: this.resourceKey,
+        });
+      };
+    })(fabric.Object.prototype.toObject);
+
+    // sort layers helper
+    editor.canvas.sortLayers = function () {
+      this._objects.sort(compareLayers);
+    };
+
+    // Load elements and register them in ElementsStorage
+    if (map.elements && map.elements.length > 0) {
+      let canvasObjects = [];
+      for (const dto of map.elements) {
+        if (dto.id === undefined || dto.id === null) {
+          console.error("No Id for element! data is corrupted");
+          continue;
+        }
+
+        const object = DTOConverter.ConvertFromDTO(dto);
+        object.properties = object.properties || {};
+        object.selectable =
+          object.selectablePermission && dto.layer === editor.canvas.selectedLayer;
+        canvasObjects.push(object);
+      }
+
+      try {
+        editor.canvas.loadFromJSON({ objects: canvasObjects }, async () => {
+          // Draw grid before sorting so grid insertion index is computed correctly
+          try {
+            GridHelper(editor.canvas, map);
+          } catch (e) {
+            console.warn('LoadCanvas: failed to draw grid', e);
+          }
+          editor.canvas.sortLayers();
+          const objects = editor.canvas.getObjects();
+
+          // Get distinct card ids
+          const cardIds = objects
+            .filter((obj) => obj.tokenData?.cardId)
+            .map((obj) => obj.tokenData?.cardId);
+          const distinctCardIds = [...new Set(cardIds)];
+
+          // load properties to cache
+          await Promise.all(
+            distinctCardIds.map(async (cardId) => {
+              await ClientMediator.sendCommandAsync("Properties", "LoadToCache", { parentId: cardId });
+              return true;
+            })
+          );
+
+          await Promise.all(
+            objects.map(async (obj) => {
+              if (!obj.id) return false;
+              const isToken = obj.tokenData !== undefined;
+              if (isToken) {
+                BattleMapServices.TokenManager.CanvasObjectLoadToken({ id: obj.id });
+              }
+              // A token saved with scale/rotate locked must come back with its
+              // handles hidden too — otherwise they only disappear after the next
+              // toggle, not on the initial load that restored the lock state.
+              syncControlsVisibility(obj);
+              editor.canvas.requestRenderAll();
+              return true;
+            })
+          );
+        });
+      } catch (error) {
+        console.error(error);
+      }
+    }
+    else
+    {
+      //just draw grid if no elements, to avoid multiple grid redraws during element loading
+      try {
+        GridHelper(editor.canvas, map);
+      } catch (e) {
+        console.warn('LoadCanvas: failed to draw grid', e);
+      }
+    }
+
+    // set default settings
+    editor.canvas.alignMode = "corners";
+    editor.canvas.getPointerWithAlign = function (e) {
+      let pointer = editor.canvas.getPointer(e, false);
+      let align = editor.canvas.alignMode;
+      if (align !== "none") {
+        let gridSize = map.gridSize;
+        let x, y = 0;
+        x = Math.round(pointer.x / gridSize) * gridSize;
+        y = Math.round(pointer.y / gridSize) * gridSize;
+        if (align === "center") {
+          x += gridSize / 2;
+          y += gridSize / 2;
+        }
+        pointer = { x: x, y: y };
+      }
+      return pointer;
+    };
+
+    if (typeof setLoading === 'function') setLoading(false);
+  };
+}

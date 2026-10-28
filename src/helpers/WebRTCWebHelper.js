@@ -1,0 +1,333 @@
+// REST-over-WebRTC helper.
+// Mirrors WebHelper's public API; routes calls through the WebRTC data channel
+// instead of direct HTTP. Injected with a transport by WebRTCManager.
+
+import WebHelper from './WebHelper';
+import ResourceCache from './ResourceCache';
+import UtilityHelper from './UtilityHelper';
+import addonOpLog, { isAddonOpPath } from './addonOpLog';
+import { debugLog } from './debugLog';
+
+const REQUEST_TIMEOUT_MS = 30000;
+
+// Recursively convert object keys from PascalCase to camelCase.
+function _camelizeKeys(obj) {
+  if (Array.isArray(obj)) return obj.map(_camelizeKeys);
+  if (obj !== null && typeof obj === 'object') {
+    return Object.fromEntries(
+      Object.entries(obj).map(([k, v]) => [
+        k.charAt(0).toLowerCase() + k.slice(1),
+        _camelizeKeys(v),
+      ])
+    );
+  }
+  return obj;
+}
+
+// Convert a base64 string (with optional data-URI prefix) to blob or text.
+function _base64ToBytes(b64) {
+  const stripped = b64.replace(/^data:[^;]+;base64,/, '');
+  return Uint8Array.from(atob(stripped), (c) => c.charCodeAt(0));
+}
+
+// Text types come back as a "binary string" (one char per byte, what atob gives),
+// everything else as a Blob — the same whether fetched or from the cache.
+function _bytesToData(bytes, mimeType) {
+  if (mimeType.startsWith('text') || mimeType.startsWith('application/json')) {
+    let text = '';
+    for (let i = 0; i < bytes.length; i += 0x8000) {
+      text += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+    }
+    return text;
+  }
+  return new Blob([bytes], { type: mimeType });
+}
+
+class WebRTCWebHelper {
+  GameId = undefined;
+
+  _transport = null;    // set by WebRTCManager via setTransport()
+  _pending = new Map(); // id → { resolve, reject, timeoutHandle }
+  _queue = [];          // requests waiting for data channel to open
+  _resourceCache = new Map(); // cacheKey (id or key) → Blob
+
+  // Called by WebRTCManager once, passing itself as transport
+  setTransport(transport) {
+    debugLog('[WebRTCWebHelper] setTransport called, queued:', this._queue.length);
+    this._transport = transport;
+  }
+
+  // Called by WebRTCManager.Close() when a game session ends. Without this, a
+  // request still sitting in _queue (channel not open yet) or _pending (sent,
+  // awaiting response) at exit time would survive into the next game — queued
+  // requests get flushed onto the next session's data channel on its dc.onopen,
+  // still tagged with the old game's gameid, and pending ones would just hang
+  // until their timeout. Reject everything outstanding and start clean.
+  reset() {
+    for (const { reject, timeoutHandle } of this._pending.values()) {
+      clearTimeout(timeoutHandle);
+      reject(new Error('WebRTC transport reset (game session ended)'));
+    }
+    this._pending.clear();
+
+    for (const { reject, timeoutHandle } of this._queue) {
+      clearTimeout(timeoutHandle);
+      reject(new Error('WebRTC transport reset (game session ended)'));
+    }
+    this._queue = [];
+
+    // Deliberately NOT touching GameId here. Game.js sets it on every render
+    // (`WebHelper.GameId = gameID`) and MainApp's unmount effect already clears it
+    // on logout — but forceReconnect() (Close() → Start(), same tick) and the Retry
+    // handler's loadGame() run before Game.js's next render, so clearing it here
+    // would send/queue every request made in that window with no gameid until the
+    // next render happened to run.
+  }
+
+  // Called by WebRTCManager when an api-response arrives on the data channel
+  handleApiResponse({ id, status, body }) {
+    const entry = this._pending.get(id);
+    if (!entry) {
+      addonOpLog(`api-response id=${id} status=${status} arrived for no pending request (timed out or reset already)`);
+      return;
+    }
+    if (entry.trace) addonOpLog(`api-response ${entry.trace} → ${status}`, body);
+    clearTimeout(entry.timeoutHandle);
+    this._pending.delete(id);
+    entry.resolve({ status, body: _camelizeKeys(body) });
+  }
+
+  // Called by WebRTCManager when data channel opens — flush queued requests
+  flushQueue() {
+    const channelReady = this._transport?.isChannelReady() ?? false;
+    debugLog(`[WebRTCWebHelper] flushQueue: ${this._queue.length} queued, transport=${!!this._transport}, channelReady=${channelReady}`);
+    const items = this._queue.splice(0);
+    for (const item of items) {
+      debugLog(`[WebRTCWebHelper] flushing ${item.message.method} ${item.message.path}`);
+      this._dispatch(item);
+    }
+  }
+
+  // Hands a request to the transport. The response timeout starts once it's all
+  // sent: a large upload is fed into the channel as it drains, which can take longer
+  // than the timeout on its own.
+  _dispatch({ message, resolve, reject, timeoutHandle, onProgress }) {
+    clearTimeout(timeoutHandle); // the wait for the channel (if queued) is over
+    const id = message.id;
+    const trace = message.method !== 'GET' && isAddonOpPath(message.path)
+      ? `${message.method} ${message.path} id=${id}` : null;
+    if (trace) addonOpLog(`sending ${trace}`);
+    this._pending.set(id, { resolve, reject, timeoutHandle: null, trace });
+    let sending;
+    try {
+      sending = this._transport.sendRaw(message, { onProgress });
+    } catch (e) {
+      sending = Promise.reject(e);
+    }
+    Promise.resolve(sending).then(
+      () => {
+        const entry = this._pending.get(id);
+        if (!entry) return; // already answered or reset
+        if (trace) addonOpLog(`sent ${trace}, waiting up to ${REQUEST_TIMEOUT_MS / 1000}s for the answer`);
+        entry.timeoutHandle = setTimeout(() => {
+          if (trace) addonOpLog(`TIMEOUT ${trace}: no answer from the server`);
+          this._pending.delete(id);
+          reject(new Error(`WebRTC API timeout: ${message.method} ${message.path}`));
+        }, REQUEST_TIMEOUT_MS);
+      },
+      (err) => {
+        if (trace) addonOpLog(`send FAILED ${trace}: ${err?.message}`);
+        if (this._pending.delete(id)) reject(err);
+      }
+    );
+  }
+
+  _sendRequest(method, path, body = null, { onProgress } = {}) {
+    const id = crypto.randomUUID();
+
+    // Separate inline query params from path, then add gameid
+    const qIdx = path.indexOf('?');
+    const basePath = qIdx >= 0 ? path.slice(0, qIdx) : path;
+    const query = {};
+    if (qIdx >= 0) {
+      for (const [k, v] of new URLSearchParams(path.slice(qIdx + 1)).entries()) {
+        query[k] = v;
+      }
+    }
+    if (this.GameId) query.gameid = this.GameId;
+
+    const normalizedPath = (basePath.startsWith('api/') ? basePath : `api/${basePath}`).toLowerCase();
+    const message = { type: 'api-request', id, method, path: normalizedPath, query, body };
+
+    return new Promise((resolve, reject) => {
+      const timeoutHandle = setTimeout(() => {
+        this._pending.delete(id);
+        // Still waiting for the channel: drop it, so flushQueue never sends a
+        // request the caller was already told failed.
+        this._queue = this._queue.filter((item) => item.message.id !== id);
+        reject(new Error(`WebRTC API timeout: ${method} ${normalizedPath}`));
+      }, REQUEST_TIMEOUT_MS);
+
+      if (this._transport?.isChannelReady()) {
+        debugLog(`[WebRTCWebHelper] send immediate: ${method} ${normalizedPath}`);
+        this._dispatch({ message, resolve, reject, timeoutHandle, onProgress });
+      } else {
+        debugLog(`[WebRTCWebHelper] queued: ${method} ${normalizedPath} (transport=${!!this._transport}, channelReady=${this._transport?.isChannelReady() ?? false})`);
+        if (method !== 'GET' && isAddonOpPath(normalizedPath))
+          addonOpLog(`queued ${method} ${normalizedPath} id=${id}: data channel not open yet`);
+        // Queue until channel opens; transport will call flushQueue()
+        this._queue.push({ message, resolve, reject, timeoutHandle, onProgress });
+        // Safety net: channel may have opened between the isChannelReady() check above and
+        // this push (race condition where dc.onopen fires before React effects run loadGame).
+        if (this._transport?.isChannelReady()) {
+          this.flushQueue();
+        }
+      }
+    });
+  }
+
+  // ── WebHelper-compatible API ─────────────────────────────────────────────
+
+  getAsync(path) {
+    return this._sendRequest('GET', path).then((r) => {
+      if (r.status >= 200 && r.status < 300) return r.body;
+      console.warn(`[WebRTCWebHelper] getAsync: HTTP ${r.status} for ${path}`);
+      return undefined;
+    });
+  }
+
+  get(path, onok, onerror, onException) {
+    this._sendRequest('GET', path)
+      .then((r) => {
+        if (r.status >= 200 && r.status < 300) { if (onok) onok(r.body); }
+        else { if (onerror) onerror(r); }
+      })
+      .catch((e) => { if (onException) onException(e); else console.error(e); });
+  }
+
+  getNoResp(path, onok, onerror, onException) {
+    this._sendRequest('GET', path)
+      .then((r) => { if (r.status >= 200 && r.status < 300) { if (onok) onok(); } else { if (onerror) onerror(r); } })
+      .catch((e) => { if (onException) onException(e); else console.error(e); });
+  }
+
+  async getNoRespAsync(path) {
+    const result = await this._sendRequest('GET', path);
+    // Return a fetch-Response-like object so callers can check .ok / .status
+    return { ok: result.status >= 200 && result.status < 300, status: result.status };
+  }
+
+  postAsync(path, body) {
+    return this._sendRequest('POST', path, body);
+  }
+
+  putAsync(path, body) {
+    return this._sendRequest('PUT', path, body);
+  }
+
+  // onProgress(sentBytes, totalBytes) while the request is being sent.
+  post(path, body, onok, onerror, onException, onProgress) {
+    this._sendRequest('POST', path, body, { onProgress })
+      .then((r) => {
+        if (r.status >= 200 && r.status < 300) { if (onok) onok(r.body); }
+        else { if (onerror) onerror(r); }
+      })
+      .catch((e) => { if (onException) onException(e); else console.error(e); });
+  }
+
+  deleteAsync(path, body = null) {
+    return this._sendRequest('DELETE', path, body).then((r) => r.body);
+  }
+
+  // ── Material / resource helpers ──────────────────────────────────────────
+
+  // Static resources are served via HTTP (REST still works); return the HTTP
+  // URL directly so <img src> and other consumers work without tunneling.
+  getResourceString(id, key, gameId) {
+    return WebHelper.getResourceString(id, key, gameId ?? this.GameId);
+  }
+
+  // Fetch a material via the data channel. The backend returns
+  // { data: base64, mimeType, version }; convert to Blob or text to match
+  // what callers of WebHelper.getMaterialAsync expect.
+  // `thumbnail` requests a small server-generated/cached resize instead of the
+  // original file — used for previews so a folder of full-res images doesn't
+  // pull every original down just to show a 36px icon.
+  // Results are kept in ResourceCache (in the browser, between sessions): a cached
+  // resource is requested with its version, and the server answers { notModified }
+  // instead of sending it again while that version is current.
+  async getMaterialAsync(id, mimeType, key, thumbnail = false) {
+    const queryParam = id ? `id=${id}` : `key=${key}`;
+    const thumbParam = thumbnail ? '&thumbnail=true' : '';
+    const cacheKey = `${this.GameId}:${thumbnail ? 't:' : ''}${id || key}`;
+    const cached = await ResourceCache.get(cacheKey);
+    const versionParam = cached ? `&ifVersion=${encodeURIComponent(cached.version)}` : '';
+
+    const result = await this._sendRequest('GET', `materials/resource?${queryParam}${thumbParam}${versionParam}`);
+    if (result?.status === 200 && result.body?.notModified && cached) {
+      return _bytesToData(new Uint8Array(cached.data), mimeType ?? cached.mimeType ?? 'application/octet-stream');
+    }
+    if (result?.status !== 200 || !result?.body?.data) {
+      console.warn(`[WebRTCWebHelper] getMaterialAsync failed for id=${id} key=${key}: status=${result?.status}`, result?.body);
+      return undefined;
+    }
+    const serverMimeType = result.body.mimeType ?? 'application/octet-stream';
+    const bytes = _base64ToBytes(result.body.data);
+    if (result.body.version) {
+      // Not awaited: storing mustn't delay the caller.
+      ResourceCache.put(cacheKey, { data: bytes.buffer, mimeType: serverMimeType, version: result.body.version });
+    }
+    return _bytesToData(bytes, mimeType ?? serverMimeType);
+  }
+
+  // Fetch a resource as a Blob, with session-level in-memory caching.
+  // Used by the fabric.js image loading override so repeated canvas loads
+  // don't re-fetch the same image over the data channel. Thumbnails are cached
+  // under their own key so a full-res fetch and a thumbnail fetch of the same
+  // resource never shadow each other.
+  async getResourceBlobAsync(id, key, thumbnail = false) {
+    const cacheKey = (thumbnail ? 'thumb:' : '') + (id || key);
+    if (this._resourceCache.has(cacheKey)) {
+      return this._resourceCache.get(cacheKey);
+    }
+    const blob = await this.getMaterialAsync(id, null, key, thumbnail);
+    if (blob instanceof Blob) this._resourceCache.set(cacheKey, blob);
+    return blob;
+  }
+
+  clearResourceCache() {
+    this._resourceCache.clear();
+  }
+
+  getMaterial(id, mimeType, onok, onerror, onException) {
+    this.getMaterialAsync(id, mimeType)
+      .then((data) => {
+        if (data !== undefined) { if (onok) onok(data); }
+        else { if (onerror) onerror(); }
+      })
+      .catch((e) => { if (onException) onException(e); else console.error(e); });
+  }
+
+  // Upload a material file via the data channel. Converts to base64 first,
+  // then sends as a tunneled POST, matching the Materials/AddResource body schema.
+  // onProgress(fraction 0..1) follows the upload.
+  // parentFolder: the Materials folder (tree entry) it goes into; the top level when null.
+  postMaterial(file, onok, onerror, onException, onProgress, parentFolder = null) {
+    UtilityHelper.ConvertBlobToB64(file).then((b64) => {
+      this.post(
+        'Materials/AddResource',
+        { Name: file.name, Data: b64, MimeType: file.type.toString(), ParentFolder: parentFolder },
+        onok,
+        onerror,
+        onException,
+        onProgress && ((sent, total) => onProgress(total ? sent / total : 1))
+      );
+    }).catch((e) => {
+      if (onException) onException(e);
+      else console.error(e);
+    });
+  }
+}
+
+const WebRTCWebHelperInstance = new WebRTCWebHelper();
+export default WebRTCWebHelperInstance;

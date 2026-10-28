@@ -1,10 +1,37 @@
-import WebSocketManagerInstance from "../../game/WebSocketManager";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import CommandFactory from "../Factories/CommandFactory";
 import { fabric } from "fabric";
 import DTOConverter from "../DTOConverter";
 import ClientMediator from "../../../ClientMediator";
 import { toaster } from "../../ui/toaster";
 import UtilityHelper from "../../../helpers/UtilityHelper";
+import { RESERVED_LAYERS } from "../Constants/layers";
+import * as React from "react";
+import ActionToolOverlay from "../Overlays/ActionToolOverlay";
+import PickTargetsOverlay from "../Overlays/PickTargetsOverlay";
+import { startPicking, togglePick, isCandidate, isPickable, clickAt } from "../Behaviors/Client/PickTargets/pickTargets";
+import { startPointing, pointerAt, areaAt, throttled } from "../Behaviors/Client/PickPoint/pickPoint";
+import { glowTokensIn, glow, glowUpdate } from "../Helpers/areaGlow";
+import { areaColors } from "../Helpers/areaColors";
+import { buildAreaObject, placeArea } from "../Helpers/buildArea";
+import PickPointOverlay from "../Overlays/PickPointOverlay";
+import { cleanSketches, undoSketch } from "../Behaviors/Client/Draw/sketches";
+
+/** A group's parts as fabric JSON, each placed on the map as it shows inside the group. */
+export function ungroupedParts(group) {
+  const groupMatrix = group.calcTransformMatrix();
+  return group.getObjects().map((part) => {
+    const at = fabric.util.qrDecompose(fabric.util.multiplyTransformMatrices(groupMatrix, part.calcOwnMatrix()));
+    return {
+      ...part.toObject(),
+      id: part.id,
+      originX: "center", originY: "center",
+      left: at.translateX, top: at.translateY,
+      angle: at.angle, scaleX: at.scaleX, scaleY: at.scaleY, skewX: at.skewX, skewY: at.skewY,
+      flipX: false, flipY: false,
+    };
+  });
+}
 
 class BMService {
   _clipboard = undefined;
@@ -14,40 +41,241 @@ class BMService {
   _BMQueryService = undefined;
   _battleMapModel = undefined;
   _contextMenuRef = undefined;
-
   Load() {
     this.panel = "battlemap";
     this.contextId = this._battleMapModel.id;
     this.id = "BMService" + this._battleMapModel.id;
   }
 
-  GroupSelected() {
-    let selectedObjects = this._BMQueryService.GetSelectedObjects();
+  // ── $meta ────────────────────────────────────────────────────────────────────
+  // Picked up by CommandExecutionHelper.LoadSuggestions via prototype reflection.
+  get $meta() {
+    return {
+      GroupSelected: {
+        description: 'Groups the currently selected objects into a single fabric Group.',
+        args: [],
+      },
+      UngroupSelected: {
+        description: 'Ungroups the selected group back into individual objects. (WIP)',
+        args: [],
+      },
+      RemoveSelected: {
+        description: 'Deletes all currently selected objects from the map.',
+        args: [],
+      },
+      FocusElement: {
+        description: 'Centres the view on an element (e.g. a token) and selects it if this player may.',
+        args: [{ name: 'elementId', type: 'string', required: true }],
+      },
+      ReloadBattleMapComponent: {
+        description: 'Fully reloads the BattleMap component (e.g. after a map change).',
+        args: [],
+      },
+      ChangeMap: {
+        description: 'Requests a map switch via the server (persists + broadcasts to all clients). Required: id (map id)',
+        args: [{ name: 'id', type: 'mapid', required: true }],
+      },
+      ApplyMapChange: {
+        description: 'Applies a server-confirmed map change locally (reloads canvas). Called by OnMapChange handler — do not call directly from UI.',
+        args: [{ name: 'id', type: 'mapid', required: true }],
+      },
+      UpdateMapReference: {
+        description: 'Merges new settings into the live map reference held by BMQueryService.',
+        args: [{ name: 'mapData', type: 'object', required: true }],
+      },
+      SortLayers: {
+        description: 'Re-sorts all canvas objects by their layer value.',
+        args: [],
+      },
+      EditGrid: {
+        description: 'Selects the grid object so it can be edited.',
+        args: [],
+      },
+      SetSelectedLayer: {
+        description: 'Sets the active layer. Optionally enables edit-mode for that layer.',
+        args: [
+          { name: 'layerId', type: 'number', required: true },
+          { name: 'withEditMode', type: 'boolean', required: false },
+        ],
+      },
+      SetLayerEditMode: {
+        description: 'Enables or disables edit-mode for a layer, fading objects on other layers.',
+        args: [
+          { name: 'editMode', type: 'boolean', required: true },
+          { name: 'layer', type: 'number', required: true },
+        ],
+      },
+      ReassignLayer: {
+        description: 'Locally patches canvas objects to new layer ids (used when custom layers are deleted or reordered). Prefer mapping ({oldLayerId: newLayerId}) for multi-layer changes; fromLayerId/toLayerId is sugar for a single-entry mapping.',
+        args: [
+          { name: 'mapping', type: 'object', required: false },
+          { name: 'fromLayerId', type: 'number', required: false },
+          { name: 'toLayerId', type: 'number', required: false },
+        ],
+      },
+      SetTokenSelectMode: {
+        description: 'Locks the canvas into token-selection mode with optional min/max token count.',
+        args: [
+          { name: 'minTokens', type: 'number', required: false },
+          { name: 'maxTokens', type: 'number', required: false },
+        ],
+      },
+      UnsetTokenSelectMode: {
+        description: 'Exits token-selection mode and restores object selectability.',
+        args: [],
+      },
+      CopyElements: {
+        description: 'Copies selected canvas objects to the internal clipboard.',
+        args: [],
+      },
+      PasteElements: {
+        description: 'Pastes clipboard objects at the given coordinates (or offset by 10px).',
+        args: [
+          { name: 'x', type: 'number', required: false },
+          { name: 'y', type: 'number', required: false },
+        ],
+      },
+      SetAlign: {
+        description: 'Sets the snap-align mode (e.g. "grid", "object", or undefined to disable).',
+        args: [{ name: 'align', type: 'string', required: true }],
+      },
+      SetDragMode: {
+        description: 'Enables or disables canvas pan/drag mode.',
+        args: [{ name: 'enabled', type: 'boolean', required: true }],
+      },
+      SetFreeDrawMode: {
+        description: 'Enables or disables freehand pencil-draw mode. With sketch: true the strokes are sketches — previews shown to the others (unless visibleToOthers is false) and never saved — so it needs no Edit on the map.',
+        args: [
+          { name: 'enabled', type: 'boolean', required: true },
+          { name: 'sketch', type: 'boolean', required: false },
+          { name: 'visibleToOthers', type: 'boolean', required: false },
+        ],
+      },
+      SetSimpleCreateMode: {
+        description: 'Enables or disables simple-click-to-place creation mode for a canvas element. withSizing sizes it by dragging: "box" (corner to corner; true means the same), "radius" (circle, from its center) or "fontSize" (text, the dragged height); without it the element is placed at its own size.',
+        args: [
+          { name: 'enabled', type: 'boolean', required: true },
+          { name: 'type', type: 'string', required: false },
+          { name: 'withSizing', type: 'string|boolean', required: false },
+        ],
+      },
+      SetMeasureMode: {
+        description: 'Enables or disables distance-measurement mode, loading grid/unit settings from the server.',
+        args: [
+          { name: 'enabled', type: 'boolean', required: true },
+          { name: 'type', type: 'string', required: false },
+        ],
+      },
+      SetActionToolMode: {
+        description: 'Enables or disables an addon map tool (Add Map Tool step): while on, clicking the map runs the action of the tool with the click position and element.',
+        args: [
+          { name: 'enabled', type: 'boolean', required: true },
+          { name: 'tool', type: 'object', required: false },
+        ],
+      },
+      SetPickTargetsMode: {
+        description: 'Lets the player pick tokens (or, with target "element", any elements) on the map for an action (RequestTargets): request { message, target, min, max, candidates }; onDone(state) gets { picked, position } when Done, or null when cancelled.',
+        args: [
+          { name: 'enabled', type: 'boolean', required: true },
+          { name: 'request', type: 'object', required: false },
+          { name: 'onDone', type: 'function', required: false },
+        ],
+      },
+      FinishPickTargets: {
+        description: 'Ends picking tokens with what is picked (when at least min are).',
+        args: [],
+      },
+      CancelPickTargets: {
+        description: 'Ends picking tokens without an answer.',
+        args: [],
+      },
+      SetPickPointMode: {
+        description: 'Lets the player point at a place on the map for an action (RequestPoint): request { message, area, from, snap, gridSize, range, highlight, showToOthers }; onDone(state) gets { position } when chosen, or null when cancelled.',
+        args: [
+          { name: 'enabled', type: 'boolean', required: true },
+          { name: 'request', type: 'object', required: false },
+          { name: 'onDone', type: 'function', required: false },
+        ],
+      },
+      PickPointMove: {
+        description: 'While pointing: moves the marker to position (map pixels).',
+        args: [{ name: 'position', type: 'object', required: true }],
+      },
+      PickPointClick: {
+        description: 'While pointing: chooses position when it is within range.',
+        args: [{ name: 'position', type: 'object', required: true }],
+      },
+      CancelPickPoint: {
+        description: 'Ends pointing without an answer.',
+        args: [],
+      },
+      PickTargetsClick: {
+        description: 'While picking tokens: toggles the token clicked (elementId) and remembers where (position).',
+        args: [{ name: 'elementId', type: 'string', required: false }, { name: 'position', type: 'object', required: false }],
+      },
+      DisableAllModes: {
+        description: 'Exits all active canvas modes (draw, measure, token-select, edit-layer, etc.).',
+        args: [],
+      },
+      CleanPreviews: {
+        description: "Removes the current player's preview objects (measurements) from the canvas. Sketches stay; see CleanSketches.",
+        args: [],
+      },
+      UndoSketch: {
+        description: "Removes the current player's last sketch, for everyone.",
+        args: [],
+      },
+      CleanSketches: {
+        description: "Removes the current player's sketches for everyone; with everyone: true (GM) every sketch and measurement preview on the map.",
+        args: [{ name: 'everyone', type: 'boolean', required: false }],
+      },
+    };
+  }
 
-    //filter ungrouped objects
-    let objectsToAdd = selectedObjects.filter((x) => x._objects === undefined);
-    if (selectedObjects !== undefined) {
-      let mapId = this._BMQueryService.GetSelectedMapID();
-      let coords = this._BMQueryService.GetSelectedGroupCoords();
-      let group = new fabric.Group(objectsToAdd, {
-        originX: "left",
-        originY: "top",
-        left: coords[0].x,
-        top: coords[0].y,
-        layer: objectsToAdd[0].layer,
-      })
-        .setObjectsCoords()
-        .setCoords();
-      let cmd = CommandFactory.CreateGroupCommand(
-        {
-          object: JSON.stringify(group),
-          mapId: mapId,
-          layer: selectedObjects[0].layer,
-        },
-        selectedObjects.map((x) => x.id)
-      );
-      WebSocketManagerInstance.Send(cmd);
+  // Tokens stay out of groups: in one, a token would be no token any more (no card, UI,
+  // turn order); the server refuses them too. The group is written as JSON from the
+  // parts' positions on the map, without touching the parts until the server answers.
+  GroupSelected() {
+    const selectedObjects = this._BMQueryService.GetSelectedObjects();
+    if (!selectedObjects?.length) return;
+
+    const isToken = (x) => x.isToken || x.isTokenUI;
+    const parts = selectedObjects.filter((x) => !isToken(x) && x._objects === undefined);
+    if (selectedObjects.some(isToken)) {
+      toaster.create({
+        title: "Tokens can't be grouped",
+        description: parts.length >= 2 ? "Grouped the rest of the selection." : "Select at least two other things to group.",
+        type: "info",
+        duration: 5000,
+      });
     }
+    if (parts.length < 2) return;
+
+    // Out of the selection, the parts' coordinates are the map's again.
+    this._canvas.discardActiveObject();
+    const boxes = parts.map((x) => x.getBoundingRect(true, true));
+    const left = Math.min(...boxes.map((b) => b.left));
+    const top = Math.min(...boxes.map((b) => b.top));
+    const width = Math.max(...boxes.map((b) => b.left + b.width)) - left;
+    const height = Math.max(...boxes.map((b) => b.top + b.height)) - top;
+    const center = { x: left + width / 2, y: top + height / 2 };
+    const layer = parts[0].layer;
+
+    // A group's parts sit relative to its centre, each by its own centre here.
+    const objects = parts.map((x) => {
+      const at = x.getCenterPoint();
+      return { ...x.toObject(), id: x.id, originX: "center", originY: "center", left: at.x - center.x, top: at.y - center.y };
+    });
+    const group = {
+      type: "group", version: fabric.version, originX: "left", originY: "top",
+      left, top, width, height, layer, objects,
+    };
+
+    const cmd = CommandFactory.CreateGroupCommand(
+      { object: JSON.stringify(group), mapId: this._BMQueryService.GetSelectedMapID(), layer },
+      parts.map((x) => x.id)
+    );
+    WebSocketManagerInstance.Send(cmd);
   }
 
   ///Reload whole battlemap(for example. map change)
@@ -55,29 +283,41 @@ class BMService {
     this._reloadCommand();
   }
 
-  ChangeMap({ id }) {
-    this._changeMapCommand(id);
+  ChangeMap(idOrObj) {
+    const id = idOrObj?.id ?? idOrObj?.mapId ?? idOrObj;
+    if (!id) return `ChangeMap: no map id provided`;
+    const battleMapId = this._battleMapModel?.id;
+    if (!battleMapId) return `ChangeMap: battlemap not loaded yet`;
+    WebSocketManagerInstance.Send(CommandFactory.CreateChangeMapCommand(id, battleMapId));
   }
 
-  //Not working properly, need a fix
-  UngroupSelected() {
-    let selectedObjects = this._BMQueryService.GetSelectedObjects();
-    let mapId = this._BMQueryService.GetSelectedMapID();
-    if (selectedObjects !== undefined && selectedObjects.length == 1) {
-      let children = selectedObjects[0]._objects.map((element) => {
-        let coords = this._BMQueryService.GetSelectedGroupCoords()[0];
-        element.left = element.aCoords.tl.x + coords.x;
-        element.top = element.aCoords.tl.y + coords.y;
-        element.layer = selectedObjects[0].layer;
-        return DTOConverter.ConvertToDTO(element);
-      });
-
-      let cmd = CommandFactory.CreateUngroupCommand(
-        selectedObjects[0].id,
-        children
-      );
-      WebSocketManagerInstance.Send(cmd);
+  ApplyMapChange(idOrObj) {
+    const id = idOrObj?.id ?? idOrObj?.mapId ?? idOrObj;
+    if (!id) return `ApplyMapChange: no map id provided`;
+    if (typeof this._changeMapCommand !== 'function') return `ApplyMapChange: not ready (canvas not loaded yet)`;
+    return this._changeMapCommand(id);
+  }
+  UpdateMapReference({ mapData }) {
+    // Update the map reference in BMQueryService with new settings
+    if (this._BMQueryService && this._BMQueryService._map) {
+      Object.assign(this._BMQueryService._map, mapData);
     }
+  }
+  // Each part goes back where it shows on the map, the group's move, turn and scale
+  // applied to it (as fabric's own applyTransformToObject does). The server gives the
+  // parts back their properties and the group's rights.
+  UngroupSelected() {
+    const selectedObjects = this._BMQueryService.GetSelectedObjects();
+    if (selectedObjects?.length !== 1 || !selectedObjects[0]._objects) return;
+
+    const group = selectedObjects[0];
+    const children = ungroupedParts(group).map((object) => ({
+      id: object.id,
+      object: JSON.stringify(object),
+      layer: group.layer,
+      mapId: group.mapId,
+    }));
+    WebSocketManagerInstance.Send(CommandFactory.CreateUngroupCommand(group.id, children));
   }
 
   RemoveSelected() {
@@ -88,6 +328,23 @@ class BMService {
         WebSocketManagerInstance.Send(cmd);
       });
     }
+  }
+
+  // Centres the view on an element, keeping the zoom; selects it only if this player
+  // may (a token they can't control stays unselected).
+  FocusElement({ elementId } = {}) {
+    const canvas = this._canvas;
+    const element = canvas?.getObjects().find((o) => o.id === elementId);
+    if (!element) return `Element ${elementId} is not on this map`;
+
+    const centre = element.getCenterPoint();
+    const zoom = canvas.getZoom();
+    const vpt = [...canvas.viewportTransform];
+    vpt[4] = canvas.getWidth() / 2 - centre.x * zoom;
+    vpt[5] = canvas.getHeight() / 2 - centre.y * zoom;
+    canvas.setViewportTransform(vpt);
+    if (element.selectable) canvas.setActiveObject(element);
+    canvas.requestRenderAll();
   }
 
   SortLayers() {
@@ -134,6 +391,39 @@ class BMService {
     });
   }
 
+  // Purely a local, cosmetic canvas patch — the DB side of a layer deletion's or
+  // reorder's reassignment already happened atomically on the server (see
+  // RemoveCustomLayerCommandHandler / MoveCustomLayerCommandHandler), so this
+  // never sends a WS command itself.
+  //
+  // Accepts either a single {fromLayerId, toLayerId} pair (sugar, kept for
+  // existing callers) or a batch `mapping: {[oldLayerId]: newLayerId}` — the
+  // batch form MUST be used when more than one layer's value changes in the same
+  // operation (a Move can shift several layers in one band at once): applying a
+  // single-pair reassignment per layer, one at a time, can alias — e.g. layer A
+  // going 33->50 and layer B going 50->67 processed in sequence would drag A's
+  // just-reassigned elements into B's destination if B is handled second by
+  // matching on the literal value 50.
+  ReassignLayer({ fromLayerId, toLayerId, mapping, isCommand }) {
+    const effectiveMapping = mapping ?? (fromLayerId !== undefined ? { [fromLayerId]: toLayerId } : {});
+    if (isCommand && Object.keys(effectiveMapping).length === 0) {
+      return "--mapping (or --fromLayerId/--toLayerId) is required.";
+    }
+
+    const canvas = this._canvas;
+    canvas.getObjects().forEach((object) => {
+      if (object.layer in effectiveMapping) object.layer = effectiveMapping[object.layer];
+    });
+
+    if (canvas.selectedLayer in effectiveMapping) {
+      // The locally active layer was reassigned — fall back to its new value so
+      // the next element the user creates doesn't get stamped with a dead layerId.
+      this.SetSelectedLayer({ layerId: effectiveMapping[canvas.selectedLayer], withEditMode: false });
+    } else {
+      this.SortLayers();
+    }
+  }
+
   SetTokenSelectMode({
     minTokens,
     maxTokens,
@@ -156,26 +446,19 @@ class BMService {
     canvas.maxTokens = maxTokens ?? 1;
     canvas.tokens = [];
 
-    this.SetSelectedLayer({ layerId: 100, withEditMode: false });
-
+    this.SetSelectedLayer({ layerId: RESERVED_LAYERS.TOKEN, withEditMode: false });
     this._addPopupAndOverlay(overlayContent, popupContent);
 
-    const objects = canvas.getObjects();
-
-    objects.forEach((object) => {
-      object.set("beforeTokenSelectSelectable", object.selectable);
-      object.set("selectable", false);
-
-      object.set("beforeTokenSelectEditable", object.editable);
-      object.set("editable", false);
-
-      if (object.tokenData) {
-        object.set("beforeTokenSelectOpacity", object.opacity);
-        object.set("opacity", 1);
-      } else {
-        object.set("beforeTokenSelectOpacity", object.opacity);
-        object.set("opacity", 0.4);
-      }
+    canvas.getObjects().forEach((object) => {
+      const isToken = !!object.tokenData;
+      object.set({
+        beforeTokenSelectSelectable: object.selectable,
+        selectable: false,
+        beforeTokenSelectEditable: object.editable,
+        editable: false,
+        beforeTokenSelectOpacity: object.opacity,
+        opacity: isToken ? 1 : 0.4,
+      });
     });
 
     ClientMediator.fireEvent("BattleMap_ModeChanged", {
@@ -187,10 +470,8 @@ class BMService {
   UnsetTokenSelectMode({ isCommand }) {
     const canvas = this._canvas;
 
-    if (!canvas.modeLock || !canvas.tokenSelectMode) {
-      console.warn("Cannot unset token select mode.");
-      return;
-    }
+    // Not on: nothing to undo (DisableAllModes asks every mode to turn off).
+    if (!canvas.tokenSelectMode) return;
 
     canvas.tokenSelectMode = undefined;
     canvas.modeLock = undefined;
@@ -201,22 +482,15 @@ class BMService {
 
     this._removePopupAndOverlay();
 
-    const objects = canvas.getObjects();
-
-    objects.forEach((object) => {
-      object.set("selectable", object.beforeTokenSelectSelectable);
-      object.set("beforeTokenSelectSelectable", undefined);
-
-      object.set("editable", object.beforeTokenSelectEditable);
-      object.set("beforeTokenSelectEditable", undefined);
-
-      if (object.tokenData) {
-        object.set("opacity", object.beforeTokenSelectOpacity);
-        object.set("beforeTokenSelectOpacity", undefined);
-      } else {
-        object.set("opacity", object.beforeTokenSelectOpacity);
-        object.set("beforeTokenSelectOpacity", undefined);
-      }
+    canvas.getObjects().forEach((object) => {
+      object.set({
+        selectable: object.beforeTokenSelectSelectable,
+        beforeTokenSelectSelectable: undefined,
+        editable: object.beforeTokenSelectEditable,
+        beforeTokenSelectEditable: undefined,
+        opacity: object.beforeTokenSelectOpacity,
+        beforeTokenSelectOpacity: undefined,
+      });
     });
 
     ClientMediator.fireEvent("BattleMap_ModeChanged", {
@@ -250,30 +524,28 @@ class BMService {
 
       canvas.getObjects().forEach((object) => {
         if (object.layer === layer) {
-          if (object.currentlyEdited !== undefined) {
-            return;
-          }
-
-          if (object.origOpacity) {
-            object.set("opacity", object.origOpacity);
-            object.set("origOpacity", undefined);
+          if (object.currentlyEdited !== undefined) return;
+          // Truthiness check (`if (object.origOpacity)`) fails to restore an object
+          // whose original opacity was exactly 0 — it stayed dimmed forever. Compare
+          // against undefined instead, same fix in both branches below.
+          if (object.origOpacity !== undefined) {
+            object.set({ opacity: object.origOpacity, origOpacity: undefined });
           }
         } else {
           if (object.origOpacity === undefined) {
-            object.set("origOpacity", object.opacity);
-            object.set("opacity", object.opacity - 0.5);
+            object.set({ origOpacity: object.opacity, opacity: Math.max(0, object.opacity - 0.5) });
           }
           object.set("currentlyEdited", undefined);
         }
       });
     } else {
+      canvas.editMode = undefined;   // clear editMode so the early-exit check works next time
       canvas.editLock = false;
       canvas.editLayer = undefined;
       canvas.modeLock = undefined;
       canvas.getObjects().forEach((object) => {
-        if (object.origOpacity) {
-          object.set("opacity", object.origOpacity);
-          object.set("origOpacity", undefined);
+        if (object.origOpacity !== undefined) {
+          object.set({ opacity: object.origOpacity, origOpacity: undefined });
         }
         object.set("currentlyEdited", undefined);
       });
@@ -310,7 +582,10 @@ class BMService {
     }
 
     if (this._clipboard !== undefined) {
-      // active selection needs a reference to the canvas.
+      // Resolve layer and mapId once — not per element
+      const layer = this._BMQueryService.GetSelectedLayer();
+      const mapId = this._BMQueryService.GetSelectedMapID();
+
       this._clipboard.forEach((element) => {
         if (coords) {
           element.left = coords.x;
@@ -320,13 +595,9 @@ class BMService {
           element.top += 10;
         }
 
-        let dto = DTOConverter.ConvertToDTO(element);
-        let cmd = CommandFactory.CreateAddCommand(
-          {
-            ...dto,
-            layer: this._BMQueryService.GetSelectedLayer(),
-            mapId: this._BMQueryService.GetSelectedMapID(),
-          },
+        const dto = DTOConverter.ConvertToDTO(element);
+        const cmd = CommandFactory.CreateAddCommand(
+          { ...dto, layer, mapId },
           true
         );
         WebSocketManagerInstance.Send(cmd);
@@ -365,7 +636,7 @@ class BMService {
     }
   }
 
-  SetFreeDrawMode({ enabled, overlayContent, popupContent, isCommand, brush }) {
+  SetFreeDrawMode({ enabled, overlayContent, popupContent, isCommand, brush, sketch, visibleToOthers }) {
     if (isCommand && enabled === undefined) {
       return "enabled is required.";
     }
@@ -381,6 +652,7 @@ class BMService {
       canvas.modeLock = true;
       canvas.discardActiveObject();
       canvas.freeDrawMode = true;
+      canvas.freeDrawSketch = sketch ? { visibleToOthers: visibleToOthers !== false } : undefined;
       canvas.selection = false;
 
       this.SetDragMode({ enabled: false });
@@ -410,11 +682,14 @@ class BMService {
       ClientMediator.fireEvent("BattleMap_ModeChanged", {
         battleMapId: this.contextId,
         mode: "Draw",
+        type: sketch ? "Sketch" : undefined,
       });
     } else {
       if (canvas.freeDrawMode) {
         canvas.modeLock = undefined;
         canvas.freeDrawMode = undefined;
+        // The sketches themselves stay on the map; only drawing new ones stops.
+        canvas.freeDrawSketch = undefined;
         canvas.selection = true;
 
         canvas.isDrawingMode = false;
@@ -465,6 +740,8 @@ class BMService {
 
       this.SetDragMode({ enabled: false });
       canvas.dragModeLock = true;
+      canvas.defaultCursor = 'crosshair';
+      canvas.hoverCursor = 'crosshair';
 
       this._addPopupAndOverlay(overlayContent, popupContent);
 
@@ -492,6 +769,8 @@ class BMService {
         canvas.selection = true;
         canvas.modeType = undefined;
         canvas.dragModeLock = false;
+        canvas.defaultCursor = 'default';
+        canvas.hoverCursor = 'move';
 
         this._removePopupAndOverlay();
 
@@ -539,82 +818,78 @@ class BMService {
       canvas.measureMode = true;
       canvas.selection = false;
       canvas.modeType = type;
-      canvas.measure = {
-        visibleToOthers: true,
-      };
+      canvas.measure = { visibleToOthers: true };
 
       this.SetDragMode({ enabled: false });
       canvas.dragModeLock = true;
 
-      canvas.measure.measureArrow =
-        arrowObject ??
-        new fabric.LineArrow([0, 0, 0, 0], {
-          stroke: "rgba(0,0,0,1)",
+      canvas.measure.measureType = type ?? 'Line';
+
+      if (["Circle", "Cone", "Rect"].includes(type)) {
+        // An area (Helpers/measure.js, buildArea.js — the shapes markers and Find use), in
+        // the player's colours; the tokens it covers light up unless that's switched off.
+        canvas.measure.colors = areaColors(playerColor);
+        canvas.measure.highlightTokens = true;
+        if (type === "Cone") canvas.measure.coneAngle = 53; // default D&D 5e cone (width = length)
+      } else {
+        canvas.measure.measureArrow = arrowObject ?? new fabric.LineArrow([0, 0, 0, 0], {
           strokeWidth: 2,
           stroke: playerColor,
           selectable: false,
         });
+      }
 
-      canvas.measure.measureObject =
-        measureObject ??
-        new fabric.Textbox("0", {
-          left: 0,
-          top: 0,
-          width: 200,
-          height: 90,
-          fontSize: 56,
-          fill: playerColor,
-          selectable: false,
-          editable: false,
-        });
-
-      let map = await ClientMediator.sendCommandAsync(
-        "BattleMap",
-        "GetSelectedMap",
-        {
-          contextId: this.contextId,
-        }
-      );
-
-      let gameId = await ClientMediator.sendCommandAsync(
-        "Game",
-        "GetGameId",
-        {}
-      );
+      canvas.measure.measureObject = measureObject ?? new fabric.Textbox("0", {
+        left: 0,
+        top: 0,
+        width: 200,
+        height: 90,
+        fontSize: 56,
+        fill: playerColor,
+        selectable: false,
+        editable: false,
+      });
 
       canvas.measure.additionalObject = additionalObject ?? undefined;
 
-      let measureSettings = await ClientMediator.sendCommandAsync(
-        "Properties",
-        "GetByNames",
-        { parentId: map.id ?? map.Id, names: ["baseDistanceUnit", "useSquaredSystem", "baseDistancePerSquare"] }
-      );
+      // Fetch map and gameId in parallel — they don't depend on each other
+      const [map, gameId] = await Promise.all([
+        ClientMediator.sendCommandAsync("BattleMap", "GetSelectedMap", { contextId: this.contextId }),
+        ClientMediator.sendCommandAsync("Game", "GetGameId", {}),
+      ]);
 
-      let gameMeasureSettings = await ClientMediator.sendCommandAsync(
-        "Properties",
-        "GetByNames",
-        { parentId: gameId, names: ["baseDistanceUnit", "useSquaredSystem", "baseDistancePerSquare"] }
-      );
+      // Fetch both settings collections in parallel too
+      const [measureSettings, gameMeasureSettings] = await Promise.all([
+        ClientMediator.sendCommandAsync("Properties", "GetByNames", {
+          parentId: map.id ?? map.Id,
+          names: ["baseDistanceUnit", "useSquaredSystem", "baseDistancePerSquare"],
+        }),
+        ClientMediator.sendCommandAsync("Properties", "GetByNames", {
+          parentId: gameId,
+          names: ["baseDistanceUnit", "useSquaredSystem", "baseDistancePerSquare"],
+        }),
+      ]);
 
-      const measureUnitSetting = measureSettings.find(setting => setting.name === "baseDistanceUnit")?.value;
-      const useSquaredSystemSetting = UtilityHelper.ParseBool(measureSettings.find(setting => setting.name === "useSquaredSystem")?.value);
-      const baseDistancePerSquareSetting = measureSettings.find(setting => setting.name === "baseDistancePerSquare")?.value;
+      // Single-pass: build a lookup map instead of 6 separate .find() calls
+      const toMap = (arr) => Object.fromEntries((arr ?? []).map((s) => [s.name, s.value]));
+      const ms = toMap(measureSettings);
+      const gms = toMap(gameMeasureSettings);
 
-      const gameMeasureUnitSetting = gameMeasureSettings.find(setting => setting.name === "baseDistanceUnit")?.value;
-      const gameUseSquaredSystemSetting = UtilityHelper.ParseBool(gameMeasureSettings.find(setting => setting.name === "useSquaredSystem")?.value);
-      const gameBaseDistancePerSquareSetting = gameMeasureSettings.find(setting => setting.name === "baseDistancePerSquare")?.value;
-
-      canvas.measure = { ...canvas.measure,
-        units: measureUnitSetting ?? gameMeasureUnitSetting ?? "ft",
-        realisticMeasure: useSquaredSystemSetting ?? gameUseSquaredSystemSetting ?? false,
-        distancePerSquare: baseDistancePerSquareSetting ? parseInt(baseDistancePerSquareSetting) : (gameBaseDistancePerSquareSetting ? parseInt(gameBaseDistancePerSquareSetting) : 5),
+      canvas.measure = {
+        ...canvas.measure,
+        units: ms.baseDistanceUnit ?? gms.baseDistanceUnit ?? "ft",
+        realisticMeasure: UtilityHelper.ParseBool(ms.useSquaredSystem) ?? UtilityHelper.ParseBool(gms.useSquaredSystem) ?? false,
+        distancePerSquare: ms.baseDistancePerSquare
+          ? parseInt(ms.baseDistancePerSquare)
+          : gms.baseDistancePerSquare
+            ? parseInt(gms.baseDistancePerSquare)
+            : 5,
       };
 
       this._addPopupAndOverlay(overlayContent, popupContent);
 
       canvas.getObjects().forEach((object) => {
-        object.set("beforeMeasureSelectable", object.selectable);
-        object.set("selectable", false);
+        object.set({ beforeMeasureSelectable: object.selectable, selectable: false });
       });
 
       ClientMediator.fireEvent("BattleMap_ModeChanged", {
@@ -625,6 +900,7 @@ class BMService {
     } else {
       if (canvas.measureMode) {
         this.CleanPreviews();
+        glowTokensIn(canvas, null, "", "beforeMeasureShadow");
         canvas.modeLock = undefined;
         canvas.measureMode = undefined;
         canvas.selection = true;
@@ -633,6 +909,12 @@ class BMService {
         canvas.dragModeLock = false;
 
         this._removePopupAndOverlay();
+
+        // Measuring made everything unselectable: give each object what it had.
+        canvas.getObjects().forEach((object) => {
+          if (object.beforeMeasureSelectable !== undefined)
+            object.set({ selectable: object.beforeMeasureSelectable, beforeMeasureSelectable: undefined });
+        });
 
         ClientMediator.fireEvent("BattleMap_ModeChanged", {
           battleMapId: this.contextId,
@@ -654,36 +936,318 @@ class BMService {
     }
   }
 
+  // An addon map tool (Add Map Tool step). While active, a map click runs the tool's
+  // action (Behaviors/Client/ActionTool/OnMouseDownActionTool.js).
+  // tool: { name, uiName, action, hint, target: 'point'|'token'|'element', stayActive, actionArgs }
+  SetActionToolMode({ enabled, tool, isCommand }) {
+    if (isCommand && enabled === undefined) {
+      return "enabled is required.";
+    }
+
+    const canvas = this._canvas;
+
+    if (enabled) {
+      if (!tool?.name || !tool?.action) {
+        return "tool with name and action is required.";
+      }
+      if (canvas.modeLock) {
+        console.warn("Mode is locked, cannot change action tool mode.");
+        return;
+      }
+
+      canvas.modeLock = true;
+      canvas.contextMenuLock = true;
+      canvas.discardActiveObject();
+      canvas.actionTool = tool;
+      canvas.modeType = tool.name;
+      canvas.selection = false;
+      canvas.defaultCursor = "crosshair";
+      // Clicks still target objects (opt.target), but don't select or drag them.
+      canvas.getObjects().forEach((object) => {
+        object.set({ beforeActionToolSelectable: object.selectable, selectable: false });
+      });
+
+      this._addPopupAndOverlay(
+        React.createElement(ActionToolOverlay, { key: this.contextId + "_ActionTool", battleMapId: this.contextId, tool })
+      );
+
+      ClientMediator.fireEvent("BattleMap_ModeChanged", {
+        battleMapId: this.contextId,
+        mode: "ActionTool",
+        type: tool.name,
+      });
+    } else if (canvas.actionTool) {
+      canvas.modeLock = undefined;
+      canvas.contextMenuLock = undefined;
+      canvas.actionTool = undefined;
+      canvas.modeType = undefined;
+      canvas.selection = true;
+      canvas.defaultCursor = "default";
+      canvas.getObjects().forEach((object) => {
+        if (object.beforeActionToolSelectable === undefined) return;
+        object.set({ selectable: object.beforeActionToolSelectable, beforeActionToolSelectable: undefined });
+      });
+      canvas.requestRenderAll();
+
+      this._removePopupAndOverlay();
+
+      ClientMediator.fireEvent("BattleMap_ModeChanged", {
+        battleMapId: this.contextId,
+        mode: undefined,
+        type: undefined,
+      });
+    }
+  }
+
+  // Picking tokens for an action (RequestTargets, the editor's "Run from map"). Clicks are
+  // handled by Behaviors/Client/PickTargets/OnMouseDownPickTargets.js. Tokens that can't be
+  // picked are dimmed and picked ones glow — on this screen only, nothing is saved.
+  SetPickTargetsMode({ enabled, request, onDone }) {
+    const canvas = this._canvas;
+    if (enabled) {
+      if (canvas.modeLock || canvas.pickTargets) {
+        onDone?.(null);
+        return;
+      }
+      canvas.modeLock = true;
+      canvas.contextMenuLock = true;
+      canvas.discardActiveObject();
+      canvas.selection = false;
+      canvas.defaultCursor = "pointer";
+      const picking = { state: startPicking(request), onDone, listeners: new Set() };
+      canvas.pickTargets = picking;
+      canvas.getObjects().forEach((object) => {
+        object.set({ beforePickSelectable: object.selectable, selectable: false });
+        if (isPickable(picking.state, object) && !isCandidate(picking.state, object.id)) {
+          object.set({ beforePickOpacity: object.opacity, opacity: (object.opacity ?? 1) * 0.35 });
+        }
+      });
+      canvas.requestRenderAll();
+      this._addPopupAndOverlay(
+        React.createElement(PickTargetsOverlay, { key: this.contextId + "_PickTargets", battleMapId: this.contextId, picking })
+      );
+      ClientMediator.fireEvent("BattleMap_ModeChanged", { battleMapId: this.contextId, mode: "PickTargets", type: undefined });
+      return;
+    }
+    this._endPicking(false);
+  }
+
+  // A click on the map while picking: toggles the token clicked (if any) and remembers where.
+  PickTargetsClick({ elementId, position }) {
+    const picking = this._canvas.pickTargets;
+    if (!picking) return;
+    picking.state = clickAt(elementId ? togglePick(picking.state, elementId) : picking.state, position);
+    this._canvas.getObjects().forEach((object) => {
+      if (!isPickable(picking.state, object)) return;
+      glow(object, picking.state.picked.includes(object.id), "beforePickShadow", this._myColors().glow);
+    });
+    this._canvas.requestRenderAll();
+    picking.listeners.forEach((listener) => listener(picking.state));
+  }
+
+  FinishPickTargets() {
+    const picking = this._canvas.pickTargets;
+    if (picking && picking.state.picked.length >= picking.state.min) this._endPicking(true);
+  }
+
+  CancelPickTargets() {
+    this._endPicking(false);
+  }
+
+  _endPicking(finished) {
+    const canvas = this._canvas;
+    const picking = canvas.pickTargets;
+    if (!picking) return;
+    canvas.pickTargets = undefined;
+    canvas.modeLock = undefined;
+    canvas.contextMenuLock = undefined;
+    canvas.selection = true;
+    canvas.defaultCursor = "default";
+    canvas.getObjects().forEach((object) => {
+      if (object.beforePickSelectable !== undefined) object.set({ selectable: object.beforePickSelectable, beforePickSelectable: undefined });
+      if (object.beforePickOpacity !== undefined) object.set({ opacity: object.beforePickOpacity, beforePickOpacity: undefined });
+      if (object.beforePickShadow !== undefined) object.set({ shadow: object.beforePickShadow, beforePickShadow: undefined });
+    });
+    canvas.requestRenderAll();
+    this._removePopupAndOverlay();
+    ClientMediator.fireEvent("BattleMap_ModeChanged", { battleMapId: this.contextId, mode: undefined, type: undefined });
+    picking.onDone?.(finished ? picking.state : null);
+  }
+
+  // Pointing at a place for an action (RequestPoint). The area (Helpers/buildArea.js, the
+  // shapes markers and Find use) follows the cursor — Behaviors/Client/PickPoint — snapped to
+  // the grid; a line or cone starts at `from` and only turns. The range shows as a dashed
+  // ring; tokens the area covers (Helpers/areaShape.js, Find's rule) glow in the player's
+  // colour; with showToOthers the others see it move (preview_start / _update / _end).
+  SetPickPointMode({ enabled, request, onDone }) {
+    const canvas = this._canvas;
+    if (!enabled) {
+      this._endPointing(null);
+      return;
+    }
+    if (canvas.modeLock || canvas.pickPoint || canvas.pickTargets) {
+      onDone?.(null);
+      return;
+    }
+    canvas.modeLock = true;
+    canvas.contextMenuLock = true;
+    canvas.discardActiveObject();
+    canvas.selection = false;
+    canvas.defaultCursor = "crosshair";
+    canvas.getObjects().forEach((object) => object.set({ beforePickSelectable: object.selectable, selectable: false }));
+
+    const state = startPointing(request, this._BMQueryService.GetSelectedMap()?.gridSize);
+    const mine = this._myColors();
+    const colors = { fill: state.area?.fill ?? mine.fill, stroke: state.area?.stroke ?? mine.stroke };
+    const pointing = { state, onDone, colors, listeners: new Set(), shapes: [], sendUpdate: throttled((data) => this._sendPreview("preview_update", data), 50) };
+    canvas.pickPoint = pointing;
+    const shared = { preview: true, playerId: ClientMediator.sendCommand("Game", "GetCurrentPlayer")?.id, stayVisible: true };
+
+    if (state.range) {
+      pointing.shapes.push(new fabric.Circle({
+        left: state.range.x, top: state.range.y, radius: state.range.radius, originX: "center", originY: "center",
+        fill: "rgba(255,255,255,0.04)", stroke: colors.stroke, strokeWidth: 2, strokeDashArray: [10, 8], selectable: false, evented: false,
+      }));
+    }
+    if (state.area) {
+      pointing.area = buildAreaObject(state.area, { at: state.from ?? { x: 0, y: 0 }, ...colors });
+      pointing.area.set({ visible: false });
+      pointing.shapes.push(pointing.area);
+    }
+    pointing.shapes.forEach((shape) => {
+      shape.set({ ...shared, previewId: UtilityHelper.GenerateUUID() });
+      canvas.add(shape);
+      shape.bringToFront();
+    });
+    if (state.showToOthers && pointing.shapes.length) this._sendPreview("preview_start", pointing.shapes);
+    canvas.requestRenderAll();
+
+    this._addPopupAndOverlay(
+      React.createElement(PickPointOverlay, { key: this.contextId + "_PickPoint", battleMapId: this.contextId, pointing })
+    );
+    ClientMediator.fireEvent("BattleMap_ModeChanged", { battleMapId: this.contextId, mode: "PickPoint", type: undefined });
+  }
+
+  // The pointer moved while pointing: the area follows (or turns); where it can't be chosen
+  // it is faded and dashed, with a red outline.
+  PickPointMove({ position }) {
+    const canvas = this._canvas;
+    const pointing = canvas.pickPoint;
+    if (!pointing || !position) return;
+    pointing.state = pointerAt(pointing.state, position);
+    const { state, area, colors } = pointing;
+    if (area) {
+      const aimed = state.from && (state.area.shape === "line" || state.area.shape === "cone");
+      const moved = aimed ? placeArea(area, state.area, state.from, state.position) : placeArea(area, state.area, state.position);
+      const look = state.allowed
+        ? { visible: true, opacity: 1, stroke: colors.stroke, strokeDashArray: null }
+        : { visible: true, opacity: 0.5, stroke: "rgba(255,60,60,0.95)", strokeDashArray: [8, 6] };
+      area.set(look);
+      // The others see the area move and, with highlight on, the same tokens light up.
+      const shared = state.highlight ? { glow: glowUpdate(state.allowed ? areaAt(state) : null, this._myColors().glow, state.fromId) } : {};
+      if (state.showToOthers) pointing.sendUpdate([{ previewId: area.previewId, ...moved, ...look, ...shared }]);
+    }
+    if (state.highlight) this._glowCovered(pointing);
+    canvas.requestRenderAll();
+    pointing.listeners.forEach((listener) => listener(pointing.state));
+  }
+
+  // A click while pointing: chooses the point when it may be chosen there.
+  PickPointClick({ position }) {
+    const pointing = this._canvas.pickPoint;
+    if (!pointing || !position) return;
+    this.PickPointMove({ position });
+    if (pointing.state.allowed) this._endPointing(pointing.state);
+  }
+
+  CancelPickPoint() {
+    this._endPointing(null);
+  }
+
+  // Tokens the area covers glow (as picked tokens do), others go back to how they were.
+  _glowCovered(pointing) {
+    const { state } = pointing;
+    glowTokensIn(this._canvas, state.allowed ? areaAt(state) : null, this._myColors().glow, "beforePointShadow", state.fromId);
+  }
+
+  // The colours of this player's areas and glow: theirs, else the theme's, else orange.
+  _myColors() {
+    return areaColors(ClientMediator.sendCommand("Game", "GetCurrentPlayer")?.color);
+  }
+
+  _sendPreview(command, data) {
+    WebSocketManagerInstance.Send({ command, battleMapId: this.contextId, data });
+  }
+
+  _endPointing(chosen) {
+    const canvas = this._canvas;
+    const pointing = canvas.pickPoint;
+    if (!pointing) return;
+    canvas.pickPoint = undefined;
+    canvas.modeLock = undefined;
+    canvas.contextMenuLock = undefined;
+    canvas.selection = true;
+    canvas.defaultCursor = "default";
+    pointing.sendUpdate.cancel();
+    pointing.shapes.forEach((shape) => canvas.remove(shape));
+    if (pointing.state.showToOthers && pointing.shapes.length) {
+      this._sendPreview("preview_end", pointing.shapes.map((shape) => ({ previewId: shape.previewId })));
+    }
+    canvas.getObjects().forEach((object) => {
+      if (object.beforePickSelectable !== undefined) object.set({ selectable: object.beforePickSelectable, beforePickSelectable: undefined });
+      if (object.beforePointShadow !== undefined) object.set({ shadow: object.beforePointShadow, beforePointShadow: undefined });
+    });
+    canvas.requestRenderAll();
+    this._removePopupAndOverlay();
+    ClientMediator.fireEvent("BattleMap_ModeChanged", { battleMapId: this.contextId, mode: undefined, type: undefined });
+    pointing.onDone?.(chosen);
+  }
+
   DisableAllModes() {
+    const canvas = this._canvas;
+    this.SetActionToolMode({ enabled: false });
+    this.CancelPickTargets();
+    this.CancelPickPoint();
     this.SetSimpleCreateMode({ enabled: false });
     this.SetFreeDrawMode({ enabled: false });
     this.UnsetTokenSelectMode({});
-    this.SetLayerEditMode({ editMode: false });
+    // Pass the current editLayer so SetLayerEditMode's layer===undefined guard doesn't short-circuit
+    this.SetLayerEditMode({ editMode: false, layer: canvas.editLayer ?? canvas.selectedLayer });
     this.SetMeasureMode({ enabled: false });
   }
 
   CleanPreviews() {
     const currentPlayer = ClientMediator.sendCommand("Game", "GetCurrentPlayer");
     const canvas = this._canvas;
-    const filteredObjects = canvas.getObjects().filter((object) => object.previewId && object.playerId === currentPlayer.id);
+    // Sketches are previews too, but they're notes: only Undo/CleanSketches remove them.
+    const filteredObjects = canvas.getObjects().filter(
+      (object) => object.previewId && !object.sketch && object.playerId === currentPlayer.id
+    );
 
     filteredObjects.forEach((object) => {
       canvas.remove(object);
     });
-    if(canvas.measure.visibleToOthers === true)
-    {
+    
+    if (canvas.measure?.visibleToOthers === true) {
       WebSocketManagerInstance.Send({
         command: "preview_end",
         battleMapId: this.contextId,
-        data: [
-          filteredObjects.map((object) => ({ previewId: object.previewId, playerId: object.playerId })),
-        ],
+        // Flat array of {previewId, playerId}, matching every other preview_end
+        // sender (e.g. OnMouseUpMeasureEnds.js) — this used to be wrapped in an
+        // extra [ ], the only preview_end sent for "stay visible" previews.
+        data: filteredObjects.map((object) => ({ previewId: object.previewId, playerId: object.playerId })),
       });
     }
 
-
-
     canvas.requestRenderAll();
+  }
+
+  UndoSketch() {
+    undoSketch(this._canvas, this.contextId);
+  }
+
+  CleanSketches({ everyone } = {}) {
+    cleanSketches(this._canvas, this.contextId, { everyone: !!everyone });
   }
 
   _addPopupAndOverlay(overlayContent, popupContent) {

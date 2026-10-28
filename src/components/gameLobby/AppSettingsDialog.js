@@ -1,29 +1,26 @@
 import * as React from "react";
-import { Button, ButtonGroup, Box, Dialog } from "@chakra-ui/react";
-import WebHelper from "../../helpers/WebHelper";
-import { FaLink } from "react-icons/fa";
-import DContainer from "../uiComponents/base/Containers/DContainer";
+import { Button, Tabs } from "@chakra-ui/react";
 import {
   DialogBackdrop,
   DialogBody,
   DialogCloseTrigger,
   DialogContent,
+  DialogFooter,
   DialogHeader,
   DialogRoot,
 } from "../ui/dialog";
+import { BackupSettingsTab } from "./appSettings/BackupSettingsTab";
+import { ServerSettingsTab } from "./appSettings/ServerSettingsTab";
 
-export const AppSettingsDialog = ({ OnSuccess, openRef }) => {
+export const AppSettingsDialog = ({ openRef }) => {
   const [open, setOpen] = React.useState(false);
-  const [recommendedAddons, setRecommendedAddons] = React.useState([]);
-  const [showPassword, setShowPassword] = React.useState(false);
-  const [error, setError] = React.useState(false);
-  const [createForm, setCreateForm] = React.useState({
-    passwordRequired: false,
-  });
+  const [tab, setTab] = React.useState("backups");
 
-  openRef.current = () => setOpen(true);
-
-  React.useEffect(() => {}, []);
+  // openRef.current("server") opens on that tab (the lobby's update notice).
+  openRef.current = (startTab) => {
+    if (typeof startTab === "string") setTab(startTab);
+    setOpen(true);
+  };
 
   return (
     <DialogRoot
@@ -37,14 +34,25 @@ export const AppSettingsDialog = ({ OnSuccess, openRef }) => {
         <DialogCloseTrigger />
         <DialogHeader>Application Settings</DialogHeader>
         <DialogBody>
-          <form onSubmit={() => {}}></form>
+          <Tabs.Root value={tab} onValueChange={(e) => setTab(e.value)} lazyMount size="md" variant="enclosed">
+            <Tabs.List>
+              <Tabs.Trigger value="backups">Backups</Tabs.Trigger>
+              <Tabs.Trigger value="server">Server</Tabs.Trigger>
+            </Tabs.List>
+            <Tabs.Content value="backups">
+              <BackupSettingsTab />
+            </Tabs.Content>
+            <Tabs.Content value="server">
+              <ServerSettingsTab />
+            </Tabs.Content>
+          </Tabs.Root>
         </DialogBody>
-        <Dialog.Footer>
-          <ButtonGroup>
-            <Button onClick={() => setOpen(false)}>Cancel</Button>
-          </ButtonGroup>
-        </Dialog.Footer>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => setOpen(false)}>Close</Button>
+        </DialogFooter>
       </DialogContent>
     </DialogRoot>
   );
 };
+
+export default AppSettingsDialog;

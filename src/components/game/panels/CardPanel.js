@@ -1,100 +1,586 @@
 import * as React from "react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import useUUID from "../../uiComponents/hooks/useUUID";
-import BasePanel from "../../uiComponents/base/BasePanel";
-import WebHelper from "../../../helpers/WebHelper";
+import { BasePanel } from "../../uiComponents/base/BasePanel";
+import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
+import { sandboxBridgeScript, withCardCsp } from "./cardSandbox";
+import { loadSandboxOrigins } from "../../../helpers/sandboxOrigins";
+import CardAPIFactory, { ALLOWED_WS_RECEIVE_PREFIXES } from "../../../CardAPI";
+import DockableHelper from "../../../helpers/DockableHelper";
+import { baseCardCss, cardStyleLinks, onGameCssChange } from "../../../helpers/cardAppStyles";
 
-export const CardPanel = ({ id, name }) => {
-  const divId = useUUID();
-  const [loaded, setLoaded] = React.useState(false);
+// ─── postMessage bridge ───────────────────────────────────────────────────────
 
-  const ctx = Dockable.useContentContext();
-  ctx.setTitle(name);
+/**
+ * Wires up the postMessage bridge between the host page and the sandboxed iframe.
+ * Returns a cleanup function.
+ *
+ * Security model:
+ *  • All addon code runs inside the app's sandbox page (public/sandbox.html) in an
+ *    iframe with sandbox="allow-scripts" (no allow-same-origin → null origin, no
+ *    access to parent cookies / localStorage / DOM). The page announces itself with
+ *    SANDBOX_HOST_READY and writes the card HTML sent in SANDBOX_LOAD into itself;
+ *    it's served with its own, looser CSP, so the app's own CSP can stay strict.
+ *  • The iframe is cross-origin, so addon CSS cannot leak out.
+ *  • postMessage is the ONLY communication channel (structured-clone, no refs).
+ *  • ClientMediator calls are checked against the CardAPI allowlist before execution.
+ *
+ * Protocol (parent → iframe):
+ *   SANDBOX_LOAD    { html }   (to the sandbox page, before the card exists)
+ *   INIT            { cardId, additionalArguments }
+ *   CMD_RESULT      { reqId, result, error? }
+ *   PROPERTY_EVENT  { eventType, name, propData, global?, parentId? }
+ *   WS_EVENT        { command, data }
+ *   APP_STYLES      { base, theme }
+ *   MEDIATOR_CALL   { reqId, name, command, data }   (a call to a panel the card registered)
+ *
+ * Protocol (iframe → parent):
+ *   SANDBOX_HOST_READY {}      (the sandbox page, on every (re)load)
+ *   SANDBOX_READY   {}
+ *   CMD             { reqId, panel, command, data }
+ *                   panel "__mediator__" / "__register__" / "__unregister__", or a CardAPI
+ *                   group (Properties, Resources, Rolls) — see cardSandbox.js
+ *   MEDIATOR_RESULT { reqId, result, error? }
+ *   WS_SEND         { command, data }
+ *   CLOSE_PANEL     {}
+ */
+function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, onClosePanel) {
+  let ready = false;
+  const queue = [];
 
-  React.useEffect(() => {
-    if (!divId || !document.getElementById(divId)) {
+  // Every message carries the frame's nonce (see cardSandbox.js); the sandbox
+  // page and the bridge ignore anything without it.
+  const sendToFrame = (msg) => {
+    iframe.contentWindow?.postMessage({ ...msg, nonce }, "*");
+  };
+
+  const flush = () => {
+    queue.forEach(sendToFrame);
+    queue.length = 0;
+  };
+
+  const post = (msg) => {
+    if (ready) sendToFrame(msg);
+    else queue.push(msg);
+  };
+
+  // ── Calls to a panel the card registered (CardAPI.ClientMediator.register) ──
+  // The handlers live in the frame: each call goes there and waits for its answer.
+  const MEDIATOR_TIMEOUT_MS = 10000;
+  let mediatorCounter = 0;
+  const mediatorCalls = new Map(); // reqId → { resolve, reject, timer }
+  const invokeFrame = (name, command, data) =>
+    new Promise((resolve, reject) => {
+      const reqId = "m" + ++mediatorCounter;
+      const timer = setTimeout(() => {
+        mediatorCalls.delete(reqId);
+        reject(new Error(`CardAPI: ${name} did not answer ${command}`));
+      }, MEDIATOR_TIMEOUT_MS);
+      mediatorCalls.set(reqId, { resolve, reject, timer });
+      post({ type: "MEDIATOR_CALL", reqId, name, command, data });
+    });
+
+  // ── parent → iframe: forward relevant WS / property events ─────────────
+  const wsSubKey = "CardPanel_bridge_" + cardId + "_" + Math.random();
+
+  WebSocketManagerInstance.Subscribe(wsSubKey, (message) => {
+    const { command, data } = message;
+
+    // Only forward events the sandbox is allowed to receive
+    const allowed = ALLOWED_WS_RECEIVE_PREFIXES.some((p) => command?.startsWith(p));
+    if (!allowed) return;
+
+    // Property events → PROPERTY_EVENT (avoids full re-fetch).
+    // Events scoped to this card match Properties.Subscribe(name, cb) in the sandbox.
+    // Anything else is tagged global + parentId so it matches
+    // Properties.Global.Subscribe(parentId, name, cb) instead — that RPC surface
+    // works on any entity's properties, not just this card's own.
+    if (command === "property_add" || command === "property_update") {
+      // PropertyDTO.ParentID is explicitly tagged [JsonProperty("parentId")]
+      // server-side so it matches WebSocketCommandNames.DataKeyParentId — the
+      // same key GameLobby's permission-filtered broadcast reads. The server
+      // now always broadcasts a freshly serialized, canonical PropertyDTO for
+      // every add/update/remove (PropertiesHandler.cs), so this casing is
+      // consistent regardless of what triggered the change.
+      const parentId = data?.parentId;
+      if (parentId === cardId) {
+        post({ type: "PROPERTY_EVENT", eventType: "update", name: data.name, propData: data });
+      } else {
+        post({ type: "PROPERTY_EVENT", eventType: "update", name: data.name, propData: data, global: true, parentId });
+      }
+      return;
+    }
+    if (command === "property_remove") {
+      // Also a full PropertyDTO now (previously a bare property ID string with
+      // no parentId at all, which made correct routing impossible).
+      const parentId = data?.parentId;
+      if (parentId === cardId) {
+        post({ type: "PROPERTY_EVENT", eventType: "remove", name: data.name, propData: null });
+      } else {
+        post({ type: "PROPERTY_EVENT", eventType: "remove", name: data.name, propData: null, global: true, parentId });
+      }
       return;
     }
 
-    const script = document.createElement("script");
-    const additionalFiles = [];
-    const load = async () => {
-      let response = await WebHelper.getAsync("materials/getcard?id=" + id);
+    // Everything else (chat, custom, action) forwarded as a generic WS_EVENT
+    post({ type: "WS_EVENT", command, data });
+  });
 
-      script.src = WebHelper.getResourceString(response.mainResource);
-      script.id = "cardScript_" + divId;
-      script.async = true;
-      script.divId = divId;
-      script.cardId = id;
-      script.type = "text/javascript";
-      script.setAttribute("divId", divId);
-      script.setAttribute("cardId", id);
+  // ── iframe → parent: handle RPC and WS send requests ───────────────────
+  const onMessage = async (event) => {
+    if (event.source !== iframe.contentWindow) return;
+    const { type, reqId, panel, command, data } = event.data ?? {};
 
-      // Get property with additional arguments and add them as attributes
-      let properties = WebHelper.getAsync(
-        "properties/QueryProperties?parentIds=" +
-          id +
-          "&names=additionalArguments"
-      );
+    // ── Handshake ──────────────────────────────────────────────────────────
+    // The sandbox page loaded — first, or again after the browser reloaded the
+    // iframe (a docked panel moved in the DOM). Send the card; it says
+    // SANDBOX_READY once it has loaded, and messages wait until then.
+    if (type === "SANDBOX_HOST_READY") {
+      ready = false;
+      sendToFrame({ type: "SANDBOX_LOAD", html });
+      return;
+    }
+    if (type === "SANDBOX_READY") {
+      ready = true;
+      sendToFrame({ type: "INIT", cardId, additionalArguments });
+      flush();
+      return;
+    }
 
-      const additionalDocumentsProperty = properties[0];
-      if (additionalDocumentsProperty) {
-        script.setAttribute(
-          "additionalArguments",
-          additionalDocumentsProperty.value
-        );
+    if (type === "MEDIATOR_RESULT") {
+      const call = mediatorCalls.get(reqId);
+      if (!call) return;
+      mediatorCalls.delete(reqId);
+      clearTimeout(call.timer);
+      if (event.data.error) call.reject(new Error(event.data.error));
+      else call.resolve(event.data.result);
+      return;
+    }
+
+    // ── Card asks to close its own panel ────────────────────────────────────
+    if (type === "CLOSE_PANEL") {
+      onClosePanel?.();
+      return;
+    }
+
+    // ── Outbound WS command ────────────────────────────────────────────────
+    if (type === "WS_SEND") {
+      // FireAction is routed through the real CardAPI method (not a raw send)
+      // so cardId injection and the execute_action wire format live in one place.
+      if (command === "execute_action" && data && typeof data === "object") {
+        cardApi.FireAction(data.action ?? data.Action, data.args ?? data.Args);
+        return;
       }
+      cardApi.SendCustomCommandToServer(command, data);
+      return;
+    }
 
-      document.body.appendChild(script);
+    // ── RPC: proxy CardAPI method calls ────────────────────────────────────
+    if (type === "CMD") {
+      try {
+        let result;
 
-      await Promise.all(
-        response.additionalResources.map(async (additionalResource) => {
-          let meta = await WebHelper.getAsync("materials/ResourceMetadata?id=" + additionalResource);
-          if (meta.mimeType === "application/javascript") {
-            const additionalScript = document.createElement("script");
-            additionalScript.src = WebHelper.getResourceString(additionalResource);
-            additionalScript.async = true;
-            additionalScript.mainDivId = divId;
-            additionalScript.cardId = id;
-            document.body.appendChild(additionalScript);
-            additionalFiles.push(additionalScript);
+        if (panel === "__mediator__") {
+          // CardAPI.ClientMediator.sendCommand(Async)(command, data.command, data.data)
+          result = await cardApi.ClientMediator.sendCommandAsync(command, data?.command, data?.data);
+
+        } else if (panel === "__register__") {
+          result = cardApi.ClientMediator.register(command, data?.commands, invokeFrame);
+
+        } else if (panel === "__unregister__") {
+          result = cardApi.ClientMediator.unregister(command);
+
+        } else if (panel === "Properties" && command.startsWith("List")) {
+          // Repeating-row list ops (never global — a list property always
+          // belongs to this card). Property.List[command] lookup is separate
+          // from the flat cardApi.Properties[command] lookup below because
+          // src/CardAPI.js nests these under .List, not as flat "ListAdd"
+          // methods — a plain cardApi.Properties["ListAdd"] lookup would
+          // always be undefined.
+          const method = cardApi.Properties.List[command.slice(4)];
+          if (typeof method !== "function") throw new Error(`Unknown Properties.List method: ${command}`);
+
+          switch (command) {
+            case "ListAdd":
+              result = await method(data?.name, data?.fields, data?.itemId);
+              break;
+            case "ListRemove":
+              result = await method(data?.name, data?.itemId);
+              break;
+            case "ListUpdate":
+              result = await method(data?.name, data?.itemId, data?.fields);
+              break;
+            case "ListReorder":
+              result = await method(data?.name, data?.orderedItemIds);
+              break;
+            default:
+              throw new Error(`Unknown Properties.List method: ${command}`);
           }
 
-          if (meta.mimeType === "text/css") {
-            const link = document.createElement("link");
-            link.rel = "stylesheet";
-            link.href = WebHelper.getResourceString(additionalResource);
-            document.head.appendChild(link);
-            additionalFiles.push(link);
+        } else if (panel === "Properties") {
+          const isGlobal = !!data?.global;
+          const pid = data?.parentId;
+
+          if (isGlobal) {
+            // Global: parentId comes from the RPC payload — not forced to this card.
+            const method = cardApi.Properties.Global[command];
+            if (typeof method !== "function") throw new Error(`Unknown Properties.Global method: ${command}`);
+
+            switch (command) {
+              case "Get":
+                result = await method(pid, data?.name);
+                break;
+              case "GetMany":
+              case "GetByNames":
+                result = await method(pid, data?.names ?? data?.name);
+                break;
+              case "GetProperties":
+                result = await method(pid);
+                break;
+              case "Set":
+                result = await method(pid, data?.name, data?.value);
+                break;
+              case "SetMany":
+                result = await method(pid, data?.properties);
+                break;
+              case "Init":
+                result = await method(pid, data?.name, data?.value);
+                break;
+              case "InitMany":
+                result = await method(pid, data?.properties);
+                break;
+              case "Remove":
+                result = await method(pid, data?.name);
+                break;
+              default:
+                result = await method(pid, data?.name ?? data?.names, data?.value ?? data?.properties);
+            }
+          } else {
+          // Scoped: parentId is always this card's ID.
+          const method = cardApi.Properties[command];
+          if (typeof method !== "function") throw new Error(`Unknown Properties method: ${command}`);
+
+          switch (command) {
+            case "Get":
+              result = await method(data?.name);
+              break;
+            case "GetMany":
+            case "GetByNames":
+              result = await method(data?.names ?? data?.name);
+              break;
+            case "GetProperties":
+              result = await method();
+              break;
+            case "Set":
+              result = await method(data?.name, data?.value);
+              break;
+            case "SetMany":
+              result = await method(data?.properties);
+              break;
+            case "Init":
+              result = await method(data?.name, data?.value);
+              break;
+            case "InitMany":
+              result = await method(data?.properties);
+              break;
+            case "Remove":
+              result = await method(data?.name);
+              break;
+            default:
+              result = await method(data?.name ?? data?.names, data?.value ?? data?.properties);
+          }
           }
 
-          //Is there anything more needed?
-          return true;
-        })
+        } else if (panel === "Rolls") {
+          if (command === "Start") result = await cardApi.Rolls.Start(data?.formulas);
+          else if (command === "Finish") result = await cardApi.Rolls.Finish(data);
+          else throw new Error(`Unknown Rolls method: ${command}`);
+
+        } else if (panel === "Resources") {
+          const resourceTarget = data?.global ? cardApi.Resources.Global : cardApi.Resources;
+          const method = resourceTarget[command];
+          if (typeof method !== "function") throw new Error(`Unknown Resources method: ${command}`);
+
+          switch (command) {
+            case "Read":
+            case "Delete":
+              result = await method(data?.key);
+              break;
+            case "Update":
+              result = await method(data?.key, data?.data, data?.mimeType);
+              break;
+            case "Create":
+            case "Upsert":
+              result = await method(data?.key, data?.data, data?.name, data?.mimeType);
+              break;
+            default:
+              result = await method(data?.key, data?.data, data?.name, data?.mimeType);
+          }
+
+        } else {
+          throw new Error(`Unknown CardAPI call: ${panel}.${command}`);
+        }
+
+        sendToFrame({ type: "CMD_RESULT", reqId, result: result ?? null });
+      } catch (err) {
+        sendToFrame({ type: "CMD_RESULT", reqId, result: null, error: String(err) });
+      }
+    }
+  };
+
+  // A sandboxed iframe's `parent.postMessage(...)` targets whichever window
+  // directly contains it. For a docked panel that's this main app window, but a
+  // popped-out panel (BrowserWindowPortal) mounts the iframe into a genuinely
+  // separate window.open()'d Window/Document — its "parent" is that window, not
+  // this one. Listening on the global `window` here would never see those
+  // messages, so the bridge must listen on the iframe's actual owner window.
+  const hostWindow = iframe.ownerDocument?.defaultView ?? window;
+  hostWindow.addEventListener("message", onMessage);
+
+  const cleanup = () => {
+    hostWindow.removeEventListener("message", onMessage);
+    WebSocketManagerInstance.Unsubscribe(wsSubKey);
+    for (const call of mediatorCalls.values()) {
+      clearTimeout(call.timer);
+      call.reject(new Error("CardAPI: the card closed"));
+    }
+    mediatorCalls.clear();
+    cardApi.destroy();
+  };
+  // For the panel's own messages to the page (queued until it's ready).
+  cleanup.post = post;
+  return cleanup;
+}
+
+// ─── CardPanel ────────────────────────────────────────────────────────────────
+
+// public/sandbox.html, next to the app's own index.html (player builds live at
+// /client/ and /client/p<N>/, the GM app at /).
+const sandboxPageUrl = () => new URL("sandbox.html", document.baseURI).href;
+
+export const CardPanel = ({ id, name, data }) => {
+  const panelId = useUUID();
+  const iframeRef = React.useRef(null);
+  const cleanupRef = React.useRef(null);
+
+  // A view opened by an action (ShowView, view_show) comes with only the card's id and data:
+  // the window then takes the card's own name, once it's loaded, not the dock's "Content N".
+  const [loadedName, setLoadedName] = React.useState(null);
+  const ctx = Dockable.useContentContext();
+  ctx.setTitle(name || loadedName || "Card");
+
+  React.useEffect(() => {
+    if (!panelId) return;
+
+    let cancelled = false;    const load = async () => {
+      // 1. Fetch card definition + additional arguments in parallel
+      const [response, properties] = await Promise.all([
+        WebHelper.getAsync("materials/getcard?id=" + id),
+        WebHelper.getAsync(
+          "properties/QueryProperties?parentIds=" + id + "&names=additionalArguments,app_styles"
+        ),
+      ]);
+
+      if (cancelled || !iframeRef.current) return;
+      if (response?.name) setLoadedName(response.name);
+
+      // `data` is a per-panel-instance value passed in via props (e.g. HandleViewShow
+      // threading a ShowView step's Data payload through) — takes priority since it's
+      // scoped to THIS open, unlike the "additionalArguments" property below, which is
+      // stored on the card itself and would be shared/racy across concurrent opens of
+      // the same shared view-card (e.g. two players opening the same addon-installed
+      // "item_creator" view at once with different context).
+      const propertyValue = (name) => (properties ?? []).find((p) => p?.name === name)?.value;
+      const additionalArguments = data ?? (propertyValue("additionalArguments") ?? null);
+      // The template opted into the app's styles: its --nordvik-* variables and nm_
+      // classes before the card's CSS, the game's theme after (helpers/cardAppStyles).
+      const appStyles = propertyValue("app_styles") === "true";
+
+      // 2. Fetch main resource metadata.
+      //    The main resource is ALWAYS text/html.
+      //    ResourceMetadata returns { id, name, mimeType, data } where data is
+      //    the file content encoded as base64.
+      const mainResourceMeta = response?.mainResource
+        ? await WebHelper.getAsync("materials/ResourceMetadata?id=" + response.mainResource)
+        : null;
+
+      if (cancelled) return;
+
+      // 3. Fetch additional resource metadata (including content) in parallel.
+      //    ResourceMetadata returns { id, name, mimeType, data } where data is
+      //    base64-encoded file content — same as the main resource above.
+      //    We inline CSS/JS directly into the card HTML rather than using <link>/<script src>
+      //    because the sandboxed iframe (null origin, no allow-same-origin) cannot
+      //    make credentialed HTTP requests, and resources are now served over WebRTC.
+      const additionalMetas = await Promise.all(
+        (response?.additionalResources ?? []).map((resId) =>
+          WebHelper.getAsync("materials/ResourceMetadata?id=" + resId).then(
+            (meta) => ({ resId, mimeType: meta?.mimeType, data: meta?.data })
+          )
+        )
       );
 
-      setLoaded(true);
+      if (cancelled) return;
+
+      // 4. Create a scoped CardAPI instance for this card
+      const cardApi = await CardAPIFactory(id);
+      if (cancelled) { cardApi.destroy(); return; }      // 5. Build the card's HTML for the sandbox page.
+      //
+      //    • Decode base64 main resource → raw HTML.
+      //    • Inline CSS as <style> tags into <head> — content already fetched
+      //      via WebRTC; no HTTP request needed from inside the iframe.
+      //    • Inject the CardAPI bridge script + inline JS <script> tags before </body>.
+      //    • The sandbox page is framed with sandbox="allow-scripts" → null
+      //      origin, so it cannot access parent cookies / localStorage / DOM.
+
+      // Resource bytes are UTF-8 (atob alone would read them as Latin-1).
+      const rawHtml = mainResourceMeta?.data
+        ? new TextDecoder().decode(Uint8Array.from(atob(mainResourceMeta.data), (c) => c.charCodeAt(0)))
+        : "<html><body></body></html>";
+
+      // The card HTML is a CRA (or similar) production build whose asset paths
+      // are root-relative (e.g. /static/js/main.abc.js), which would resolve
+      // against the sandbox page's own server instead of the card server.
+      // Fix: rewrite every root-relative src="/" and href="/" to an absolute
+      // URL using the card server's origin (derived from WebHelper.ApiAddress).
+      const cardOrigin = (() => {
+        const addr = WebHelper.ApiAddress;
+        if (!addr) return "";
+        try {
+          return new URL(addr).origin;
+        } catch (error) {
+          return addr.replace(/\/api\/?$/, "");
+        }
+      })();
+      const rebasedHtml = rawHtml.replace(
+        /((?:src|href)=["'])\/(?!\/)/g,
+        `$1${cardOrigin}/`
+      );
+
+      
+      // Build <link rel="stylesheet"> tags for CSS using data URIs.
+      // Resource bytes are UTF-8, so every data: URI declares charset=utf-8 —
+      // without it the browser decodes with the page's fallback encoding (e.g.
+      // windows-1250 on a Polish system) and every non-ASCII character in an
+      // addon's CSS/JS turns into mojibake.
+      // Using data URIs avoids any HTTP request from the null-origin iframe AND
+      // avoids the </style> injection risk when CSS is decoded and inlined.
+      const cssStyles = additionalMetas
+        .filter((m) => m.mimeType === "text/css" && m.data)
+        .map((m) => `<link rel="stylesheet" href="data:text/css;charset=utf-8;base64,${m.data}">`)
+        .join("\n");
+
+      // Build <script src="data:..."> tags for JS using data URIs.
+      // Inlining JS as <script>code</script> is unsafe when the bundle contains
+      // template literals that embed HTML (e.g. Vite's modulepreload polyfill
+      // includes the full page HTML as a string), which can contain </script>
+      // and prematurely terminate the outer script block. Base64 characters
+      // (A-Za-z0-9+/=) can never form </script>, so the HTML parser is always safe.
+      const jsScripts = additionalMetas
+        .filter((m) => (m.mimeType === "text/javascript" || m.mimeType === "application/javascript") && m.data)
+        .map((m) => `<script src="data:text/javascript;charset=utf-8;base64,${m.data}"></script>`)
+        .join("\n");
+
+      // Inject inline CSS into <head>
+      const headCss = appStyles ? cardStyleLinks(cssStyles) : cssStyles;
+      let iframeHtml = headCss
+        ? rebasedHtml.includes("</head>")
+          ? rebasedHtml.replace("</head>", headCss + "\n</head>")
+          : rebasedHtml.replace("<body", headCss + "\n<body")
+        : rebasedHtml;
+
+      // Inject bridge + JS scripts before </body> (append if tag absent)
+      // A fresh nonce per load: it goes in the sandbox page's URL fragment, which
+      // other frames can't read, and into the bridge, which checks it.
+      const nonce = crypto.randomUUID();
+      const bodyInjection = sandboxBridgeScript(nonce) + (jsScripts ? "\n" + jsScripts : "");
+      iframeHtml = iframeHtml.includes("</body>")
+        ? iframeHtml.replace("</body>", bodyInjection + "\n</body>")
+        : iframeHtml + bodyInjection;
+
+      // Hold the card to the GM's allowed hosts (see withCardCsp).
+      const origins = await loadSandboxOrigins();
+      if (cancelled) { cardApi.destroy(); return; }
+      iframeHtml = withCardCsp(iframeHtml, origins);
+
+      const iframe = iframeRef.current;
+      // 6. Mount the bridge BEFORE setting src so the message listener is
+      //    already registered when SANDBOX_HOST_READY / SANDBOX_READY arrive.
+      //    SANDBOX_READY is sent by the iframe after window 'load' (i.e. after
+      //    all defer scripts have run and registered their cardapi:ready
+      //    listeners), so INIT → cardapi:ready fires at the right time.
+      //
+      //    closePanel: ctx.layoutContent (from Dockable.useContentContext() above)
+      //    already carries both the Panel and the Content for THIS open — exactly
+      //    what Dockable.removeContent needs — so no new dockable-level API is
+      //    needed to let a card dismiss its own panel.
+      const closePanel = () => {
+        const globalState = DockableHelper.getGlobalState();
+        if (!globalState?.ref?.current || !ctx?.layoutContent) return;
+        Dockable.removeContent(
+          globalState.ref.current,
+          ctx.layoutContent.panel,
+          ctx.layoutContent.content.contentId
+        );
+        // Drop the window too once it's empty, as the dock's own tab/window close does —
+        // otherwise a floating card window stays open with nothing in it.
+        Dockable.coallesceEmptyPanels(globalState.ref.current);
+        globalState.commit();
+      };
+      const bridge = mountBridge(iframe, iframeHtml, nonce, cardApi, id, additionalArguments, closePanel);
+      // The theme (or its colours) changed while the card is open: restyle it in place.
+      const stopStyles = appStyles
+        ? onGameCssChange((theme) => bridge.post({ type: "APP_STYLES", base: baseCardCss(), theme }))
+        : null;
+      cleanupRef.current = () => {
+        stopStyles?.();
+        bridge();
+      };
+
+      // An absolute URL: a panel popped out to its own window (BrowserWindowPortal)
+      // has an about:blank document a relative one wouldn't resolve against.
+      iframe.src = `${sandboxPageUrl()}#${nonce}`;
     };
 
     load();
 
     return () => {
-      document.body.removeChild(script);
-
-      additionalFiles.forEach((file) => {
-        if (file.parentNode) {
-          file.parentNode.removeChild(file);
-        }
-      });
+      cancelled = true;
+      cleanupRef.current?.();
+      cleanupRef.current = null;
     };
-  }, [divId]);
+  }, [panelId, id]);
 
-  if (!divId) {
-    return <>Loading...</>;
-  }
-
+  if (!panelId) return <>Loading...</>;
   return (
-    <BasePanel style={{ display: "flex" }} id={divId || undefined}></BasePanel>
+    <BasePanel style={{ display: "flex", padding: 0 }} id={panelId}>
+      <iframe
+        ref={iframeRef}
+        title={`card-${id}`}
+        /**
+         * Sandbox permissions:
+         *   allow-scripts     — addon JS must be able to run
+         *
+         * Intentionally OMITTED (security):
+         *   allow-same-origin   — omitting this means the iframe gets a null
+         *                         origin; it cannot access parent localStorage,
+         *                         cookies, or DOM.
+         *   allow-top-navigation
+         *   allow-forms
+         *   allow-popups
+         *   allow-modals
+         */
+        sandbox="allow-scripts"
+        style={{
+          width: "100%",
+          height: "100%",
+          border: "none",
+          background: "transparent",
+        }}
+      />
+    </BasePanel>
   );
 };
+
 export default CardPanel;

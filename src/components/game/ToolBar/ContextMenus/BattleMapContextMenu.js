@@ -1,30 +1,156 @@
 import * as React from "react";
 import { DropDownMenu } from "../../../uiComponents/base/DDItems/DropDownMenu";
 import { DropDownItem } from "../../../uiComponents/base/DDItems/DropDownItem";
-import {
-  FaArrowAltCircleDown,
-  FaArrowAltCircleUp,
-  FaChess,
-  FaCog,
-  FaCopy,
-  FaEye,
-  FaLayerGroup,
-  FaMap,
-  FaObjectUngroup,
-  FaPaste,
-  FaPlus,
-  FaTrash,
-  FaWrench,
-} from "react-icons/fa";
+import { FaArrowAltCircleDown } from "@react-icons/all-files/fa/FaArrowAltCircleDown";
+import { FaArrowAltCircleUp } from "@react-icons/all-files/fa/FaArrowAltCircleUp";
+import { FaChess } from "@react-icons/all-files/fa/FaChess";
+import { FaCheckCircle } from "@react-icons/all-files/fa/FaCheckCircle";
+import { FaCog } from "@react-icons/all-files/fa/FaCog";
+import { FaCopy } from "@react-icons/all-files/fa/FaCopy";
+import { FaEye } from "@react-icons/all-files/fa/FaEye";
+import { FaLayerGroup } from "@react-icons/all-files/fa/FaLayerGroup";
+import { FaLock } from "@react-icons/all-files/fa/FaLock";
+import { FaLockOpen } from "@react-icons/all-files/fa/FaLockOpen";
+import { FaMap } from "@react-icons/all-files/fa/FaMap";
+import { FaObjectUngroup } from "@react-icons/all-files/fa/FaObjectUngroup";
+import { FaPaste } from "@react-icons/all-files/fa/FaPaste";
+import { FaPlus } from "@react-icons/all-files/fa/FaPlus";
+import { FaShieldAlt } from "@react-icons/all-files/fa/FaShieldAlt";
+import { FaTags } from "@react-icons/all-files/fa/FaTags";
+import { FaTrash } from "@react-icons/all-files/fa/FaTrash";
+import { FaWrench } from "@react-icons/all-files/fa/FaWrench";
+import { FaRegCheckCircle } from "@react-icons/all-files/fa/FaRegCheckCircle";
+import { FaListOl } from "@react-icons/all-files/fa/FaListOl";
 import Loadable from "../../../uiComponents/base/Loadable";
+import Subscribable from "../../../uiComponents/base/Subscribable";
+import CollectionSyncer from "../../../uiComponents/base/CollectionSyncer";
+import MapsSyncer from "./MapsSyncer";
 import DTOConverter from "../../../BattleMap/DTOConverter";
-import WebSocketManagerInstance from "../../WebSocketManager";
+import { ActiveTransportManager as WebSocketManagerInstance, ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import ClientMediator from "../../../../ClientMediator";
 import { Heading } from "@chakra-ui/react";
+import SwitchMapSubmenu from "./SwitchMapSubmenu";
+import { TurnOrderService } from "../../turnOrder/TurnOrderService";
 import { MenuContent, MenuContextTrigger, MenuRoot } from "../../../ui/menu";
+import { PERM, PERM_LEVEL, ENTITY_TYPES } from "../../../BattleMap/Helpers/permissionBits";
+import CommandFactory from "../../../BattleMap/Factories/CommandFactory";
+import UtilityHelper from "../../../../helpers/UtilityHelper";
+import { usePermissions } from "../../../../contexts/PermissionsContext";
+import { Tooltip } from "../../../ui/tooltip";
+import { RESERVED_LAYERS } from "../../../BattleMap/Constants/layers";
+import { useCustomLayers } from "../../../uiComponents/hooks/useCustomLayers";
+import { syncControlsVisibility } from "../../../BattleMap/Helpers/TokenControlsHelper";
+import { SearchInput } from "../../../uiComponents/SearchInput";
+import { LAYER_STATES, layerFlagUpdate, layerLabel, layerState } from "../../../BattleMap/Helpers/layerVisibility";
+import AddonMenuItems from "../../../uiComponents/base/DDItems/AddonMenuItems";
+import { setMenuContext } from "../../../uiComponents/base/DDItems/menuItemsStore";
+import { inspectedToken } from "./inspectedToken";
+import { battleMapMenuContexts } from "./battleMapMenuContexts";
 
 export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) => {
-  const selectedObjects = canvas?.getActiveObjects() || [];
+  // Read when the menu opens: selecting on the canvas doesn't re-render this component,
+  // so a value read at render time would still be the selection from before.
+  const [selectedObjects, setSelectedObjects] = React.useState(() => canvas?.getActiveObjects() || []);
+  // A token right-clicked that the player sees but can't select: a read-only menu for it.
+  const [inspected, setInspected] = React.useState(null);
+  const { hasEntityPermission } = usePermissions();
+
+  // Resolve the current map id for entity-level permission checks
+  const currentMap = ClientMediator.sendCommand("BattleMap", "GetSelectedMap", { contextId: battleMapId });
+  const canEditMap = hasEntityPermission(ENTITY_TYPES.MAP, currentMap?.id, PERM.EDIT);
+  // Placing tokens only needs Control on the map (the server allows a token with either).
+  const canPlaceTokens = canEditMap || hasEntityPermission(ENTITY_TYPES.MAP, currentMap?.id, PERM.CONTROL);
+
+  const gameId = React.useMemo(() => ClientMediator.sendCommand("Game", "GetGameId"), []);
+  const { layers, propertyId: layersPropertyId } = useCustomLayers(gameId);
+  const customLayers = layers.filter((l) => l.kind === "custom");
+
+  // { [playerId]: bits } for the currently selected element
+  const [elementPermissions, setElementPermissions] = React.useState({});
+  const selectedId = selectedObjects.length === 1 ? selectedObjects[0]?.id : null;
+
+  React.useEffect(() => {
+    if (!selectedId) { setElementPermissions({}); return; }
+    WebHelper.getAsync(`security/permissions?entityId=${selectedId}&entityType=ElementModel`)
+      .then(perms => setElementPermissions(perms ?? {}))
+      .catch(() => setElementPermissions({}));
+  }, [selectedId]);
+
+  const [maps, setMaps] = React.useState([]);
+  React.useEffect(() => {
+    WebHelper.getAsync('map/GetAllFlat').then(m => setMaps(m || [])).catch(() => {});
+  }, []);
+
+  // Base-platform "Token" shortcut (Add submenu) — spawns a token from an
+  // EXISTING card, no card creation involved. Generic/game-system-agnostic
+  // (any card with a "token" property qualifies, addon or not), unlike the
+  // "Item"/"Monster" entries next to it which are addon-contributed and
+  // create a new card first. See BattleMapContextMenu's own PasteElements
+  // for the same canvas.lastAbsolutePointer usage this reuses for position.
+  const [allCards, setAllCards] = React.useState([]);
+  const [tokenCardIds, setTokenCardIds] = React.useState(() => new Set());
+
+  React.useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const cards = await WebHelper.getAsync('materials/getcards').catch(() => null);
+      if (!cards?.length) { if (!cancelled) { setAllCards([]); setTokenCardIds(new Set()); } return; }
+      const ids = cards.map(c => c.id).join(',');
+      const props = await WebHelper
+        .getAsync(`properties/QueryProperties?parentIds=${ids}&names=token`)
+        .catch(() => null);
+      const withToken = new Set((props ?? []).filter(p => p.value).map(p => p.parentId));
+      if (!cancelled) { setAllCards(cards); setTokenCardIds(withToken); }
+    })();
+    return () => { cancelled = true; };
+  }, []);
+
+  // Bug fix: the batch load above only ever ran once on mount, so a card
+  // created while this context menu was already open never got its "token"
+  // property checked and could never appear in the picker until a reload.
+  // CardsPanel.js's own CollectionSyncer usage is the established pattern for
+  // keeping a card list live — extended here to also check each newly added
+  // card's token property individually as it arrives.
+  const handleCardAdded = (card) => {
+    WebHelper.getAsync(`properties/QueryProperties?parentIds=${card.id}&names=token`)
+      .then((props) => {
+        if ((props ?? []).some(p => p.value)) {
+          setTokenCardIds(prev => new Set(prev).add(card.id));
+        }
+      })
+      .catch(() => {});
+  };
+
+  const handleCardDeleted = (cardId) => {
+    setTokenCardIds(prev => {
+      if (!prev.has(cardId)) return prev;
+      const next = new Set(prev);
+      next.delete(cardId);
+      return next;
+    });
+  };
+
+  const tokenizableCards = React.useMemo(
+    () => allCards.filter(c => tokenCardIds.has(c.id)),
+    [allCards, tokenCardIds]
+  );
+
+  // A GM/player can easily have 50+ cards — filter client-side rather than
+  // rendering every tokenizable card as a flat menu row.
+  const [tokenSearch, setTokenSearch] = React.useState("");
+  const filteredTokenizableCards = React.useMemo(() => {
+    const q = tokenSearch.trim().toLowerCase();
+    if (!q) return tokenizableCards;
+    return tokenizableCards.filter(c => c.name?.toLowerCase().includes(q));
+  }, [tokenizableCards, tokenSearch]);
+
+  const SpawnTokenFromCard = (cardId) => {
+    ClientMediator.sendCommand('BattleMap_token', 'CreateToken', {
+      contextId: battleMapId,
+      cardId,
+      position: canvas.lastAbsolutePointer,
+    });
+  };
 
   const HandleDelete = () => {
     ClientMediator.sendCommand("BattleMap", "RemoveSelected", {
@@ -44,11 +170,10 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
     });
   };
 
-  const HandleSpawnBattleMap = () => {
-    WebSocketManagerInstance.Send({
-      command: "show_battlemap",
-      data: battleMapId,
-    });
+  const ShowBattleMap = (playerId) => {
+    WebSocketManagerInstance.Send(
+      CommandFactory.CreateShowBattleMapCommand(battleMapId, playerId)
+    );
   };
 
   const HandleSpawnMapSettings = () => {
@@ -88,16 +213,61 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
     });
   };
 
-  const SwitchLayer = (layer) => {
-    var dto = DTOConverter.ConvertToDTOMinified(selectedObjects[0], []);
-    dto.layer = layer;
-    dto.insideLayerIndex = 0;
+  // Tokens can opt out of scaling/rotating via their own corner/rotate handles —
+  // fabric.js respects these flags natively, so this is just a toggle + a
+  // minified sync, no server-side changes needed.
+  const isTokenControlsLocked = (obj) =>
+    !!(obj?.lockScalingX || obj?.lockScalingY || obj?.lockRotation);
+
+  const selectedTokens = selectedObjects.filter((o) => o?.isToken);
+  // With several tokens: lock them all unless they all are, then unlock them all.
+  const allTokensLocked = selectedTokens.length > 0 && selectedTokens.every(isTokenControlsLocked);
+
+  const ToggleTokenControlsLock = () => {
+    const locked = !allTokensLocked;
+    selectedTokens.forEach((obj) => setTokenControlsLock(obj, locked));
+  };
+
+  const setTokenControlsLock = (obj, locked) => {
+    obj.set({
+      lockScalingX: locked,
+      lockScalingY: locked,
+      lockRotation: locked,
+    });
+    syncControlsVisibility(obj);
+    canvas.requestRenderAll();
+    const dto = DTOConverter.ConvertToDTOMinified(obj, [
+      "lockScalingX",
+      "lockScalingY",
+      "lockRotation",
+    ]);
     WebSocketManagerInstance.Send({
       command: "element_update",
       data: dto,
-      action: "layer",
     });
   };
+
+  const SwitchLayer = (layer) => {
+    selectedObjects.forEach((obj) => {
+      // Only id and layer: no position, which inside a multi-selection is relative to it.
+      var dto = DTOConverter.ConvertToDTOMinified(obj, []);
+      dto.layer = layer;
+      dto.insideLayerIndex = 0;
+      WebSocketManagerInstance.Send({
+        command: "element_update",
+        data: dto,
+        action: "layer",
+      });
+    });
+    // The elements may not be selectable on the layer shown any more.
+    if (selectedObjects.length > 1) {
+      canvas.discardActiveObject?.();
+      canvas.requestRenderAll?.();
+    }
+  };
+
+  const AddToTurnOrder = () =>
+    TurnOrderService.Add({ mapId: currentMap?.id, elementIds: selectedTokens.map((t) => t.id) });
 
   const MoveUp = () => {
     if (!selectedObjects[0].insideLayerIndex) {
@@ -127,18 +297,154 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
     });
   };
 
-  if (selectedObjects === 1) {
-  }
+  const SetPermission = (playerId, bits) => {
+    const permissions = { [playerId]: bits };
+    selectedObjects.forEach((obj) => {
+      if (!obj?.id) return;
+      WebSocketManagerInstance.Send(CommandFactory.CreateUpdatePermissionsCommand(obj.id, 'ElementModel', permissions));
+    });
+    // Optimistic update so checkmark reflects the change immediately.
+    setElementPermissions(prev => ({ ...prev, [playerId]: bits }));
+  };
+
+  const GetPlayersForPermissions = () => {
+    return ClientMediator.sendCommand('Game', 'GetPlayers') || [];
+  };
+
+        const check = (playerId, level) =>
+        {
+
+            let userPermission = elementPermissions[playerId] === level
+                ? <FaCheckCircle style={{ color: 'var(--chakra-colors-green-400)' }} />
+                : null;
+            let defaultPermission = elementPermissions[playerId] === undefined && elementPermissions[UtilityHelper.EmptyGuid] === level
+                ? (<Tooltip content={"Everyone has this permission level"}><FaRegCheckCircle style={{ color: 'var(--chakra-colors-green-400)' }} /></Tooltip>)
+                : null;
+
+            return (
+                <>
+                    {userPermission}
+                    {defaultPermission}
+                </>
+            );
+        }
+
+  // Returns a shield icon when the player has above-Edit (admin-level) permissions.
+  const adminIcon = (playerId) => {
+    const bits = elementPermissions[playerId];
+    return bits > PERM_LEVEL.EDIT
+      ? <FaShieldAlt style={{ color: 'orange' }} title="Admin-level permission" />
+      : undefined;
+  };
 
   width = width || 150;
+
+  // The permission checkmarks are fetched for a single selected element only.
+  const showChecks = selectedObjects.length === 1;
+
+  const layerMenu = (
+    <DropDownMenu submenu={true} width={width} name={"Move to layer"} icon={FaLayerGroup}>
+      {layers.filter((l) => l.kind !== "reserved-grid").map((l) => (
+        <DropDownItem
+          key={l.key}
+          width={width}
+          name={layerLabel(l)}
+          onClick={() => SwitchLayer(l.layerId)}
+          icon={l.kind === "reserved-token" ? FaChess : l.kind === "reserved-map" ? FaMap : FaLayerGroup}
+        />
+      ))}
+    </DropDownMenu>
+  );
+
+  // Visible / GM only / Hidden for each custom layer (see layerVisibility.js).
+  const layerVisibilityMenu = customLayers.length > 0 && (
+    <DropDownMenu requiresEdit submenu={true} width={width} name={"Layers"} icon={<FaEye />}>
+      {customLayers.map((layer) => (
+        <DropDownMenu key={layer.key} submenu={true} width={width} name={layerLabel(layer)} icon={<FaLayerGroup />}>
+          {LAYER_STATES.map(({ state, label }) => (
+            <DropDownItem
+              key={state}
+              width={width}
+              name={label}
+              icon={layerState(layer) === state ? <FaCheckCircle style={{ color: 'var(--chakra-colors-green-400)' }} /> : undefined}
+              onClick={() => WebSocketManagerInstance.Send(layerFlagUpdate(layersPropertyId, layer, state))}
+            />
+          ))}
+        </DropDownMenu>
+      ))}
+    </DropDownMenu>
+  );
+
+  const permissionsMenu = (
+    <DropDownMenu
+      submenu={true}
+      width={width}
+      name={"Permissions"}
+      icon={<FaLock />}
+      requiresEdit
+    >
+      {GetPlayersForPermissions().map((player) => (
+        <DropDownMenu
+          key={player.id}
+          submenu={true}
+          width={width}
+          name={player.name || player.id}
+          icon={showChecks ? adminIcon(player.id) : undefined}
+        >
+          <DropDownItem width={width} name={"See"}     icon={showChecks ? check(player.id, PERM_LEVEL.SEE) : undefined}     onClick={() => SetPermission(player.id, PERM_LEVEL.SEE)} />
+          <DropDownItem width={width} name={"Control"} icon={showChecks ? check(player.id, PERM_LEVEL.CONTROL) : undefined} onClick={() => SetPermission(player.id, PERM_LEVEL.CONTROL)} />
+          <DropDownItem width={width} name={"Edit"}    icon={showChecks ? check(player.id, PERM_LEVEL.EDIT) : undefined}    onClick={() => SetPermission(player.id, PERM_LEVEL.EDIT)} />
+          <DropDownItem width={width} name={"None"}    icon={showChecks ? check(player.id, PERM_LEVEL.NONE) : undefined}    onClick={() => SetPermission(player.id, PERM_LEVEL.NONE)} />
+        </DropDownMenu>
+      ))}
+      <DropDownMenu
+        submenu={true}
+        width={width}
+        name={"Everyone"}
+        icon={showChecks ? adminIcon(UtilityHelper.EmptyGuid) : undefined}
+      >
+        <DropDownItem width={width} name={"See"}     icon={showChecks ? check(UtilityHelper.EmptyGuid, PERM_LEVEL.SEE) : undefined}     onClick={() => SetPermission(UtilityHelper.EmptyGuid, PERM_LEVEL.SEE)} />
+        <DropDownItem width={width} name={"Control"} icon={showChecks ? check(UtilityHelper.EmptyGuid, PERM_LEVEL.CONTROL) : undefined} onClick={() => SetPermission(UtilityHelper.EmptyGuid, PERM_LEVEL.CONTROL)} />
+        <DropDownItem width={width} name={"Edit"}    icon={showChecks ? check(UtilityHelper.EmptyGuid, PERM_LEVEL.EDIT) : undefined}    onClick={() => SetPermission(UtilityHelper.EmptyGuid, PERM_LEVEL.EDIT)} />
+        <DropDownItem width={width} name={"None"}    icon={showChecks ? check(UtilityHelper.EmptyGuid, PERM_LEVEL.NONE) : undefined}    onClick={() => SetPermission(UtilityHelper.EmptyGuid, PERM_LEVEL.NONE)} />
+      </DropDownMenu>
+    </DropDownMenu>
+  );
 
   return (
     <MenuRoot onOpenChange={(d) => {
         if(canvas.contextMenuLock){
             d.open = false;
         }
+        if (d.open) {
+          const opened = canvas?.getActiveObjects() || [];
+          setSelectedObjects(opened);
+          const token = inspectedToken(canvas);
+          setInspected(token);
+          // What addon items in these menus get as variables when clicked.
+          const position = ClientMediator.sendCommand("BattleMap", "GetLastClickPos", { contextId: battleMapId });
+          const mapId = ClientMediator.sendCommand("BattleMap", "GetSelectedMapID", { contextId: battleMapId });
+          const contexts = battleMapMenuContexts({ battleMapId, mapId, position, selected: token ? [token] : opened });
+          Object.entries(contexts).forEach(([viewId, context]) => setMenuContext(viewId, context));
+        }
     }}>
-      <MenuContextTrigger >{children}</MenuContextTrigger>
+      <Subscribable commandPrefix="permission_update" onMessage={(msg) => {
+        if (msg.data?.entityType !== 'ElementModel' || msg.data?.id !== selectedId) return;
+        setElementPermissions(msg.data.permissions ?? {});
+      }} />
+      <MapsSyncer maps={maps} setMaps={setMaps} />
+      <CollectionSyncer
+        collection={allCards}
+        setCollection={setAllCards}
+        commandPrefix="card"
+        onAdd={handleCardAdded}
+        onDelete={handleCardDeleted}
+      />
+      {/* asChild: a div, not Chakra's default button, so the map isn't one big button
+          (it would take every button style and be announced as a button). */}
+      <MenuContextTrigger asChild>
+        <div className="nm_bm_contextTrigger">{children}</div>
+      </MenuContextTrigger>
       <MenuContent>
         {selectedObjects && selectedObjects.length === 1 ? (
           <>
@@ -158,6 +464,14 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
               icon={FaTrash}
               onClick={HandleDelete}
             />
+            {selectedObjects[0]?.isToken && canEditMap && (
+              <DropDownItem
+                width={width}
+                name={"Add to turn order"}
+                icon={FaListOl}
+                onClick={AddToTurnOrder}
+              />
+            )}
             <DropDownItem
               width={width}
               name={"Copy"}
@@ -170,79 +484,143 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
               icon={FaPaste}
               onClick={PasteElements}
             />
-            <DropDownMenu submenu={true} width={width} name={"More Actions"}>
-              <DropDownItem
-                width={width}
-                name={"Ungroup"}
-                onClick={() => SwitchLayer(-100)}
-                icon={FaObjectUngroup}
-              />
-              <DropDownItem
-                width={width}
-                name={"Move Up"}
-                onClick={() => MoveUp()}
-                icon={FaArrowAltCircleUp}
-              />
-              <DropDownItem
-                width={width}
-                name={"Move Down"}
-                onClick={() => MoveDown()}
-                icon={FaArrowAltCircleDown}
-              />
-            </DropDownMenu>
-            <DropDownMenu
-              submenu={true}
-              width={width}
-              name={"Move to layer"}
-              icon={FaLayerGroup}
-            >
-              <DropDownItem
-                width={width}
-                name={"Token"}
-                onClick={() => SwitchLayer(100)}
-                icon={FaChess}
-              />
-              <DropDownItem
-                width={width}
-                name={"Background"}
-                onClick={() => SwitchLayer(-100)}
-                icon={FaMap}
-              />
-            </DropDownMenu>
+            {canEditMap && (
+              <DropDownMenu submenu={true} width={width} name={"More Actions"}>
+                <DropDownItem
+                  width={width}
+                  name={"Ungroup"}
+                  onClick={() => SwitchLayer(RESERVED_LAYERS.MAP)}
+                  icon={FaObjectUngroup}
+                />
+                <DropDownItem
+                  width={width}
+                  name={"Move Up"}
+                  onClick={() => MoveUp()}
+                  icon={FaArrowAltCircleUp}
+                />
+                <DropDownItem
+                  width={width}
+                  name={"Move Down"}
+                  onClick={() => MoveDown()}
+                  icon={FaArrowAltCircleDown}
+                />
+              </DropDownMenu>
+            )}
+            {canEditMap && layerMenu}
             <DropDownItem
               width={width}
               name={"Properties"}
               onClick={HandleSpawnProperties}
               icon={FaWrench}
             />
+            {selectedObjects[0]?.isToken && selectedObjects[0]?.tokenData?.assignableIcons?.length > 0 && (
+              <DropDownItem
+                width={width}
+                name={"Manage Icons"}
+                onClick={() => ClientMediator.sendCommand("BattleMap", "ShowIconPicker", {
+                  contextId: battleMapId,
+                  tokenId: selectedObjects[0].id,
+                })}
+                icon={FaTags}
+              />
+            )}
+            {selectedObjects[0]?.isToken && (
+              <DropDownItem
+                width={width}
+                name={allTokensLocked ? "Unlock Scale/Rotate" : "Lock Scale/Rotate"}
+                onClick={ToggleTokenControlsLock}
+                icon={allTokensLocked ? FaLock : FaLockOpen}
+              />
+            )}
+            {permissionsMenu}
+            <AddonMenuItems viewId="battlemap_element" />
+          </>
+        ) : inspected ? (
+          <>
+            {/* Seen, not controlled: only its name and what addons offer for tokens
+                (their actions check permissions on the server). */}
+            <Heading size={"xs"} style={{ textAlign: "center" }}>
+              {inspected.name}
+            </Heading>
+            <AddonMenuItems viewId="battlemap_element" />
+          </>
+        ) : selectedObjects.length > 1 ? (
+          <>
+            <Heading size={"xs"} style={{ textAlign: "center" }}>
+              {selectedObjects.length} selected
+            </Heading>
+            <DropDownItem width={width} name={"Delete"} icon={FaTrash} onClick={HandleDelete} />
+            {selectedTokens.length > 0 && canEditMap && (
+              <DropDownItem width={width} name={"Add to turn order"} icon={FaListOl} onClick={AddToTurnOrder} />
+            )}
+            <DropDownItem width={width} name={"Copy"} icon={FaCopy} onClick={CopyElements} />
+            <DropDownItem width={width} name={"Paste"} icon={FaPaste} onClick={PasteElements} />
+            {canEditMap && layerMenu}
+            {selectedTokens.length > 0 && (
+              <DropDownItem
+                width={width}
+                name={allTokensLocked ? "Unlock Scale/Rotate" : "Lock Scale/Rotate"}
+                onClick={ToggleTokenControlsLock}
+                icon={allTokensLocked ? FaLock : FaLockOpen}
+              />
+            )}
+            {permissionsMenu}
           </>
         ) : (
           <>
-            <DropDownMenu
-              submenu={true}
-              width={width}
-              name={"Add"}
-              icon={<FaPlus/>}
-            ></DropDownMenu>
-            <DropDownItem
-              width={width}
-              name={"Paste"}
-              icon={<FaPaste/>}
-              onClick={() => PasteElements()}
-            />
+            {canPlaceTokens && (
+              <DropDownMenu
+                viewId={"battlemap_add"}
+                submenu={true}
+                width={width}
+                name={"Add"}
+                icon={<FaPlus/>}
+              >
+                {tokenizableCards.length > 0 && (
+                  <DropDownMenu submenu={true} width={width} name={"Token"} icon={<FaChess/>}>
+                    {/* A GM/player can easily have 50+ tokenizable cards — stopPropagation
+                        keeps typing/clicking from being swallowed as menu item navigation
+                        (arrow-key/typeahead selection) or triggering the menu's closeOnSelect. */}
+                    <div
+                      style={{ padding: "4px 6px" }}
+                      onClick={(e) => e.stopPropagation()}
+                      onKeyDown={(e) => e.stopPropagation()}
+                    >
+                      <SearchInput value={tokenSearch} onChange={setTokenSearch} />
+                    </div>
+                    {filteredTokenizableCards.map((card) => (
+                      <DropDownItem
+                        key={card.id}
+                        width={width}
+                        name={card.name}
+                        onClick={() => SpawnTokenFromCard(card.id)}
+                      />
+                    ))}
+                  </DropDownMenu>
+                )}
+              </DropDownMenu>
+            )}
+            {canEditMap && (
+              <DropDownItem
+                width={width}
+                name={"Paste"}
+                icon={<FaPaste/>}
+                onClick={() => PasteElements()}
+              />
+            )}
             <DropDownMenu
               submenu={true}
               width={width}
               name={"Battle Map"}
               icon={<FaMap/>}
             >
-              <DropDownItem
-                gmOnly
-                width={width}
-                name={"Show"}
-                onClick={HandleSpawnBattleMap}
-                icon={<FaEye/>}
-              />
+              <DropDownMenu requiresEdit submenu={true} width={width} name={"Show"} icon={<FaEye />}>
+                <DropDownItem width={width} name={"All players"} onClick={() => ShowBattleMap()} />
+                {GetPlayersForPermissions().map(player => (
+                  <DropDownItem key={player.id} width={width} name={player.name || player.id}
+                    onClick={() => ShowBattleMap(player.id)} />
+                ))}
+              </DropDownMenu>
               <DropDownItem
                 width={width}
                 name={"Tools"}
@@ -250,22 +628,29 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
                 icon={<FaWrench/>}
               />
             </DropDownMenu>
-            <DropDownItem
-              gmOnly
-              width={width}
-              name={"Map Settings"}
-              onClick={HandleSpawnMapSettings}
-              icon={<FaCog/>}
-            />
-            <DropDownItem
-              gmOnly
-              width={width}
-              name={"Edit Grid"}
-              onClick={() => {
-                ClientMediator.sendCommand("BattleMap", "EditGrid", {contextId: battleMapId})
-              }}
-              icon={<FaWrench/>}
-            />
+            {canEditMap && layerVisibilityMenu}
+            {maps.length > 0 && canEditMap && (
+              <SwitchMapSubmenu maps={maps} battleMapId={battleMapId} currentMapId={currentMap?.id} width={width} />
+            )}
+            {canEditMap && (
+              <DropDownItem
+                width={width}
+                name={"Map Settings"}
+                onClick={HandleSpawnMapSettings}
+                icon={<FaCog/>}
+              />
+            )}
+            {canEditMap && (
+              <DropDownItem
+                width={width}
+                name={"Edit Grid"}
+                onClick={() => {
+                  ClientMediator.sendCommand("BattleMap", "EditGrid", {contextId: battleMapId})
+                }}
+                icon={<FaWrench/>}
+              />
+            )}
+            <AddonMenuItems viewId="battlemap" />
           </>
         )}
       </MenuContent>

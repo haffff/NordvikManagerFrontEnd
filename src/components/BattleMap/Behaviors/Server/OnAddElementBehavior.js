@@ -1,8 +1,9 @@
 import { fabric } from "fabric";
 import DTOConverter from "../../DTOConverter";
 import ClientMediator from "../../../../ClientMediator";
-import WebHelper from "../../../../helpers/WebHelper";
+import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import UtilityHelper from "../../../../helpers/UtilityHelper";
+import { canControl } from "../../Helpers/permissionBits";
 
 export class OnAddElementBehavior {
   Handle(response, canvas, battleMapId) {
@@ -17,7 +18,7 @@ export class OnAddElementBehavior {
     if (mapId === response.data.mapId) {
       let value = DTOConverter.ConvertFromDTO(response.data);
       value.selectable =
-        (response.data.permission & 4) == 4 &&
+        canControl(response.data.permission) &&
         response.data.layer == selectedLayer;
       fabric.util.enlivenObjects([value], (e) => {
         e.forEach(async (element) => {
@@ -32,8 +33,11 @@ export class OnAddElementBehavior {
 
           element.properties = parsedProps;
 
+          // Strict '>' (not '>=') so a new same-layer element is inserted after —
+          // i.e. rendered on top of — any existing objects already on that layer,
+          // matching the usual "newest on top" expectation.
           let found = canvas._objects.findIndex(
-            (x) => x.layer >= element.layer
+            (x) => x.layer > element.layer
           );
           if (found == -1) {
             canvas.add(element);
@@ -42,7 +46,19 @@ export class OnAddElementBehavior {
           }
 
           canvas.requestRenderAll();
-          const isToken = await ClientMediator.sendCommandAsync("BattleMap_Token", "IsToken", { contextId: battleMapId, id: response.data.id });
+          // Plain sendCommandAsync has no retry/queue — an element_add broadcast
+          // can arrive (and this behavior fire) before TokenManager.Load() has
+          // registered for this battle map yet, which would otherwise throw an
+          // uncaught "Command not found" here instead of just loading late.
+          // sendCommandWaitForRegisterAsync queues until it registers, matching
+          // the established pattern elsewhere in this codebase (PropertiesPanel.js,
+          // TokenQuickEditOverlay.js) for exactly this race.
+          const isToken = await ClientMediator.sendCommandWaitForRegisterAsync(
+            "battlemap_token",
+            "IsToken",
+            { contextId: battleMapId, id: response.data.id },
+            true
+          );
           if (isToken) {
             ClientMediator.sendCommand(
               "battlemap_token",

@@ -1,0 +1,143 @@
+import { stepsBefore } from "./stepTree";
+
+// Works out which variables exist at each step of an action, for autocomplete and hints.
+//
+// Sources, in the order the backend fills them:
+//   built-ins      set for every action (ActionProcessingService.ExecActionAsync)
+//   hook           the trigger's variables (HookInfoDto.Variables)
+//   steps          arguments marked isOutput (e.g. Output, ItemName) and RunScript
+//                  `return { a, b }` keys
+// "Inputs" are names used somewhere but never defined before use: for an action called
+// by name they are its arguments (e.g. %cardId%), not mistakes.
+
+export const BUILTIN_VARIABLES = [
+  "gameId", "gmId", "actionId", "actionName", "actionPrefix",
+  "playerId", "playerName", "playerColor", "playerIsOwner", "playerIsGm",
+];
+
+// Names referenced by tokens: %name%, %name.path[0].x%, %q:{name}.prop%, %q:{name.path}.prop%.
+export function extractVariableRefs(text) {
+  if (typeof text !== "string" || !text.includes("%")) return [];
+  const names = [];
+  const add = (n) => { if (n && !names.includes(n)) names.push(n); };
+  for (const m of text.matchAll(/%([A-Za-z_]\w*)(?:\.\w+|\[\d+\])*%/g)) add(m[1]);
+  for (const m of text.matchAll(/%q:\{([A-Za-z_]\w*)(?:\.\w+|\[\d+\])*\}/g)) add(m[1]);
+  return names;
+}
+
+const isPlainName = (v) => typeof v === "string" && /^[A-Za-z_]\w*$/.test(v.trim());
+
+// Keys of object literals returned by a script: `return { total, hp: x }` → ["total", "hp"].
+export function scriptReturnKeys(script) {
+  if (typeof script !== "string") return [];
+  const keys = [];
+  for (const m of script.matchAll(/return\s*\{([^{}]*)\}/g)) {
+    for (const part of m[1].split(",")) {
+      const key = part.split(":")[0].trim().replace(/^["']|["']$/g, "");
+      if (/^[A-Za-z_]\w*$/.test(key) && !keys.includes(key)) keys.push(key);
+    }
+  }
+  return keys;
+}
+
+// Variables a single step defines once it has run.
+export function variablesDefinedBy(step, def) {
+  const data = step?.Data ?? {};
+  const out = [];
+  const add = (n) => { if (n && !out.includes(n)) out.push(n); };
+
+  for (const arg of def?.arguments ?? []) {
+    if (arg.isOutput && isPlainName(data[arg.name])) add(data[arg.name].trim());
+  }
+
+  if (step?.Type === "RunScript" && isPlainName(data.Output) === false) {
+    scriptReturnKeys(data.Script).forEach(add);
+  }
+  return out;
+}
+
+// Every variable reference in a step's arguments (deferred args included: RunScript's
+// Script reads `vars`, not tokens, so it is skipped).
+export function variablesUsedBy(step, def) {
+  const data = step?.Data ?? {};
+  const skip = new Set((def?.arguments ?? []).filter((a) => a.type === "code").map((a) => a.name));
+  const out = [];
+  for (const [key, value] of Object.entries(data)) {
+    if (skip.has(key) || key === "Label" || key === "Comment") continue;
+    for (const n of extractVariableRefs(typeof value === "string" ? value : "")) if (!out.includes(n)) out.push(n);
+  }
+  return out;
+}
+
+/**
+ * Variables available when the step with id `stepId` runs: what steps before it set,
+ * inside blocks too (blocks share the action's variables).
+ * @returns {{name:string, source:'builtin'|'hook'|'input'|'step', kind:string, fields:string[], stepId?:string}[]}
+ */
+export function variablesAvailableAt(steps, stepId, defsByType, hookVariables = [], inputs = []) {
+  const seen = new Map();
+  const add = (name, source, shape, from) => {
+    if (!seen.has(name)) seen.set(name, { name, source, kind: shape?.kind ?? "value", fields: shape?.fields ?? [], stepId: from });
+  };
+  BUILTIN_VARIABLES.forEach((n) => add(n, "builtin"));
+  hookVariables.forEach((n) => add(n, "hook"));
+  inputs.forEach((n) => add(n, "input"));
+  const known = {};
+  stepsBefore(steps, stepId).forEach((s) => {
+    const def = defsByType[s.Type];
+    const shapes = Object.fromEntries(outputsOf(s, def, known).map((o) => [o.name, o]));
+    variablesDefinedBy(s, def).forEach((n) => {
+      known[n] = shapes[n] ?? { kind: "value", fields: [] };
+      add(n, "step", known[n], s.id);
+    });
+  });
+  return [...seen.values()];
+}
+
+// Names used before (or without) being defined — the action's arguments when called by name.
+export function computeInputs(steps, defsByType, hookVariables = []) {
+  const known = new Set([...BUILTIN_VARIABLES, ...hookVariables]);
+  const inputs = [];
+  stepsBefore(steps, null).forEach((s) => {
+    const def = defsByType[s.Type];
+    variablesUsedBy(s, def).forEach((n) => {
+      if (!known.has(n) && !inputs.includes(n)) inputs.push(n);
+    });
+    variablesDefinedBy(s, def).forEach((n) => known.add(n));
+  });
+  return inputs;
+}
+
+const isOn = (v) => v === true || String(v).toLowerCase() === "true";
+
+/**
+ * What a step's output variables hold, from the shape its definition declares:
+ * [{ name, kind: 'value'|'object'|'list', fields }]. `known` maps names set earlier to
+ * their shape, so a loop's item gets the fields of its list's items.
+ */
+export function outputsOf(step, def, known = {}) {
+  const data = step?.Data ?? {};
+  const out = [];
+  for (const arg of def?.arguments ?? []) {
+    const shape = arg.output;
+    if (!arg.isOutput || !shape || !isPlainName(data[arg.name])) continue;
+    const name = data[arg.name].trim();
+    let kind = shape.kind;
+    let fields = shape.fields ?? [];
+    if (shape.fieldsBy && shape.fieldsByValue) {
+      const by = String(data[shape.fieldsBy] ?? "");
+      const match = Object.keys(shape.fieldsByValue).find((k) => k.toLowerCase() === by.toLowerCase());
+      fields = match ? shape.fieldsByValue[match] : [];
+    }
+    if (shape.singleWhen && isOn(data[shape.singleWhen])) kind = "object";
+    if (shape.valueWhen && isOn(data[shape.valueWhen])) { kind = "value"; fields = []; }
+    if (kind === "item") {
+      const of = known[String(data[shape.itemOf] ?? "").trim()];
+      kind = of?.kind === "list" ? "object" : "value";
+      fields = of?.kind === "list" ? of.fields : [];
+    }
+    if (kind === "script") continue; // a script's return keys are variables of their own
+    out.push({ name, kind, fields });
+  }
+  return out;
+}

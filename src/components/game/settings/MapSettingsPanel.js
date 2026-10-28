@@ -1,47 +1,106 @@
 import * as React from "react";
 import * as Dockable from "@hlorenzi/react-dockable";
-import SettingsPanel from "./SettingsPanel";
-import { Tabs, TabList, Tab, TabPanels, TabPanel } from "@chakra-ui/react";
+import { Tabs, Text } from "@chakra-ui/react";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
-import WebSocketManagerInstance from "../WebSocketManager";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import Subscribable from "../../uiComponents/base/Subscribable";
 import SecuritySettingsPanel from "./SecuritySettingsPanel";
-import BasePanel from "../../uiComponents/base/BasePanel";
+import { BasePanel } from "../../uiComponents/base/BasePanel";
 import PropertiesSettingsPanel from "./PropertiesSettingsPanel";
 import { SettingsPanelWithPropertySettings } from "./SettingsPanelWithPropertySettings";
+import { toaster } from "../../ui/toaster";
+import ClientMediator from "../../../ClientMediator";
+import { maskSettingFields } from "../../../helpers/maskSettings";
+
+// A Map (MapModel) can be loaded into zero or more currently-open BattleMap panel
+// instances (TokenManager is per-panel, keyed by the panel's own contextId, not
+// by the map's id) — resolve which open battle map, if any, currently has THIS
+// map loaded, since that's the only place `GetAvailableMaskGroups` can scan live
+// tokens from.
+const _findOpenBattleMapContextIdForMap = (mapId) => {
+  const opened = ClientMediator.sendCommand("Game", "GetOpenedBattleMaps") ?? [];
+  for (const ctx of opened) {
+    const loadedMap = ClientMediator.sendCommand("BattleMap", "GetSelectedMap", { contextId: ctx.id });
+    if (loadedMap?.id === mapId) return ctx.id;
+  }
+  return undefined;
+};
 
 export const MapSettingsPanel = ({ map }) => {
   const [mapDto, setMapDto] = React.useState(map);
+  // null = not resolved yet (gates rendering below), [] = resolved, none found
+  const [maskGroups, setMaskGroups] = React.useState(null);
+
+  React.useEffect(() => {
+    setMaskGroups(null);
+    if (!map?.id) return;
+    const battleMapId = _findOpenBattleMapContextIdForMap(map.id);
+    if (!battleMapId) {
+      // Map isn't currently open on any battle map panel — no live canvas to
+      // scan tokens from, so there's nothing to list (not an error).
+      setMaskGroups([]);
+      return;
+    }
+    ClientMediator.sendCommandAsync("BattleMap_token", "GetAvailableMaskGroups", { contextId: battleMapId })
+      .then((groups) => setMaskGroups(groups ?? []))
+      .catch(() => setMaskGroups([]));
+  }, [map?.id]);
+
+  // A Visible + a GM Only setting per distinct maskGroup found among tokens actually
+  // on the map — zero hardcoded knowledge of what any addon's tokens declare; a
+  // different addon's tokens would surface entirely different rows here. Their own
+  // tab, since a map with many kinds of tokens makes a long list.
+  const maskEditables = React.useMemo(
+    () => maskSettingFields(maskGroups ?? [], { notSetMeans: "the default" }),
+    [maskGroups]
+  );
 
   const editables = [
-    { key: "name", label: "Name", toolTip: "Name of map.", type: "string" },
-    { key: "width", label: "Map Width", toolTip: "", min: 100, type: "number" },
+    {
+      key: "name",
+      label: "Name",
+      toolTip: "The display name of this map.",
+      type: "string",
+    },
+    {
+      key: "width",
+      label: "Map Width",
+      toolTip: "Total width of the map canvas in pixels.",
+      min: 100,
+      type: "number",
+    },
     {
       key: "height",
       label: "Map Height",
-      toolTip: "",
+      toolTip: "Total height of the map canvas in pixels.",
       min: 100,
       type: "number",
     },
     {
       key: "gridSize",
       label: "Size of Grid",
-      toolTip: "",
+      toolTip: "Size of each grid square in pixels. Affects snapping and distance calculations.",
       min: 10,
       type: "number",
     },
     {
       key: "gridVisible",
-      label: "Is Grid Visible",
-      toolTip: "",
+      label: "Show Grid",
+      toolTip: "Toggle the visibility of the grid overlay on the map.",
       type: "boolean",
+    },
+    {
+      key: "gridColor",
+      label: "Grid Color",
+      toolTip: "Color of the grid lines overlaid on the map.",
+      type: "color",
     },
 
     {
       key: "useCustomUnits",
       property: true,
-      label: "Use different unit system",
-      toolTip: "Image of game shown in game list menu for other players.",
+      label: "Use Custom Unit System",
+      toolTip: "Enable a custom distance unit system for this map, overriding the game-wide defaults.",
       type: "boolean",
       category: "Units",
     },
@@ -49,8 +108,8 @@ export const MapSettingsPanel = ({ map }) => {
       key: "useSquaredSystem",
       property: true,
       disableOn: (dto) => dto?.useCustomUnits !== true,
-      label: "Use realistic distance system",
-      toolTip: "Image of game shown in game list menu for other players.",
+      label: "Realistic Distance (Diagonal)",
+      toolTip: "When enabled, diagonal movement costs more than cardinal movement (Pythagorean distance). When disabled, all adjacent squares cost the same (Chebyshev distance).",
       type: "boolean",
       category: "Units",
     },
@@ -59,8 +118,8 @@ export const MapSettingsPanel = ({ map }) => {
       property: true,
       disableOn: (dto) => dto?.useCustomUnits !== true,
       min: 1,
-      label: "Default distance per square",
-      toolTip: "Image of game shown in game list menu for other players.",
+      label: "Distance per Square",
+      toolTip: "How many real-world distance units one grid square represents (e.g. 5 for \"5 ft\" or \"5 m\" per square).",
       type: "number",
       category: "Units",
     },
@@ -68,8 +127,8 @@ export const MapSettingsPanel = ({ map }) => {
       key: "baseDistanceUnit",
       property: true,
       disableOn: (dto) => dto?.useCustomUnits !== true,
-      label: "Default distance unit",
-      toolTip: "Image of game shown in game list menu for other players.",
+      label: "Distance Unit Label",
+      toolTip: "The unit label appended to distance values, e.g. \"ft\", \"m\", or \"km\".",
       type: "string",
       category: "Units",
     },
@@ -77,6 +136,17 @@ export const MapSettingsPanel = ({ map }) => {
   ];
 
   const ctx = Dockable.useContentContext();
+
+  // Resync when the panel is pointed at a different map — updateSettings below
+  // already keeps mapDto current for the *same* map's own websocket-confirmed
+  // edits; this only covers actually switching maps.
+  React.useEffect(() => {
+    setMapDto(map);
+  // Deliberately keyed on map?.id only, not the whole `map` object — we want to
+  // resync when the panel switches to a different map, not on every re-render
+  // where the parent happens to pass a new `map` object reference for the same map.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map?.id]);
 
   if (!map) {
     ctx.setTitle(`Map Settings - Empty`);
@@ -88,7 +158,7 @@ export const MapSettingsPanel = ({ map }) => {
   ctx.setPreferredSize(600,800);
   
   const sendSettingsUpdate = (dtoToSend) => {
-    let dtoToSave = structuredClone(map);
+    let dtoToSave = structuredClone(mapDto);
     Object.keys(dtoToSend).forEach((key) => {
       dtoToSave[key] = dtoToSend[key];
     });
@@ -99,14 +169,19 @@ export const MapSettingsPanel = ({ map }) => {
     console.log(command);
     WebSocketManagerInstance.Send(command);
   };
-
   const updateSettings = (event) => {
     if (map.id !== event.data.id) {
       return;
     }
 
-    const newDto = {...mapDto, ...event.data};
+    const newDto = { ...mapDto, ...event.data };
     setMapDto(newDto);
+
+    toaster.create({
+      description: "Map settings saved.",
+      type: "success",
+      duration: 4000,
+    });
   };
 
   return (
@@ -115,22 +190,44 @@ export const MapSettingsPanel = ({ map }) => {
         <Tabs.Root defaultValue={"settings"} size="md" variant="enclosed">
           <Tabs.List>
             <Tabs.Trigger value="settings">Settings</Tabs.Trigger>
+            <Tabs.Trigger value="tokenElements">Token Elements</Tabs.Trigger>
             <Tabs.Trigger value="permissions">Permissions</Tabs.Trigger>
             <Tabs.Trigger value="props">Properties</Tabs.Trigger>
           </Tabs.List>
           <Tabs.Content value="settings">
             <SettingsPanelWithPropertySettings
               entityName={"MapModel"}
-              dto={map}
+              dto={mapDto}
               editableKeyLabelDict={editables}
               onSave={sendSettingsUpdate}
             />
           </Tabs.Content>
+          <Tabs.Content value="tokenElements">
+            {/* Gated on maskGroups being resolved — the rows must already be in
+                editableKeyLabelDict the FIRST time this mounts, since
+                SettingsPanelWithPropertySettings only fetches property values once,
+                keyed on dto.id, not on the dict changing later. */}
+            {maskGroups?.length === 0 && (
+              <Text fontSize="sm" color="fg.muted" padding="8px">
+                No token on this map has elements that can be shown or hidden. Tokens are
+                read from the battle map, so the map has to be open.
+              </Text>
+            )}
+            {maskGroups?.length > 0 && (
+              <SettingsPanelWithPropertySettings
+                entityName={"MapModel"}
+                dto={mapDto}
+                editableKeyLabelDict={maskEditables}
+                // Every field here is a property, saved by the panel itself.
+                onSave={() => {}}
+              />
+            )}
+          </Tabs.Content>
           <Tabs.Content value="permissions">
-            <SecuritySettingsPanel dto={map} type="MapModel" />
+            <SecuritySettingsPanel dto={mapDto} type="MapModel" />
           </Tabs.Content>
           <Tabs.Content value="props">
-            <PropertiesSettingsPanel dto={map} type="MapModel" />
+            <PropertiesSettingsPanel dto={mapDto} type="MapModel" />
           </Tabs.Content>
         </Tabs.Root>
       </BasePanel>

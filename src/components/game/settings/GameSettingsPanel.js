@@ -1,28 +1,25 @@
 import * as React from "react";
-import {
-  Tabs,
-  TabList,
-  Tab,
-  TabPanels,
-  TabPanel,
-  Toast,
-} from "@chakra-ui/react";
+import { pickableTemplates } from "../../../helpers/pickableTemplates";
+import { Tabs } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
-import WebSocketManagerInstance from "../WebSocketManager";
-import SettingsPanel from "./SettingsPanel";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import Subscribable from "../../uiComponents/base/Subscribable";
 import SecuritySettingsPanel from "./SecuritySettingsPanel";
 import PropertiesSettingsPanel from "./PropertiesSettingsPanel";
-import BasePanel from "../../uiComponents/base/BasePanel";
-import EditTable from "./EditTable";
+import AppearanceSettings from "./AppearanceSettings";
+import { BasePanel } from "../../uiComponents/base/BasePanel";
 import { SettingsPanelWithPropertySettings } from "./SettingsPanelWithPropertySettings";
-import WebHelper from "../../../helpers/WebHelper";
+import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import useGame from "../../uiComponents/hooks/useGameHook";
 import ClientMediator from "../../../ClientMediator";
-import { Toaster, toaster } from "../../ui/toaster";
+import { toaster } from "../../ui/toaster";
+import LayerListEditor from "./LayerListEditor";
+import { usePermissions } from "../../../contexts/PermissionsContext";
 
 export const GameSettingsPanel = () => {
+  // Who may edit the game is the owner's call (the server refuses it from anyone else).
+  const { isOwner } = usePermissions();
   const [templates, setTemplates] = React.useState([]);
 
   const editables = [
@@ -71,12 +68,12 @@ export const GameSettingsPanel = () => {
 
   const battleMapEditables = [
     {
-      key: "additionalLayers",
-      property: true,
-      label: "Additional Layers",
-      toolTip: "Image of game shown in game list menu for other players.",
-      type: "boolean",
+      key: "customLayers",
+      label: "Custom Layers",
+      toolTip: "Named layers players and GM can select and place elements on, in addition to the built-in Map and Token layers.",
+      type: "custom",
       category: "Layers",
+      customComponent: () => <LayerListEditor gameId={gameData.id} />,
     },
 
     {
@@ -123,7 +120,7 @@ export const GameSettingsPanel = () => {
       type: "select",
       options: [
         { label: "None" },
-        ...templates.map((x) => {
+        ...pickableTemplates(templates).map((x) => {
           return { value: x.id, label: x.name };
         }),
       ],
@@ -147,9 +144,30 @@ export const GameSettingsPanel = () => {
       toolTip: "",
       type: "boolean",
     },
+    {
+      key: "disallowPlayerLayouts",
+      property: true,
+      label: "Prevent players from saving their own layouts",
+      toolTip:
+        "When on, only the GM can create or overwrite layouts. Players can still apply layouts you've shared with them.",
+      type: "boolean",
+    },
+    {
+      key: "saveLayoutOnExit",
+      property: true,
+      label: "Remember each player's layout between sessions",
+      toolTip:
+        "Each player's panel arrangement is saved in their browser and restored the next time they join this game.",
+      type: "boolean",
+    },
   ];
 
   let gameData = useGame();
+  // useGame() exposes no setter (it's a shared read of the "Game" ClientMediator
+  // client's state), so a live settings_game broadcast can't be applied directly
+  // onto gameData — mutating it in place (the old approach) doesn't trigger a
+  // re-render. Track confirmed updates locally instead and merge them on render.
+  const [gameOverrides, setGameOverrides] = React.useState({});
 
   const ctx = Dockable.useContentContext();
   ctx.setTitle(`Game Settings`);
@@ -160,11 +178,20 @@ export const GameSettingsPanel = () => {
       return;
     }
     WebHelper.get(
-      "materials/gettemplatesfull?gameId=" + gameData.id,
-      setTemplates
+      "materials/gettemplatesfull",
+      setTemplates,
+      (error) => {
+        console.error("GameSettingsPanel: failed to load card templates", error);
+        toaster.create({
+          title: "Failed to load card templates",
+          description: "The character sheet template list may be empty because of this — try refreshing.",
+          type: "error",
+          duration: 6000,
+        });
+      }
     );
   }, [gameData]);
-  let dto = gameData;
+  let dto = gameData ? { ...gameData, ...gameOverrides } : undefined;
 
   if (dto === undefined) {
     return <></>;
@@ -181,7 +208,9 @@ export const GameSettingsPanel = () => {
   };
 
   const updateSettings = (event) => {
-    gameData.name = event.data.name;
+    // Merge the full broadcast payload, not just .name — a color/image/description
+    // change used to be silently dropped from the visible form too.
+    setGameOverrides((prev) => ({ ...prev, ...event.data }));
     let player = ClientMediator.sendCommand("Game", "GetCurrentPlayer");
     if (event.playerId === player.id) {
       toaster.create({
@@ -205,8 +234,9 @@ export const GameSettingsPanel = () => {
             <Tabs.Trigger value="general">General Settings</Tabs.Trigger>
             <Tabs.Trigger value="grid">Grid Settings</Tabs.Trigger>
             <Tabs.Trigger value="character">Character Sheets</Tabs.Trigger>
-            <Tabs.Trigger value="permissions">Permissions</Tabs.Trigger>
+            {isOwner && <Tabs.Trigger value="permissions">Permissions</Tabs.Trigger>}
             <Tabs.Trigger value="props">Properties</Tabs.Trigger>
+            <Tabs.Trigger value="appearance">Appearance</Tabs.Trigger>
             <Tabs.Trigger value="adv">Advanced</Tabs.Trigger>
           </Tabs.List>
           <Tabs.Content value="general">
@@ -231,15 +261,20 @@ export const GameSettingsPanel = () => {
               editableKeyLabelDict={characterSheetEditables}
             />
           </Tabs.Content>
-          <Tabs.Content value="permissions">
-            <SecuritySettingsPanel dto={dto} type="GameModel" />
-          </Tabs.Content>
+          {isOwner && (
+            <Tabs.Content value="permissions">
+              <SecuritySettingsPanel dto={dto} type="GameModel" />
+            </Tabs.Content>
+          )}
           <Tabs.Content value="props">
             <PropertiesSettingsPanel
               gameId={gameData.id}
               dto={dto}
               type="GameModel"
             />
+          </Tabs.Content>
+          <Tabs.Content value="appearance">
+            <AppearanceSettings gameId={gameData.id} />
           </Tabs.Content>
           <Tabs.Content value="adv">
             <SettingsPanelWithPropertySettings

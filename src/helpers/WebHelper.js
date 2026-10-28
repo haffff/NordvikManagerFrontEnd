@@ -1,16 +1,63 @@
 import UtilityHelper from "./UtilityHelper";
 
+// Safely parse JSON responses. Returns parsed object or undefined on empty/non-JSON or parse failure.
+async function safeParseJsonOrUndefined(response) {
+  try {
+    const contentType = (response.headers && response.headers.get && response.headers.get('content-type')) || '';
+
+    // If content type explicitly JSON, try json() first
+    if (contentType.toLowerCase().includes('application/json')) {
+      try {
+        return await response.json();
+      } catch (e) {
+        // Fall through to text fallback
+        console.error('WebHelper: response.json() failed, falling back to text().', e);
+      }
+    }
+
+    // Fallback: read raw text and attempt to parse if non-empty
+    const text = await response.text();
+    if (!text) return undefined;
+
+    try {
+      return JSON.parse(text);
+    } catch (e) {
+      console.warn('WebHelper: response is not valid JSON', {
+        status: response.status,
+        url: response.url,
+        contentType,
+        raw: text.slice ? text.slice(0, 2000) : text,
+      });
+      return undefined;
+    }
+  } catch (e) {
+    console.error('WebHelper: failed to parse response', e);
+    try {
+      const fallback = await response.text();
+      console.error('WebHelper: raw response body (fallback):', fallback.slice ? fallback.slice(0, 2000) : fallback);
+    } catch (e2) {
+      // ignore
+    }
+    return undefined;
+  }
+}
+
 export const WebHelper = {
-  ApiAddress: (process.env.REACT_APP_PROTOCOL || "") + (process.env.REACT_APP_BASE_URL || "") + (process.env.REACT_APP_BASE_URL ? "/" : "") + "api",
-  WebSocketAddress: (process.env.REACT_APP_BASE_URL ? "wss://" : "") + (process.env.REACT_APP_BASE_URL || "") + (process.env.REACT_APP_BASE_URL ? "/" : "") + "api/battlemap/ws",
-  ImageAddress: process.env.REACT_APP_PROTOCOL + process.env.REACT_APP_BASE_URL + (process.env.REACT_APP_BASE_URL ? "/" : "") + "api/Materials/Resource?id=",
+  ApiAddress: process.env.REACT_APP_BASE_URL
+    ? (process.env.REACT_APP_PROTOCOL || "") + process.env.REACT_APP_BASE_URL + "/api"
+    : "/api",
+  ImageAddress: process.env.REACT_APP_BASE_URL
+    ? (process.env.REACT_APP_PROTOCOL || "") + process.env.REACT_APP_BASE_URL + "/api/Materials/Resource?id="
+    : "/api/Materials/Resource?id=",
   GameId: undefined,
 
   addGameId: (addr, customGameId = undefined) => {
+    const id = customGameId || WebHelper.GameId;
+    if (!id) return addr;
     if (addr.includes("?")) {
-      return `${addr}&gameid=${customGameId || WebHelper.GameId}`;
+      return `${addr}&gameid=${id}`;
     }
-    return `${addr}?gameid=${customGameId || WebHelper.GameId}`;
+    return `${addr}?gameid=${id}`;
   },
 
   post: (adress, body, onok, onerror, onException) => {
@@ -26,53 +73,109 @@ export const WebHelper = {
     })
       .then((result) => {
         if (result.ok) {
-          //if (result.bodyUsed)
-          result.json().then((jsonData) => onok(jsonData));
-          //else
-          //    onok({});
+          safeParseJsonOrUndefined(result)
+            .then((parsed) => {
+              if (onok) onok(parsed);
+            })
+            .catch((e) => {
+              if (onException !== undefined) onException(e);
+              else console.error(e);
+            });
         } else {
           if (onerror !== undefined) onerror(result);
         }
       })
       .catch((e) => {
         if (onException !== undefined) onException(e);
-        else console.error(e);
-      });
+        else console.error(e);      });
   },
 
   getAsync: async (adress) => {
     let address = WebHelper.addGameId(`${WebHelper.ApiAddress}/${adress}`);
-    const result = await fetch(address, {
-      method: "GET",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        withCredentials: true,
-      },
-    });
-    if (result.ok) {
-      return await result.json();
-    } else {
+    try {
+      const result = await fetch(address, {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          withCredentials: true,
+        },
+      });
+      if (result.ok) {
+        return await safeParseJsonOrUndefined(result);
+      } else {
+        console.warn(`WebHelper.getAsync: HTTP ${result.status} for ${address}`);
+        return undefined;
+      }
+    } catch (e) {
+      console.error(`WebHelper.getAsync: network error for ${address}`, e);
       return undefined;
     }
   },
-
   postAsync: async (adress, body, formData = false) => {
     let address = WebHelper.addGameId(`${WebHelper.ApiAddress}/${adress}`);
 
     const headers = {};
-    if(!formData) {
+    if (!formData) {
       headers["Content-Type"] = "application/json";
     }
-
     headers.withCredentials = true;
 
-    return await fetch(address, {
-      body: formData ? body : JSON.stringify(body),
-      method: "POST",
-      credentials: "include",
-      headers
-    });
+    try {
+      return await fetch(address, {
+        body: formData ? body : JSON.stringify(body),
+        method: "POST",
+        credentials: "include",
+        headers,
+      });
+    } catch (e) {
+      console.error(`WebHelper.postAsync: network error for ${address}`, e);
+      return undefined;
+    }
+  },
+
+  // Like postAsync: resolves the raw Response, or undefined on a network error.
+  putAsync: async (adress, body) => {
+    let address = WebHelper.addGameId(`${WebHelper.ApiAddress}/${adress}`);
+    try {
+      return await fetch(address, {
+        body: JSON.stringify(body),
+        method: "PUT",
+        credentials: "include",
+        headers: { "Content-Type": "application/json", withCredentials: true },
+      });
+    } catch (e) {
+      console.error(`WebHelper.putAsync: network error for ${address}`, e);
+      return undefined;
+    }
+  },
+
+  // Fetches a file and hands it to the browser as a download. Resolves true on success.
+  downloadFileAsync: async (adress, fileName) => {
+    let address = WebHelper.addGameId(`${WebHelper.ApiAddress}/${adress}`);
+    try {
+      const result = await fetch(address, {
+        method: "GET",
+        credentials: "include",
+        headers: { withCredentials: true },
+      });
+      if (!result.ok) {
+        console.warn(`WebHelper.downloadFileAsync: HTTP ${result.status} for ${address}`);
+        return false;
+      }
+      const href = URL.createObjectURL(await result.blob());
+      const link = document.createElement("a");
+      link.href = href;
+      link.download = fileName;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(href);
+      return true;
+    } catch (e) {
+      console.error(`WebHelper.downloadFileAsync: network error for ${address}`, e);
+      return false;
+    }
   },
 
   get: (adress, onok, onerror, onException) => {
@@ -87,9 +190,14 @@ export const WebHelper = {
     })
       .then((result) => {
         if (result.ok) {
-          result.json().then((jsonData) => {
-            if (onok) onok(jsonData);
-          });
+          safeParseJsonOrUndefined(result)
+            .then((parsed) => {
+              if (onok) onok(parsed);
+            })
+            .catch((e) => {
+              if (onException !== undefined) onException(e);
+              else console.error(e);
+            });
         } else {
           if (onerror !== undefined) {
             onerror(result);
@@ -101,47 +209,49 @@ export const WebHelper = {
         else console.error(e);
       });
   },
-
-  deleteAsync: async (adress, onok, onerror, onException) => {
-
+  deleteAsync: async (adress) => {
     let address = WebHelper.addGameId(`${WebHelper.ApiAddress}/${adress}`);
-
-    let result = await fetch(address, {
-      method: "DELETE",
-      credentials: "include",
-      headers: {
-        "Content-Type": "application/json",
-        withCredentials: true,
-      },
-    });
-
-    if (result.ok) {
-      return await result.json();
+    try {
+      const result = await fetch(address, {
+        method: "DELETE",
+        credentials: "include",
+        headers: {
+          "Content-Type": "application/json",
+          withCredentials: true,
+        },
+      });
+      if (result.ok) {
+        return await safeParseJsonOrUndefined(result);
+      }
+      console.warn(`WebHelper.deleteAsync: HTTP ${result.status} for ${address}`);
+      return undefined;
+    } catch (e) {
+      console.error(`WebHelper.deleteAsync: network error for ${address}`, e);
+      return undefined;
     }
-
-    return undefined;
   },
       
-
   getMaterialAsync: async (id, mimeType) => {
-    let address = this.getResourceString(id);
-
-    const result = await fetch(address, {
-      method: "GET",
-      credentials: "include",
-      headers: {
-        "Content-Type": mimeType,
-        withCredentials: true,
-      },
-    });
-
-    if (result.ok) {
-      if (mimeType.startsWith("text") || mimeType.startsWith("application")) {
-        return await result.text();
-      } else {
-        return await result.blob();
+    let address = WebHelper.getResourceString(id);
+    try {
+      const result = await fetch(address, {
+        method: "GET",
+        credentials: "include",
+        headers: {
+          withCredentials: true,
+        },
+      });
+      if (result.ok) {
+        if (mimeType.startsWith("text") || mimeType.startsWith("application")) {
+          return await result.text();
+        } else {
+          return await result.blob();
+        }
       }
-    } else {
+      console.warn(`WebHelper.getMaterialAsync: HTTP ${result.status} for ${address}`);
+      return undefined;
+    } catch (e) {
+      console.error(`WebHelper.getMaterialAsync: network error for ${address}`, e);
       return undefined;
     }
   },
@@ -226,6 +336,9 @@ export const WebHelper = {
         onerror,
         onException
       );
+    }).catch((e) => {
+      if (onException) onException(e);
+      else console.error(e);
     });
   },
 

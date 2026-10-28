@@ -1,0 +1,419 @@
+import { vi, describe, it, expect, beforeEach } from 'vitest';
+
+// Regression coverage for the parentId casing bug this session — CardAPI.js used to
+// read data.parentID (capital ID) in one round and both CardAPI.js + PropertiesManager
+// broke live property updates entirely in another, because the server broadcast the
+// same logical field under different casings depending on what triggered the change.
+// The backend now always sends "parentId" (see PropertyDTO.cs's explicit
+// [JsonProperty]/[JsonPropertyName] overrides), so these tests pin that contract from
+// the client side.
+
+vi.mock('./helpers/transport', () => ({
+  ActiveTransportManager: {
+    Subscribe: vi.fn(),
+    Unsubscribe: vi.fn(),
+    Send: vi.fn(),
+  },
+  ActiveWebHelper: {
+    getAsync: vi.fn(),
+    postAsync: vi.fn(),
+  },
+}));
+
+import { ActiveTransportManager, ActiveWebHelper } from './helpers/transport';
+import CardAPIFactory, { PropertiesManagerInstance } from './CardAPI';
+
+function subscribedCallback(prefix) {
+  const call = ActiveTransportManager.Subscribe.mock.calls.find(([key]) => key.startsWith(prefix));
+  if (!call) throw new Error(`No Subscribe call found for prefix "${prefix}"`);
+  return call[1];
+}
+
+// PropertiesManagerInstance is a module-level singleton — its Subscribe call happens
+// exactly once, at import time, before any test's beforeEach(mockClear) runs. Capture
+// it immediately so later mockClear() calls (needed for the CardAPI-instance tests
+// below, which create a fresh Subscribe call per test) don't erase this one.
+const propertiesManagerCallback = subscribedCallback('PropertiesManager_subs');
+
+describe('CardAPI — _handleWebSocketMessage property routing', () => {
+  const CARD_ID = 'card-aaaa';
+
+  beforeEach(() => {
+    ActiveTransportManager.Subscribe.mockClear();
+    ActiveWebHelper.getAsync.mockReset().mockResolvedValue([]);
+  });
+
+  async function makeApi() {
+    const api = await CardAPIFactory(CARD_ID);
+    return { api, onMessage: subscribedCallback('CardAPI_') };
+  }
+
+  it('updates the cache and notifies subscribers when parentId matches this card', async () => {
+    const { api, onMessage } = await makeApi();
+    const received = vi.fn();
+    api.Properties.Subscribe('strength_attribute', received);
+
+    onMessage({
+      command: 'property_update',
+      data: { id: 'p1', name: 'strength_attribute', value: '18', parentId: CARD_ID },
+    });
+
+    expect(received).toHaveBeenCalledWith(
+      expect.objectContaining({ name: 'strength_attribute', value: '18' })
+    );
+  });
+
+  it('ignores property_update when parentId belongs to a different card', async () => {
+    const { api, onMessage } = await makeApi();
+    const received = vi.fn();
+    api.Properties.Subscribe('strength_attribute', received);
+
+    onMessage({
+      command: 'property_update',
+      data: { id: 'p1', name: 'strength_attribute', value: '18', parentId: 'some-other-card' },
+    });
+
+    expect(received).not.toHaveBeenCalled();
+  });
+
+  it('does not match on a stray parentID (capital ID) field', async () => {
+    // Guards against regressing back to the old capital-ID casing bug: a payload that
+    // only has parentID (not parentId) must be treated as not belonging to this card,
+    // since the real server contract is exclusively lowercase "parentId" now.
+    const { api, onMessage } = await makeApi();
+    const received = vi.fn();
+    api.Properties.Subscribe('strength_attribute', received);
+
+    onMessage({
+      command: 'property_update',
+      data: { id: 'p1', name: 'strength_attribute', value: '18', parentID: CARD_ID },
+    });
+
+    expect(received).not.toHaveBeenCalled();
+  });
+
+  it('removes the cached property and notifies with null on property_remove', async () => {
+    const { api, onMessage } = await makeApi();
+    onMessage({
+      command: 'property_add',
+      data: { id: 'p1', name: 'strength_attribute', value: '18', parentId: CARD_ID },
+    });
+
+    const received = vi.fn();
+    api.Properties.Subscribe('strength_attribute', received);
+
+    onMessage({
+      command: 'property_remove',
+      data: { id: 'p1', name: 'strength_attribute', parentId: CARD_ID },
+    });
+
+    expect(received).toHaveBeenCalledWith(null);
+  });
+});
+
+describe('PropertiesManager — cache invalidation on property_remove', () => {
+  beforeEach(() => {
+    for (const key of Object.keys(PropertiesManagerInstance._propertyCache)) {
+      delete PropertiesManagerInstance._propertyCache[key];
+    }
+  });
+
+  it('caches by id on property_add/property_update', () => {
+    propertiesManagerCallback({ command: 'property_add', data: { id: 'p1', name: 'x', parentId: 'card-1' } });
+
+    expect(PropertiesManagerInstance._propertyCache['p1']).toEqual(
+      expect.objectContaining({ name: 'x', parentId: 'card-1' })
+    );
+  });
+
+  it('deletes by data.id (full DTO), not the whole data object, on property_remove', () => {
+    // Regression: the server used to broadcast a bare property-ID string for removes,
+    // and the old code did `delete this._propertyCache[command.data]`. It now sends a
+    // full PropertyDTO, so the cache key must be read from data.id.
+    propertiesManagerCallback({ command: 'property_add', data: { id: 'p1', name: 'x', parentId: 'card-1' } });
+    expect(PropertiesManagerInstance._propertyCache['p1']).toBeDefined();
+
+    propertiesManagerCallback({ command: 'property_remove', data: { id: 'p1', name: 'x', parentId: 'card-1' } });
+    expect(PropertiesManagerInstance._propertyCache['p1']).toBeUndefined();
+  });
+});
+
+describe('PropertiesManager — GetByNames / GetByPrefix cache lookups by parentId', () => {
+  beforeEach(() => {
+    for (const key of Object.keys(PropertiesManagerInstance._propertyCache)) {
+      delete PropertiesManagerInstance._propertyCache[key];
+    }
+    ActiveWebHelper.getAsync.mockReset();
+  });
+
+  it('GetByNames finds a cached property via parentId (not parentID)', async () => {
+    PropertiesManagerInstance._propertyCache['p1'] = {
+      id: 'p1', name: 'token', value: 'img.png', parentId: 'card-1',
+    };
+
+    const result = await PropertiesManagerInstance.GetByNames({ parentId: 'card-1', names: 'token' });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('p1');
+    expect(ActiveWebHelper.getAsync).not.toHaveBeenCalled();
+  });
+
+  it('GetByPrefix filters cached properties via parentId', async () => {
+    PropertiesManagerInstance._propertyCache['p1'] = {
+      id: 'p1', name: 'dnd5e_ability_str', value: '18', parentId: 'card-1',
+    };
+    PropertiesManagerInstance._propertyCache['p2'] = {
+      id: 'p2', name: 'dnd5e_ability_dex', value: '14', parentId: 'card-2',
+    };
+
+    const result = await PropertiesManagerInstance.GetByPrefix({
+      parentId: 'card-1', prefix: 'dnd5e_ability_', getFromCache: true,
+    });
+
+    expect(result).toHaveLength(1);
+    expect(result[0].id).toBe('p1');
+  });
+});
+
+describe('PropertiesManager — bulk saves rely on the server broadcast', () => {
+  beforeEach(() => {
+    for (const key of Object.keys(PropertiesManagerInstance._propertyCache)) {
+      delete PropertiesManagerInstance._propertyCache[key];
+    }
+    ActiveWebHelper.postAsync.mockReset().mockResolvedValue({ status: 200, body: { result: 0 } });
+    ActiveTransportManager.Send.mockClear();
+  });
+
+  it('AddMany posts to the AddBulk route and sends no property_notify', async () => {
+    const properties = [{ parentId: 'card-1', name: 'hp', value: '10' }];
+    await PropertiesManagerInstance.AddMany({ properties });
+    expect(ActiveWebHelper.postAsync).toHaveBeenCalledWith('properties/AddBulk', properties);
+    expect(ActiveTransportManager.Send).not.toHaveBeenCalled();
+    expect(PropertiesManagerInstance._propertyCache).not.toHaveProperty('undefined');
+  });
+
+  it('UpdateBulk posts to the UpdateBulk route and sends no property_notify', async () => {
+    const properties = [{ id: 'p1', parentId: 'card-1', name: 'hp', value: '12' }];
+    await PropertiesManagerInstance.UpdateBulk({ properties });
+    expect(ActiveWebHelper.postAsync).toHaveBeenCalledWith('properties/UpdateBulk', properties);
+    expect(ActiveTransportManager.Send).not.toHaveBeenCalled();
+  });
+});
+
+describe('CardAPI — Rolls (roll now, post later)', () => {
+  beforeEach(() => {
+    ActiveTransportManager.Subscribe.mockClear();
+    ActiveWebHelper.getAsync.mockReset().mockResolvedValue([]);
+    ActiveWebHelper.postAsync.mockReset();
+  });
+
+  it('Start sends the whole batch in one request and resolves to the server-held results', async () => {
+    const api = await CardAPIFactory('card-rolls');
+    const body = { rollId: 'r1', results: [{ key: 'result', roll: { result: 58 } }] };
+    ActiveWebHelper.postAsync.mockResolvedValue({ status: 200, body });
+
+    const formulas = [{ key: 'result', formula: '1d100' }, { key: 'sl', formula: '0' }];
+    await expect(api.Rolls.Start(formulas)).resolves.toEqual(body);
+    expect(ActiveWebHelper.postAsync).toHaveBeenCalledTimes(1);
+    expect(ActiveWebHelper.postAsync).toHaveBeenCalledWith('rolls/start', { formulas });
+  });
+
+  it('Start rejects with the server error message for an invalid formula', async () => {
+    const api = await CardAPIFactory('card-rolls');
+    ActiveWebHelper.postAsync.mockResolvedValue({ status: 400, body: { error: "Invalid roll formula for 'result': 1d" } });
+
+    await expect(api.Rolls.Start([{ key: 'result', formula: '1d' }])).rejects.toThrow("Invalid roll formula for 'result': 1d");
+  });
+
+  it('Finish posts only the roll id, html, css key and title — never roll numbers', async () => {
+    const api = await CardAPIFactory('card-rolls');
+    ActiveWebHelper.postAsync.mockResolvedValue({ status: 200, body: null });
+
+    await api.Rolls.Finish({ rollId: 'r1', html: '<b data-roll-key="result"></b>', cssResourceKey: 'css', title: 'Test', results: [{ key: 'result', roll: { result: 1 } }] });
+    expect(ActiveWebHelper.postAsync).toHaveBeenCalledWith('rolls/finish', {
+      rollId: 'r1', html: '<b data-roll-key="result"></b>', cssResourceKey: 'css', title: 'Test',
+    });
+  });
+
+  it('Finish rejects for an unknown or expired roll', async () => {
+    const api = await CardAPIFactory('card-rolls');
+    ActiveWebHelper.postAsync.mockResolvedValue({ status: 404, body: { error: 'Unknown or expired roll.' } });
+
+    await expect(api.Rolls.Finish({ rollId: 'gone', html: '<p></p>' })).rejects.toThrow('Unknown or expired roll.');
+  });
+});
+
+describe('CardAPI — turn order', () => {
+  it('cards may read the turn order, not change it', async () => {
+    const ClientMediator = (await import('./ClientMediator')).default;
+    const fake = { panel: 'TurnOrder', id: 'TurnOrderTest', GetState: vi.fn(() => ({ round: 3 })), Next: vi.fn() };
+    ClientMediator.register(fake);
+    try {
+      ActiveWebHelper.getAsync.mockResolvedValue([]);
+      const api = await CardAPIFactory('card-turns');
+
+      expect(await api.ClientMediator.sendCommandAsync('TurnOrder', 'GetState', {})).toEqual({ round: 3 });
+      await expect(api.ClientMediator.sendCommandAsync('TurnOrder', 'Next', {})).rejects.toThrow('"TurnOrder.Next" is not available to cards');
+      expect(fake.Next).not.toHaveBeenCalled();
+    } finally {
+      ClientMediator.unregister('TurnOrderTest');
+    }
+  });
+
+  it("cards receive turn order notices (to show whose turn it is)", async () => {
+    const { ALLOWED_WS_RECEIVE_PREFIXES } = await import('./CardAPI');
+    expect(ALLOWED_WS_RECEIVE_PREFIXES).toContain('turnorder_');
+  });
+});
+
+describe('CardAPI — GM check', () => {
+  // Addons hide GM-only content (e.g. hidden homebrew) from players' lists.
+  it('cards may ask whether the viewer is the GM, not change the game', async () => {
+    const ClientMediator = (await import('./ClientMediator')).default;
+    const fake = { panel: 'Game', id: 'GameGmTest', GetIsGM: vi.fn(() => true), DeleteGame: vi.fn() };
+    ClientMediator.register(fake);
+    try {
+      ActiveWebHelper.getAsync.mockResolvedValue([]);
+      const api = await CardAPIFactory('card-gm');
+
+      expect(await api.ClientMediator.sendCommandAsync('Game', 'GetIsGM', {})).toBe(true);
+      await expect(api.ClientMediator.sendCommandAsync('Game', 'DeleteGame', {})).rejects.toThrow('not available to cards');
+      expect(fake.DeleteGame).not.toHaveBeenCalled();
+    } finally {
+      ClientMediator.unregister('GameGmTest');
+    }
+  });
+});
+
+// Properties.Global takes parentId from card code; it must stay one query value.
+describe('CardAPI — Properties.Global query encoding', () => {
+  beforeEach(() => {
+    ActiveWebHelper.getAsync.mockReset();
+    ActiveWebHelper.getAsync.mockResolvedValue([]);
+  });
+
+  it.each([
+    ['Get', (api, id) => api.Properties.Global.Get(id, 'hp')],
+    ['GetMany', (api, id) => api.Properties.Global.GetMany(id, ['hp'])],
+    ['GetProperties', (api, id) => api.Properties.Global.GetProperties(id)],
+  ])('%s encodes the parentId', async (_name, call) => {
+    const api = await CardAPIFactory('card-x');
+    ActiveWebHelper.getAsync.mockClear();
+
+    await call(api, 'a&names=secret');
+
+    const path = ActiveWebHelper.getAsync.mock.calls.at(-1)[0];
+    const params = new URLSearchParams(path.split('?')[1]);
+    expect(params.get('parentIds')).toBe('a&names=secret');
+    expect(params.getAll('names').length).toBeLessThanOrEqual(1);
+  });
+});
+
+describe('CardAPI — chat from a card', () => {
+  // Regression: Chat.SendMessage went through the chat panel, where "/c <command>" runs
+  // any client command — past the card allowlist.
+  it('sends the text to the server as a chat message; "/c" never runs a local command', async () => {
+    const ClientMediator = (await import('./ClientMediator')).default;
+    const chat = { panel: 'chat', id: 'ChatTest', SendMessage: vi.fn() };
+    ClientMediator.register(chat);
+    try {
+      ActiveWebHelper.getAsync.mockResolvedValue([]);
+      ActiveTransportManager.Send.mockClear();
+      const api = await CardAPIFactory('card-chat');
+
+      await api.ClientMediator.sendCommandAsync('Chat', 'SendMessage', '/c Game DeleteGame');
+
+      expect(chat.SendMessage).not.toHaveBeenCalled();
+      expect(ActiveTransportManager.Send).toHaveBeenCalledWith(expect.objectContaining({ command: 'chat_push', data: '/c Game DeleteGame' }));
+    } finally {
+      ClientMediator.unregister('ChatTest');
+    }
+  });
+});
+
+describe('CardAPI — server commands', () => {
+  // custom_panel_* (views) and custom_layer_* (map layers) are real server commands, run
+  // with the permissions of whoever's browser the card is in.
+  it('sends only chat and actions', async () => {
+    ActiveWebHelper.getAsync.mockResolvedValue([]);
+    ActiveTransportManager.Send.mockClear();
+    const api = await CardAPIFactory('card-ws');
+
+    api.SendCustomCommandToServer('custom_panel_delete', { id: 'x' });
+    api.SendCustomCommandToServer('custom_layer_add', {});
+    api.SendCustomCommandToServer('chat_push', 'hi');
+
+    expect(ActiveTransportManager.Send.mock.calls.map(([c]) => c.command)).toEqual(['chat_push']);
+  });
+});
+
+describe('CardAPI — mediator routing', () => {
+  beforeEach(() => ActiveWebHelper.getAsync.mockResolvedValue([]));
+
+  it('points Properties / Resources / Rolls callers at the CardAPI groups', async () => {
+    const api = await CardAPIFactory('card-routing');
+
+    await expect(api.ClientMediator.sendCommandAsync('Properties', 'Add', {})).rejects.toThrow('use CardAPI.Properties');
+    await expect(api.ClientMediator.sendCommandAsync('Resources', 'Read', {})).rejects.toThrow('use CardAPI.Resources');
+    await expect(api.ClientMediator.sendCommandAsync('Rolls', 'Start', {})).rejects.toThrow('use CardAPI.Rolls');
+  });
+
+  it("reaches other addons' panels (addon_*)", async () => {
+    const ClientMediator = (await import('./ClientMediator')).default;
+    const other = { panel: 'addon_card-x_tracker', id: 'addon_card-x_tracker', Ping: vi.fn(() => 'pong') };
+    ClientMediator.register(other);
+    try {
+      const api = await CardAPIFactory('card-routing');
+
+      expect(await api.ClientMediator.sendCommandAsync('addon_card-x_tracker', 'Ping', { a: 1 })).toBe('pong');
+      expect(other.Ping).toHaveBeenCalledWith({ a: 1 });
+    } finally {
+      ClientMediator.unregister('addon_card-x_tracker');
+    }
+  });
+});
+
+// A card registers a panel by name and command list; the functions stay in its frame.
+// Each call is handed to `invoke`, which CardPanel forwards to the frame.
+describe('CardAPI — register', () => {
+  beforeEach(() => ActiveWebHelper.getAsync.mockResolvedValue([]));
+
+  it('registers a panel scoped to the card that forwards each command', async () => {
+    const ClientMediator = (await import('./ClientMediator')).default;
+    const api = await CardAPIFactory('card-reg');
+    const invoke = vi.fn(async (name, command, data) => `${name}:${command}:${data.n}`);
+
+    const scoped = api.ClientMediator.register('addon_tracker', ['Next', 'Reset'], invoke);
+
+    expect(scoped).toBe('addon_card-reg_tracker');
+    expect(await ClientMediator.sendCommandAsync(scoped, 'Next', { n: 2 })).toBe('addon_tracker:Next:2');
+    expect(invoke).toHaveBeenCalledWith('addon_tracker', 'Next', { n: 2 });
+    api.destroy();
+    expect(await ClientMediator.sendCommandAsync(scoped, 'Next', { n: 3 })).toBeUndefined();
+  });
+
+  it('re-registering replaces the commands (the card reloaded), and unregister removes it', async () => {
+    const ClientMediator = (await import('./ClientMediator')).default;
+    const api = await CardAPIFactory('card-reg2');
+    const invoke = vi.fn(async () => 'ok');
+
+    const scoped = api.ClientMediator.register('addon_p', ['A'], invoke);
+    api.ClientMediator.register('addon_p', ['B'], invoke);
+    await expect(ClientMediator.sendCommandAsync(scoped, 'A', {})).rejects.toThrow();
+    expect(await ClientMediator.sendCommandAsync(scoped, 'B', {})).toBe('ok');
+
+    api.ClientMediator.unregister('addon_p');
+    expect(await ClientMediator.sendCommandAsync(scoped, 'B', {})).toBeUndefined();
+    api.destroy();
+  });
+
+  it('refuses names outside addon_ and reserved command names', async () => {
+    const api = await CardAPIFactory('card-reg3');
+
+    expect(() => api.ClientMediator.register('Game', ['X'], vi.fn())).toThrow('must start with "addon_"');
+    const scoped = api.ClientMediator.register('addon_q', ['id', 'panel', 'Go', 42], vi.fn(async () => 1));
+    const ClientMediator = (await import('./ClientMediator')).default;
+    expect(ClientMediator._resolveClients(scoped)[0].panel).toBe(scoped);
+    api.destroy();
+  });
+});

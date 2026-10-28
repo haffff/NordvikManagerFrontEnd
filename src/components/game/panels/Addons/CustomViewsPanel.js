@@ -1,82 +1,289 @@
-import * as React from 'react';
-import { Flex, Circle, FormLabel, HStack, Input, Select, Checkbox, Stack, Card, CardBody, Textarea } from '@chakra-ui/react'
-import * as Dockable from "@hlorenzi/react-dockable"
-import Subscribable from '../../../uiComponents/base/Subscribable';
-import DList from '../../../uiComponents/base/List/DList';
-import WebSocketManagerInstance from '../../WebSocketManager';
-import WebHelper from '../../../../helpers/WebHelper';
-import DContainer from '../../../uiComponents/base/Containers/DContainer';
-import DListItem from '../../../uiComponents/base/List/DListItem';
-import DLabel from '../../../uiComponents/base/Text/DLabel';
-import SettingsPanel from '../../settings/SettingsPanel';
-import BasePanel from '../../../uiComponents/base/BasePanel';
-import DListItemButton from '../../../uiComponents/base/List/ListItemDetails/DListItemButton';
-import { FaMinus } from 'react-icons/fa';
-import DListItemsButtonContainer from '../../../uiComponents/base/List/DListItemsButtonContainer';
-import CreateDropDownButton from '../../../uiComponents/base/DDItems/SpecialButtons/CreateDropDownButton';
-import DockableHelper from '../../../../helpers/DockableHelper';
+import * as React from "react";
+import {
+  Badge,
+  Box,
+  Button,
+  Flex,
+  HStack,
+  Icon,
+  Stack,
+  Text,
+} from "@chakra-ui/react";
+import * as Dockable from "@hlorenzi/react-dockable";
+import { FaCode } from "@react-icons/all-files/fa/FaCode";
+import { FaMinus } from "@react-icons/all-files/fa/FaMinus";
+import { BasePanel } from "../../../uiComponents/base/BasePanel";
+import CollectionSyncer from "../../../uiComponents/base/CollectionSyncer";
+import DTreeList from "../../../uiComponents/treeList/DTreeList";
+import DListItem from "../../../uiComponents/base/List/DListItem";
+import DLabel from "../../../uiComponents/base/Text/DLabel";
+import DListItemButton from "../../../uiComponents/base/List/ListItemDetails/DListItemButton";
+import DListItemsButtonContainer from "../../../uiComponents/base/List/DListItemsButtonContainer";
+import { SettingsPanelWithPropertySettings } from "../../settings/SettingsPanelWithPropertySettings";
+import { ActiveTransportManager as WebSocketManagerInstance } from "../../../../helpers/transport";
+import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
+import { ResizeDivider, useDragResize } from "../../../uiComponents/ResizeDivider";
+import themeColors from "../../../../helpers/themeColors";
+
+// ── Module-level constants ────────────────────────────────────────────────────
+
+const EDITABLE_DICT = [
+  { key: "name", label: "UI Name", type: "string" },
+  { key: "key", label: "Key", type: "string" },
+  { key: "description", label: "Description", type: "textarea" },
+  {
+    key: "mainResource",
+    label: "Main Resource (JavaScript)",
+    type: "materialSelect",
+    additionalFilter: (item) => item.mimeType === "text/html",
+  },
+  {
+    key: "additionalResources",
+    label: "Additional Resources",
+    type: "materialSelect",
+    multiple: true,
+  },
+];
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+const ViewCard = React.memo(({ view, isSelected, onSelect, onDelete }) => (
+  <DListItem
+    isSelected={isSelected}
+    onClick={() => onSelect(view)}
+  >
+    <DLabel>{view.name}</DLabel>
+    <DListItemsButtonContainer>
+      <DListItemButton
+        icon={FaMinus}
+        color="red"
+        label="Delete"
+        onClick={(e) => {
+          e.stopPropagation();
+          onDelete(view);
+        }}
+      />
+    </DListItemsButtonContainer>
+  </DListItem>
+));
+
+const EmptyState = () => (
+  <Flex
+    direction="column"
+    align="center"
+    justify="center"
+    gap="12px"
+    height="100%"
+    color="gray.500"
+    userSelect="none"
+  >
+    <Icon as={FaCode} boxSize={10} opacity={0.35} />
+    <Text fontSize="sm">Select a view to edit it</Text>
+  </Flex>
+);
+
+const ResourceBadges = ({ view }) => {
+  const hasJs = Boolean(view.mainResource);
+  const extraCount = Array.isArray(view.additionalResources)
+    ? view.additionalResources.length
+    : 0;
+  return (
+    <HStack gap="6px" flexShrink={0}>
+      {hasJs && (
+        <Badge colorPalette="orange" variant="subtle" fontSize="10px">
+          <HStack gap="3px">
+            <Icon as={FaCode} />
+            <span>HTML</span>
+          </HStack>
+        </Badge>
+      )}
+      {extraCount > 0 && (
+        <Badge colorPalette="purple" variant="subtle" fontSize="10px">
+          +{extraCount} res
+        </Badge>
+      )}
+    </HStack>
+  );
+};
+
+const RightPaneHeader = ({
+  view,
+  confirmDelete,
+  onDelete,
+  onConfirmDelete,
+  onCancelDelete,
+}) => (
+  <Flex
+    align="center"
+    px="12px"
+    py="8px"
+    borderBottomWidth="1px"
+    borderColor={themeColors.divider}
+    gap="10px"
+    flexShrink={0}
+  >
+    <DLabel>{view.name}</DLabel>
+    <ResourceBadges view={view} />
+    <Flex grow={1} />
+    {confirmDelete ? (
+      <HStack gap="6px">
+        <Text fontSize="xs" color="red.400">Delete?</Text>
+        <Button size="xs" colorScheme="red" variant="solid" onClick={onConfirmDelete}>
+          Yes
+        </Button>
+        <Button size="xs" variant="outline" onClick={onCancelDelete}>
+          No
+        </Button>
+      </HStack>
+    ) : (
+      <DListItemButton
+        icon={FaMinus}
+        color="red"
+        label="Delete view"
+        onClick={onDelete}
+      />
+    )}
+  </Flex>
+);
+
+// ── Main component ────────────────────────────────────────────────────────────
 
 export const CustomViewsPanel = ({ gameDataRef, state }) => {
-    const editableDict = [
-        { key: "name", label: "UI Name", type: "string" },
-        { key: "description", label: "Description", type: "textarea" },
-        { key: "mainResource", label: "Main content (Javascript)", type: "materialSelect", additionalFilter: (item) => item.mimeType == "text/javascript" },
-        { key: "additionalResources", label: "Additional Resources", type: "materialSelect", multiple: true },
-    ]
-    const [panels, setPanels] = React.useState([]);
-    const [selectedPanel, setSelectedPanel] = React.useState(null);
-    const panelsRef = React.useRef(panels);
-    panelsRef.current = panels;
-    React.useEffect(() => {
-        WebHelper.get("addon/customPanels?gameid=" + gameDataRef.current?.Game?.id, (response) => { setPanels(response) }, (error) => console.log(error));
-    }, []);
+  const [views, setViews] = React.useState([]);
+  const [selectedView, setSelectedView] = React.useState(null);
+  const treeRefreshRef = React.useRef(null);
+  const [confirmDelete, setConfirmDelete] = React.useState(false);
 
-    const ctx = Dockable.useContentContext();
-    ctx.setTitle(`Views List`);
+  // Resizable sidebar
+  const colContainerRef = React.useRef(null);
+  const { fracs, onDividerMouseDown } = useDragResize(colContainerRef, [0.35]);
 
-    const AddCard = () => {
-        let newPanel = { name: "New Panel", description: "", content: "[]", dataCommandPrefix: "" };
-        WebSocketManagerInstance.Send({ command: "custom_panel_add", data: newPanel });
-    }
+  React.useEffect(() => {
+    const load = async () => {
+      const data = await WebHelper.getAsync("materials/getcustomwiews");
+      if (data) setViews(data);
+    };
+    load();
+  }, []);
 
-    const HandleIncomingMessage = (data) => {
-        if (data.command === "custom_panel_add") {
-            setPanels([...panelsRef.current, data.data]);
-        }
-        else if (data.command === "custom_panel_update") {
-            setPanels(panelsRef.current.map(x => x.id === data.data.id ? data.data : x));
-        }
-        else if (data.command === "custom_panel_delete") {
-            setPanels(panelsRef.current.filter(x => x.id !== data.data));
-            if (selectedPanel?.id === data.data)
-                setSelectedPanel(null);
-        }
-    }
+  // Reset two-step confirm when selection changes
+  React.useEffect(() => {
+    setConfirmDelete(false);
+  }, [selectedView?.id]);
 
-    return (
-        <BasePanel>
-            <Subscribable commandPrefix={"custom_panel"} onMessage={HandleIncomingMessage} />
-            <Flex>
-                <Stack width={300}>
-                    <DList mainComponent={true} withAddButton handleAdd={AddCard} >
-                        {panels?.map((x) =>
-                            <DListItem isSelected={selectedPanel?.id === x.id} key={x.id} onClick={() => { setSelectedPanel(x) }}>
-                                <DLabel>{x.name}</DLabel>
-                                <DListItemsButtonContainer>
-                                    <DListItemButton icon={FaMinus} color={'red'} onClick={() => WebSocketManagerInstance.Send({ command: "custom_panel_delete", data: x.id })} />
-                                </DListItemsButtonContainer>
-                            </DListItem>)}
-                    </DList>
-                </Stack>
-                <Flex grow={1} height={'100%'}>
-                    <DContainer width={'100%'} height={'100%'}>
-                        {selectedPanel ?
-                            <SettingsPanel withExport editableKeyLabelDict={editableDict} dto={selectedPanel} onSave={(dto) => { WebSocketManagerInstance.Send({ command: "custom_panel_update", data: { ...selectedPanel, ...dto } }) }} />
-                            : <></>}
-                    </DContainer>
-                </Flex>
-            </Flex>
-        </BasePanel>
-    )
-}
+  const ctx = Dockable.useContentContext();
+  ctx.setTitle("Views");
+
+  // ── Actions ─────────────────────────────────────────────────────────────────
+
+  // From the toolbar's + or a folder's "+ New view here" row.
+  const handleAdd = (_selected, { parentId = null } = {}) => {
+    WebSocketManagerInstance.Send({
+      command: "custom_panel_add",
+      data: { name: "New View", description: "", content: "[]", dataCommandPrefix: "", treeParentId: parentId },
+    });
+  };
+
+  const handleDelete = (view) => {
+    WebSocketManagerInstance.Send({ command: "custom_panel_delete", data: view.id });
+    if (selectedView?.id === view.id) setSelectedView(null);
+  };
+
+  const handleSave = (dto) => {
+    WebSocketManagerInstance.Send({
+      command: "custom_panel_update",
+      data: { ...selectedView, ...dto },
+    });
+  };
+
+  // ── Render ───────────────────────────────────────────────────────────────────
+
+  return (
+    <BasePanel>
+      <CollectionSyncer
+        collection={views}
+        setCollection={setViews}
+        commandPrefix="custom_panel"
+        onAdd={(newView) => {
+          setSelectedView(newView);
+          // The server files the new view in the folder tree on the next load.
+          treeRefreshRef.current?.();
+        }}
+        onDelete={(deletedId) => {
+          if (selectedView?.id === deletedId) setSelectedView(null);
+        }}
+      />
+      <Flex height="100%" width="100%" overflow="hidden" ref={colContainerRef}>
+
+        {/* ── Left list pane ── */}
+        <Stack
+          width={`${fracs[0] * 100}%`}
+          flexShrink={0}
+          height="100%"
+          overflow="hidden"
+          gap={0}
+        >
+          {/* Folder tree (with its own search) */}
+          <Flex flex={1} minH={0} direction="column" px="4px" pt="4px">
+            <DTreeList
+              entityType="CustomView"
+              transferKind="view"
+              items={views}
+              canEditFolders
+              withAddItem
+              onAddItem={handleAdd}
+              addRowLabel="New view"
+              refreshRef={treeRefreshRef}
+              estimatedRowHeight={44}
+              onSelect={(sel) => { if (sel?.itemRef) setSelectedView(sel.itemRef); }}
+              generateItem={(v) => (
+                <ViewCard
+                  view={v}
+                  isSelected={selectedView?.id === v.id}
+                  onSelect={setSelectedView}
+                  onDelete={handleDelete}
+                />
+              )}
+            />
+          </Flex>
+
+        </Stack>
+
+        <ResizeDivider onMouseDown={(e) => onDividerMouseDown(0, e)} />
+
+        {/* ── Right detail pane ── */}
+        <Flex direction="column" flex={1} height="100%" overflow="hidden">
+          {selectedView ? (
+            <>
+              <RightPaneHeader
+                view={selectedView}
+                confirmDelete={confirmDelete}
+                onDelete={() => setConfirmDelete(true)}
+                onConfirmDelete={() => {
+                  handleDelete(selectedView);
+                  setConfirmDelete(false);
+                }}
+                onCancelDelete={() => setConfirmDelete(false)}
+              />
+              <Box flex={1} overflowY="auto" px="4px" py="4px">
+                <SettingsPanelWithPropertySettings
+                  withExport
+                  key={selectedView.id}
+                  entityName="CardModel"
+                  editableKeyLabelDict={EDITABLE_DICT}
+                  dto={selectedView}
+                  onSave={handleSave}
+                />
+              </Box>
+            </>
+          ) : (
+            <EmptyState />
+          )}
+        </Flex>
+
+      </Flex>
+    </BasePanel>
+  );
+};
+
 export default CustomViewsPanel;
