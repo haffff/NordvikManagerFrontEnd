@@ -1,18 +1,16 @@
 import * as React from "react";
-import { Box, Button, Flex, HStack, Icon, Spinner, Text } from "@chakra-ui/react";
+import { Box, Flex, Icon, Spinner, Text } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import { FaMap } from "@react-icons/all-files/fa/FaMap";
-import { FaPlus } from "@react-icons/all-files/fa/FaPlus";
+import { FaMinusCircle } from "@react-icons/all-files/fa/FaMinusCircle";
 import { FaWrench } from "@react-icons/all-files/fa/FaWrench";
-import { IoIosRemoveCircleOutline } from "@react-icons/all-files/io/IoIosRemoveCircleOutline";
 import { MdCheckCircle } from "@react-icons/all-files/md/MdCheckCircle";
 import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import MapSettingsPanel from "../settings/MapSettingsPanel";
-import DListItem from "../../uiComponents/base/List/DListItem";
+import DTreeListItem from "../../uiComponents/base/List/DTreeListItem";
 import DListItemButton from "../../uiComponents/base/List/ListItemDetails/DListItemButton";
-import DListItemsButtonContainer from "../../uiComponents/base/List/DListItemsButtonContainer";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
 import ClientMediator from "../../../ClientMediator";
 import useBMName from "../../uiComponents/hooks/useBattleMapName";
@@ -20,70 +18,38 @@ import CollectionSyncer from "../../uiComponents/base/CollectionSyncer";
 import Subscribable from "../../uiComponents/base/Subscribable";
 import DTreeList from "../../uiComponents/treeList/DTreeList";
 import { usePermissions } from "../../../contexts/PermissionsContext";
-import themeColors from "../../../helpers/themeColors";
 
-// One map in the tree: click to load it on this battle map.
-const MapRow = ({ map, isActive, onOpen, onSettings, onRemove }) => (
-  <DListItem
-    isSelected={isActive}
-    withHover={!isActive}
-    onClick={() => onOpen(map.id)}
-  >
-    {/* Map icon */}
+// One map in the tree, like a card in the Cards list: click to load it on this battle map.
+// Its actions (Settings, Remove, …) are in the toolbar and the right-click menu.
+const MapRow = ({ map, isActive, onOpen }) => (
+  <DTreeListItem gap="10px" padding="2px" isSelected={isActive} onClick={() => onOpen(map.id)}>
     <Flex
-      boxSize="36px"
+      boxSize="40px"
       borderRadius="md"
-      bg={isActive ? "var(--nordvik-selection-color)" : "whiteAlpha.100"}
+      bg={isActive ? "green.800" : "whiteAlpha.100"}
       align="center"
       justify="center"
       flexShrink={0}
-      mr={2}
       border="1px solid"
-      borderColor={isActive ? "whiteAlpha.300" : "whiteAlpha.100"}
-      transition="all 0.15s"
+      borderColor={isActive ? "green.600" : "whiteAlpha.100"}
     >
-      <Icon
-        as={FaMap}
-        boxSize={4}
-        color={isActive ? "white" : "gray.400"}
-      />
+      <Icon as={FaMap} boxSize={4} color={isActive ? "white" : "gray.400"} />
     </Flex>
 
-    {/* Name + active label */}
-    <Box flex="1" minW={0} cursor="pointer">
-      <Text
-        fontWeight={isActive ? "semibold" : "normal"}
-        fontSize="sm"
-        noOfLines={1}
-        color={isActive ? "white" : "var(--nordvik-text-color)"}
-      >
+    <Box flex="1" minW={0}>
+      <Text fontWeight="semibold" fontSize="sm" noOfLines={1}>
         {map.name}
       </Text>
-      {isActive && (
+      {isActive ? (
         <Flex align="center" gap={1}>
           <Icon as={MdCheckCircle} boxSize={3} color="green.400" />
-          <Text fontSize="xs" color="green.400">
-            Active
-          </Text>
+          <Text fontSize="xs" color="green.400">Active</Text>
         </Flex>
-      )}
+      ) : map.width && map.height ? (
+        <Text fontSize="xs" color="gray.400" noOfLines={1}>{map.width} × {map.height}</Text>
+      ) : null}
     </Box>
-
-    <DListItemsButtonContainer>
-      <DListItemButton
-        label={"Settings"}
-        icon={FaWrench}
-        onClick={(e) => { e.stopPropagation(); onSettings(map.id); }}
-      />
-      <DListItemButton
-        label={"Remove"}
-        color={"red"}
-        hidden={isActive}
-        icon={IoIosRemoveCircleOutline}
-        onClick={(e) => { e.stopPropagation(); onRemove(map.id); }}
-      />
-    </DListItemsButtonContainer>
-  </DListItem>
+  </DTreeListItem>
 );
 
 export const MapSelector = ({ battleMapId, state }) => {
@@ -157,54 +123,29 @@ export const MapSelector = ({ battleMapId, state }) => {
           <Text fontSize="sm">Loading maps…</Text>
         </Flex>
       ) : (
-        <Flex direction="column" height="100%" minH={0}>
-          {maps.length === 0 ? (
-            <Flex
-              direction="column"
-              align="center"
-              justify="center"
-              gap={2}
-              py={8}
-              flex={1}
-              color="gray.500"
-            >
-              <Icon as={FaMap} boxSize={6} opacity={0.4} />
-              <Text fontSize="sm">No maps yet. Add one below.</Text>
-            </Flex>
-          ) : (
-            <Flex flex={1} minH={0} direction="column" px="4px" pt="4px">
-              <DTreeList
-                entityType="MapModel"
-                transferKind="map"
-                items={maps}
-                canEditFolders={canEditGame}
-                withAddItem={true}
-                onAddItem={HandleAdd}
-                estimatedRowHeight={52}
-                // "Delete All" on a folder: the map on show stays, as its Remove button is hidden
-                onDeleteItem={(m) => { if (m.id !== value) HandleMapDelete(m.id); }}
-                generateItem={(m) => (
-                  <MapRow
-                    map={m}
-                    isActive={m.id === value}
-                    onOpen={HandleSelectedMapChange}
-                    onSettings={HandleSettings}
-                    onRemove={HandleMapDelete}
-                  />
-                )}
-              />
-            </Flex>
+        <DTreeList
+          entityType="MapModel"
+          transferKind="map"
+          items={maps}
+          canEditFolders={canEditGame}
+          withAddItem={canEditGame}
+          onAddItem={HandleAdd}
+          onRefresh={Reload}
+          estimatedRowHeight={52}
+          // "Delete All" on a folder: the map on show stays, as it has no Remove
+          onDeleteItem={(m) => { if (m.id !== value) HandleMapDelete(m.id); }}
+          onGenerateEditButtons={canEditGame ? (m) => (
+            <>
+              <DListItemButton label="Settings" icon={FaWrench} onClick={() => HandleSettings(m.id)} />
+              {m.id !== value && (
+                <DListItemButton label="Remove" icon={FaMinusCircle} color="red" onClick={() => HandleMapDelete(m.id)} />
+              )}
+            </>
+          ) : undefined}
+          generateItem={(m) => (
+            <MapRow map={m} isActive={m.id === value} onOpen={HandleSelectedMapChange} />
           )}
-
-          <Box px="6px" py="6px" borderTopWidth="1px" borderColor={themeColors.divider}>
-            <Button variant="outline" size="sm" width="100%" onClick={HandleAdd}>
-              <HStack gap="6px">
-                <Icon as={FaPlus} />
-                <span>New Map</span>
-              </HStack>
-            </Button>
-          </Box>
-        </Flex>
+        />
       )}
     </BasePanel>
   );
