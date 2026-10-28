@@ -16,12 +16,13 @@ import { FaFile } from '@react-icons/all-files/fa/FaFile';
 import { FaFolder } from '@react-icons/all-files/fa/FaFolder';
 import { FaHashtag } from '@react-icons/all-files/fa/FaHashtag';
 import { FaHdd } from '@react-icons/all-files/fa/FaHdd';
+import { FaUpload } from '@react-icons/all-files/fa/FaUpload';
 import { FaLink } from '@react-icons/all-files/fa/FaLink';
 import { FaMinusCircle } from '@react-icons/all-files/fa/FaMinusCircle';
 import { FaMusic } from '@react-icons/all-files/fa/FaMusic';
 import { FaPen } from '@react-icons/all-files/fa/FaPen';
 import UtilityHelper from '../../../helpers/UtilityHelper';
-import DTreeList, { AddRow } from '../../uiComponents/treeList/DTreeList';
+import DTreeList from '../../uiComponents/treeList/DTreeList';
 import CollectionSyncer from '../../uiComponents/base/CollectionSyncer';
 import InputModal from '../../uiComponents/base/Modals/InputModal';
 import { resourceEditFields, resourceEditDto, resourceUpdateData } from './resourceEdit';
@@ -287,16 +288,25 @@ export const MaterialsPanel = ({ state }) => {
         fileInputRef.current?.click();
     };
 
-    const renderAddRow = (parentId) => (
-        <AddRow label={parentId ? "Upload files here" : "Upload files"} onClick={() => pickFiles(parentId)}>
-            {isLocalAdmin && (
-                <Box as="button" type="button" bg="transparent" border="none" p={0} cursor="pointer" color="inherit" fontStyle="italic"
-                    onClick={() => { setLinkFolder(parentId); setLinkModalOpen(true); }}>
-                    Link local file or folder…
-                </Box>
-            )}
-        </AddRow>
-    );
+    // Two small buttons, not greyed text: it should be clear what each one does.
+    const renderAddRow = (parentId) => {
+        const where = parentId ? "into this folder" : "to the top of the list";
+        return (
+            <Flex gap="6px" py="3px" wrap="wrap">
+                <Button size="2xs" variant="outline" onClick={() => pickFiles(parentId)} title={`Upload files from your computer ${where}`}>
+                    <Icon as={FaUpload} boxSize="10px" />
+                    Upload files
+                </Button>
+                {isLocalAdmin && (
+                    <Button size="2xs" variant="outline" onClick={() => { setLinkFolder(parentId); setLinkModalOpen(true); }}
+                        title={`Link files or folders on the server's disk ${where}, without copying them`}>
+                        <Icon as={FaHdd} boxSize="10px" />
+                        Link local file or folder…
+                    </Button>
+                )}
+            </Flex>
+        );
+    };
 
     // ── external drag-onto-panel ────────────────────────────────────────────
 

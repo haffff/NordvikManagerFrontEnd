@@ -71,3 +71,17 @@ describe('MaterialsPanel', () => {
     expect(screen.queryByText(LINK)).toBeNull();
   });
 });
+
+describe('MaterialsPanel add row', () => {
+  it('offers Upload files as a real button, and opens the file picker', async () => {
+    perms.canEditGame = true;
+    const { container } = renderWithProviders(<MaterialsPanel state={{}} />);
+
+    const upload = (await screen.findAllByRole('button', { name: /Upload files/ }))[0];
+    const input = container.querySelector('input[type="file"]');
+    const click = vi.spyOn(input, 'click');
+    upload.click();
+
+    expect(click).toHaveBeenCalled();
+  });
+});
