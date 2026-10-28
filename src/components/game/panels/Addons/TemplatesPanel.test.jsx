@@ -68,7 +68,8 @@ describe('TemplatesPanel folder tree', () => {
   it('shows templates inside their folders', async () => {
     renderWithProviders(<TemplatesPanel />);
     expect(await screen.findByText('Combat UI')).toBeInTheDocument();
-    expect(screen.getByText('Loot table')).toBeInTheDocument();
+    // The tree and the template list load separately: wait for the row, not just the folder.
+    expect(await screen.findByText('Loot table')).toBeInTheDocument();
     expect(screen.queryByText('Initiative tracker')).not.toBeInTheDocument(); // folder closed
     fireEvent.doubleClick(screen.getByText('Combat UI'));
     expect(await screen.findByText('Initiative tracker')).toBeInTheDocument();
