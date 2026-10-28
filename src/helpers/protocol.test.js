@@ -24,11 +24,37 @@ describe('protocol helper', () => {
     expect(fetchMock).toHaveBeenCalledWith('/client/p2/index.html', expect.objectContaining({ method: 'HEAD' }));
   });
 
-  it('clientExistsForProtocol is false on 404 or network failure', async () => {
-    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve({ ok: false, status: 404 })));
-    await expect(clientExistsForProtocol(2)).resolves.toBe(false);
+  const noWait = { sleep: () => Promise.resolve() };
+  const answer = (status, retryAfter = null) => ({ ok: status < 300, status, headers: { get: (h) => (h.toLowerCase() === 'retry-after' ? retryAfter : null) } });
 
-    vi.stubGlobal('fetch', vi.fn(() => Promise.reject(new Error('offline'))));
-    await expect(clientExistsForProtocol(2)).resolves.toBe(false);
+  it('clientExistsForProtocol is false on 404, and after network failures', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(answer(404))));
+    await expect(clientExistsForProtocol(2, noWait)).resolves.toBe(false);
+
+    const offline = vi.fn(() => Promise.reject(new Error('offline')));
+    vi.stubGlobal('fetch', offline);
+    await expect(clientExistsForProtocol(2, noWait)).resolves.toBe(false);
+    expect(offline).toHaveBeenCalledTimes(3);
+  });
+
+  // The host rate-limits (429) bursts of requests: that says nothing about the folder.
+  it('clientExistsForProtocol waits out a 429 and asks again', async () => {
+    const fetchMock = vi.fn()
+      .mockResolvedValueOnce(answer(429, '4'))
+      .mockResolvedValueOnce(answer(200));
+    vi.stubGlobal('fetch', fetchMock);
+    const sleep = vi.fn(() => Promise.resolve());
+
+    await expect(clientExistsForProtocol(2, { sleep })).resolves.toBe(true);
+    expect(sleep).toHaveBeenCalledWith(4000);
+  });
+
+  it('clientExistsForProtocol takes a folder the server keeps refusing to talk about as there', async () => {
+    vi.stubGlobal('fetch', vi.fn(() => Promise.resolve(answer(429, '300'))));
+    const sleep = vi.fn(() => Promise.resolve());
+
+    await expect(clientExistsForProtocol(2, { sleep })).resolves.toBe(true);
+    // Never more than 10 s at a time.
+    expect(Math.max(...sleep.mock.calls.map(([ms]) => ms))).toBe(10000);
   });
 });

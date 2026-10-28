@@ -636,9 +636,13 @@ class WebRTCManager {
       navigateTo(`${clientPathForProtocol(gmProtocol)}?game=${encodeURIComponent(sessionId)}`);
       return;
     }
-    const err = new Error(
-      `This game's server (protocol ${gmProtocol}) isn't supported by this site (protocol ${PROTOCOL_VERSION}). ` +
-      'Ask the GM to update their NordvikManager server.'
+    // Which side is behind decides what helps: a page older than the game's server is
+    // fixed by reloading it (a newer site may be out); an older server only by updating it.
+    const err = new Error(gmProtocol > PROTOCOL_VERSION
+      ? `This page is older than the game's server (protocol ${gmProtocol}, page ${PROTOCOL_VERSION}). ` +
+        'Reload the page (Ctrl+F5). If this stays, the site has no player client for this server yet.'
+      : `This game's server (protocol ${gmProtocol}) is older than this site supports (protocol ${PROTOCOL_VERSION}). ` +
+        'Ask the GM to update their NordvikManager server.'
     );
     err.isVersionMismatch = true;
     this._handleError(err);
