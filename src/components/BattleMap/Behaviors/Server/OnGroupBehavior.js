@@ -8,6 +8,7 @@ export class OnGroupBehavior {
         let objects = canvas.getObjects().filter(x => response.elementIds.includes(x.id));
 
         objects.forEach(element => {
+            element.additionalObjects?.forEach(x => canvas.remove(x));
             canvas.remove(element);
         });
 

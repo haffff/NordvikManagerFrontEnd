@@ -12,7 +12,6 @@ import {
 import * as Dockable from "@hlorenzi/react-dockable";
 import { FaHtml5 } from "@react-icons/all-files/fa/FaHtml5";
 import { FaMinus } from "@react-icons/all-files/fa/FaMinus";
-import { FaPlus } from "@react-icons/all-files/fa/FaPlus";
 import { FaLayerGroup } from "@react-icons/all-files/fa/FaLayerGroup";
 import { FaArrowDown } from "@react-icons/all-files/fa/FaArrowDown";
 import { toaster } from "../../../ui/toaster";
@@ -201,10 +200,11 @@ export const TemplatesPanel = ({ gameDataRef }) => {
 
   // ── Actions ─────────────────────────────────────────────────────────────────
 
-  const handleAdd = () => {
+  // From the toolbar's + or a folder's "+ New template here" row.
+  const handleAdd = (_selected, { parentId = null } = {}) => {
     WebSocketManagerInstance.Send({
       command: "template_add",
-      data: { name: "New Template", description: "", content: "", dataCommandPrefix: "" },
+      data: { name: "New Template", description: "", content: "", dataCommandPrefix: "", treeParentId: parentId },
     });
   };
 
@@ -337,8 +337,12 @@ export const TemplatesPanel = ({ gameDataRef }) => {
           <Flex flex={1} minH={0} direction="column" px="4px" pt="4px">
             <DTreeList
               entityType="CardTemplate"
+              transferKind="template"
               items={templates}
               canEditFolders
+              withAddItem
+              onAddItem={handleAdd}
+              addRowLabel="New template"
               refreshRef={treeRefreshRef}
               estimatedRowHeight={44}
               onSelect={(sel) => { if (sel?.itemRef) setSelectedTemplate(sel.itemRef); }}
@@ -353,15 +357,6 @@ export const TemplatesPanel = ({ gameDataRef }) => {
             />
           </Flex>
 
-          {/* Pinned add button */}
-          <Box px="6px" py="6px" borderTopWidth="1px" borderColor={themeColors.divider}>
-            <Button variant="outline" size="sm" width="100%" onClick={handleAdd}>
-              <HStack gap="6px">
-                <Icon as={FaPlus} />
-                <span>New Template</span>
-              </HStack>
-            </Button>
-          </Box>
         </Stack>
 
         <ResizeDivider onMouseDown={(e) => onDividerMouseDown(0, e)} />

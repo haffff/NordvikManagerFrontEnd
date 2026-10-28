@@ -1083,6 +1083,8 @@ class TokenManager {
       element.layer = TOKEN_UI_LAYER;
       element.selectable = false;
       element.isTokenUI = true;
+      // Its token: the UI is shown, hidden and clicked with that token's layer (drawLayerOf).
+      element.uiOf = object;
 
       // Hide every element until deps are applied — prevents Fabric from
       // trying to cache a 0-dimension element (e.g. text with empty string).
@@ -1465,6 +1467,7 @@ class TokenManager {
       let marker = token.additionalObjects.find((e) => e?.tokenData?.overflowMarker);
       if (collapse && !marker) {
         marker = this._createOverflowMarker(icons[0]);
+        marker.uiOf = token;
         token.additionalObjects.push(marker);
         canvas.add(marker);
       }

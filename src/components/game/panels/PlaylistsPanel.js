@@ -7,7 +7,6 @@ import { FaMinus } from "@react-icons/all-files/fa/FaMinus";
 import { FaMusic } from "@react-icons/all-files/fa/FaMusic";
 import { FaPause } from "@react-icons/all-files/fa/FaPause";
 import { FaPlay } from "@react-icons/all-files/fa/FaPlay";
-import { FaPlus } from "@react-icons/all-files/fa/FaPlus";
 import { FaStop } from "@react-icons/all-files/fa/FaStop";
 import { toaster } from "../../ui/toaster";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
@@ -270,9 +269,11 @@ export const PlaylistsPanel = () => {
 
   // ── Actions ─────────────────────────────────────────────────────────────────
 
-  const handleAdd = async () => {
+  // From the toolbar's + or a folder's "+ New playlist here" row.
+  const handleAdd = async (_selected, { parentId = null } = {}) => {
     const { status, body } = await ClientMediator.sendCommandAsync("Playlist", "AddPlaylist", {
       Name: "New Playlist",
+      TreeParentId: parentId,
       Description: "",
       Mode: 0,
       Shuffle: false,
@@ -392,8 +393,12 @@ export const PlaylistsPanel = () => {
           <Flex flex={1} minH={0} direction="column" px="4px" pt="4px">
             <DTreeList
               entityType="Playlist"
+              transferKind="playlist"
               items={playlists}
               canEditFolders={canEditGame}
+              withAddItem={canEditGame}
+              onAddItem={handleAdd}
+              addRowLabel="New playlist"
               refreshRef={treeRefreshRef}
               estimatedRowHeight={44}
               onSelect={(sel) => { if (sel?.itemRef) setSelectedId(sel.itemRef.id); }}
@@ -413,14 +418,6 @@ export const PlaylistsPanel = () => {
             />
           </Flex>
 
-          <Box px="6px" py="6px" borderTopWidth="1px" borderColor={themeColors.divider}>
-            <Button variant="outline" size="sm" width="100%" onClick={handleAdd}>
-              <HStack gap="6px">
-                <Icon as={FaPlus} />
-                <span>New Playlist</span>
-              </HStack>
-            </Button>
-          </Box>
         </Stack>
 
         <CollapsibleDivider

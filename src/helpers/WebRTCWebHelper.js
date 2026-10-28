@@ -311,11 +311,12 @@ class WebRTCWebHelper {
   // Upload a material file via the data channel. Converts to base64 first,
   // then sends as a tunneled POST, matching the Materials/AddResource body schema.
   // onProgress(fraction 0..1) follows the upload.
-  postMaterial(file, onok, onerror, onException, onProgress) {
+  // parentFolder: the Materials folder (tree entry) it goes into; the top level when null.
+  postMaterial(file, onok, onerror, onException, onProgress, parentFolder = null) {
     UtilityHelper.ConvertBlobToB64(file).then((b64) => {
       this.post(
         'Materials/AddResource',
-        { Name: file.name, Data: b64, MimeType: file.type.toString() },
+        { Name: file.name, Data: b64, MimeType: file.type.toString(), ParentFolder: parentFolder },
         onok,
         onerror,
         onException,

@@ -26,6 +26,8 @@ export const CardsPanel = ({ state }) => {
   const [panels, setPanels] = React.useState([]);
   const [currentPlayer, setCurrentPlayer] = React.useState(null);
   const openRef = React.useRef(null);
+  // The folder a "+ New card here" row asked for, until the dialog closes.
+  const addParentRef = React.useRef(null);
   const treeRefreshRef = React.useRef(null);
   const [templates, setTemplates] = React.useState([]);
 
@@ -99,6 +101,7 @@ export const CardsPanel = ({ state }) => {
                 ...data,
                 id: null,
                 templateId: selectedTemplate?.id,
+                treeParentId: addParentRef.current,
               },
             });
           }
@@ -108,6 +111,7 @@ export const CardsPanel = ({ state }) => {
       <DTreeList
         withAddItem={canAddCards}
         entityType={"CardModel"}
+        transferKind="card"
         estimatedRowHeight={52}
         addonMenu={CARD_ADDON_MENU}
         items={panels}
@@ -115,7 +119,9 @@ export const CardsPanel = ({ state }) => {
         onRefresh={loadData}
         canEditFolders={canEditFolders}
         onDeleteItem={(item) => WebSocketManagerInstance.Send({ command: "card_delete", data: item.id })}
-        onAddItem={() => {
+        addRowLabel="New card"
+        onAddItem={(_selected, { parentId = null } = {}) => {
+          addParentRef.current = parentId;
           openRef.current({ template: pickableTemplates(templates)[0]?.id });
         }}
         onGenerateEditButtons={(item) => {

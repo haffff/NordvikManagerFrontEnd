@@ -241,3 +241,49 @@ describe("TreeView", () => {
     });
   });
 });
+
+// Ctrl/⌘-click and Shift-click select several rows; a plain click still selects one.
+describe("selecting several rows", () => {
+  const MultiHost = ({ onSelect, onSelectionChange }) => {
+    const [selection, setSelection] = React.useState({ ids: new Set(), anchorId: null });
+    return (
+      <div style={{ height: 600 }}>
+        <TreeView
+          nodes={buildTree(entries, items)}
+          openIds={new Set(["maps"])}
+          selectedId={null}
+          selectedIds={selection.ids}
+          anchorId={selection.anchorId}
+          onSelect={(n) => { setSelection({ ids: new Set([n.id]), anchorId: n.id }); onSelect?.(n); }}
+          onSelectionChange={(next) => { setSelection(next); onSelectionChange?.(next); }}
+        />
+      </div>
+    );
+  };
+  const row = (id) => screen.getAllByRole("treeitem").find((r) => r.getAttribute("data-row-id") === id);
+  const selectedRows = () => screen.getAllByRole("treeitem").filter((r) => r.getAttribute("aria-selected") === "true").map((r) => r.getAttribute("data-row-id"));
+
+  it("Ctrl-click adds rows, Shift-click selects a range, a plain click starts over", () => {
+    const onSelect = vi.fn();
+    renderWithProviders(<MultiHost onSelect={onSelect} />);
+    // Rows: Maps, Dungeon, Forest, Goblin
+
+    fireEvent.click(row("e-dungeon"));
+    fireEvent.click(row("e-goblin"), { ctrlKey: true });
+    expect(selectedRows()).toEqual(["e-dungeon", "e-goblin"]);
+
+    fireEvent.click(row("maps"), { shiftKey: true }); // range from the anchor (Goblin)
+    expect(selectedRows()).toEqual(["maps", "e-dungeon", "e-forest", "e-goblin"]);
+
+    fireEvent.click(row("e-forest"));
+    expect(selectedRows()).toEqual(["e-forest"]);
+    expect(onSelect).toHaveBeenCalledTimes(2); // only the plain clicks
+  });
+
+  it("⌘-click works like Ctrl-click", () => {
+    renderWithProviders(<MultiHost />);
+    fireEvent.click(row("e-dungeon"));
+    fireEvent.click(row("e-forest"), { metaKey: true });
+    expect(selectedRows()).toEqual(["e-dungeon", "e-forest"]);
+  });
+});

@@ -12,7 +12,6 @@ import {
 import * as Dockable from "@hlorenzi/react-dockable";
 import { FaCode } from "@react-icons/all-files/fa/FaCode";
 import { FaMinus } from "@react-icons/all-files/fa/FaMinus";
-import { FaPlus } from "@react-icons/all-files/fa/FaPlus";
 import { BasePanel } from "../../../uiComponents/base/BasePanel";
 import CollectionSyncer from "../../../uiComponents/base/CollectionSyncer";
 import DTreeList from "../../../uiComponents/treeList/DTreeList";
@@ -177,10 +176,11 @@ export const CustomViewsPanel = ({ gameDataRef, state }) => {
 
   // ── Actions ─────────────────────────────────────────────────────────────────
 
-  const handleAdd = () => {
+  // From the toolbar's + or a folder's "+ New view here" row.
+  const handleAdd = (_selected, { parentId = null } = {}) => {
     WebSocketManagerInstance.Send({
       command: "custom_panel_add",
-      data: { name: "New View", description: "", content: "[]", dataCommandPrefix: "" },
+      data: { name: "New View", description: "", content: "[]", dataCommandPrefix: "", treeParentId: parentId },
     });
   };
 
@@ -227,8 +227,12 @@ export const CustomViewsPanel = ({ gameDataRef, state }) => {
           <Flex flex={1} minH={0} direction="column" px="4px" pt="4px">
             <DTreeList
               entityType="CustomView"
+              transferKind="view"
               items={views}
               canEditFolders
+              withAddItem
+              onAddItem={handleAdd}
+              addRowLabel="New view"
               refreshRef={treeRefreshRef}
               estimatedRowHeight={44}
               onSelect={(sel) => { if (sel?.itemRef) setSelectedView(sel.itemRef); }}
@@ -243,15 +247,6 @@ export const CustomViewsPanel = ({ gameDataRef, state }) => {
             />
           </Flex>
 
-          {/* Pinned add button */}
-          <Box px="6px" py="6px" borderTopWidth="1px" borderColor={themeColors.divider}>
-            <Button variant="outline" size="sm" width="100%" onClick={handleAdd}>
-              <HStack gap="6px">
-                <Icon as={FaPlus} />
-                <span>New View</span>
-              </HStack>
-            </Button>
-          </Box>
         </Stack>
 
         <ResizeDivider onMouseDown={(e) => onDividerMouseDown(0, e)} />

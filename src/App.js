@@ -3,6 +3,7 @@ import { GMApp } from "./components/GMApp";
 import { PlayerApp } from "./components/PlayerApp";
 import { Provider } from "./components/ui/provider";
 import { Toaster } from "./components/ui/toaster";
+import ImportDropPrompt from "./components/uiComponents/ImportDropPrompt";
 
 const IS_PLAYER_MODE = process.env.REACT_APP_MODE === 'player';
 
@@ -16,6 +17,7 @@ function App() {
         ? <React.Suspense fallback={null}><DemoApp /></React.Suspense>
         : IS_PLAYER_MODE ? <PlayerApp /> : <GMApp />}
       <Toaster />
+      <ImportDropPrompt />
     </Provider>
   );
 }

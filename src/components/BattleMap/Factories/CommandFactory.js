@@ -36,8 +36,9 @@ export const CommandFactory = {
     CreateMapRemoveCommand: (mapId) => {
         return { command: "map_remove", data: mapId };
     },
-    CreateMapAddCommand: () => {
-        return { command: "map_add" };
+    // treeParentId: the folder of the Map Selector it goes into.
+    CreateMapAddCommand: (treeParentId) => {
+        return treeParentId ? { command: "map_add", data: { treeParentId } } : { command: "map_add" };
     },
     CreateLayoutAddCommand: (layout) => {
         return { command: "layout_add", data: layout };

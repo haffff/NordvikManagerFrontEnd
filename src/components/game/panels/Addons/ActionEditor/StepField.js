@@ -58,6 +58,11 @@ const FIXED_OPTIONS = {
   ].map(([value, label]) => ({ value, label: `${label} · ${value}` })),
   // Add Menu Item's Location.
   menulocation: MENU_LOCATIONS,
+  // Duplicate's and Import JSON's Kind.
+  transferkind: [
+    ["map", "Map"], ["card", "Card"], ["template", "Template"], ["view", "Custom view"],
+    ["playlist", "Playlist"], ["soundboard", "Soundboard"],
+  ].map(([value, label]) => ({ value, label: `${label} · ${value}` })),
 };
 
 const usePickerOptions = (type) => {

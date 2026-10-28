@@ -56,6 +56,12 @@ export const DTOConverter = {
         object.selectablePermission = canControl(dto.permission);
         object.layer = dto.layer;
         object.insideLayerIndex = dto.insideLayerIndex;
+        // Pictures inside a group were saved without src too.
+        const restoreSrc = (part) => {
+            if (part.resourceId || part.resourceKey) part.src = WebHelper.getResourceString(part.resourceId, part.resourceKey);
+            part.objects?.forEach(restoreSrc);
+        };
+        object.objects?.forEach(restoreSrc);
         if (object.resourceId || object.resourceKey) {
             object.src = WebHelper.getResourceString(object.resourceId, object.resourceKey);
         } else if (object.isToken) {

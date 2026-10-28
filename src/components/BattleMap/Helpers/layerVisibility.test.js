@@ -25,6 +25,8 @@ describe('layer visibility', () => {
     expect(drawLayerOf({ isTokenUI: true, layer: 110 })).toBe(100);
     expect(drawLayerOf({ layer: 110 })).toBe(100);
     expect(drawLayerOf({ layer: 150 })).toBe(150);
+    // ...of its own token, wherever that token is.
+    expect(drawLayerOf({ isTokenUI: true, layer: 110, uiOf: { layer: 150 } })).toBe(150);
   });
 
   it('has three states, each setting both flags', () => {

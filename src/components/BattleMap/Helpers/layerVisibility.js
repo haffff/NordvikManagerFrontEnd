@@ -13,9 +13,13 @@ export const LAYER_STATES = Object.freeze([
   { state: "hidden", label: "Hidden" },
 ]);
 
-/** The layer an element is drawn and clicked as: token UI belongs to the token layer. */
+/**
+ * The layer an element is drawn and clicked as: token UI belongs to its own token's layer
+ * (uiOf, set by TokenManager), hidden, faded and clicked with it; the token layer when it
+ * isn't known.
+ */
 export const drawLayerOf = (obj) =>
-  obj.isTokenUI || obj.layer === RESERVED_LAYERS.TOKEN_UI ? RESERVED_LAYERS.TOKEN : obj.layer;
+  obj.isTokenUI || obj.layer === RESERVED_LAYERS.TOKEN_UI ? obj.uiOf?.layer ?? RESERVED_LAYERS.TOKEN : obj.layer;
 
 export const layerState = (layer) => (layer?.hidden ? "hidden" : layer?.gmOnly ? "gmOnly" : "visible");
 

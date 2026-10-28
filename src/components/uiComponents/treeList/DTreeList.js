@@ -10,6 +10,12 @@ import { FaMinusCircle } from '@react-icons/all-files/fa/FaMinusCircle';
 import { FaPlus } from '@react-icons/all-files/fa/FaPlus';
 import { FaSync } from '@react-icons/all-files/fa/FaSync';
 import { FaTrashAlt } from '@react-icons/all-files/fa/FaTrashAlt';
+import { FaCopy } from '@react-icons/all-files/fa/FaCopy';
+import { FaFileExport } from '@react-icons/all-files/fa/FaFileExport';
+import { FaFileImport } from '@react-icons/all-files/fa/FaFileImport';
+import { toaster } from '../../ui/toaster';
+import { duplicateEntity } from '../../../helpers/entityTransfer';
+import { ExportJsonDialog, ImportJsonDialog } from './TransferDialogs';
 import {
     DialogRoot, DialogContent, DialogHeader, DialogTitle,
     DialogBody, DialogFooter,
@@ -24,7 +30,7 @@ import AddonMenuItems from '../base/DDItems/AddonMenuItems';
 import { getMenuItems, setMenuContext, subscribeMenuItems } from '../base/DDItems/menuItemsStore';
 import themeColors from '../../../helpers/themeColors';
 import { TreeView } from '../tree/TreeView';
-import { buildTree, collectDescendants, computeMove, entryPath, splitMatch } from '../tree/treeModel';
+import { buildTree, collectDescendants, computeMove, computeMoveMany, entryPath, splitMatch, treeOrder } from '../tree/treeModel';
 import { useRememberedOpenFolders } from '../tree/useRememberedOpenFolders';
 
 // Folder tree for a game's materials, cards, … backed by the server's tree entries.
@@ -150,6 +156,20 @@ const LeafLabelContextMenu = React.memo(({ node, entity, actions, children }) =>
     );
 });
 
+/** The greyed "+ New … here" row closing each open folder (and the top level). */
+export const AddRow = ({ label, onClick, children }) => (
+    <Flex align="center" gap="10px" py="3px" fontSize="xs" color="gray.500" opacity={0.75} _hover={{ opacity: 1 }}>
+        {label && (
+            <Box as="button" type="button" onClick={onClick} display="flex" alignItems="center" gap="6px"
+                bg="transparent" border="none" p={0} cursor="pointer" color="inherit" fontStyle="italic">
+                <Icon as={FaPlus} boxSize="9px" />
+                <span>{label}</span>
+            </Box>
+        )}
+        {children}
+    </Flex>
+);
+
 const EmptyState = ({ searching }) => (
     <Flex direction="column" align="center" justify="center" gap="8px" py="32px"
         color="gray.500" userSelect="none">
@@ -162,7 +182,7 @@ const EmptyState = ({ searching }) => (
 const Toolbar = React.memo(({
     withAddItem, selectedItem, items, canEditFolders,
     onAddItem, onCreateFolder, onEditFolder, onDeleteFolder, onDeleteAll,
-    onGenerateEditButtons, onRefresh, refreshing,
+    onGenerateEditButtons, onImport, onRefresh, refreshing,
 }) => {
     const isFolder     = Boolean(selectedItem?.isFolder);
     const targetEntity = !isFolder && selectedItem
@@ -178,6 +198,9 @@ const Toolbar = React.memo(({
             )}
             {canEditFolders && (
                 <DListItemButton label="Add Folder" icon={FaFolder} onClick={onCreateFolder} />
+            )}
+            {onImport && (
+                <DListItemButton label="Import JSON" icon={FaFileImport} onClick={onImport} />
             )}
             {canEditFolders && isFolder && <>
                 <DListItemButton label="Edit Folder"    icon={FaEdit}       onClick={onEditFolder}   />
@@ -222,6 +245,15 @@ export const DTreeList = ({
     // Optional { viewId, context: (entity) => variables }: a menu location addons can add
     // right-click items to (Add Menu Item), e.g. "cards_item" for the Cards panel.
     addonMenu,
+    // What the tree holds for Duplicate / Export JSON / Import JSON ("map", "card",
+    // "template", "view", "playlist", "soundboard"; see helpers/entityTransfer.js). Offered
+    // to whoever can edit folders (Edit on the game, which the server checks too).
+    transferKind,
+    // A greyed "+ <addRowLabel> here" row ends every open folder and the top level (with
+    // withAddItem); it calls onAddItem(selected, { parentId }), parentId null at the top.
+    // renderAddRow(parentId) draws that row instead, e.g. with more than one action.
+    addRowLabel,
+    renderAddRow,
 }) => {
     const _generateItem = React.useMemo(
         () => generateItem ?? ((x) => x?.name ?? ""),
@@ -231,6 +263,9 @@ export const DTreeList = ({
     // ── state ──────────────────────────────────────────────────────────────────
     const [treeItems, setTreeItems] = React.useState([]);
     const [selected,  setSelected]  = React.useState(null);
+    // Every selected entry (Ctrl/⌘, Shift-click), with the Shift range's anchor; dragging
+    // one of them moves them all.
+    const [selection, setSelection] = React.useState({ ids: new Set(), anchorId: null });
     const [filter,    setFilter]    = React.useState("");
     const [loading,   setLoading]   = React.useState(false);
     const [openIds, setOpen, pruneOpen] = useRememberedOpenFolders(entityType);
@@ -240,10 +275,15 @@ export const DTreeList = ({
     const itemsRef      = React.useRef(items ?? []);
     const treeItemsRef  = React.useRef([]);
     const entityTypeRef = React.useRef(entityType);
+    const selectionRef  = React.useRef(selection);
+    const nodesRef      = React.useRef([]);
     itemsRef.current      = items ?? [];
     treeItemsRef.current  = treeItems;
+    selectionRef.current  = selection;
     entityTypeRef.current = entityType;
 
+    const onAddItemRef = React.useRef(onAddItem);
+    onAddItemRef.current = onAddItem;
     const onDeleteItemRef = React.useRef(onDeleteItem);
     onDeleteItemRef.current = onDeleteItem;
     const onGenerateEditButtonsRef = React.useRef(onGenerateEditButtons);
@@ -252,6 +292,13 @@ export const DTreeList = ({
     canEditFoldersRef.current = canEditFolders;
     const addonMenuRef = React.useRef(addonMenu);
     addonMenuRef.current = addonMenu;
+    const canTransfer = Boolean(transferKind) && Boolean(canEditFolders);
+    const transferRef = React.useRef({ kind: transferKind, enabled: canTransfer });
+    transferRef.current = { kind: transferKind, enabled: canTransfer };
+
+    // Export JSON dialog's entity; Import JSON dialog open.
+    const [exporting, setExporting] = React.useState(null);
+    const [importOpen, setImportOpen] = React.useState(false);
 
     // modal open-fn refs
     const openCreateRef = React.useRef();
@@ -270,6 +317,7 @@ export const DTreeList = ({
     const handleEditFolderRef    = React.useRef(() => {});
     const handleDeleteFolderRef  = React.useRef(() => {});
     const handleOpenDeleteAllRef = React.useRef(() => {});
+    const editButtonsRef         = React.useRef(() => null);
 
     // Stable object passed into row context menus — never changes identity.
     const contextMenuActions = React.useRef({
@@ -277,7 +325,7 @@ export const DTreeList = ({
         onEditFolder:      (node) => handleEditFolderRef.current(node),
         onDeleteFolder:    (node) => handleDeleteFolderRef.current(node),
         onDeleteAllFolder: (node) => handleOpenDeleteAllRef.current(node),
-        getEditButtons:    (entity) => onGenerateEditButtonsRef.current?.(entity),
+        getEditButtons:    (entity) => editButtonsRef.current(entity),
         canEditFolders:    () => canEditFoldersRef.current,
         getAddonMenu:      () => addonMenuRef.current,
     }).current;
@@ -287,6 +335,7 @@ export const DTreeList = ({
     const nodes = React.useMemo(
         () => buildTree(treeItems, items ?? [], { hideEmptyFolders: !canEditFolders }),
         [treeItems, items, canEditFolders]);
+    nodesRef.current = nodes;
 
     // Drop remembered open folders that no longer exist.
     React.useEffect(() => {
@@ -298,6 +347,8 @@ export const DTreeList = ({
     React.useEffect(() => {
         if (selectedItemOverwrite === undefined) return;
         setSelected(selectedItemOverwrite ?? null);
+        const id = selectedItemOverwrite?.id;
+        setSelection({ ids: new Set(id ? [id] : []), anchorId: id ?? null });
     }, [selectedItemOverwrite]);
 
     // ── loading ────────────────────────────────────────────────────────────────
@@ -354,11 +405,27 @@ export const DTreeList = ({
         if (command === "tree_remove") {
             setTreeItems(prev => prev.filter(x => x.id !== data));
             setSelected(sel => sel?.id === data ? null : sel);
+            setSelection(s => {
+                if (!s.ids.has(data)) return s;
+                const ids = new Set(s.ids);
+                ids.delete(data);
+                return { ids, anchorId: s.anchorId === data ? null : s.anchorId };
+            });
         }
     }, [fetchTree]);
 
     // ── moving ─────────────────────────────────────────────────────────────────
+    // A row of a multi-selection takes the whole selection with it, in tree order; one
+    // update each, sent in that order so they land in it.
     const handleMove = React.useCallback((dragId, targetId, position) => {
+        const { ids } = selectionRef.current;
+        if (ids.size > 1 && ids.has(dragId)) {
+            const ordered = treeOrder(nodesRef.current).filter(id => ids.has(id));
+            for (const payload of computeMoveMany(treeItemsRef.current, ordered, targetId, position)) {
+                WebSocketManagerInstance.Send({ command: "tree_update", data: payload });
+            }
+            return;
+        }
         const payload = computeMove(treeItemsRef.current, dragId, targetId, position);
         if (payload) WebSocketManagerInstance.Send({ command: "tree_update", data: payload });
     }, []);
@@ -426,8 +493,75 @@ export const DTreeList = ({
     const handleSelect = React.useCallback((nodeOrSelection) => {
         const sel = nodeOrSelection?.entry ? toSelection(nodeOrSelection) : nodeOrSelection;
         setSelected(sel);
+        setSelection({ ids: new Set(sel?.id ? [sel.id] : []), anchorId: sel?.id ?? null });
         onSelect?.(sel);
     }, [onSelect]);
+
+    // Ctrl/⌘ and Shift clicks only change which rows are selected; the toolbar and the
+    // panel keep following the last plainly clicked one.
+    const handleSelectionChange = React.useCallback((next) => setSelection(next), []);
+
+    // ── duplicate / export / import ────────────────────────────────────────────
+    const reportMissing = (missing) => {
+        if (!missing?.length) return;
+        toaster.create({
+            title: "Some files weren't found",
+            description: `Not in this game, left out: ${missing.join(", ")}`,
+            type: "warning",
+            duration: 10000,
+        });
+    };
+
+    // The item, or every selected one (in tree order, folders left out) when it's part of
+    // a multi-selection; each copy goes right after its original.
+    const handleDuplicate = React.useCallback(async (entity) => {
+        const entries = treeItemsRef.current;
+        const own = entries.find(x => !x.isFolder && x.targetId === entity.id);
+        const { ids } = selectionRef.current;
+        const targets = own && ids.size > 1 && ids.has(own.id)
+            ? treeOrder(nodesRef.current).filter(id => ids.has(id))
+                .map(id => entries.find(x => x.id === id))
+                .filter(x => x && !x.isFolder)
+            : [own ?? { targetId: entity.id }];
+
+        for (const entry of targets) {
+            try {
+                const { missing } = await duplicateEntity(transferRef.current.kind, entry.targetId, entry.id ? entry : null);
+                reportMissing(missing);
+            } catch (e) {
+                toaster.create({ title: "Couldn't duplicate", description: e.message, type: "error" });
+            }
+        }
+    }, []);
+
+    // The row's own buttons (the panel's) plus Duplicate and Export JSON, for the toolbar
+    // and the right-click menu alike.
+    const generateEditButtons = React.useCallback((entity) => {
+        const own = onGenerateEditButtonsRef.current?.(entity);
+        if (!transferRef.current.enabled) return own ?? null;
+        return (
+            <>
+                {own}
+                <DListItemButton label="Duplicate" icon={FaCopy} onClick={() => handleDuplicate(entity)} />
+                <DListItemButton label="Export JSON" icon={FaFileExport} onClick={() => setExporting(entity)} />
+            </>
+        );
+    }, [handleDuplicate]);
+    editButtonsRef.current = generateEditButtons;
+
+    // Into the selected folder, or the selected item's folder.
+    const importParentId = selected?.isFolder ? selected.id : (selected?.parentId ?? null);
+    const openImport = React.useCallback(() => setImportOpen(true), []);
+
+    const selectedRef = React.useRef(selected);
+    selectedRef.current = selected;
+    const drawAddRow = React.useCallback((parentId) => (
+        <AddRow
+            label={parentId ? `${addRowLabel} here` : addRowLabel}
+            onClick={() => onAddItemRef.current?.(selectedRef.current, { parentId })}
+        />
+    ), [addRowLabel]);
+    const addRow = renderAddRow ?? (withAddItem && addRowLabel ? drawAddRow : undefined);
 
     handleSelectRef.current        = handleSelect;
     handleDeleteFolderRef.current  = handleDeleteFolder;
@@ -503,7 +637,8 @@ export const DTreeList = ({
                 onEditFolder={() => handleEditFolder(selected)}
                 onDeleteFolder={() => handleDeleteFolder(selected)}
                 onDeleteAll={() => handleOpenDeleteAll(selected)}
-                onGenerateEditButtons={onGenerateEditButtons}
+                onGenerateEditButtons={canTransfer || onGenerateEditButtons ? generateEditButtons : undefined}
+                onImport={canTransfer ? openImport : undefined}
                 onRefresh={onRefresh ? () => { fetchTree(); onRefresh(); } : undefined}
                 refreshing={loading}
             />
@@ -526,11 +661,15 @@ export const DTreeList = ({
                         query={filter}
                         selectedId={selected?.id ?? null}
                         onSelect={handleSelect}
+                        selectedIds={selection.ids}
+                        anchorId={selection.anchorId}
+                        onSelectionChange={handleSelectionChange}
                         renderLabel={renderLabel}
                         draggable
                         onMove={handleMove}
                         onRowDragStart={handleRowDragStart}
                         estimatedRowHeight={estimatedRowHeight}
+                        renderAddRow={addRow}
                         emptyState={<EmptyState searching={!!filter.trim()} />}
                         ariaLabel={entityType ? `${entityType} tree` : "Tree"}
                     />
@@ -563,6 +702,17 @@ export const DTreeList = ({
                     </DialogFooter>
                 </DialogContent>
             </DialogRoot>
+
+            {canTransfer && <>
+                <ExportJsonDialog kind={transferKind} entity={exporting} onClose={() => setExporting(null)} />
+                <ImportJsonDialog
+                    open={importOpen}
+                    kind={transferKind}
+                    parentId={importParentId}
+                    onClose={() => setImportOpen(false)}
+                    onImported={({ missing }) => reportMissing(missing)}
+                />
+            </>}
         </Flex>
     );
 };

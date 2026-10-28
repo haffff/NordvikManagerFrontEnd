@@ -34,6 +34,18 @@ describe('StepField findkind and propertyowner', () => {
     expect(screen.getByText(/^The map/)).toBeInTheDocument();
     expect(screen.getByText(/^The game/)).toBeInTheDocument();
   });
+
+  it('offers what Duplicate and Import JSON can copy', () => {
+    renderWithProviders(
+      <StepField arg={{ name: 'Kind', type: 'transferkind' }} value="" onChange={vi.fn()} variables={[]} knownNames={[]} />
+    );
+
+    fireEvent.focus(screen.getByRole('textbox'));
+
+    for (const label of ['Map', 'Card', 'Template', 'Custom view', 'Playlist', 'Soundboard']) {
+      expect(screen.getByText(new RegExp(`^${label} ·`))).toBeInTheDocument();
+    }
+  });
 });
 
 // Add Menu Item's Location was free text with no hint which menu ids exist; the backend

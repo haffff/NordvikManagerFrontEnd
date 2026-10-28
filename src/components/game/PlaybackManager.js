@@ -8,6 +8,7 @@ import { applyVolume, fadeIn, fadeOut, onVolumeChange, refreshVolume, setGmVolum
 import PlaylistService from "./PlaylistService";
 import { playOrWait, forgetWaiting } from "../../helpers/audioUnlock";
 import AudioUnlockNotice from "./AudioUnlockNotice";
+import { playingSounds } from "../../helpers/playingSounds";
 
 // Always-mounted singleton (see Game.js) that owns actual audio playback for the
 // soundboard and playlist player. It is not a panel — it keeps playing regardless of
@@ -261,19 +262,24 @@ export const PlaybackManager = () => {
     const data = event?.data ?? {};
     switch (event?.command) {
       case "sound_play": {
+        // A sound its soundboard loops (rain, a fire) repeats until stopped.
+        const loop = !!data.loop;
         const existing = soundsRef.current[data.resourceId];
         if (existing) {
           // Restart in place rather than layering a second overlapping instance.
+          existing.loop = loop;
           existing.currentTime = 0;
           safePlay(existing);
           break;
         }
-        const audio = buildTrackElement(data.resourceId, { loop: false, category: "sounds", gmVolume: data.volume ?? 1 });
+        const audio = buildTrackElement(data.resourceId, { loop, category: "sounds", gmVolume: data.volume ?? 1 });
         audio.addEventListener("ended", () => {
           if (audio.src) URL.revokeObjectURL(audio.src);
           delete soundsRef.current[data.resourceId];
+          playingSounds.ended(data.resourceId);
         });
         soundsRef.current[data.resourceId] = audio;
+        playingSounds.started(data.resourceId, audio);
         break;
       }
       case "sound_stop": {
@@ -282,6 +288,13 @@ export const PlaybackManager = () => {
           fadeOutAndDispose(audio);
           delete soundsRef.current[data.resourceId];
         }
+        playingSounds.ended(data.resourceId);
+        break;
+      }
+      case "sound_stop_all": {
+        Object.values(soundsRef.current).forEach(fadeOutAndDispose);
+        soundsRef.current = {};
+        playingSounds.clear();
         break;
       }
       default:
@@ -324,6 +337,7 @@ export const PlaybackManager = () => {
       Object.keys(playlistsRef.current).forEach((id) => teardownPlaylist(id, { immediate: true }));
       Object.values(soundsRef.current).forEach(disposeAudio);
       soundsRef.current = {};
+      playingSounds.clear();
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);

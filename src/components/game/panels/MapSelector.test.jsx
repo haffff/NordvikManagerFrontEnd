@@ -105,7 +105,7 @@ describe('MapSelector', () => {
     ActiveWebHelper.getAsync.mockResolvedValue([]);
     renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
     await waitFor(() => {
-      expect(screen.getByText(/no maps yet/i)).toBeInTheDocument();
+      expect(screen.getByText(/no items/i)).toBeInTheDocument();
     });
   });
 
@@ -158,25 +158,43 @@ describe('MapSelector', () => {
     );
   });
 
-  it('sends a map_remove command when the Remove button is clicked', async () => {
+  // Like the Cards list: a row's actions are in the toolbar (and right-click) once it's selected.
+  it('removes the selected map from the toolbar', async () => {
     const user = userEvent.setup();
-    // map-1 is active — its Remove button is hidden; map-2's Remove is visible
     ClientMediator.sendCommandWaitForRegister.mockResolvedValue('map-1');
     renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
     await waitFor(() => expect(screen.getByText('Cave')).toBeInTheDocument());
 
-    // There will be multiple Remove buttons but only map-2's is visible
-    const removeBtns = screen.getAllByRole('button', { name: /remove/i });
-    // Click the visible one (visibility:visible) — userEvent naturally interacts
-    // with visible elements
-    const visibleRemove = removeBtns.find(
-      (btn) => btn.style.visibility !== 'hidden'
-    );
-    await user.click(visibleRemove);
+    await user.click(screen.getByText('Cave'));
+    await user.click(await screen.findByRole('button', { name: /^remove$/i }));
 
     expect(ActiveTransportManager.Send).toHaveBeenCalledWith(
       expect.objectContaining({ command: 'map_remove', data: 'map-2' })
     );
+  });
+
+  it('offers no Remove for the map on show', async () => {
+    const user = userEvent.setup();
+    ClientMediator.sendCommandWaitForRegister.mockResolvedValue('map-1');
+    renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
+    await waitFor(() => expect(screen.getByText('Active')).toBeInTheDocument());
+
+    await user.click(screen.getByText('Forest'));
+
+    expect(await screen.findByRole('button', { name: /^settings$/i })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /^remove$/i })).not.toBeInTheDocument();
+  });
+
+  it('shows no actions to whoever cannot edit the game', async () => {
+    const user = userEvent.setup();
+    canEditGame = false;
+    renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
+    await waitFor(() => expect(screen.getByText('Cave')).toBeInTheDocument());
+
+    await user.click(screen.getByText('Cave'));
+
+    expect(screen.queryByRole('button', { name: /^settings$/i })).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: /add item/i })).not.toBeInTheDocument();
   });
 
   it('calls getAsync and spawnFloating when the Settings button is clicked', async () => {
@@ -185,8 +203,8 @@ describe('MapSelector', () => {
     renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
     await waitFor(() => expect(screen.getByText('Forest')).toBeInTheDocument());
 
-    const settingsBtns = screen.getAllByRole('button', { name: /settings/i });
-    await user.click(settingsBtns[0]);
+    await user.click(screen.getByText('Forest'));
+    await user.click(await screen.findByRole('button', { name: /^settings$/i }));
 
     expect(ActiveWebHelper.get).toHaveBeenCalledWith(
       expect.stringContaining('map/get?'),

@@ -46,6 +46,7 @@ vi.mock('../../helpers/systemAssets', () => ({
 vi.mock('./PlaylistService', () => ({ default: {} }));
 
 import { PlaybackManager } from './PlaybackManager';
+import { playingSounds } from '../../helpers/playingSounds';
 
 // Minimal controllable stand-in for the DOM Audio element — jsdom doesn't implement
 // real media playback. Tracks every instance created so tests can assert on how many
@@ -158,6 +159,46 @@ describe('PlaybackManager — soundboard one-shots', () => {
 
     expect(FakeAudio.instances).toHaveLength(2); // rebuilt from scratch
     expect(getMaterialAsyncMock).toHaveBeenCalledTimes(2);
+    vi.useRealTimers();
+  });
+
+  it('loops a sound its soundboard loops, until stopped', async () => {
+    await mount();
+
+    subscriptions.sound({ command: 'sound_play', data: { resourceId: 'rain', loop: true } });
+    subscriptions.sound({ command: 'sound_play', data: { resourceId: 'door' } });
+
+    expect(FakeAudio.instances[0].loop).toBe(true);
+    expect(FakeAudio.instances[1].loop).toBe(false);
+  });
+
+  it('tells the soundboard which sounds are playing: from sound_play until it ends or stops', async () => {
+    await mount();
+
+    subscriptions.sound({ command: 'sound_play', data: { resourceId: 'r1' } });
+    subscriptions.sound({ command: 'sound_play', data: { resourceId: 'r2' } });
+    expect(playingSounds.ids()).toEqual(['r1', 'r2']);
+    expect(playingSounds.get('r1')).toBe(FakeAudio.instances[0]);
+
+    FakeAudio.instances[0].fireEnded();
+    subscriptions.sound({ command: 'sound_stop', data: { resourceId: 'r2' } });
+
+    expect(playingSounds.ids()).toEqual([]);
+  });
+
+  it('stops every sound on sound_stop_all', async () => {
+    vi.useFakeTimers();
+    await mount();
+    subscriptions.sound({ command: 'sound_play', data: { resourceId: 'r1' } });
+    subscriptions.sound({ command: 'sound_play', data: { resourceId: 'r2' } });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    subscriptions.sound({ command: 'sound_stop_all', data: {} });
+    await settle();
+
+    expect(FakeAudio.instances.every((a) => a.paused)).toBe(true);
+    expect(playingSounds.ids()).toEqual([]);
     vi.useRealTimers();
   });
 
