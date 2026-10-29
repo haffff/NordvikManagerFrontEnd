@@ -189,7 +189,9 @@ describe('WebRTCManager', () => {
       expect(startPeer).not.toHaveBeenCalled();
       expect(protocolMock.navigateTo).not.toHaveBeenCalled();
       expect(onError).toHaveBeenCalledWith(expect.objectContaining({ isVersionMismatch: true }));
-      expect(onError.mock.calls[0][0].message).toMatch(/GM/);
+      // The game's server is newer than this page: reloading it is what helps.
+      expect(onError.mock.calls[0][0].message).toMatch(/reload/i);
+      expect(onError.mock.calls[0][0].message).not.toMatch(/Ask the GM/);
     });
 
     it.each([['../../evil'], [2.5], [-1], [0], ['2']])('never switches for a GM protocol that is not a positive integer (%s)', async (gmProtocol) => {

@@ -16,14 +16,35 @@ const CLIENT_ROOT = '/client/';
 
 export const clientPathForProtocol = (protocol) => `${CLIENT_ROOT}p${protocol}/`;
 
-// True if a frozen player build for this protocol is deployed.
-export async function clientExistsForProtocol(protocol) {
-  try {
-    const resp = await fetch(`${clientPathForProtocol(protocol)}index.html`, { method: 'HEAD', cache: 'no-store' });
-    return resp.ok;
-  } catch {
-    return false;
+const ATTEMPTS = 3;
+const MAX_WAIT_MS = 10_000;
+const DEFAULT_WAIT_MS = 2_000;
+const wait = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * True if a frozen player build for this protocol is deployed. Only a 404 says it isn't:
+ * the host may answer 429 (it rate-limits bursts of requests, like a page loading) or 5xx,
+ * which says nothing about the folder; those are asked again after Retry-After (at most
+ * 10 s), and if they never answer properly the build is taken as there. A network that
+ * keeps failing means no.
+ */
+export async function clientExistsForProtocol(protocol, { sleep = wait } = {}) {
+  let reachable = false;
+  for (let attempt = 1; attempt <= ATTEMPTS; attempt++) {
+    try {
+      const resp = await fetch(`${clientPathForProtocol(protocol)}index.html`, { method: 'HEAD', cache: 'no-store' });
+      if (resp.ok) return true;
+      if (resp.status === 404 || resp.status === 410) return false;
+      reachable = true;
+      if (attempt < ATTEMPTS) {
+        const retryAfter = Number(resp.headers?.get?.('retry-after'));
+        await sleep(Math.min(retryAfter > 0 ? retryAfter * 1000 : DEFAULT_WAIT_MS, MAX_WAIT_MS));
+      }
+    } catch {
+      if (attempt < ATTEMPTS) await sleep(DEFAULT_WAIT_MS);
+    }
   }
+  return reachable;
 }
 
 /** Whether this page is served from under `path` (e.g. "/client/p2/"). */
