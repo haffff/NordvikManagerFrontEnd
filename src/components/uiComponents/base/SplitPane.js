@@ -5,8 +5,9 @@ import { ResizeDivider, useDragResize } from "../ResizeDivider";
 import themeColors from "../../../helpers/themeColors";
 
 // Narrower than this (the pane's own width, so a thin dock window counts too) the list
-// and the detail take turns instead of sitting side by side.
-export const SPLIT_NARROW_BELOW = 560;
+// and the detail take turns instead of sitting side by side. Below the 500px a new dock
+// window opens at, above a phone held upright (up to about 430px).
+export const SPLIT_NARROW_BELOW = 460;
 
 /**
  * Which side a narrow SplitPane shows. Owned by the panel, so its select handlers can

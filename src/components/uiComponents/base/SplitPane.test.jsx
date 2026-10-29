@@ -58,6 +58,13 @@ describe('SplitPane', () => {
     expect(screen.queryByRole('button', { name: /back/i })).toBeNull();
   });
 
+  it("is side by side in a new desktop window (the dock opens them 500px wide)", () => {
+    paneWidth = 490;
+    renderWithProviders(<Panel initialDetail="Goblin" />);
+    expect(screen.getByText('Goblin')).toBeVisible();
+    expect(screen.getByText('detail of Goblin')).toBeVisible();
+  });
+
   it('is side by side while its width is unknown (not laid out, or hidden)', () => {
     paneWidth = 0;
     renderWithProviders(<Panel initialDetail="Goblin" />);
