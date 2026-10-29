@@ -169,3 +169,8 @@
   border-radius: 8px;
   box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
 }
+
+/* A tool's options (InfoBMOverlay) sit in the map's top-left corner: below the tools button. */
+.nm_mobileTabContent .nm_bm_overlay {
+  top: 44px;
+}
