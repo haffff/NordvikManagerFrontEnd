@@ -26,6 +26,11 @@ export async function clientExistsForProtocol(protocol) {
   }
 }
 
+/** Whether this page is served from under `path` (e.g. "/client/p2/"). */
+export function isServedFrom(path) {
+  return window.location.pathname.startsWith(path);
+}
+
 export function navigateTo(url) {
   window.location.assign(url);
 }
