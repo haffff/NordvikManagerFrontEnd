@@ -28,7 +28,7 @@ import MapsSyncer from "./MapsSyncer";
 import DTOConverter from "../../../BattleMap/DTOConverter";
 import { ActiveTransportManager as WebSocketManagerInstance, ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import ClientMediator from "../../../../ClientMediator";
-import { Heading } from "@chakra-ui/react";
+import { Heading, useMenuContext } from "@chakra-ui/react";
 import SwitchMapSubmenu from "./SwitchMapSubmenu";
 import { TurnOrderService } from "../../turnOrder/TurnOrderService";
 import { MenuContent, MenuContextTrigger, MenuRoot } from "../../../ui/menu";
@@ -46,6 +46,31 @@ import AddonMenuItems from "../../../uiComponents/base/DDItems/AddonMenuItems";
 import { setMenuContext } from "../../../uiComponents/base/DDItems/menuItemsStore";
 import { inspectedToken } from "./inspectedToken";
 import { battleMapMenuContexts } from "./battleMapMenuContexts";
+
+// Touch on the map, between the canvas and the menu's trigger. The map has its own
+// long-press (touchGestures), which opens this menu at the finger; the menu's built-in
+// one would race it and open without placing itself there (in the top-left corner). And
+// the menu closes on a touch outside only after the click that follows, which the canvas
+// never lets happen, so a finger landing on the map closes it here.
+function MapTouchGuard({ children }) {
+  const menu = useMenuContext();
+  const onTouch = (e) => {
+    if (e.pointerType !== "touch") return;
+    e.stopPropagation();
+    if (e.type === "pointerdown" && menu.open) menu.setOpen(false);
+  };
+  return (
+    <div
+      style={{ display: "contents" }}
+      onPointerDown={onTouch}
+      onPointerMove={onTouch}
+      onPointerUp={onTouch}
+      onPointerCancel={onTouch}
+    >
+      {children}
+    </div>
+  );
+}
 
 export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) => {
   // Read when the menu opens: selecting on the canvas doesn't re-render this component,
@@ -443,7 +468,7 @@ export const BattleMapContextMenu = ({ width, battleMapId, canvas, children }) =
       {/* asChild: a div, not Chakra's default button, so the map isn't one big button
           (it would take every button style and be announced as a button). */}
       <MenuContextTrigger asChild>
-        <div className="nm_bm_contextTrigger">{children}</div>
+        <div className="nm_bm_contextTrigger"><MapTouchGuard>{children}</MapTouchGuard></div>
       </MenuContextTrigger>
       <MenuContent>
         {selectedObjects && selectedObjects.length === 1 ? (
