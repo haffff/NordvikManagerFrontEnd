@@ -7,6 +7,7 @@ import { getTabsSnapshot, subscribeTabs, activateTab, closeTab, setTabTitle } fr
 import { panelLook } from "./mobileCatalog";
 import { makePanelContentContext } from "../../../helpers/panelContentContext";
 import AddTabDialog from "./AddTabDialog";
+import ClientMediator from "../../../ClientMediator";
 import themeColors from "../../../helpers/themeColors";
 import "../../../stylesheets/mobile.css";
 
@@ -97,6 +98,14 @@ export function MobileShell({ state, gameDataManagerRef }) {
   React.useEffect(() => {
     barRef.current?.querySelector("[data-active]")?.scrollIntoView?.({ block: "nearest", inline: "nearest" });
   }, [activeId]);
+
+  // A battle map tab brought to the front is the map the player is looking at (tools,
+  // token placement and point requests act on it), as pressing its canvas does on desktop.
+  const activeTab = tabs.find((tab) => tab.id === activeId);
+  const activeMapId = activeTab?.panelKey === "Battlemap" ? activeTab.element?.props?.withID : undefined;
+  React.useEffect(() => {
+    if (activeMapId) ClientMediator.fireEvent("ActivePanelChanged", { panel: "BattleMap", contextId: activeMapId });
+  }, [activeMapId]);
 
   return (
     <Flex className="nm_mobileShell" direction="column" minHeight={0} overflow="hidden">

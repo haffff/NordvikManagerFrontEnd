@@ -136,8 +136,9 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
   }, [state]);
 
   const HandleShowPanel = useCallback((resp) => {
-    // Battlemap panels deduplicate — don't re-open if already registered.
-    if (resp.data?.type === 'Battlemap') {
+    // Battlemap panels deduplicate — don't re-open if already registered. (In the mobile UI
+    // a registered map may be a background tab: opening it below switches to that tab.)
+    if (resp.data?.type === 'Battlemap' && !isMobileUi()) {
       const syncId = resp.data.syncId;
       if (syncId && battleMapsContextsRef.current[syncId]) return;
     }

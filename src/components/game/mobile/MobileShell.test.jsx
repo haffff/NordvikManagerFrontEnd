@@ -101,3 +101,21 @@ describe('MobileShell', () => {
     expect(screen.getByText(/no panels open/i)).toBeInTheDocument();
   });
 });
+
+describe('MobileShell and the current battle map', () => {
+  beforeEach(() => resetTabs());
+
+  it('bringing a battle map tab to the front makes it the active battle map', async () => {
+    const ClientMediator = (await import('../../../ClientMediator')).default;
+    const fire = vi.spyOn(ClientMediator, 'fireEvent');
+    function Battlemap() { return <div>map</div>; }
+    act(() => { openTab(<Battlemap withID="bm1" />, resolveKey); openTab(<Dice />, resolveKey); });
+    renderWithProviders(<MobileShell state={{}} />);
+    expect(fire).not.toHaveBeenCalledWith('ActivePanelChanged', expect.anything());
+
+    fireEvent.click(screen.getByRole('tab', { name: /Battlemap/ }));
+
+    expect(fire).toHaveBeenCalledWith('ActivePanelChanged', { panel: 'BattleMap', contextId: 'bm1' });
+    fire.mockRestore();
+  });
+});

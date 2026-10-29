@@ -54,10 +54,13 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
     return mode;
   });
   const mobile = uiMode === "mobile";
-  React.useEffect(() => () => {
-    setActiveUiMode("desktop");
-    resetTabs();
-  }, []);
+  React.useEffect(() => {
+    setActiveUiMode(uiMode); // again, should the game be remounted (StrictMode)
+    return () => {
+      setActiveUiMode("desktop");
+      resetTabs();
+    };
+  }, [uiMode]);
 
   const gameState = useGameState(resolvedGameId, onExit);
   const {
