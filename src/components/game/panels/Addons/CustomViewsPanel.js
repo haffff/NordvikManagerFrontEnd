@@ -6,7 +6,6 @@ import {
   Flex,
   HStack,
   Icon,
-  Stack,
   Text,
 } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
@@ -22,7 +21,7 @@ import DListItemsButtonContainer from "../../../uiComponents/base/List/DListItem
 import { SettingsPanelWithPropertySettings } from "../../settings/SettingsPanelWithPropertySettings";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../../helpers/transport";
 import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
-import { ResizeDivider, useDragResize } from "../../../uiComponents/ResizeDivider";
+import { SplitPane, useSplitView } from "../../../uiComponents/base/SplitPane";
 import themeColors from "../../../../helpers/themeColors";
 
 // ── Module-level constants ────────────────────────────────────────────────────
@@ -154,9 +153,9 @@ export const CustomViewsPanel = ({ gameDataRef, state }) => {
   const treeRefreshRef = React.useRef(null);
   const [confirmDelete, setConfirmDelete] = React.useState(false);
 
-  // Resizable sidebar
-  const colContainerRef = React.useRef(null);
-  const { fracs, onDividerMouseDown } = useDragResize(colContainerRef, [0.35]);
+  // List and detail side by side, or one at a time when narrow.
+  const split = useSplitView();
+  const openView = (view) => { setSelectedView(view); split.showDetail(); };
 
   React.useEffect(() => {
     const load = async () => {
@@ -186,7 +185,7 @@ export const CustomViewsPanel = ({ gameDataRef, state }) => {
 
   const handleDelete = (view) => {
     WebSocketManagerInstance.Send({ command: "custom_panel_delete", data: view.id });
-    if (selectedView?.id === view.id) setSelectedView(null);
+    if (selectedView?.id === view.id) { setSelectedView(null); split.showList(); }
   };
 
   const handleSave = (dto) => {
@@ -205,25 +204,18 @@ export const CustomViewsPanel = ({ gameDataRef, state }) => {
         setCollection={setViews}
         commandPrefix="custom_panel"
         onAdd={(newView) => {
-          setSelectedView(newView);
+          openView(newView);
           // The server files the new view in the folder tree on the next load.
           treeRefreshRef.current?.();
         }}
         onDelete={(deletedId) => {
-          if (selectedView?.id === deletedId) setSelectedView(null);
+          if (selectedView?.id === deletedId) { setSelectedView(null); split.showList(); }
         }}
       />
-      <Flex height="100%" width="100%" overflow="hidden" ref={colContainerRef}>
-
-        {/* ── Left list pane ── */}
-        <Stack
-          width={`${fracs[0] * 100}%`}
-          flexShrink={0}
-          height="100%"
-          overflow="hidden"
-          gap={0}
-        >
-          {/* Folder tree (with its own search) */}
+      <SplitPane
+        split={split}
+        backLabel="views"
+        list={
           <Flex flex={1} minH={0} direction="column" px="4px" pt="4px">
             <DTreeList
               entityType="CustomView"
@@ -235,53 +227,45 @@ export const CustomViewsPanel = ({ gameDataRef, state }) => {
               addRowLabel="New view"
               refreshRef={treeRefreshRef}
               estimatedRowHeight={44}
-              onSelect={(sel) => { if (sel?.itemRef) setSelectedView(sel.itemRef); }}
+              onSelect={(sel) => { if (sel?.itemRef) openView(sel.itemRef); }}
               generateItem={(v) => (
                 <ViewCard
                   view={v}
                   isSelected={selectedView?.id === v.id}
-                  onSelect={setSelectedView}
+                  onSelect={openView}
                   onDelete={handleDelete}
                 />
               )}
             />
           </Flex>
-
-        </Stack>
-
-        <ResizeDivider onMouseDown={(e) => onDividerMouseDown(0, e)} />
-
-        {/* ── Right detail pane ── */}
-        <Flex direction="column" flex={1} height="100%" overflow="hidden">
-          {selectedView ? (
-            <>
-              <RightPaneHeader
-                view={selectedView}
-                confirmDelete={confirmDelete}
-                onDelete={() => setConfirmDelete(true)}
-                onConfirmDelete={() => {
-                  handleDelete(selectedView);
-                  setConfirmDelete(false);
-                }}
-                onCancelDelete={() => setConfirmDelete(false)}
+        }
+        detail={selectedView ? (
+          <>
+            <RightPaneHeader
+              view={selectedView}
+              confirmDelete={confirmDelete}
+              onDelete={() => setConfirmDelete(true)}
+              onConfirmDelete={() => {
+                handleDelete(selectedView);
+                setConfirmDelete(false);
+              }}
+              onCancelDelete={() => setConfirmDelete(false)}
+            />
+            <Box flex={1} overflowY="auto" px="4px" py="4px">
+              <SettingsPanelWithPropertySettings
+                withExport
+                key={selectedView.id}
+                entityName="CardModel"
+                editableKeyLabelDict={EDITABLE_DICT}
+                dto={selectedView}
+                onSave={handleSave}
               />
-              <Box flex={1} overflowY="auto" px="4px" py="4px">
-                <SettingsPanelWithPropertySettings
-                  withExport
-                  key={selectedView.id}
-                  entityName="CardModel"
-                  editableKeyLabelDict={EDITABLE_DICT}
-                  dto={selectedView}
-                  onSave={handleSave}
-                />
-              </Box>
-            </>
-          ) : (
-            <EmptyState />
-          )}
-        </Flex>
-
-      </Flex>
+            </Box>
+          </>
+        ) : (
+          <EmptyState />
+        )}
+      />
     </BasePanel>
   );
 };

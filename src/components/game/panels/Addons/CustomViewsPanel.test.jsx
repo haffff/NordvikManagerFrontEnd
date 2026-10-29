@@ -1,5 +1,5 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { screen, waitFor, fireEvent, act } from '@testing-library/react';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { screen, waitFor, fireEvent, act, within } from '@testing-library/react';
 import { renderWithProviders } from '../../../../setupTests';
 
 // The views panel shows its views in a folder tree (tree entries labelled "CustomView").
@@ -79,5 +79,31 @@ describe('CustomViewsPanel folder tree', () => {
     const before = treeRequests().length;
     act(() => syncerProps.onAdd?.({ id: 'v3', name: 'New View' }));
     await waitFor(() => expect(treeRequests().length).toBeGreaterThan(before));
+  });
+});
+
+describe('CustomViewsPanel in a narrow window', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    WebHelper.getAsync.mockImplementation(async (url) => (url === 'materials/getcustomwiews' ? views : null));
+    WebHelper.get.mockImplementation((url, ok) => { if (url.startsWith('battlemap/getTree')) ok(tree); });
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(360);
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('shows the list, then the picked view with a way back to the list', async () => {
+    renderWithProviders(<CustomViewsPanel />);
+    fireEvent.click(await screen.findByText('Loot table'));
+    expect(await screen.findByTestId('settings')).toBeVisible();
+    expect(screen.getByText('Combat UI')).not.toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: /back to views/i }));
+    expect(screen.getByTestId('settings')).not.toBeVisible();
+    expect(screen.getByText('Combat UI')).toBeVisible();
+
+    // The same view again: its settings come back.
+    fireEvent.click(within(screen.getByRole('tree')).getByText('Loot table'));
+    expect(screen.getByTestId('settings')).toBeVisible();
   });
 });
