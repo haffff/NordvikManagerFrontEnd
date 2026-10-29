@@ -7,6 +7,7 @@ import { getTabsSnapshot, subscribeTabs, activateTab, closeTab, setTabTitle } fr
 import { panelLook } from "./mobileCatalog";
 import { makePanelContentContext } from "../../../helpers/panelContentContext";
 import AddTabDialog from "./AddTabDialog";
+import MapToolsButton from "./MapToolsButton";
 import { AboutDialog } from "../../AboutDialog";
 import { useToolbarCommands } from "../../uiComponents/base/DDItems/toolbarButtonsStore";
 import ClientMediator from "../../../ClientMediator";
@@ -33,6 +34,9 @@ const MobileTabContent = React.memo(({ tab, active, w, h }) => {
   return (
     <Box className="nm_mobileTabContent" data-panel-key={tab.panelKey} display={active ? "flex" : "none"}>
       <Dockable.ContentContext.Provider value={ctx}>{tab.element}</Dockable.ContentContext.Provider>
+      {tab.panelKey === "Battlemap" && tab.element?.props?.withID && (
+        <MapToolsButton battleMapId={tab.element.props.withID} />
+      )}
     </Box>
   );
 });

@@ -175,3 +175,17 @@ describe('MobileShell: game commands and addon items in +', () => {
     expect(screen.getByRole('button', { name: 'Loot' })).toBeInTheDocument();
   });
 });
+
+describe('MobileShell: map tools', () => {
+  beforeEach(() => resetTabs());
+
+  it('a battle map tab has the map tools button; other tabs do not', () => {
+    function Battlemap() { return <div>map</div>; }
+    act(() => { openTab(<Battlemap withID="bm1" />, resolveKey); });
+    renderWithProviders(<MobileShell state={{}} />);
+    expect(screen.getByRole('button', { name: 'Map tools' })).toBeInTheDocument();
+
+    act(() => { openTab(<Dice />, resolveKey); });
+    expect(screen.queryByRole('button', { name: 'Map tools' })).toBeNull(); // hidden with its tab
+  });
+});

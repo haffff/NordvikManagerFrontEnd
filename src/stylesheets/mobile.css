@@ -136,3 +136,36 @@
   background: var(--nordvik-surface-raised, rgb(48, 48, 48));
   text-align: left;
 }
+
+/* The map tools button, in a battle map tab's top-left corner, and its panel. */
+.nm_mobileTabContent > .nm_mobileMapTools {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  z-index: 20;
+  flex: none;
+  width: auto;
+}
+
+.nm_mobileMapToolsChip {
+  border: 1px solid;
+  border-radius: 9999px;
+  padding-right: 2px;
+}
+
+.nm_mobileMapToolsBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+}
+
+.nm_mobileMapToolsPanel {
+  position: absolute;
+  top: 40px;
+  left: 0;
+  max-width: calc(100vw - 32px);
+  overflow-y: auto;
+  border: 1px solid;
+  border-radius: 8px;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+}

@@ -3,7 +3,6 @@ import { FaDiceD20 } from "@react-icons/all-files/fa/FaDiceD20";
 import { FaListOl } from "@react-icons/all-files/fa/FaListOl";
 import { FaMusic } from "@react-icons/all-files/fa/FaMusic";
 import { FaPaintBrush } from "@react-icons/all-files/fa/FaPaintBrush";
-import { FaTools } from "@react-icons/all-files/fa/FaTools";
 import { FaUserAlt } from "@react-icons/all-files/fa/FaUserAlt";
 import { FaUserCog } from "@react-icons/all-files/fa/FaUserCog";
 import { FaUserFriends } from "@react-icons/all-files/fa/FaUserFriends";
@@ -24,7 +23,6 @@ import DiceRollerPanel from "../panels/DiceRollerPanel";
 import TurnOrderPanel from "../panels/TurnOrderPanel";
 import CardsPanel from "../panels/CardsPanel";
 import PlayersPanel from "../panels/PlayersPanel";
-import ToolsPanel from "../panels/ToolsPanel/ToolsPanel";
 import MaterialsPanel from "../panels/MaterialsPanel";
 import PlaylistsPanel from "../panels/PlaylistsPanel";
 import SoundboardPanel from "../panels/SoundboardPanel";
@@ -41,7 +39,8 @@ import EventLogPanel from "../panels/Addons/EventLogPanel";
 // What the mobile "+" dialog offers: the toolbar's View, Settings and Addons menus,
 // grouped. `key` is the panel's PanelsList key (it also picks the tab's icon and
 // default title); requiresEdit entries are for GMs, as in the menus.
-// Layouts, pop-out and keyboard shortcuts have no place on a phone.
+// Layouts, pop-out and keyboard shortcuts have no place on a phone; the map tools are
+// a button on each battle map tab (MapToolsButton).
 export const MOBILE_SECTIONS = [
   {
     name: "Play",
@@ -51,7 +50,6 @@ export const MOBILE_SECTIONS = [
       { key: "TurnOrderPanel", name: "Turn order", icon: FaListOl, create: () => <TurnOrderPanel /> },
       { key: "CardsPanel", name: "Cards", icon: FaUserAlt, create: ({ state }) => <CardsPanel state={state} /> },
       { key: "PlayersPanel", name: "Players", icon: FaUserFriends, create: () => <PlayersPanel /> },
-      { key: "ToolsPanel", name: "Tools", icon: FaTools, create: () => <ToolsPanel /> },
       { key: "MaterialsPanel", name: "Materials", icon: FaPaintBrush, create: ({ state }) => <MaterialsPanel state={state} /> },
     ],
   },
