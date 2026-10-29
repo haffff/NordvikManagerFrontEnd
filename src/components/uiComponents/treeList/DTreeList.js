@@ -13,9 +13,11 @@ import { FaTrashAlt } from '@react-icons/all-files/fa/FaTrashAlt';
 import { FaCopy } from '@react-icons/all-files/fa/FaCopy';
 import { FaFileExport } from '@react-icons/all-files/fa/FaFileExport';
 import { FaFileImport } from '@react-icons/all-files/fa/FaFileImport';
+import { FaFolderOpen } from '@react-icons/all-files/fa/FaFolderOpen';
 import { toaster } from '../../ui/toaster';
 import { duplicateEntity } from '../../../helpers/entityTransfer';
 import { ExportJsonDialog, ImportJsonDialog } from './TransferDialogs';
+import { MoveToFolderDialog } from './MoveToFolderDialog';
 import {
     DialogRoot, DialogContent, DialogHeader, DialogTitle,
     DialogBody, DialogFooter,
@@ -182,7 +184,7 @@ const EmptyState = ({ searching }) => (
 const Toolbar = React.memo(({
     withAddItem, selectedItem, items, canEditFolders,
     onAddItem, onCreateFolder, onEditFolder, onDeleteFolder, onDeleteAll,
-    onGenerateEditButtons, onImport, onRefresh, refreshing,
+    onGenerateEditButtons, onImport, onRefresh, refreshing, onMoveToFolder,
 }) => {
     const isFolder     = Boolean(selectedItem?.isFolder);
     const targetEntity = !isFolder && selectedItem
@@ -208,6 +210,9 @@ const Toolbar = React.memo(({
                 <DListItemButton label="Delete All"     icon={FaTrashAlt}   color="red" onClick={onDeleteAll} />
             </>}
             {!isFolder && targetEntity && onGenerateEditButtons?.(targetEntity)}
+            {canEditFolders && selectedItem && (
+                <DListItemButton label="Move to folder…" icon={FaFolderOpen} onClick={onMoveToFolder} />
+            )}
             {onRefresh && (
                 <IconButton
                     aria-label="Refresh"
@@ -299,6 +304,8 @@ export const DTreeList = ({
     // Export JSON dialog's entity; Import JSON dialog open.
     const [exporting, setExporting] = React.useState(null);
     const [importOpen, setImportOpen] = React.useState(false);
+    // "Move to folder…": the entries it moves (the selection, in tree order), while open.
+    const [moving, setMoving] = React.useState(null);
 
     // modal open-fn refs
     const openCreateRef = React.useRef();
@@ -429,6 +436,22 @@ export const DTreeList = ({
         const payload = computeMove(treeItemsRef.current, dragId, targetId, position);
         if (payload) WebSocketManagerInstance.Send({ command: "tree_update", data: payload });
     }, []);
+
+    // The toolbar's "Move to folder…" (touch screens can't drag rows): the selection, or
+    // the selected row, to the end of a folder or of the top level.
+    const openMoveToFolder = React.useCallback(() => {
+        const { ids } = selectionRef.current;
+        const sel = selectedRef.current;
+        const picked = ids.size > 1 && sel && ids.has(sel.id) ? ids : new Set(sel ? [sel.id] : []);
+        setMoving(treeOrder(nodesRef.current).filter(id => picked.has(id)));
+    }, []);
+    const handleMoveToFolder = React.useCallback((folderId) => {
+        const position = folderId ? "inside" : "end";
+        for (const payload of computeMoveMany(treeItemsRef.current, moving ?? [], folderId, position)) {
+            WebSocketManagerInstance.Send({ command: "tree_update", data: payload });
+        }
+        setMoving(null);
+    }, [moving]);
 
     // Dragging a leaf onto the battle map: HandleDrop reads this payload.
     const handleRowDragStart = React.useCallback((node) => {
@@ -641,6 +664,7 @@ export const DTreeList = ({
                 onImport={canTransfer ? openImport : undefined}
                 onRefresh={onRefresh ? () => { fetchTree(); onRefresh(); } : undefined}
                 refreshing={loading}
+                onMoveToFolder={openMoveToFolder}
             />
 
             <Box px="4px" py="4px" flexShrink={0}>
@@ -702,6 +726,13 @@ export const DTreeList = ({
                     </DialogFooter>
                 </DialogContent>
             </DialogRoot>
+
+            <MoveToFolderDialog
+                entries={treeItems}
+                moving={moving}
+                onPick={handleMoveToFolder}
+                onClose={() => setMoving(null)}
+            />
 
             {canTransfer && <>
                 <ExportJsonDialog kind={transferKind} entity={exporting} onClose={() => setExporting(null)} />

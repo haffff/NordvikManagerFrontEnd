@@ -200,7 +200,7 @@ export const CardsPanel = ({ state }) => {
               }
 
               {/* Name + template subtitle */}
-              <Box flex="1" minW={300}>
+              <Box flex="1" minW={0}>
                 <Text fontWeight="semibold" fontSize="sm" noOfLines={1}>
                   {x.name}
                 </Text>
