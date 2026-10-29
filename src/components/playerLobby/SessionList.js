@@ -29,6 +29,7 @@ const SessionCard = ({ session, onJoin }) => {
 
   return (
     <Box
+      className="nm_lobbyCard"
       position="relative"
       width="200px"
       minHeight="280px"
@@ -187,12 +188,12 @@ export const SessionList = ({ OnSuccess, OnJoin, OnLogout }) => {
   };
 
   return (
-    <Stack style={{ width: '60%', margin: '0 auto', height: '100vh' }}>
+    <Stack className="nm_lobby">
       <Heading padding={4} size="md">
         Hello, {userData?.userName ?? '…'}
       </Heading>
 
-      <HStack margin="25px" marginBottom="50px" gap={2}>
+      <HStack className="nm_lobbyToolbar" margin="25px" marginBottom="50px" gap={2}>
         <Button variant="outline" onClick={OnLogout}>
           <Icon as={IoMdLogOut} /> Logout
         </Button>
@@ -202,13 +203,14 @@ export const SessionList = ({ OnSuccess, OnJoin, OnLogout }) => {
           onChange={(e) => setJoinId(e.target.value)}
           onKeyUp={(e) => { if (e.key === 'Enter') handleJoinById(); }}
           width="200px"
+          className="nm_lobbyJoinInput"
         />
         <Button variant="outline" onClick={handleJoinById} disabled={!joinId.trim()}>
           Join by ID
         </Button>
       </HStack>
 
-      <Box width="100%" height="80%">
+      <Box width="100%">
         {sessions === undefined && (
           <Text color="whiteAlpha.600">Loading sessions…</Text>
         )}

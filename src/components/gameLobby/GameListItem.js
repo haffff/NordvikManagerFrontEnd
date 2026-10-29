@@ -258,6 +258,7 @@ const GameListItem = ({ game, onClick, reload }) => {
       />
 
       <Box
+        className="nm_lobbyCard"
         position="relative"
         width="200px"
         minHeight="320px"

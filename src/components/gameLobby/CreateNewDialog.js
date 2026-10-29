@@ -101,7 +101,7 @@ export const CreateNewDialog = ({ OnSuccess, publicGamesAllowed = true }) => {
               )}
 
               {/* ── Title + Image row ─────────────────────────────────── */}
-              <Flex gap={6}>
+              <Flex gap={6} className="nm_stackOnPhone">
                 {/* Cover image */}
                 <Box flexShrink={0}>
                   <Text fontSize="sm" color="gray.400" mb={2}>Cover image</Text>

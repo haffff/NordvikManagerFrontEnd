@@ -38,7 +38,7 @@ export const PlayerLoginPanel = ({ OnSuccess, onRegister }) => {
     <form
       onKeyUp={(e) => { if (e.key === 'Enter') onSubmit(); }}
       onSubmit={(e) => e.preventDefault()}
-      style={{ width: '400px', margin: '0 auto', marginTop: '50px' }}
+      className="nm_authForm"
     >
       <Stack spacing={4} borderColor={error ? 'tomato' : 'gray.200'}>
         <Heading as="h6" size="xs">Login</Heading>
