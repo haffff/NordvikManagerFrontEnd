@@ -8,6 +8,8 @@ import { sandboxBridgeScript, withCardCsp } from "./cardSandbox";
 import { loadSandboxOrigins } from "../../../helpers/sandboxOrigins";
 import CardAPIFactory, { ALLOWED_WS_RECEIVE_PREFIXES } from "../../../CardAPI";
 import DockableHelper from "../../../helpers/DockableHelper";
+import { isMobileUi } from "../../../helpers/uiMode";
+import { closeTab } from "../mobile/mobileTabs";
 import { baseCardCss, cardStyleLinks, onGameCssChange } from "../../../helpers/cardAppStyles";
 
 // ─── postMessage bridge ───────────────────────────────────────────────────────
@@ -516,6 +518,11 @@ export const CardPanel = ({ id, name, data }) => {
       //    what Dockable.removeContent needs — so no new dockable-level API is
       //    needed to let a card dismiss its own panel.
       const closePanel = () => {
+        // The mobile UI shows the card as a tab (its content id is the tab id).
+        if (isMobileUi()) {
+          closeTab(ctx?.layoutContent?.content?.contentId);
+          return;
+        }
         const globalState = DockableHelper.getGlobalState();
         if (!globalState?.ref?.current || !ctx?.layoutContent) return;
         Dockable.removeContent(

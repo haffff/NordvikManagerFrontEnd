@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Box, Button, Flex, HStack, Icon, IconButton, SimpleGrid, Stack, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, HStack, Icon, IconButton, SimpleGrid, Text } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import { FaChevronLeft } from "@react-icons/all-files/fa/FaChevronLeft";
 import { FaChevronRight } from "@react-icons/all-files/fa/FaChevronRight";
@@ -23,7 +23,7 @@ import DListItemsButtonContainer from "../../uiComponents/base/List/DListItemsBu
 import SettingsPanel from "../settings/SettingsPanel";
 import ClientMediator from "../../../ClientMediator";
 import { usePermissions } from "../../../contexts/PermissionsContext";
-import { useDragResize } from "../../uiComponents/ResizeDivider";
+import { SplitPane, useSplitView } from "../../uiComponents/base/SplitPane";
 import themeColors from "../../../helpers/themeColors";
 
 // ── Module-level constants ────────────────────────────────────────────────────
@@ -222,8 +222,9 @@ export const SoundboardPanel = () => {
   const [viewMode, setViewMode] = React.useState("play"); // "play" | "edit"
   const [isListCollapsed, setIsListCollapsed] = React.useState(false);
 
-  const colContainerRef = React.useRef(null);
-  const { fracs, onDividerMouseDown } = useDragResize(colContainerRef, [0.35]);
+  // List and detail side by side, or one at a time when narrow.
+  const split = useSplitView();
+  const openBoard = (id) => { setSelectedId(id); split.showDetail(); };
 
   const ctx = Dockable.useContentContext();
   ctx.setTitle("Soundboard");
@@ -281,7 +282,7 @@ export const SoundboardPanel = () => {
       return;
     }
     await reloadAll();
-    if (body?.id) setSelectedId(body.id);
+    if (body?.id) openBoard(body.id);
   };
 
   // RemovePlaylist's success path always returns the CommandResponse enum as a bare
@@ -292,7 +293,7 @@ export const SoundboardPanel = () => {
       toaster.create({ title: "Failed to delete soundboard", description: body?.error, type: "error", duration: 5000 });
       return;
     }
-    if (selectedId === board.id) setSelectedId(null);
+    if (selectedId === board.id) { setSelectedId(null); split.showList(); }
     await reloadAll();
   };
 
@@ -373,17 +374,18 @@ export const SoundboardPanel = () => {
         commandPrefix="playlist"
         onMessage={(m) => (m?.command === "playlist_notify" ? reloadAll() : loadBoards())}
       />
-      <Flex height="100%" width="100%" overflow="hidden" ref={colContainerRef}>
-        {/* ── Left list pane ── */}
-        <Stack
-          width={`${fracs[0] * 100}%`}
-          flexShrink={0}
-          height="100%"
-          overflow="hidden"
-          gap={0}
-          display={isListCollapsed ? "none" : "flex"}
-        >
-          {/* Folder tree (with its own search) */}
+      <SplitPane
+        split={split}
+        backLabel="soundboards"
+        listHidden={isListCollapsed}
+        renderDivider={(onMouseDown) => (
+          <CollapsibleDivider
+            isCollapsed={isListCollapsed}
+            onToggle={() => setIsListCollapsed((c) => !c)}
+            onMouseDown={onMouseDown}
+          />
+        )}
+        list={
           <Flex flex={1} minH={0} direction="column" px="4px" pt="4px">
             <DTreeList
               entityType="Soundboard"
@@ -395,76 +397,65 @@ export const SoundboardPanel = () => {
               addRowLabel="New soundboard"
               refreshRef={treeRefreshRef}
               estimatedRowHeight={44}
-              onSelect={(sel) => { if (sel?.itemRef) setSelectedId(sel.itemRef.id); }}
+              onSelect={(sel) => { if (sel?.itemRef) openBoard(sel.itemRef.id); }}
               generateItem={(b) => (
                 <BoardCard
                   board={b}
                   isSelected={selectedId === b.id}
-                  onSelect={(board) => setSelectedId(board.id)}
+                  onSelect={(board) => openBoard(board.id)}
                   onDelete={handleDelete}
                   onVolume={handleVolume}
                 />
               )}
             />
           </Flex>
-
-        </Stack>
-
-        <CollapsibleDivider
-          isCollapsed={isListCollapsed}
-          onToggle={() => setIsListCollapsed((c) => !c)}
-          onMouseDown={(e) => onDividerMouseDown(0, e)}
-        />
-
-        {/* ── Right detail pane ── */}
-        <Flex direction="column" flex={1} height="100%" overflow="hidden">
-          {selectedBoard && editorDto ? (
-            <>
-              <RightPaneHeader
-                board={selectedBoard}
-                viewMode={viewMode}
-                onToggleView={() => setViewMode((v) => (v === "edit" ? "play" : "edit"))}
-                onStopAll={handleStopAll}
-                confirmDelete={confirmDelete}
-                onDelete={() => setConfirmDelete(true)}
-                onConfirmDelete={() => {
-                  handleDelete(selectedBoard);
-                  setConfirmDelete(false);
-                }}
-                onCancelDelete={() => setConfirmDelete(false)}
-              />
-              <Box flex={1} overflowY="auto" p="10px">
-                {viewMode === "edit" ? (
-                  <SettingsPanel
-                    key={selectedBoard.id}
-                    dto={editorDto}
-                    editableKeyLabelDict={EDITABLE_DICT}
-                    onSave={handleSave}
-                  />
-                ) : sounds.length === 0 ? (
-                  <EmptyState message="No sounds in this board yet — click the edit icon to add some." />
-                ) : (
-                  <SimpleGrid columns={3} gap="10px">
-                    {sounds.map((resource) => (
-                      <SoundTile
-                        key={resource.id}
-                        resource={resource}
-                        playing={playing.has(resource.id)}
-                        looped={(selectedBoard.loopedResourceIds ?? []).includes(resource.id)}
-                        onPlay={handlePlay}
-                        onStop={handleStop}
-                        onToggleLoop={handleToggleLoop}
-                      />
-                    ))}
-                  </SimpleGrid>
-                )}
-              </Box>
-            </>
-          ) : (
-            <EmptyState />
-          )}
-        </Flex>
-      </Flex>
+        }
+        detail={selectedBoard && editorDto ? (
+          <>
+            <RightPaneHeader
+              board={selectedBoard}
+              viewMode={viewMode}
+              onToggleView={() => setViewMode((v) => (v === "edit" ? "play" : "edit"))}
+              onStopAll={handleStopAll}
+              confirmDelete={confirmDelete}
+              onDelete={() => setConfirmDelete(true)}
+              onConfirmDelete={() => {
+                handleDelete(selectedBoard);
+                setConfirmDelete(false);
+              }}
+              onCancelDelete={() => setConfirmDelete(false)}
+            />
+            <Box flex={1} overflowY="auto" p="10px">
+              {viewMode === "edit" ? (
+                <SettingsPanel
+                  key={selectedBoard.id}
+                  dto={editorDto}
+                  editableKeyLabelDict={EDITABLE_DICT}
+                  onSave={handleSave}
+                />
+              ) : sounds.length === 0 ? (
+                <EmptyState message="No sounds in this board yet — click the edit icon to add some." />
+              ) : (
+                <SimpleGrid columns={3} gap="10px">
+                  {sounds.map((resource) => (
+                    <SoundTile
+                      key={resource.id}
+                      resource={resource}
+                      playing={playing.has(resource.id)}
+                      looped={(selectedBoard.loopedResourceIds ?? []).includes(resource.id)}
+                      onPlay={handlePlay}
+                      onStop={handleStop}
+                      onToggleLoop={handleToggleLoop}
+                    />
+                  ))}
+                </SimpleGrid>
+              )}
+            </Box>
+          </>
+        ) : (
+          <EmptyState />
+        )}
+      />
     </BasePanel>
   );
 };

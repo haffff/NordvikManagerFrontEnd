@@ -169,7 +169,7 @@ export const UpdateSection = () => {
                         I backed up the database myself
                       </Checkbox>
                     )}
-                    <HStack>
+                    <HStack className="nm_wrapRow">
                       <Button
                         colorPalette="orange"
                         onClick={install}
@@ -190,7 +190,7 @@ export const UpdateSection = () => {
               <Text>This is the latest version.</Text>
             )}
             {status.checkError && <Text color="red.300">{status.checkError}</Text>}
-            <HStack>
+            <HStack className="nm_wrapRow">
               <Button size="sm" variant="outline" onClick={check} disabled={busy}>
                 Check now
               </Button>

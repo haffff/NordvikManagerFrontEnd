@@ -14,7 +14,7 @@ import ClientMediator from "../../../../ClientMediator";
 import CollectionSyncer from "../../../uiComponents/base/CollectionSyncer";
 import { SearchInput } from "../../../uiComponents/SearchInput";
 import DListItemButton from "../../../uiComponents/base/List/ListItemDetails/DListItemButton";
-import { ResizeDivider, useDragResize } from "../../../uiComponents/ResizeDivider";
+import { SplitPane, useSplitView } from "../../../uiComponents/base/SplitPane";
 import { DialogRoot, DialogContent, DialogBody, DialogFooter, DialogHeader, DialogTitle } from "../../../ui/dialog";
 import { ActionEditor, fullActionName } from "./ActionEditor/ActionEditor";
 import { useActionDraft } from "./ActionEditor/useActionDraft";
@@ -159,8 +159,9 @@ export const ActionsPanel = () => {
   const stepTypes = React.useMemo(() => (stepDefinitions.length ? stepDefinitions.map((d) => d.value) : undefined), [stepDefinitions]);
   const createdRef = React.useRef(null); // "prefix/name" just created here, to open it when it arrives
 
-  const colRef = React.useRef(null);
-  const { fracs, onDividerMouseDown } = useDragResize(colRef, [0.26]);
+  // List and editor side by side, or one at a time when narrow. Back only shows the list:
+  // the open action and its unsaved edits stay.
+  const split = useSplitView();
 
   const ctx = Dockable.useContentContext();
   ctx.setTitle("Actions");
@@ -257,6 +258,7 @@ export const ActionsPanel = () => {
     WebSocketManagerInstance.Send({ command: "action_delete", data: draft.action.id });
     dropDraft(draft.action.id);
     draft.load(null);
+    split.showList();
   };
 
   return (
@@ -264,18 +266,24 @@ export const ActionsPanel = () => {
       <CollectionSyncer
         commandPrefix="action" collection={actions} setCollection={setActions}
         onAdd={(a) => {
-          if (a?.id && fullActionName(a) === createdRef.current) { createdRef.current = null; navigate({ type: "action", id: a.id }); }
+          if (a?.id && fullActionName(a) === createdRef.current) {
+            createdRef.current = null;
+            navigate({ type: "action", id: a.id });
+            split.showDetail();
+          }
         }}
       />
-      <Flex height="100%" overflow="hidden" ref={colRef}>
-        <Box width={`${fracs[0] * 100}%`} flexShrink={0} overflow="hidden">
+      <SplitPane
+        split={split}
+        backLabel="actions"
+        initialFraction={0.26}
+        list={
           <Sidebar actions={actions} hooks={hooks} stepTypes={stepTypes} loading={loading} selectedId={draft.action?.id}
-            onSelect={(id) => navigate({ type: "action", id })}
-            onSelectGroup={(prefix) => navigate({ type: "group", prefix })}
+            onSelect={(id) => { navigate({ type: "action", id }); split.showDetail(); }}
+            onSelectGroup={(prefix) => { navigate({ type: "group", prefix }); split.showDetail(); }}
             onCreate={create} />
-        </Box>
-        <ResizeDivider onMouseDown={(e) => onDividerMouseDown(0, e)} />
-        <Flex flex={1} direction="column" overflow="hidden" minW={0}>
+        }
+        detail={<>
           {restorable && draft.action && (
             <HStack px={3} py={2} gap={2} bg="rgba(236,201,75,0.12)" borderBottomWidth="1px" borderColor="yellow.700" flexShrink={0}>
               <Text fontSize="xs" color="yellow.200" flex={1}>
@@ -296,8 +304,8 @@ export const ActionsPanel = () => {
               <Text fontSize="sm">Select an action, or create one with +</Text>
             </Flex>
           )}
-        </Flex>
-      </Flex>
+        </>}
+      />
 
       <DialogRoot open={!!pending} size="sm" onOpenChange={(e) => { if (!e.open) setPending(null); }}>
         <DialogContent>

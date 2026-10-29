@@ -1,4 +1,4 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { screen, waitFor, fireEvent, act } from '@testing-library/react';
 import { renderWithProviders } from '../../../../setupTests';
 
@@ -103,5 +103,27 @@ describe('TemplatesPanel folder tree', () => {
     await screen.findByTestId('settings');
 
     expect(editorProps.editableKeyLabelDict).toContainEqual(expect.objectContaining({ key: 'isHidden', type: 'boolean' }));
+  });
+});
+
+describe('TemplatesPanel in a narrow window', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    WebHelper.getAsync.mockImplementation(async (url) => (url.startsWith('materials/GetTemplatesFull') ? views : null));
+    WebHelper.get.mockImplementation((url, ok) => { if (url.startsWith('battlemap/getTree')) ok(tree); });
+    vi.spyOn(HTMLElement.prototype, 'clientWidth', 'get').mockReturnValue(360);
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('shows the list, then the picked template with a way back to the list', async () => {
+    renderWithProviders(<TemplatesPanel />);
+    fireEvent.click(await screen.findByText('Loot table'));
+    expect(await screen.findByTestId('settings')).toBeVisible();
+    expect(screen.getByText('Combat UI')).not.toBeVisible();
+
+    fireEvent.click(screen.getByRole('button', { name: /back to templates/i }));
+    expect(screen.getByTestId('settings')).not.toBeVisible();
+    expect(screen.getByText('Combat UI')).toBeVisible();
   });
 });

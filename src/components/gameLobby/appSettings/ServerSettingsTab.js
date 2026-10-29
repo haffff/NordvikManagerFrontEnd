@@ -58,7 +58,7 @@ const ListSetting = ({ locked, entries, canEdit, placeholder, addLabel, inputLab
         ))}
         {locked.length === 0 && entries.length === 0 && <Text color="fg.muted">None.</Text>}
       </Wrap>
-      <HStack>
+      <HStack className="nm_wrapRow">
         <Input
           maxW="md"
           placeholder={placeholder}
@@ -199,7 +199,7 @@ export const ServerSettingsTab = () => {
           In use: <b>{repository.saved ?? repository.fromConfig ?? "none"}</b>{" "}
           {repository.saved ? "(set here)" : repository.fromConfig ? "(from appsettings)" : ""}
         </Text>
-        <HStack>
+        <HStack className="nm_wrapRow">
           <Input
             maxW="xl"
             aria-label="Registry URL"

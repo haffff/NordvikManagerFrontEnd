@@ -4,11 +4,13 @@ import DockableHelper from '../../../helpers/DockableHelper';
 import * as Dockable from '@hlorenzi/react-dockable';
 import { getPanelKeyForComponent } from '../../../helpers/PanelsList';
 import { findOpenPanel } from '../../../helpers/showToPlayers';
+import { isMobileUi } from '../../../helpers/uiMode';
 import addonOpLog from '../../../helpers/addonOpLog';
 import ClientMediator from '../../../ClientMediator';
 import { toaster } from '../../ui/toaster';
 import { DropDownItem } from '../../uiComponents/base/DDItems/DropDownItem';
 import { addMenuItem, addSubMenu, getMenuContext } from "../../uiComponents/base/DDItems/menuItemsStore";
+import { addToolbarButton } from "../../uiComponents/base/DDItems/toolbarButtonsStore";
 import { addMapTool } from "../../BattleMap/mapToolsStore";
 
 /**
@@ -125,61 +127,55 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
     });
   }, [connectedPlayersRef, playersRef, setConnectedPlayers, setPlayers, currentPlayerId, onExit]);
 
+  // Shown by the server: a floating panel near the top-left, or in the mobile UI a tab
+  // (NewFloating returns no dock panel there).
+  const openShown = useCallback((element) => {
+    const panel = DockableHelper.NewFloating(state, element);
+    if (!panel) return;
+    panel.rect = panel.rect.withX(50).withY(50);
+    state.commit();
+  }, [state]);
+
   const HandleShowPanel = useCallback((resp) => {
-    // Battlemap panels deduplicate — don't re-open if already registered.
-    if (resp.data?.type === 'Battlemap') {
+    // Battlemap panels deduplicate — don't re-open if already registered. (In the mobile UI
+    // a registered map may be a background tab: opening it below switches to that tab.)
+    if (resp.data?.type === 'Battlemap' && !isMobileUi()) {
       const syncId = resp.data.syncId;
       if (syncId && battleMapsContextsRef.current[syncId]) return;
     }
     // Already open (e.g. the GM's "Show to players" reaches everyone, not only the player who
     // closed it): bring that one forward instead of opening a second copy.
-    const open = findOpenPanel(state.ref.current, resp.data, battleMapsContextsRef.current, getPanelKeyForComponent);
+    // (The mobile UI has no dock: its tabs do the same when the panel is opened.)
+    const open = !isMobileUi() && findOpenPanel(state.ref.current, resp.data, battleMapsContextsRef.current, getPanelKeyForComponent);
     if (open) {
       open.panel.currentTabIndex = open.tabIndex;
       Dockable.restorePanel(state.ref.current, open.panel);
       state.commit();
       return;
     }
-    const panel = DockableHelper.NewFloating(state, CreateLayoutElement(resp.data));
-    panel.rect = panel.rect.withX(50).withY(50);
-    state.commit();
-  }, [battleMapsContextsRef, state, CreateLayoutElement]);
+    openShown(CreateLayoutElement(resp.data));
+  }, [battleMapsContextsRef, state, CreateLayoutElement, openShown]);
 
   /** GM → player: show a specific card as a floating panel. */
   const HandleShowCard = useCallback((resp) => {
-    const panel = DockableHelper.NewFloating(
-      state,
-      CreateLayoutElement({ type: "CardPanel", props: resp.data })
-    );
-    panel.rect = panel.rect.withX(50).withY(50);
-    state.commit();
-  }, [state, CreateLayoutElement]);
+    openShown(CreateLayoutElement({ type: "CardPanel", props: resp.data }));
+  }, [openShown, CreateLayoutElement]);
 
   /**
    * GM → player: show a view (also backed by CardPanel / same API as a card,
    * but intentionally excluded from the CardsPanel listing).
    */
   const HandleShowView = useCallback((resp) => {
-    const panel = DockableHelper.NewFloating(
-      state,
-      CreateLayoutElement({ type: "CardPanel", props: resp.data })
-    );
-    panel.rect = panel.rect.withX(50).withY(50);
-    state.commit();
-  }, [state, CreateLayoutElement]);
+    openShown(CreateLayoutElement({ type: "CardPanel", props: resp.data }));
+  }, [openShown, CreateLayoutElement]);
 
   /**
    * Backend → client: show a view (card) by viewId.
    * Payload: { viewId: string, data?: string }
    */
   const HandleViewShow = useCallback((resp) => {
-    const panel = DockableHelper.NewFloating(
-      state,
-      CreateLayoutElement({ type: "CardPanel", props: { id: resp.data.viewId, data: resp.data.data } })
-    );
-    panel.rect = panel.rect.withX(50).withY(50);
-    state.commit();
-  }, [state, CreateLayoutElement]);
+    openShown(CreateLayoutElement({ type: "CardPanel", props: { id: resp.data.viewId, data: resp.data.data } }));
+  }, [openShown, CreateLayoutElement]);
 
   /**
    * Backend → client: add a dynamic menu item to a named dropdown menu.
@@ -215,7 +211,8 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
    */
   const HandleAddToolbarButton = useCallback((resp) => {
     const item = resp.data;
-    ClientMediator.sendCommand("Toolbar", "AddButton", {
+    // Into the store: the desktop toolbar and the phone's "+" sheet both show it.
+    addToolbarButton({
       name: item.uiName || item.name,
       menuId: item.menuId,
       menuName: item.menuName,

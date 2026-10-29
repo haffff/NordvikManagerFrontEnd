@@ -1,0 +1,86 @@
+/* The screens around the game: login, register, the games list and their dialogs.
+   The page itself never scrolls (body and #root hide overflow, for the game's sake),
+   so each screen scrolls on its own. Chakra's styles sit in a CSS layer, so these
+   unlayered rules win over its props. */
+
+/* Login and register forms: 400px wide, narrower on a phone. */
+.nm_authForm {
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 400px;
+  max-height: 100dvh;
+  overflow-y: auto;
+  margin: 0 auto;
+  padding: 50px 16px 24px;
+}
+
+/* The games list (GM) and the sessions list (player). */
+.nm_lobby {
+  box-sizing: border-box;
+  width: 60%;
+  height: 100dvh;
+  overflow-y: auto;
+  margin: 0 auto;
+  padding-bottom: 24px;
+}
+
+.nm_lobbyToolbar {
+  flex-wrap: wrap;
+}
+
+/* A game or session card. */
+.nm_lobbyCard {
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .nm_lobby {
+    width: 100%;
+    padding: 0 12px calc(24px + env(safe-area-inset-bottom));
+  }
+
+  .nm_lobbyToolbar {
+    margin: 0 0 24px !important;
+  }
+}
+
+/* Phones: two cards a row, a little shorter. */
+@media (max-width: 480px) {
+  .nm_lobbyCard {
+    width: calc(50% - 4px) !important;
+    min-height: 240px !important;
+  }
+
+  .nm_lobbyJoinInput {
+    flex: 1;
+    width: auto !important;
+    min-width: 0;
+  }
+
+  /* A side-by-side row (cover image beside the fields, a field beside its buttons)
+     stacks on a phone. */
+  .nm_stackOnPhone {
+    flex-direction: column;
+    align-items: stretch !important;
+  }
+}
+
+/* A row of a field and its buttons: the buttons go under it when there's no room. */
+.nm_wrapRow {
+  flex-wrap: wrap;
+}
+
+/* A table wider than the screen scrolls sideways instead of overflowing the dialog. */
+.nm_tableScroll {
+  max-width: 100%;
+  overflow-x: auto;
+}
+
+/* iOS zooms the page into any focused field with text under 16px. */
+@media (pointer: coarse) {
+  .nm_authForm input,
+  .nm_lobby input,
+  .nm_dialog input {
+    font-size: max(16px, 1em);
+  }
+}

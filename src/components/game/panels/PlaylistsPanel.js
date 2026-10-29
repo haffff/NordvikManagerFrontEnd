@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Box, Button, Flex, HStack, Icon, Stack, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, HStack, Icon, Text } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
 import { FaChevronLeft } from "@react-icons/all-files/fa/FaChevronLeft";
 import { FaChevronRight } from "@react-icons/all-files/fa/FaChevronRight";
@@ -20,7 +20,7 @@ import DListItemsButtonContainer from "../../uiComponents/base/List/DListItemsBu
 import SettingsPanel from "../settings/SettingsPanel";
 import ClientMediator from "../../../ClientMediator";
 import { usePermissions } from "../../../contexts/PermissionsContext";
-import { useDragResize } from "../../uiComponents/ResizeDivider";
+import { SplitPane, useSplitView } from "../../uiComponents/base/SplitPane";
 import themeColors from "../../../helpers/themeColors";
 
 // ── Module-level constants ────────────────────────────────────────────────────
@@ -190,8 +190,9 @@ export const PlaylistsPanel = () => {
   const [playbackStatus, setPlaybackStatus] = React.useState({});
   const [isDetailsCollapsed, setIsDetailsCollapsed] = React.useState(false);
 
-  const colContainerRef = React.useRef(null);
-  const { fracs, onDividerMouseDown } = useDragResize(colContainerRef, [0.35]);
+  // List and detail side by side, or one at a time when narrow.
+  const split = useSplitView();
+  const openPlaylist = (id) => { setSelectedId(id); split.showDetail(); };
 
   const ctx = Dockable.useContentContext();
   ctx.setTitle("Playlists");
@@ -286,7 +287,7 @@ export const PlaylistsPanel = () => {
       return;
     }
     await reloadAll();
-    if (body?.id) setSelectedId(body.id);
+    if (body?.id) openPlaylist(body.id);
   };
 
   const handlePlay = async (playlist) => {
@@ -319,7 +320,7 @@ export const PlaylistsPanel = () => {
       toaster.create({ title: "Failed to delete playlist", description: body?.error, type: "error", duration: 5000 });
       return;
     }
-    if (selectedId === playlist.id) setSelectedId(null);
+    if (selectedId === playlist.id) { setSelectedId(null); split.showList(); }
     setPlaybackStatus((prev) => {
       const next = { ...prev };
       delete next[playlist.id];
@@ -379,17 +380,18 @@ export const PlaylistsPanel = () => {
           locally via handlePlaybackEvent below, so refetching on those would be wasteful. */}
       <Subscribable commandPrefix="playlist_notify" onMessage={() => reloadAll()} />
       <Subscribable commandPrefix="playlist" onMessage={handlePlaybackEvent} />
-      <Flex height="100%" width="100%" overflow="hidden" ref={colContainerRef}>
-        {/* ── Left list pane ── */}
-        <Stack
-          width={isDetailsCollapsed ? "auto" : `${fracs[0] * 100}%`}
-          flexGrow={isDetailsCollapsed ? 1 : 0}
-          flexShrink={0}
-          height="100%"
-          overflow="hidden"
-          gap={0}
-        >
-          {/* Folder tree (with its own search) */}
+      <SplitPane
+        split={split}
+        backLabel="playlists"
+        detailHidden={isDetailsCollapsed}
+        renderDivider={(onMouseDown) => (
+          <CollapsibleDivider
+            isCollapsed={isDetailsCollapsed}
+            onToggle={() => setIsDetailsCollapsed((c) => !c)}
+            onMouseDown={onMouseDown}
+          />
+        )}
+        list={
           <Flex flex={1} minH={0} direction="column" px="4px" pt="4px">
             <DTreeList
               entityType="Playlist"
@@ -401,13 +403,13 @@ export const PlaylistsPanel = () => {
               addRowLabel="New playlist"
               refreshRef={treeRefreshRef}
               estimatedRowHeight={44}
-              onSelect={(sel) => { if (sel?.itemRef) setSelectedId(sel.itemRef.id); }}
+              onSelect={(sel) => { if (sel?.itemRef) openPlaylist(sel.itemRef.id); }}
               generateItem={(p) => (
                 <PlaylistCard
                   playlist={p}
                   isSelected={selectedId === p.id}
                   playbackStatus={playbackStatus[p.id]}
-                  onSelect={(playlist) => setSelectedId(playlist.id)}
+                  onSelect={(playlist) => openPlaylist(playlist.id)}
                   onPlay={handlePlay}
                   onPause={handlePause}
                   onStop={handleStopPlayback}
@@ -417,49 +419,32 @@ export const PlaylistsPanel = () => {
               )}
             />
           </Flex>
-
-        </Stack>
-
-        <CollapsibleDivider
-          isCollapsed={isDetailsCollapsed}
-          onToggle={() => setIsDetailsCollapsed((c) => !c)}
-          onMouseDown={(e) => onDividerMouseDown(0, e)}
-        />
-
-        {/* ── Right detail pane ── */}
-        <Flex
-          direction="column"
-          flex={1}
-          height="100%"
-          overflow="hidden"
-          display={isDetailsCollapsed ? "none" : "flex"}
-        >
-          {selectedPlaylist && editorDto ? (
-            <>
-              <RightPaneHeader
-                playlist={selectedPlaylist}
-                confirmDelete={confirmDelete}
-                onDelete={() => setConfirmDelete(true)}
-                onConfirmDelete={() => {
-                  handleDelete(selectedPlaylist);
-                  setConfirmDelete(false);
-                }}
-                onCancelDelete={() => setConfirmDelete(false)}
+        }
+        detail={selectedPlaylist && editorDto ? (
+          <>
+            <RightPaneHeader
+              playlist={selectedPlaylist}
+              confirmDelete={confirmDelete}
+              onDelete={() => setConfirmDelete(true)}
+              onConfirmDelete={() => {
+                handleDelete(selectedPlaylist);
+                setConfirmDelete(false);
+              }}
+              onCancelDelete={() => setConfirmDelete(false)}
+            />
+            <Box flex={1} overflowY="auto" px="4px" py="4px">
+              <SettingsPanel
+                key={selectedPlaylist.id}
+                dto={editorDto}
+                editableKeyLabelDict={EDITABLE_DICT}
+                onSave={handleSave}
               />
-              <Box flex={1} overflowY="auto" px="4px" py="4px">
-                <SettingsPanel
-                  key={selectedPlaylist.id}
-                  dto={editorDto}
-                  editableKeyLabelDict={EDITABLE_DICT}
-                  onSave={handleSave}
-                />
-              </Box>
-            </>
-          ) : (
-            <EmptyState />
-          )}
-        </Flex>
-      </Flex>
+            </Box>
+          </>
+        ) : (
+          <EmptyState />
+        )}
+      />
     </BasePanel>
   );
 };

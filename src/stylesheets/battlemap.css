@@ -34,4 +34,6 @@
     width: 100%;
     flex-grow: 1;
     flex-direction: row;
+    /* Fingers on the map are the map's (pan, pinch, hold): the page doesn't zoom or scroll. */
+    touch-action: none;
 }

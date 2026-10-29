@@ -2,33 +2,26 @@ import * as React from 'react';
 import * as ReactDOM from 'react-dom';
 import * as Dockable from '@hlorenzi/react-dockable';
 import { mirrorGameCss } from '../../../helpers/popoutGameCss';
+import { makePanelContentContext } from '../../../helpers/panelContentContext';
 
-// No-op ContentContext so panels that call ctx.setTitle() / ctx.layoutContent.panel
-// don't crash when rendered outside a Dockable.Container.
 // layoutPanel.rect tracks the actual OS window dimensions so canvas-based panels
 // (e.g. Battlemap) can size themselves correctly.
-const NOOP = () => {};
-
 // `win` is the popped-out OS window (React state, may still be null on the very
 // first render before window.open() resolves). setTitle updates its actual
 // document.title live — panels like CardPanel call ctx.setTitle() on every
 // render, so leaving this a no-op froze the title at whatever the *first*
 // pop-out click captured, with no way to correct or update it afterward.
 function makeContentContext(w, h, contentId, win) {
-    return {
-        layoutContent: {
-            panel: { floating: true },
-            layoutPanel: { rect: { x: 0, y: 0, w, h } },
-            tabIndex: 0,
-            content: contentId ? { contentId } : null,
-        },
+    return makePanelContentContext({
+        w,
+        h,
+        contentId,
         setTitle: (title) => {
             if (title && win && !win.closed) {
                 win.document.title = title;
             }
         },
-        setPreferredSize: NOOP,
-    };
+    });
 }
 
 /**

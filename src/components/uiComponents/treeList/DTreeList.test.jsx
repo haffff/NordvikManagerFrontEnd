@@ -1,5 +1,5 @@
 import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
-import { screen, fireEvent, createEvent } from '@testing-library/react';
+import { screen, fireEvent, createEvent, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../../setupTests';
 
@@ -236,5 +236,79 @@ describe('DTreeList "+ New … here" rows', () => {
     await screen.findByText('Orc');
 
     expect(screen.queryByRole('button', { name: 'New card' })).toBeNull();
+  });
+});
+
+// Touch screens can't drag rows (no HTML5 drag and drop), so the toolbar can move them too.
+describe('DTreeList "Move to folder…"', () => {
+  // Root: Maps(folder) → Goblin → Orc ; Maps: Dungeon, Caves(folder)
+  const nested = [
+    ...tree.slice(0, 3),
+    { id: 'e-dungeon', targetId: 'dungeon', head: true, parentId: 'maps', next: 'caves', entryType: 'Card' },
+    { id: 'caves', isFolder: true, name: 'Caves', parentId: 'maps', entryType: 'Card' },
+  ];
+  beforeEach(() => {
+    vi.clearAllMocks();
+    localStorage.clear();
+    WebHelper.get.mockImplementation((url, ok) => ok(nested));
+  });
+  const renderTree = (props = {}) =>
+    renderWithProviders(<div style={{ height: 600 }}><DTreeList entityType="Card" items={items} canEditFolders {...props} /></div>);
+  const openMoveDialog = async () => fireEvent.click(await screen.findByRole('button', { name: 'Move to folder…' }));
+  const pick = async (name) => within(await screen.findByRole('dialog')).getByRole('button', { name });
+
+  it('moves the selected item into the picked folder', async () => {
+    renderTree();
+    await screen.findByText('Orc');
+    fireEvent.click(row('e-orc'));
+    await openMoveDialog();
+    fireEvent.click(await pick('Maps/Caves'));
+    expect(updates()).toEqual([{ id: 'e-orc', parentId: 'caves', next: null }]);
+  });
+
+  it('moves every selected entry, in tree order, and can move them to the top level', async () => {
+    renderTree();
+    await screen.findByText('Orc');
+    fireEvent.click(row('e-orc'));
+    fireEvent.click(row('e-goblin'), { ctrlKey: true });
+    await openMoveDialog();
+    fireEvent.click(await pick('Maps'));
+    expect(updates()).toEqual([
+      { id: 'e-goblin', parentId: 'maps', next: null },
+      { id: 'e-orc', parentId: 'maps', next: null },
+    ]);
+
+    ActiveTransportManager.Send.mockClear();
+    await vi.waitFor(() => expect(screen.queryByRole('dialog')).toBeNull());
+    await openMoveDialog();
+    fireEvent.click(await pick('Top level'));
+    expect(updates()).toEqual([
+      { id: 'e-goblin', parentId: null, next: null },
+      { id: 'e-orc', parentId: null, next: null },
+    ]);
+  });
+
+  it('offers no folder that is being moved, nor any inside it', async () => {
+    renderTree();
+    await screen.findByText('Maps');
+    fireEvent.click(row('maps'));
+    await openMoveDialog();
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByRole('button', { name: 'Top level' })).toBeInTheDocument();
+    expect(within(dialog).queryByRole('button', { name: 'Maps' })).toBeNull();
+    expect(within(dialog).queryByRole('button', { name: 'Maps/Caves' })).toBeNull();
+  });
+
+  it('is not offered with nothing selected', async () => {
+    renderTree();
+    await screen.findByText('Orc');
+    expect(screen.queryByRole('button', { name: 'Move to folder…' })).toBeNull();
+  });
+
+  it('is not offered to whoever cannot edit folders', async () => {
+    renderTree({ canEditFolders: false });
+    await screen.findByText('Orc');
+    fireEvent.click(row('e-orc'));
+    expect(screen.queryByRole('button', { name: 'Move to folder…' })).toBeNull();
   });
 });

@@ -9,6 +9,7 @@ import { toaster } from "../../ui/toaster";
 import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import { PersonalStylesheetSettings } from "../theme/StylesheetSettings";
 import ResourceCacheSettings from "./ResourceCacheSettings";
+import UiModeSettings from "./UiModeSettings";
 import AudioVolumeSettings from "./AudioVolumeSettings";
 import { Tabs } from "@chakra-ui/react";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
@@ -104,6 +105,7 @@ export const PlayerSettingsPanel = ({ player }) => {
           </Tabs.Content>
           {isCurrentPlayer && (
             <Tabs.Content value="browser" flex="1" minHeight={0} overflowY="auto">
+              <UiModeSettings />
               <PersonalStylesheetSettings gameId={WebHelper.GameId} />
               <AudioVolumeSettings />
               <ResourceCacheSettings />

@@ -1,6 +1,8 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "./index.css";
+import "./stylesheets/touch.css";
+import "./stylesheets/screens.css";
 import App from "./App";
 import { ErrorBoundary } from "./components/uiComponents/base/ErrorBoundary";
 import { RootErrorFallback } from "./components/RootErrorFallback";
