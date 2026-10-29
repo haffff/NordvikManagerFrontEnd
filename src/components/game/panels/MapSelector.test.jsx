@@ -70,7 +70,8 @@ const TOP_LEVEL = [
 const serveTree = (otherwise) => (url, cb) =>
   url.startsWith('battlemap/getTree') ? cb(treeEntries) : otherwise?.(url, cb);
 
-const mockState = {};
+// The dock state: DockableHelper.NewFloating commits it after spawning a panel.
+const mockState = { commit: vi.fn() };
 
 describe('MapSelector', () => {
   beforeEach(() => {
