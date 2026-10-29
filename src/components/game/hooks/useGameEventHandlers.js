@@ -10,6 +10,7 @@ import ClientMediator from '../../../ClientMediator';
 import { toaster } from '../../ui/toaster';
 import { DropDownItem } from '../../uiComponents/base/DDItems/DropDownItem';
 import { addMenuItem, addSubMenu, getMenuContext } from "../../uiComponents/base/DDItems/menuItemsStore";
+import { addToolbarButton } from "../../uiComponents/base/DDItems/toolbarButtonsStore";
 import { addMapTool } from "../../BattleMap/mapToolsStore";
 
 /**
@@ -210,7 +211,8 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
    */
   const HandleAddToolbarButton = useCallback((resp) => {
     const item = resp.data;
-    ClientMediator.sendCommand("Toolbar", "AddButton", {
+    // Into the store: the desktop toolbar and the phone's "+" sheet both show it.
+    addToolbarButton({
       name: item.uiName || item.name,
       menuId: item.menuId,
       menuName: item.menuName,

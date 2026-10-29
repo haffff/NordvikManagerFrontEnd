@@ -119,3 +119,59 @@ describe('MobileShell and the current battle map', () => {
     fire.mockRestore();
   });
 });
+
+describe('MobileShell: game commands and addon items in +', () => {
+  beforeEach(async () => {
+    resetTabs();
+    canEditGame = false;
+    const { resetMenuItems } = await import('../../uiComponents/base/DDItems/menuItemsStore');
+    const { resetToolbarButtons } = await import('../../uiComponents/base/DDItems/toolbarButtonsStore');
+    resetMenuItems();
+    resetToolbarButtons();
+  });
+
+  it('Run command and Exit go through the game, closing the sheet', async () => {
+    const ClientMediator = (await import('../../../ClientMediator')).default;
+    const send = vi.spyOn(ClientMediator, 'sendCommand').mockImplementation(() => undefined);
+    renderWithProviders(<MobileShell state={{}} />);
+
+    fireEvent.click(screen.getByRole('button', { name: /add a tab/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Run command' }));
+    expect(send).toHaveBeenCalledWith('game', 'OpenRun');
+    expect(screen.queryByRole('dialog', { name: /open a panel/i })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /add a tab/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Exit game' }));
+    expect(send).toHaveBeenCalledWith('game', 'Exit');
+    send.mockRestore();
+  });
+
+  it("shows addons' menu items and toolbar buttons, and runs the one tapped", async () => {
+    const { addMenuItem } = await import('../../uiComponents/base/DDItems/menuItemsStore');
+    const { addToolbarButton } = await import('../../uiComponents/base/DDItems/toolbarButtonsStore');
+    const roll = vi.fn();
+    const rest = vi.fn();
+    act(() => {
+      addMenuItem('game', <span key="roll" name="Roll initiative" onClick={roll} />);
+      addToolbarButton({ name: 'Short rest', onClick: rest });
+    });
+    renderWithProviders(<MobileShell state={{}} />);
+    fireEvent.click(screen.getByRole('button', { name: /add a tab/i }));
+
+    fireEvent.click(screen.getByRole('button', { name: 'Roll initiative' }));
+    expect(roll).toHaveBeenCalled();
+    expect(screen.queryByRole('dialog', { name: /open a panel/i })).toBeNull();
+
+    fireEvent.click(screen.getByRole('button', { name: /add a tab/i }));
+    fireEvent.click(screen.getByRole('button', { name: 'Short rest' }));
+    expect(rest).toHaveBeenCalled();
+  });
+
+  it('a toolbar button an addon sends through the mediator shows up too', async () => {
+    const ClientMediator = (await import('../../../ClientMediator')).default;
+    renderWithProviders(<MobileShell state={{}} />);
+    act(() => { ClientMediator.sendCommand('Toolbar', 'AddButton', { name: 'Loot', onClick: () => {} }); });
+    fireEvent.click(screen.getByRole('button', { name: /add a tab/i }));
+    expect(screen.getByRole('button', { name: 'Loot' })).toBeInTheDocument();
+  });
+});

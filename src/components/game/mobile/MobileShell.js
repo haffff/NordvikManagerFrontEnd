@@ -7,6 +7,8 @@ import { getTabsSnapshot, subscribeTabs, activateTab, closeTab, setTabTitle } fr
 import { panelLook } from "./mobileCatalog";
 import { makePanelContentContext } from "../../../helpers/panelContentContext";
 import AddTabDialog from "./AddTabDialog";
+import { AboutDialog } from "../../AboutDialog";
+import { useToolbarCommands } from "../../uiComponents/base/DDItems/toolbarButtonsStore";
 import ClientMediator from "../../../ClientMediator";
 import themeColors from "../../../helpers/themeColors";
 import "../../../stylesheets/mobile.css";
@@ -77,6 +79,10 @@ function TabCard({ tab, active }) {
 export function MobileShell({ state, gameDataManagerRef }) {
   const { tabs, activeId } = React.useSyncExternalStore(subscribeTabs, getTabsSnapshot);
   const [adding, setAdding] = React.useState(false);
+  const openAboutRef = React.useRef();
+
+  // Addons' toolbar buttons have no toolbar here: they're listed in the + sheet.
+  useToolbarCommands("mobile-toolbar");
 
   // The panels' size (the battle map fits its canvas to it).
   const contentRef = React.useRef(null);
@@ -133,7 +139,9 @@ export function MobileShell({ state, gameDataManagerRef }) {
         onClose={() => setAdding(false)}
         state={state}
         gameDataManagerRef={gameDataManagerRef}
+        onAbout={() => openAboutRef.current?.()}
       />
+      <AboutDialog openRef={openAboutRef} />
     </Flex>
   );
 }

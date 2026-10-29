@@ -118,3 +118,21 @@
   color: inherit;
   text-align: center;
 }
+
+/* An addon's menu item or toolbar button in the + sheet: a full-width row. */
+.nm_mobileCommandList {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.nm_mobileCommandRow {
+  display: flex;
+  align-items: center;
+  min-height: 44px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid var(--nordvik-border, rgb(65, 65, 65));
+  background: var(--nordvik-surface-raised, rgb(48, 48, 48));
+  text-align: left;
+}

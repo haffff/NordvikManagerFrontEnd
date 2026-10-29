@@ -18,6 +18,7 @@ import { Button } from "@chakra-ui/react";
 
 import { toaster } from "../../ui/toaster";
 import { AboutDialog } from "../../AboutDialog";
+import { getToolbarButtons, subscribeToolbarButtons, useToolbarCommands } from "../../uiComponents/base/DDItems/toolbarButtonsStore";
 
 export const MainToolbar = ({
   Dockable,
@@ -26,40 +27,20 @@ export const MainToolbar = ({
   gameMethods,
   forceRefreshGame,
 }) => {
-  const [additionalButtons, setAdditionalButtons] = React.useState([]);
   const openAboutRef = React.useRef();
 
-  React.useEffect(() => {
-    ClientMediator.register({
-      panel: "Toolbar",
-      id: "main-toolbar",
-      AddButton: (buttonData) => {
-        let element;
-        if (buttonData.menuId) {
-          // Create a dropdown menu button so AddMenuItem steps can populate it
-          element = React.createElement(DropDownMenu, {
-            key: buttonData.menuId,
-            viewId: buttonData.menuId,
-            name: buttonData.menuName || buttonData.name,
-          });
-        } else {
-          element = React.createElement(Button, {
-            key: buttonData.name,
-            height: "30px",
-            size: "xs",
-            borderRadius: 0,
-            variant: "outline",
-            onClick: buttonData.onClick,
-          }, buttonData.name);
-        }
-        setAdditionalButtons(prev => [...prev, element]);
-      },
-    });
-    return () => {
-      ClientMediator.unregister("main-toolbar");
-      setAdditionalButtons([]);
-    };
-  }, []);
+  useToolbarCommands("main-toolbar");
+  const toolbarButtons = React.useSyncExternalStore(subscribeToolbarButtons, getToolbarButtons);
+  const additionalButtons = toolbarButtons.map((button) =>
+    // A menu button: AddMenuItem steps fill it through its viewId.
+    button.menuId
+      ? <DropDownMenu key={button.key} viewId={button.menuId} name={button.name} />
+      : (
+        <Button key={button.key} height="30px" size="xs" borderRadius={0} variant="outline" onClick={button.onClick}>
+          {button.name}
+        </Button>
+      )
+  );
 
   const GenerateInviteLink = () => {
     let game = ClientMediator.sendCommand("Game", "GetGame", {});
