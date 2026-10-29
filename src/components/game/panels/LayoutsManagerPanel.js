@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Badge, Box, For, Heading, HStack, Stack, Text } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
+import DockableHelper from "../../../helpers/DockableHelper";
 import { FaCheck } from "@react-icons/all-files/fa/FaCheck";
 import { FaEdit } from "@react-icons/all-files/fa/FaEdit";
 import { FaPlus } from "@react-icons/all-files/fa/FaPlus";
@@ -229,7 +230,7 @@ export const LayoutsManagerPanel = ({ state, battlemapsRef }) => {
                 <DListItemButton label="Remove" color="red" icon={IoIosRemoveCircleOutline}
                   onClick={() => WebSocketManagerInstance.Send(CommandFactory.CreateLayoutRemoveCommand(x.id))} />
                 <DListItemButton label="Advanced / per-player permissions" icon={FaWrench}
-                  onClick={() => Dockable.spawnFloating(state, <LayoutSettingsPanel layoutId={x.id} />)} />
+                  onClick={() => DockableHelper.NewFloating(state, <LayoutSettingsPanel layoutId={x.id} />)} />
                 <DListItemButton label={shared[x.id] ? "Stop sharing with players" : "Share with all players"}
                   icon={shared[x.id] ? FaUsers : FaShareAlt} onClick={() => toggleShare(x)} />
                 <DListItemButton label="Rename" icon={FaEdit} onClick={() => openRename(x)} />

@@ -1,6 +1,9 @@
 import { useCallback, useState } from 'react';
 import LayoutHelper from '../../../helpers/LayoutCloneHelper';
 import LayoutPersistence from '../../../helpers/LayoutPersistence';
+import { isMobileUi } from '../../../helpers/uiMode';
+import { openLayoutAsTabs } from '../mobile/mobileLayout';
+import { openTab } from '../mobile/mobileTabs';
 import { toaster } from '../../ui/toaster';
 import ClientMediator from '../../../ClientMediator';
 import { PropertiesManagerInstance } from '../../../CardAPI';
@@ -106,7 +109,17 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
         return n;
       };
 
-      if (layoutToApply) {
+      if (isMobileUi()) {
+        // No dock on a phone: the layout's panels become the starting tabs (the layout is
+        // often how a player gets the battle map), else the chat.
+        try {
+          if (openLayoutAsTabs(layoutToApply, CreateLayoutElement) === 0) {
+            openTab(CreateLayoutElement({ type: 'ChatPanel', props: {} }));
+          }
+        } catch (e) {
+          console.error('useGameInitialization: failed to open the layout as tabs', e);
+        }
+      } else if (layoutToApply) {
         try {
           LayoutHelper.LoadLayoutState(state, layoutToApply, CreateLayoutElement);
           // LoadLayoutState swallows its own errors, so a parseable-but-broken blob

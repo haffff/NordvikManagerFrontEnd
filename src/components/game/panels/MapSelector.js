@@ -1,6 +1,7 @@
 import * as React from "react";
 import { Box, Flex, Icon, Spinner, Text } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
+import DockableHelper from "../../../helpers/DockableHelper";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import { FaMap } from "@react-icons/all-files/fa/FaMap";
 import { FaMinusCircle } from "@react-icons/all-files/fa/FaMinusCircle";
@@ -60,7 +61,7 @@ export const MapSelector = ({ battleMapId, state }) => {
 
   const HandleSettings = (id) => {
     WebHelper.get(`map/get?mapId=${id}`, (r) => {
-      Dockable.spawnFloating(state, <MapSettingsPanel map={r} />);
+      DockableHelper.NewFloating(state, <MapSettingsPanel map={r} />);
     });
   };
 

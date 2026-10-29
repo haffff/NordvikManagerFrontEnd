@@ -1,4 +1,4 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { renderHook, act } from '@testing-library/react';
 
 vi.mock('../../../helpers/transport', () => ({
@@ -12,7 +12,10 @@ vi.mock('../../../ClientMediator', () => ({
   default: { register: vi.fn(), fireEvent: vi.fn(), sendCommand: vi.fn() },
 }));
 
+import * as Transport from '../../../helpers/transport';
 import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
+import { setActiveUiMode } from '../../../helpers/uiMode';
+import { getTabsSnapshot, resetTabs } from '../mobile/mobileTabs';
 import { useGameInitialization } from './useGameInitialization';
 
 function makeGameState() {
@@ -175,5 +178,47 @@ describe('useGameInitialization generation token', () => {
     ).length;
 
     expect(getplayerCallsAfter).toBe(getplayerCallsBefore);
+  });
+});
+
+describe('useGameInitialization in the mobile UI', () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    resetTabs();
+    setActiveUiMode('mobile');
+  });
+  afterEach(() => setActiveUiMode('desktop'));
+
+  const layout = { _contents: [{ contentId: 'c1', type: 'ChatPanel', props: {} }, { contentId: 'c2', type: 'CardPanel', props: { id: 'k' } }] };
+  const create = (content) => ({ type: Object.defineProperty(() => null, 'name', { value: content.type }), props: content.props ?? {} });
+
+  async function load(game) {
+    const state = { ref: { current: {} }, commit: vi.fn() };
+    const gameState = makeGameState();
+    const { result } = renderHook(() =>
+      useGameInitialization({ state, gameState, CreateLayoutElement: vi.fn(create) })
+    );
+    WebHelper.getAsync.mockImplementation(async (path) => {
+      if (path === 'battlemap/getplayer') return { id: 'p1' };
+      if (path === 'battlemap/getfullgame') return { id: 'g1', master: { id: 'p1' }, players: [], battleMaps: [], ...game };
+      return null;
+    });
+    // The initialization guard is module-level: an earlier test may have left a load in flight.
+    act(() => { result.current.resetInitialization(); });
+    await act(async () => { await result.current.loadGame(); });
+    act(() => { result.current.resetInitialization(); });
+    return state;
+  }
+
+  it("opens the layout's panels as tabs and leaves the dock alone", async () => {
+    const state = await load({ defaultLayout: { id: 'l1', value: JSON.stringify(layout) } });
+    expect(getTabsSnapshot().tabs.map((t) => t.panelKey)).toEqual(['ChatPanel', 'CardPanel']);
+    expect(state.ref.current.rootPanel).toBeUndefined();
+    expect(Transport.ActiveTransportManager.Send).toHaveBeenCalledWith({ command: 'client_layout_ready' });
+  });
+
+  it('opens the chat when the layout has no panels', async () => {
+    await load({ defaultLayout: null });
+    expect(getTabsSnapshot().tabs.map((t) => t.panelKey)).toEqual(['ChatPanel']);
   });
 });

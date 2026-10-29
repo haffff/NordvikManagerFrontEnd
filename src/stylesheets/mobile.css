@@ -1,0 +1,120 @@
+/* The mobile game UI (components/game/mobile): full-screen tabs over a bottom tab bar. */
+
+.nm_mobileShell {
+  height: 100%;
+}
+
+.nm_mobileContent {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  overflow: hidden;
+}
+
+.nm_mobileTabContent {
+  position: absolute;
+  inset: 0;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* Panels are written for a dock window: let them fill the screen instead. */
+.nm_mobileTabContent > * {
+  flex: 1;
+  min-width: 0;
+  min-height: 0;
+  width: 100%;
+}
+
+.nm_mobileEmpty {
+  height: 100%;
+  padding: 16px;
+  text-align: center;
+}
+
+.nm_mobileTabBar {
+  flex-shrink: 0;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px calc(6px + env(safe-area-inset-bottom));
+  border-top: 1px solid;
+}
+
+.nm_mobileTabList {
+  flex: 1;
+  min-width: 0;
+  gap: 6px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.nm_mobileTabList::-webkit-scrollbar {
+  display: none;
+}
+
+.nm_mobileTabCard {
+  flex-shrink: 0;
+  align-items: center;
+  border: 1px solid;
+  border-radius: 8px;
+  padding-right: 2px;
+}
+
+.nm_mobileTabCardButton {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  min-width: 56px;
+  max-width: 96px;
+  padding: 6px 8px;
+  background: none;
+  border: none;
+  color: inherit;
+  font-size: 18px;
+}
+
+.nm_mobileTabCardTitle {
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 11px;
+}
+
+.nm_mobileAddButton {
+  flex-shrink: 0;
+}
+
+.nm_mobileAddDialog {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  overflow-y: auto;
+  padding: 16px 16px calc(16px + env(safe-area-inset-bottom));
+}
+
+.nm_mobileAddDialog section {
+  margin-bottom: 20px;
+}
+
+.nm_mobileAddGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(96px, 1fr));
+  gap: 8px;
+}
+
+.nm_mobileAddCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 72px;
+  padding: 8px;
+  border-radius: 8px;
+  border: 1px solid var(--nordvik-border, rgb(65, 65, 65));
+  background: var(--nordvik-surface-raised, rgb(48, 48, 48));
+  color: inherit;
+  text-align: center;
+}

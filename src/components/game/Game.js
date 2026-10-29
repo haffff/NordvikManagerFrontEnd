@@ -30,6 +30,10 @@ import GameDock from "./GameDock";
 import { useDockModifier } from "../../helpers/dockSettings";
 import GameStylesheets from "./theme/GameStylesheets";
 import themeColors from "../../helpers/themeColors";
+import { getUiMode, setActiveUiMode } from "../../helpers/uiMode";
+// Loaded only in the mobile UI: its "+" dialog imports every panel up front.
+const MobileShell = React.lazy(() => import("./mobile/MobileShell"));
+import { resetTabs } from "./mobile/mobileTabs";
 import "../../stylesheets/dock.css";
 
 export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
@@ -40,6 +44,20 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
   // uses `resolvedGameId`, corrected in place (no remount) once the WebRTC
   // channel confirms the real value — see the effect further down.
   const [resolvedGameId, setResolvedGameId] = React.useState(gameID);
+
+  // Desktop (the dock) or mobile (tabs) — picked once when the game opens and kept for the
+  // session: switching would unmount every panel. Set before any effect runs, since
+  // DockableHelper and the layout loading read it.
+  const [uiMode] = React.useState(() => {
+    const mode = getUiMode();
+    setActiveUiMode(mode);
+    return mode;
+  });
+  const mobile = uiMode === "mobile";
+  React.useEffect(() => () => {
+    setActiveUiMode("desktop");
+    resetTabs();
+  }, []);
 
   const gameState = useGameState(resolvedGameId, onExit);
   const {
@@ -188,10 +206,12 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
     <DragOptimizationProvider>
       <div
         ref={gameContainerRef}
+        className={mobile ? "nm_game nm_game--mobile" : "nm_game"}
         style={{
           display: "grid",
-          gridTemplateRows: "35px 1fr auto",
-          height: "100vh",
+          // On a phone, 100dvh keeps the tab bar above the browser's address bar.
+          gridTemplateRows: mobile ? "1fr auto" : "35px 1fr auto",
+          height: mobile ? "100dvh" : "100vh",
           overflow: "hidden"
         }}
         onKeyDown={(e) =>
@@ -224,17 +244,28 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
       <RequestInputManager />
       <TargetPickingManager />
       <PointRequestManager />
-      <PlayerTour ready={ready} isGM={isOwner} />
-      <LayoutAutoSaveManager state={state} battlemapsRef={battleMapContexts} />
-      <MainToolbar
-        key={resolvedGameId}
-        state={dockState}
-        gameDataManagerRef={gameDataManagerRef}
-        battlemapsRef={battleMapContexts}
-        forceRefreshGame={forceUpdate}
-      />      <Flex className="nm_dock" data-tour="dock" style={{ height: "100%", overflow: "hidden" }}>
-      <GameDock state={state} dockModifier={dockModifier} battleMaps={battleMapContexts} />
-      </Flex><QuickCommandDialog state={dockState} openRef={quickCommandDialogOpenRef} />
+      {mobile ? (
+        // No toolbar, dock, layouts or tour on a phone: its tabs never save a layout.
+        <React.Suspense fallback={<LoadingScreen />}>
+          <MobileShell state={dockState} gameDataManagerRef={gameDataManagerRef} />
+        </React.Suspense>
+      ) : (
+        <>
+          <PlayerTour ready={ready} isGM={isOwner} />
+          <LayoutAutoSaveManager state={state} battlemapsRef={battleMapContexts} />
+          <MainToolbar
+            key={resolvedGameId}
+            state={dockState}
+            gameDataManagerRef={gameDataManagerRef}
+            battlemapsRef={battleMapContexts}
+            forceRefreshGame={forceUpdate}
+          />
+          <Flex className="nm_dock" data-tour="dock" style={{ height: "100%", overflow: "hidden" }}>
+            <GameDock state={state} dockModifier={dockModifier} battleMaps={battleMapContexts} />
+          </Flex>
+        </>
+      )}
+      <QuickCommandDialog state={dockState} openRef={quickCommandDialogOpenRef} />
       
       {portaledPanels}
       
@@ -245,14 +276,14 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
         backdropFilter="blur(12px)"
         borderTop="1px solid"
         borderColor={connectionError || initError ? "red.700" : themeColors.statusBarBorder}
-        px={4}
-        py={2}
+        px={mobile ? 2 : 4}
+        py={mobile ? 1 : 2}
         zIndex={9999}
         boxShadow="0 -2px 20px rgba(0, 0, 0, 0.3)"
       >
         <Flex justify="space-between" align="center" gap={2}>
           <WebSocketStatus showDetails={true} compact={true} />
-          {!(connectionError || initError) && <MinimizedWindowsBar state={state} />}
+          {!(connectionError || initError) && !mobile && <MinimizedWindowsBar state={state} />}
           {(connectionError || initError) && (
             <Flex align="center" gap={2} flex={1} justify="center">
               <Text fontSize="xs" color="red.200">
@@ -279,9 +310,9 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
               </Button>}
             </Flex>
           )}
-          <Text fontSize="xs" color="gray.500">
+          {!mobile && <Text fontSize="xs" color="gray.500">
             Session ID: {centralSessionId}
-          </Text>
+          </Text>}
         </Flex>
       </Box>
     </div>

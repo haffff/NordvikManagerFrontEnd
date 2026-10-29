@@ -4,6 +4,8 @@ import DockableHelper from '../../../helpers/DockableHelper';
 import { ActiveWebHelper as WebHelper } from '../../../helpers/transport';
 import { currentBattleMap } from './currentBattleMap';
 import LayoutHelper from '../../../helpers/LayoutCloneHelper';
+import { isMobileUi } from '../../../helpers/uiMode';
+import { openLayoutAsTabs } from '../mobile/mobileLayout';
 import UtilityHelper from '../../../helpers/UtilityHelper';
 import { _entityPermissionSetter } from '../../../contexts/PermissionsContext';
 import BrowserWindowPortal from '../../uiComponents/base/BrowserWindowPortal';
@@ -68,9 +70,14 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
         console.error(`SetLayout: layout ${id} could not be loaded (missing or no permission)`);
         return;
       }
+      setLayout(fetched);
+      // The mobile UI has no dock to arrange: the layout's panels open as tabs.
+      if (isMobileUi()) {
+        openLayoutAsTabs(fetched.value, CreateLayoutElement);
+        return;
+      }
       state.ref.current.rootPanel = undefined;
       LayoutHelper.LoadLayoutState(state, fetched.value, CreateLayoutElement);
-      setLayout(fetched);
     };
     
     const gameApi = {
@@ -297,7 +304,7 @@ export const useGameApi = ({ state, gameState, CreateLayoutElement, playerRef: _
 
         if (!createdElement && isCommand) return 'Wrong panel type';
 
-        if (inWindow) {
+        if (inWindow && !isMobileUi()) {
           const NewWindow = require('../WindowsHandler').NewWindow;
           setPortaledPanels([
             ...portaledPanels,
