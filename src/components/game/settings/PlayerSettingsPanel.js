@@ -105,10 +105,10 @@ export const PlayerSettingsPanel = ({ player }) => {
           </Tabs.Content>
           {isCurrentPlayer && (
             <Tabs.Content value="browser" flex="1" minHeight={0} overflowY="auto">
-              <UiModeSettings />
               <PersonalStylesheetSettings gameId={WebHelper.GameId} />
               <AudioVolumeSettings />
               <ResourceCacheSettings />
+              <UiModeSettings />
             </Tabs.Content>
           )}
         </Tabs.Root>
