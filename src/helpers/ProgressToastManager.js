@@ -21,6 +21,11 @@ import addonOpLog from './addonOpLog';
 // and calls start(). Outcomes are remembered for a while, so a late start() doesn't
 // open a spinner nothing will ever close, and track() can settle straight away.
 const FINISHED_KEEP_MS = 5 * 60 * 1000;
+
+// The outcome is a single push from the server; if it's lost, track() asks for it.
+const STATUS_POLL_MS = 5000;
+const fetchOperationStatus = (id) =>
+  import('./transport').then(({ ActiveWebHelper }) => ActiveWebHelper.getAsync(`operation/status?id=${encodeURIComponent(id)}`));
 const finished = new Map(); // id → { failed, data }
 
 const remember = (id, failed, data) => {
@@ -88,9 +93,10 @@ const ProgressToastManager = {
   /**
    * Shows progress for a server operation whose id the caller just got back, and
    * resolves with the Progress:Complete data (rejects on Progress:Failed), including
-   * when the operation already finished before this call.
+   * when the operation already finished before this call. Meanwhile it asks the server
+   * for the outcome every few seconds, in case the push never arrives.
    */
-  track(id, startOptions = {}, timeout = 10 * 60 * 1000) {
+  track(id, startOptions = {}, timeout = 10 * 60 * 1000, { fetchStatus = fetchOperationStatus, pollMs = STATUS_POLL_MS } = {}) {
     const settle = ({ failed, data }) => {
       if (failed) throw new Error(data?.description || data?.title || 'Operation failed');
       return data;
@@ -105,6 +111,7 @@ const ProgressToastManager = {
         ClientMediator.off(onComplete);
         ClientMediator.off(onFailed);
         clearTimeout(timer);
+        clearInterval(poll);
         resolve({ failed, data });
       };
       const onComplete = ClientMediator.on('Progress:Complete', done(false));
@@ -113,8 +120,30 @@ const ProgressToastManager = {
         addonOpLog(`op=${id} TIMED OUT after ${timeout / 1000}s: no completion or failure arrived`);
         ClientMediator.off(onComplete);
         ClientMediator.off(onFailed);
+        clearInterval(poll);
         reject(new Error('Operation timed out'));
       }, timeout);
+      // Settles through the same events as the push, so the toast follows too. Still
+      // running, or the server unreachable for now: ask again next time.
+      const poll = setInterval(async () => {
+        let state;
+        try { state = await fetchStatus(id); } catch { return; }
+        if (finished.has(id)) return;
+        if (state?.status === 'complete') {
+          addonOpLog(`op=${id} complete (asked the server: the push never came)`);
+          ClientMediator.fireEvent('Progress:Complete', { id, title: state.title, description: state.description });
+        } else if (state?.status === 'failed') {
+          addonOpLog(`op=${id} FAILED (asked the server: the push never came)`);
+          ClientMediator.fireEvent('Progress:Failed', { id, title: state.title, description: state.description });
+        } else if (state?.status === 'unknown') {
+          addonOpLog(`op=${id} unknown to the server`);
+          ClientMediator.fireEvent('Progress:Failed', {
+            id,
+            title: 'Operation lost',
+            description: 'The server no longer knows this operation; it may have restarted.',
+          });
+        }
+      }, pollMs);
     });
     this.start(id, startOptions);
     return outcome.then(settle);
