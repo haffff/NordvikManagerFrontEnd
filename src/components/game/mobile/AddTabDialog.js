@@ -5,6 +5,9 @@ import { FaMap } from "@react-icons/all-files/fa/FaMap";
 import { FaTerminal } from "@react-icons/all-files/fa/FaTerminal";
 import { FaInfoCircle } from "@react-icons/all-files/fa/FaInfoCircle";
 import { IoIosExit } from "@react-icons/all-files/io/IoIosExit";
+import { FaExpand } from "@react-icons/all-files/fa/FaExpand";
+import { FaCompress } from "@react-icons/all-files/fa/FaCompress";
+import { canFullscreen, isFullscreen, toggleFullscreen } from "../../../helpers/fullscreen";
 import { MOBILE_SECTIONS } from "./mobileCatalog";
 import { addonCommandSections } from "./mobileCommands";
 import { getMenuItems, subscribeMenuItems } from "../../uiComponents/base/DDItems/menuItemsStore";
@@ -73,6 +76,12 @@ export function AddTabDialog({ open, onClose, state, gameDataManagerRef, onAbout
 
   const gameCommands = [
     { key: "run", name: "Run command", icon: FaTerminal, onClick: () => ClientMediator.sendCommand("game", "OpenRun") },
+    // Left out where the browser has no page fullscreen (iPhone Safari).
+    ...(canFullscreen()
+      ? [isFullscreen()
+        ? { key: "fullscreen", name: "Exit full screen", icon: FaCompress, onClick: () => toggleFullscreen() }
+        : { key: "fullscreen", name: "Full screen", icon: FaExpand, onClick: () => toggleFullscreen() }]
+      : []),
     { key: "about", name: "About", icon: FaInfoCircle, onClick: () => onAbout?.() },
     { key: "exit", name: "Exit game", icon: IoIosExit, onClick: () => ClientMediator.sendCommand("game", "Exit") },
   ];
