@@ -35,6 +35,7 @@ import { getUiMode, setActiveUiMode } from "../../helpers/uiMode";
 const MobileShell = React.lazy(() => import("./mobile/MobileShell"));
 import { resetTabs } from "./mobile/mobileTabs";
 import "../../stylesheets/dock.css";
+import { useDockFollowsItsBox } from "./hooks/useDockFollowsItsBox";
 
 export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
   // A player who joined via an invite link only ever learns the Central Server's
@@ -137,6 +138,9 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
   // Register the Game ClientMediator API — re-runs when its inputs change
   useGameApi({ state: dockState, gameState, CreateLayoutElement });
 
+  // The dock's box: the dock is re-measured when it changes size (useDockFollowsItsBox).
+  const [dockBox, setDockBox] = React.useState(null);
+  useDockFollowsItsBox(dockBox);
   const [connectionError, setConnectionError] = React.useState(null);
   // GM backend speaks a protocol no deployed player client supports — retrying can't help.
   const [versionMismatch, setVersionMismatch] = React.useState(false);
@@ -263,7 +267,7 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
             battlemapsRef={battleMapContexts}
             forceRefreshGame={forceUpdate}
           />
-          <Flex className="nm_dock" data-tour="dock" style={{ height: "100%", overflow: "hidden" }}>
+          <Flex ref={setDockBox} className="nm_dock" data-tour="dock" style={{ height: "100%", overflow: "hidden" }}>
             <GameDock state={state} dockModifier={dockModifier} battleMaps={battleMapContexts} />
           </Flex>
         </>
