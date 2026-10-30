@@ -146,6 +146,43 @@ describe('MobileShell: game commands and addon items in +', () => {
     send.mockRestore();
   });
 
+  it('Full screen hides the browser bars, and is left out where the browser has no fullscreen', async () => {
+    const requestFullscreen = vi.fn(() => Promise.resolve());
+    document.documentElement.requestFullscreen = requestFullscreen;
+    Object.defineProperty(document, 'fullscreenEnabled', { value: true, configurable: true });
+    try {
+      renderWithProviders(<MobileShell state={{}} />);
+      fireEvent.click(screen.getByRole('button', { name: /add a tab/i }));
+      fireEvent.click(screen.getByRole('button', { name: 'Full screen' }));
+      expect(requestFullscreen).toHaveBeenCalled();
+      expect(screen.queryByRole('dialog', { name: /open a panel/i })).toBeNull();
+    } finally {
+      delete document.documentElement.requestFullscreen;
+      Object.defineProperty(document, 'fullscreenEnabled', { value: false, configurable: true });
+    }
+
+    fireEvent.click(screen.getByRole('button', { name: /add a tab/i }));
+    expect(screen.getByRole('button', { name: 'About' })).toBeInTheDocument();
+    expect(screen.queryByRole('button', { name: 'Full screen' })).toBeNull();
+  });
+
+  it('offers Exit full screen while full screen', async () => {
+    const exitFullscreen = vi.fn(() => Promise.resolve());
+    document.exitFullscreen = exitFullscreen;
+    Object.defineProperty(document, 'fullscreenEnabled', { value: true, configurable: true });
+    Object.defineProperty(document, 'fullscreenElement', { value: document.documentElement, configurable: true });
+    try {
+      renderWithProviders(<MobileShell state={{}} />);
+      fireEvent.click(screen.getByRole('button', { name: /add a tab/i }));
+      fireEvent.click(screen.getByRole('button', { name: 'Exit full screen' }));
+      expect(exitFullscreen).toHaveBeenCalled();
+    } finally {
+      delete document.exitFullscreen;
+      Object.defineProperty(document, 'fullscreenEnabled', { value: false, configurable: true });
+      Object.defineProperty(document, 'fullscreenElement', { value: null, configurable: true });
+    }
+  });
+
   it("shows addons' menu items and toolbar buttons, and runs the one tapped", async () => {
     const { addMenuItem } = await import('../../uiComponents/base/DDItems/menuItemsStore');
     const { addToolbarButton } = await import('../../uiComponents/base/DDItems/toolbarButtonsStore');
