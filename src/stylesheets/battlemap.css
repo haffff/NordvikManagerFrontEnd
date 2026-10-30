@@ -36,4 +36,9 @@
     flex-direction: row;
     /* Fingers on the map are the map's (pan, pinch, hold): the page doesn't zoom or scroll. */
     touch-action: none;
+    /* The canvas is sized to this box (useCanvasFitsPanel), so the box mustn't grow to the
+       canvas: on a shrink the old, bigger canvas would hold it at the old size. */
+    min-width: 0;
+    min-height: 0;
+    overflow: hidden;
 }

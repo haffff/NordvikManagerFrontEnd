@@ -231,7 +231,7 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
     if (battleMapObjectRef.current) battleMapObjectRef.current.Panel = panel;
   }, [panel]);
 
-  useCanvasFitsPanel(editor?.canvas, panelWidth, panelHeight, !!battleMapModel);
+  useCanvasFitsPanel(editor?.canvas, panelWidth, panelHeight, !!battleMapModel, battleMapContainerRef);
 
   // Touch: two fingers zoom and pan, and a finger held still opens the map's menu, as a
   // right click does.
@@ -269,7 +269,7 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
         battleMapId={uuid}
         canvas={editor?.canvas}
       >
-        <FabricJSCanvas onReady={onReady} />{" "}
+        <FabricJSCanvas onReady={onReady} />
       </BattleMapContextMenu>
       <PopupBMOverlay key={uuid + "popup"} battleMapId={uuid} />
       <InfoBMOverlay battleMapId={uuid} />
