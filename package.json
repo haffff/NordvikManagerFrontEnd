@@ -39,6 +39,8 @@
     "buildci_player": "cross-env REACT_APP_MODE=player vite build",
     "buildci_demo": "cross-env REACT_APP_MODE=demo vite build",
     "start_demo": "cross-env REACT_APP_MODE=demo vite --port 3003",
+    "start_tokens": "cross-env REACT_APP_MODE=tokens vite --port 3004",
+    "buildci_tokens": "cross-env REACT_APP_MODE=tokens vite build",
     "docs:shots": "node scripts/docs/screenshots.mjs",
     "test": "vitest",
     "test:run": "vitest run",
