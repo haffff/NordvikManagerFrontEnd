@@ -1,6 +1,8 @@
 import * as React from 'react';
 import * as ReactDOM from 'react-dom';
 import * as Dockable from '@hlorenzi/react-dockable';
+import { CacheProvider } from '@emotion/react';
+import createCache from '@emotion/cache';
 import { mirrorGameCss } from '../../../helpers/popoutGameCss';
 import { makePanelContentContext } from '../../../helpers/panelContentContext';
 
@@ -24,6 +26,17 @@ function makeContentContext(w, h, contentId, win) {
     });
 }
 
+// A <style> tag's CSS. In a production build emotion (Chakra) writes its rules with
+// insertRule, which leaves the tag's text empty: read the rules themselves then.
+function styleText(style) {
+    if (style.textContent) return style.textContent;
+    try {
+        return Array.from(style.sheet?.cssRules ?? []).map(rule => rule.cssText).join('\n');
+    } catch {
+        return '';
+    }
+}
+
 /**
  * Renders `children` into a real browser OS window via ReactDOM.createPortal.
  *
@@ -39,6 +52,10 @@ function makeContentContext(w, h, contentId, win) {
 export const BrowserWindowPortal = ({ children, title = 'Panel', contentId, onClose }) => {
     const [windowRef, setWindowRef] = React.useState(null);
     const [mountNode, setMountNode] = React.useState(null);
+    // The window's own emotion cache: Chakra's styles for what's rendered here are
+    // written into the window's <head>. The app's cache writes into the main page, with
+    // insertRule in a production build, which the <style> copying below can't follow.
+    const [styleCache, setStyleCache] = React.useState(null);
     const [winSize, setWinSize] = React.useState({ w: 800, h: 600 });
     const observerRef = React.useRef(null);
     const closedByUs = React.useRef(false);
@@ -90,7 +107,7 @@ export const BrowserWindowPortal = ({ children, title = 'Panel', contentId, onCl
             // <style> — inline styles, Chakra CSS variables, styled-components
             Array.from(sourceDoc.querySelectorAll('style')).forEach(style => {
                 const newStyle = targetDoc.createElement('style');
-                newStyle.textContent = style.textContent;
+                newStyle.textContent = styleText(style);
                 targetDoc.head.appendChild(newStyle);
             });
         };
@@ -131,6 +148,7 @@ export const BrowserWindowPortal = ({ children, title = 'Panel', contentId, onCl
         newWin.addEventListener('beforeunload', handleUnload);
 
         setWindowRef(newWin);
+        setStyleCache(createCache({ key: 'nm-popout', container: newWin.document.head }));
         setMountNode(newWin.document.body);
         setWinSize({ w: newWin.innerWidth, h: newWin.innerHeight });
 
@@ -188,10 +206,12 @@ export const BrowserWindowPortal = ({ children, title = 'Panel', contentId, onCl
     if (!mountNode) return null;
 
     return ReactDOM.createPortal(
-        React.createElement(Dockable.ContentContext.Provider, { value: makeContentContext(winSize.w, winSize.h, contentId, windowRef) },
-            React.createElement('div', {
-                style: { width: '100vw', height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }
-            }, children)
+        React.createElement(CacheProvider, { value: styleCache },
+            React.createElement(Dockable.ContentContext.Provider, { value: makeContentContext(winSize.w, winSize.h, contentId, windowRef) },
+                React.createElement('div', {
+                    style: { width: '100vw', height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }
+                }, children)
+            )
         ),
         mountNode
     );
