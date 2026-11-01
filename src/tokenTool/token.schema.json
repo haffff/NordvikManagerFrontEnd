@@ -1,0 +1,454 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "properties": {
+    "name": {
+      "title": "Name",
+      "description": "Name of the token",
+      "type": "string"
+    },
+    "prefix": {
+      "title": "Prefix",
+      "description": "Prefix shown before the character name on the canvas object (e.g. 'token'). Defaults to 'token' when omitted.",
+      "type": "string"
+    },
+    "size": {
+      "title": "Size",
+      "description": "Size in grid cells (1 = 1×1, 2 = 2×2) of a token placed without a card (e.g. the SpawnToken step with Token + Image). A card's token is the card's size: its 'drop_token_size' property, 1 when it has none.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "object": {
+      "title": "Root Fabric object",
+      "description": "Serialized Fabric.js properties for the main token image. Any Fabric.js property (fill, opacity, stroke, etc.) may be included here. 'src' is set at spawn time from the card's 'tokenImage' property and should be omitted. The picture is shown as it is: for a round token use a round picture with transparent corners (the token editor's stamper makes one).",
+      "type": "object",
+      "properties": {
+        "clipShape": {
+          "description": "Removed: it never cropped anything. Use a round picture instead.",
+          "not": {}
+        },
+        "tokenData": {
+          "description": "Ignored: placing the token replaces it with the root 'tokenData'. Put the token's own propDeps and settings there."
+        }
+      }
+    },
+    "tokenData": {
+      "title": "Token settings",
+      "description": "The token's own data. Placing it adds cardId, editableProps, assignableIcons and a propDep that loads the picture (tokenImage → src).",
+      "type": "object",
+      "properties": {
+        "propDeps": {
+          "title": "Property dependencies",
+          "description": "Bindings applied to the token image itself (e.g. opacity from a property). Same form as a part's propDeps.",
+          "type": "array",
+          "items": { "$ref": "#/definitions/propDep" }
+        },
+        "maxStatusIcons": {
+          "title": "Most status icons shown",
+          "description": "How many stacking icons (anchor 'right-top', or tokenData.stack) show on each anchor before the rest collapse into a '+N' marker (all show while the token is selected on its own).",
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "editableProps": {
+      "title": "Quick-edit fields",
+      "description": "Fields shown when the gear next to a selected token is clicked (TokenQuickEditOverlay), each reading and writing one property. Fields with the same 'group' (e.g. a bar's value and max) share a row, labelled by the first.",
+      "type": "array",
+      "items": { "$ref": "#/definitions/editableProp" }
+    },
+    "assignableIcons": {
+      "title": "Assignable icons",
+      "description": "Icons offered in the token's icon picker (right-click → icons). Picking one sets its boolean property; to show on the token, each needs a matching 'additions' part whose propDep sets 'visible' from the same dtoProperty and source.",
+      "type": "array",
+      "items": { "$ref": "#/definitions/assignableIcon" }
+    },
+    "additions": {
+      "title": "Additional UI elements",
+      "description": "Array of UI elements attached to the token. Each element is repositioned relative to the token whenever the token moves. Enlivened by TokenManager.CanvasObjectLoadToken after the token is placed on the canvas.\n\nThree element categories are supported:\n• Native Fabric.js types — 'rect', 'circle', 'text', 'i-text', 'image', 'path', 'group', etc. Passed directly to fabric.util.enlivenObjects.\n• 'svg' — an SVG graphic loaded from an inline string or a resource URL.\n• 'reactIcon' — a react-icons icon identified by pack and export name.",
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["name"],
+        "properties": {
+          "name": {
+            "description": "Unique identifier for this addition within the token. Used for debugging and logging.",
+            "type": "string"
+          },
+          "type": {
+            "description": "Element type. Native Fabric.js class names (e.g. 'rect', 'text', 'image') are passed to fabric.util.enlivenObjects. Two additional types are handled by TokenManager:\n• 'svg' — SVG graphic; requires 'svgString' or 'src'.\n• 'reactIcon' — react-icons icon; requires 'iconPack' and 'iconName'.",
+            "type": "string"
+          },
+          "enabled": {
+            "description": "If false, the element is hidden and skipped when applying property dependencies. Defaults to true.",
+            "type": "boolean"
+          },
+          "editable": {
+            "description": "Only relevant when type is 'i-text'. If true, the element enters edit mode on double-click and exits on click-away.",
+            "type": "boolean"
+          },
+
+          "svgString": {
+            "description": "Inline SVG markup. Only used when type is 'svg'. Takes precedence over 'src'.",
+            "type": "string"
+          },
+          "src": {
+            "description": "Resource identifier for an SVG file. Only used when type is 'svg' and 'svgString' is absent. A bare UUID is resolved to a full resource URL; a string containing '/' is used as-is.",
+            "type": "string"
+          },
+
+          "iconPack": {
+            "description": "react-icons sub-package to load. Only used when type is 'reactIcon'. Examples: 'gi' (Game Icons), 'fa' (Font Awesome), 'md' (Material Design), 'bs' (Bootstrap). The pack is loaded dynamically so only requested packs are fetched.",
+            "type": "string"
+          },
+          "iconName": {
+            "description": "Named export from the react-icons pack. Only used when type is 'reactIcon'. Must exactly match the export name, e.g. 'GiPoisonBottle', 'FaSkull'.",
+            "type": "string"
+          },
+
+          "tokenData": {
+            "$ref": "#/definitions/tokenData"
+          }
+        }
+      }
+    }
+  },
+  "required": ["name", "object"],
+
+  "definitions": {
+    "editableProp": {
+      "title": "Quick-edit field",
+      "type": "object",
+      "required": ["name", "dtoProperty", "source"],
+      "properties": {
+        "name": { "type": "string", "description": "Unique key of the field within the token." },
+        "dtoProperty": { "type": "string", "description": "Property the field reads and writes." },
+        "label": { "type": "string", "description": "Text shown next to the field. Defaults to the name." },
+        "source": { "type": "string", "enum": ["element", "card"], "description": "Whose property: 'element' = the token, 'card' = its card." },
+        "type": { "type": "string", "enum": ["text", "boolean", "image"], "description": "Input kind: text (the default), a checkbox, or an image chooser." },
+        "default": { "description": "Value shown while the property doesn't exist yet." },
+        "group": { "type": "string", "description": "Fields with the same group share a row." }
+      }
+    },
+    "assignableIcon": {
+      "title": "Assignable icon",
+      "type": "object",
+      "required": ["id", "iconPack", "iconName", "dtoProperty", "source"],
+      "properties": {
+        "id": { "type": "string", "description": "Unique key of the icon within the token." },
+        "label": { "type": "string", "description": "Tooltip in the picker. Defaults to the id." },
+        "iconPack": { "type": "string", "description": "react-icons sub-package, e.g. 'gi'." },
+        "iconName": { "type": "string", "description": "Export name in the pack, e.g. 'GiPoisonBottle'." },
+        "dtoProperty": { "type": "string", "description": "Boolean property the picker sets." },
+        "source": { "type": "string", "enum": ["element", "card"], "description": "Whose property: 'element' = the token, 'card' = its card." }
+      }
+    },
+    "tokenData": {
+      "title": "Token data",
+      "description": "Metadata used by TokenManager. Controls positioning, property bindings, visibility, and event actions.",
+      "type": "object",
+      "properties": {
+        "anchor": {
+          "title": "Anchor",
+          "description": "Corner or edge of the token bounding box this element is anchored to. 'left-top' is the default. The final position is anchor + offsetX/offsetY.",
+          "type": "string",
+          "enum": [
+            "left-top",
+            "top",
+            "right-top",
+            "left",
+            "center",
+            "right",
+            "left-bottom",
+            "bottom",
+            "right-bottom"
+          ],
+          "default": "left-top"
+        },
+        "offsetX": {
+          "title": "Offset X",
+          "description": "Horizontal pixel offset applied after anchor positioning. Positive values move right.",
+          "type": "number",
+          "default": 0
+        },
+        "offsetY": {
+          "title": "Offset Y",
+          "description": "Vertical pixel offset applied after anchor positioning. Positive values move down.",
+          "type": "number",
+          "default": 0
+        },
+        "ignoreRelativePosition": {
+          "title": "Ignore relative position",
+          "description": "If true, this element is excluded from automatic repositioning when the parent token moves. Useful for elements that manage their own position.",
+          "type": "boolean",
+          "default": false
+        },
+        "stack": {
+          "title": "Stack",
+          "description": "If true, the element lines up with the other stacking elements on its anchor: the ones shown sit side by side, left to right from their offset, with no gap where a hidden one would be, and past tokenData.maxStatusIcons the rest collapse into '+N'. For status icons that all share one place. Elements with anchor 'right-top' always stack.",
+          "type": "boolean",
+          "default": false
+        },
+        "fitToToken": {
+          "title": "Fit to token",
+          "description": "If true, the element is scaled (keeping its aspect) to be as wide as the token is shown, whatever the token's size: e.g. a ring around it (a circle with anchor 'center' and origin centre).",
+          "type": "boolean",
+          "default": false
+        },
+        "showOnTokenControl": {
+          "title": "Show on token control",
+          "description": "If true, the element is hidden by default and revealed with an opacity animation when the token is selected/controlled by the local player. Hidden again on deselect.",
+          "type": "boolean",
+          "default": false
+        },
+        "maskGroup": {
+          "title": "Mask group",
+          "description": "Groups parts (e.g. an HP bar's background and fill) so the GM can make them visible, GM only or hidden per map and per token. Stored as the properties mask_<group>_enabled and mask_<group>_gmonly, so letters, digits, '_' and '-' only.",
+          "type": "string",
+          "pattern": "^[A-Za-z0-9_-]+$"
+        },
+        "label": {
+          "title": "Label",
+          "description": "Name of the mask group in the map and token settings. Defaults to the maskGroup.",
+          "type": "string"
+        },
+        "propDeps": {
+          "title": "Property dependencies",
+          "description": "Declarative bindings between game properties (card, element, map, game) and Fabric.js object properties. Evaluated whenever the source property changes or the token is refreshed.\n\nSpecial behaviour: when objectProperty is 'visible', the element starts hidden and its actual visibility is set entirely by this dep — useful for status effect indicators that should only appear when a card property is true.",
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/propDep"
+          }
+        },
+        "actions": {
+          "title": "Token actions",
+          "description": "Actions executed when the element receives pointer events.\n\nSupported event keys:\n• onClick      — single click (handled at canvas level; works even on non-selectable objects)\n• onDblClick   — double click\n• onHover      — pointer enters the element\n• onHoverEnd   — pointer leaves the element\n• onRightClick — right mouse button click\n• onMouseDown  — any mouse button pressed\n\nEach value is an action descriptor — either a server-side Action or a client-side ClientMediatorAction.",
+          "type": "object",
+          "properties": {
+            "onClick": {
+              "description": "Fired on single click. Handled at canvas level so it works reliably on non-selectable elements.",
+              "$ref": "#/definitions/actionRef"
+            },
+            "onDblClick": {
+              "description": "Fired on double click.",
+              "$ref": "#/definitions/actionRef"
+            },
+            "onHover": {
+              "description": "Fired when the pointer enters the element.",
+              "$ref": "#/definitions/actionRef"
+            },
+            "onHoverEnd": {
+              "description": "Fired when the pointer leaves the element.",
+              "$ref": "#/definitions/actionRef"
+            },
+            "onRightClick": {
+              "description": "Fired on right mouse button click (button === 2).",
+              "$ref": "#/definitions/actionRef"
+            },
+            "onMouseDown": {
+              "description": "Fired on any mouse button press.",
+              "$ref": "#/definitions/actionRef"
+            }
+          },
+          "additionalProperties": false
+        }
+      }
+    },
+
+    "actionRef": {
+      "title": "Action reference",
+      "description": "Descriptor for an action to execute. Exactly one of 'Action' (server-side) or 'ClientMediatorAction' (client-side) must be present.",
+      "oneOf": [
+        { "$ref": "#/definitions/serverAction" },
+        { "$ref": "#/definitions/clientMediatorAction" }
+      ]
+    },
+
+    "serverAction": {
+      "title": "Server action",
+      "description": "Sends an execute_action command via WebSocket. cardId and tokenId are always appended to Args automatically.",
+      "type": "object",
+      "required": ["Action"],
+      "additionalProperties": false,
+      "properties": {
+        "Action": {
+          "type": "string",
+          "description": "Name of the server-side action to execute (matched against action.Name on the server)."
+        },
+        "Args": {
+          "type": "object",
+          "description": "Optional key-value pairs passed to the action handler. cardId and tokenId are injected automatically and do not need to be declared here.",
+          "additionalProperties": true
+        }
+      }
+    },
+
+    "clientMediatorAction": {
+      "title": "Client mediator action",
+      "description": "Calls ClientMediator.sendCommand on the client. Only commands in the TokenManager allowlist are permitted (see ALLOWED_TOKEN_UI_MEDIATOR_COMMANDS in TokenManager.js).\n\nString values inside 'data' support template variables substituted at dispatch time:\n• {{cardId}}  — ID of the card linked to the parent token\n• {{tokenId}} — canvas object ID of the parent token",
+      "type": "object",
+      "required": ["ClientMediatorAction"],
+      "additionalProperties": false,
+      "properties": {
+        "ClientMediatorAction": {
+          "type": "object",
+          "required": ["panel", "command"],
+          "additionalProperties": false,
+          "properties": {
+            "panel": {
+              "type": "string",
+              "description": "ClientMediator panel name to dispatch to (e.g. 'Game', 'BattleMap', 'Chat', 'Properties')."
+            },
+            "command": {
+              "type": "string",
+              "description": "Command name within the panel (e.g. 'CreateNewPanel', 'SendMessage'). Must be in the allowlist."
+            },
+            "data": {
+              "type": "object",
+              "description": "Payload passed to the command handler. String values may contain {{cardId}} and {{tokenId}} template variables.",
+              "additionalProperties": true
+            }
+          }
+        }
+      }
+    },
+
+    "propDep": {
+      "title": "Property dependency",
+      "description": "A single binding that writes a resolved value to a Fabric.js object property. Use either 'expression' (new compact syntax) or 'dtoProperty'+'rule' (legacy syntax).",
+      "type": "object",
+      "required": ["objectProperty", "type", "source"],
+      "properties": {
+        "expression": {
+          "title": "Expression",
+          "description": "Compact expression evaluated against game properties. Supports %propName% substitution and rule function calls. Examples: '%hp%', 'FromTo(%hp%, 0, %maxHp%, 0.2, 1.0)', 'FromToEnum(%hp%, 0, %maxHp%, 0, 100, default, [...])', 'Enum(%status%, {\"alive\":\"green\",\"dead\":\"red\"})'. When set, dtoProperty and rule are ignored.",
+          "type": "string"
+        },
+        "dtoProperty": {
+          "title": "Source property name",
+          "description": "Name of the single property to read (e.g. 'hp', 'tokenImage'). Required when expression is not set.",
+          "type": "string"
+        },
+        "objectProperty": {
+          "title": "Target Fabric property",
+          "description": "Fabric.js property to write the resolved value to (e.g. 'fill', 'opacity', 'text', 'src', 'width', 'visible'). When set to 'visible', the element starts hidden and its visibility is controlled entirely by this dep.",
+          "type": "string"
+        },
+        "type": {
+          "title": "Value type",
+          "description": "How the value is coerced. For expression deps, applied to the final substituted string. For legacy deps, applied to the raw property value before the rule runs.",
+          "type": "string",
+          "enum": ["string", "number", "bool"]
+        },
+        "source": {
+          "title": "Property source",
+          "description": "Which entity properties are read from. 'element' = token element; 'card' = linked card; 'map' = current map; 'game' = game entity. Note: 'player' is reserved for future use.",
+          "type": "string",
+          "enum": ["element", "card", "map", "game", "player"]
+        },
+        "rule": {
+          "title": "Transform rule",
+          "description": "Optional post-processing rule applied after the value is coerced (legacy syntax only). Ignored when expression is set.",
+          "$ref": "#/definitions/rule"
+        }
+      }
+    },
+
+    "rule": {
+      "title": "Transform rule",
+      "description": "Transforms the coerced property value before it is written to the Fabric object. The 'name' selects the implementation in TokenUIRules.js.",
+      "type": "object",
+      "required": ["name"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "enum": ["FromTo", "Math", "Enum", "FromToEnum"],
+          "description": "Rule implementation to use."
+        },
+        "arguments": {
+          "type": "object",
+          "description": "Rule-specific arguments. See per-rule documentation below.",
+          "oneOf": [
+            { "$ref": "#/definitions/ruleFromTo" },
+            { "$ref": "#/definitions/ruleMath" },
+            { "$ref": "#/definitions/ruleEnum" },
+            { "$ref": "#/definitions/ruleFromToEnum" }
+          ]
+        }
+      }
+    },
+
+    "ruleFromTo": {
+      "title": "FromTo arguments",
+      "description": "Linear interpolation: maps value from [valueMin, valueMax] to [targetMin, targetMax]. propTargetMin/propTargetMax override targetMin/targetMax when present (useful for per-token dynamic ranges).",
+      "type": "object",
+      "required": ["valueMin", "valueMax"],
+      "properties": {
+        "targetMin":    { "type": "number", "description": "Output minimum." },
+        "targetMax":    { "type": "number", "description": "Output maximum." },
+        "valueMin":     { "type": "number", "description": "Input minimum." },
+        "valueMax":     { "type": "number", "description": "Input maximum." },
+        "propTargetMin": { "type": "string", "description": "Property name whose value overrides targetMin at runtime." },
+        "propTargetMax": { "type": "string", "description": "Property name whose value overrides targetMax at runtime." }
+      }
+    },
+
+    "ruleMath": {
+      "title": "Math arguments",
+      "description": "Evaluates a mathjs expression. The coerced value is available as 'value' inside the expression. Additional named variables can be provided as extra properties.",
+      "type": "object",
+      "required": ["operation"],
+      "additionalProperties": true,
+      "properties": {
+        "operation": {
+          "type": "string",
+          "description": "A mathjs expression string, e.g. 'value * 2 + offset'. The variable 'value' is the coerced property value. Any other property in this object is also available as a variable."
+        }
+      }
+    },
+
+    "ruleEnum": {
+      "title": "Enum arguments",
+      "description": "Maps a discrete string/number value to another value via a lookup object. In an expression: Enum(%prop%, {...}, default).",
+      "type": "object",
+      "required": ["enumObject"],
+      "properties": {
+        "defaultValue": {
+          "description": "Returned for a value the lookup object has no entry for, or no value. Without it, such a value changes nothing (the part keeps what it had).",
+          "type": ["string", "number", "boolean"]
+        },
+        "enumObject": {
+          "type": "object",
+          "description": "Key-value map where keys are the incoming values and values are the outputs. E.g. { \"alive\": \"green\", \"dead\": \"red\" }.",
+          "additionalProperties": true
+        }
+      }
+    },
+
+    "ruleFromToEnum": {
+      "title": "FromToEnum arguments",
+      "description": "Maps a numeric range to a discrete value. Iterates the enumObject array and returns the enumValue of the first entry where min < value <= max.",
+      "type": "object",
+      "required": ["enumObject"],
+      "properties": {
+        "defaultValue": {
+          "description": "Returned when no range matches.",
+          "type": ["string", "number", "boolean"]
+        },
+        "enumObject": {
+          "type": "array",
+          "description": "Ordered list of range→value mappings.",
+          "items": {
+            "type": "object",
+            "required": ["min", "max", "enumValue"],
+            "properties": {
+              "min":       { "type": "number" },
+              "max":       { "type": "number" },
+              "enumValue": {}
+            }
+          }
+        }
+      }
+    }
+  }
+}

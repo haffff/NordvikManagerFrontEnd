@@ -41,8 +41,9 @@ const TokenUIRules = {
     "Math": ({ operation, scope, ...values }) => {
         return limitedEvaluate(operation, { ...values, ...scope });
     },
-    "Enum": ({value, enumObject}) => {
-        return enumObject[value];
+    // defaultValue (optional) for any value enumObject has no entry for, or none.
+    "Enum": ({value, enumObject, defaultValue}) => {
+        return enumObject?.[value] ?? defaultValue;
     },
     "FromToEnum": ({defaultValue, targetMin, targetMax, valueMin, valueMax, propTargetMin, propTargetMax, value, enumObject}) => {
         //guard against invalid input
@@ -56,7 +57,9 @@ const TokenUIRules = {
 
         for (let i = 0; i < enumObject.length; i++) {
             const {min, max , enumValue} = enumObject[i];
-            if (fromToResult > min && fromToResult <= max) {
+            // The first range also holds its own bottom (HP 0 is in 0–25); an inner boundary
+            // stays with the lower range.
+            if ((i === 0 ? fromToResult >= min : fromToResult > min) && fromToResult <= max) {
                 return enumValue;
             }
         }

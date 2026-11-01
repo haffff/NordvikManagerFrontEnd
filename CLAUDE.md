@@ -105,6 +105,7 @@ REACT_APP_PROTOCOL = "https://"
 REACT_APP_CENTRAL_URL = ""        # central signaling/auth server
 REACT_APP_STUN_SERVER = ""        # fallback if Central /api/ice-servers fails; defaults to stun:stun.l.google.com:19302
 REACT_APP_FORCE_TURN = ""         # "true" = relay-only ICE (TURN testing)
+REACT_APP_TOKEN_EDITOR_URL = ""  # token editor opened by "Edit in token editor"; empty = <Central>/client/tokens/
 ```
 All custom env vars must be prefixed `REACT_APP_`.
 

@@ -12,8 +12,9 @@ const MAX_SHOWN = 300;
 /**
  * Picks a game-icons (react-icons/gi) icon by name. onSelect gets the name, or ""
  * when the icon is removed (the tree update treats null as "keep the old one").
+ * allowRemove: false hides "Remove icon", for places where an icon is required.
  */
-export const DynamicIconChooser = ({ onSelect, iconSelected, isDisabled }) => {
+export const DynamicIconChooser = ({ onSelect, iconSelected, isDisabled, allowRemove = true }) => {
     const [filter, setFilter] = useState("");
     const [showSelect, setShowSelect] = useState(false);
     const [showAll, setShowAll] = useState(false);
@@ -138,7 +139,7 @@ export const DynamicIconChooser = ({ onSelect, iconSelected, isDisabled }) => {
                     <Button disabled={isDisabled} size="xs" onClick={openPicker}>
                         {selectedKey ? "Change Icon" : "Select Icon"}
                     </Button>
-                    {selectedKey && (
+                    {selectedKey && allowRemove && (
                         <Button disabled={isDisabled} size="xs" variant="ghost" onClick={() => select("")}>
                             Remove icon
                         </Button>
