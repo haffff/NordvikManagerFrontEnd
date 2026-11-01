@@ -3,6 +3,10 @@ import { screen, fireEvent } from '@testing-library/react';
 import { renderWithProviders } from '../../../setupTests';
 import SettingsPanel from './SettingsPanel';
 
+vi.mock('../../uiComponents/MaterialChooser', () => ({
+  MaterialChooser: ({ onSelect }) => <button type="button" onClick={() => onSelect('other_token.json')}>Choose</button>,
+}));
+
 // Each setting sits on a card. Its colours were fixed (dark grey, white text), so a
 // light game theme showed grey boxes; they now come from the theme variables, with
 // the old colours as the fallback when no theme sets them.
@@ -54,5 +58,25 @@ describe('SettingsPanel segmented field', () => {
 
     expect(screen.getByRole('button', { name: 'Hidden' })).toHaveAttribute('aria-pressed', 'true');
     expect(onSave).toHaveBeenLastCalledWith({ mask_hp_mode: 'hidden' });
+  });
+});
+
+// A resource field can carry an action on the chosen resource (e.g. a token field's
+// "Edit in token editor").
+describe('SettingsPanel resource field action', () => {
+  const field = (onClick) => ({ key: 'token', label: 'Token', type: 'materialSelect', editAction: { label: 'Edit in token editor', onClick } });
+
+  it('acts on the resource chosen now, and is off while none is', () => {
+    const onClick = vi.fn();
+    const { unmount } = renderWithProviders(<SettingsPanel dto={{ id: 'x' }} editableKeyLabelDict={[field(onClick)]} />);
+    expect(screen.getByRole('button', { name: 'Edit in token editor' })).toBeDisabled();
+    unmount();
+
+    renderWithProviders(<SettingsPanel dto={{ id: 'x', token: 'my_token.json' }} editableKeyLabelDict={[field(onClick)]} />);
+    fireEvent.click(screen.getByRole('button', { name: 'Edit in token editor' }));
+    expect(onClick).toHaveBeenLastCalledWith('my_token.json');
+    fireEvent.click(screen.getByRole('button', { name: 'Choose' }));
+    fireEvent.click(screen.getByRole('button', { name: 'Edit in token editor' }));
+    expect(onClick).toHaveBeenLastCalledWith('other_token.json');
   });
 });

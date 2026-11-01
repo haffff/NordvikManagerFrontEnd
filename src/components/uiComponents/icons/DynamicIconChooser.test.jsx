@@ -29,6 +29,14 @@ const openPicker = async () => {
 };
 
 describe('DynamicIconChooser', () => {
+  // Where an icon is required (a token's icon), there is nothing to remove.
+  it('offers "Remove icon" unless allowRemove is false', () => {
+    const { rerender } = renderWithProviders(<DynamicIconChooser iconSelected="GiSword" />);
+    expect(screen.getByRole('button', { name: 'Remove icon' })).toBeTruthy();
+    rerender(<DynamicIconChooser iconSelected="GiSword" allowRemove={false} />);
+    expect(screen.queryByRole('button', { name: 'Remove icon' })).toBeNull();
+  });
+
   // The folder dialog stays mounted between opens, so the chooser must follow its value.
   it('follows the value it is given', async () => {
     const { rerender } = renderWithProviders(<DynamicIconChooser iconSelected="GiSword" />);

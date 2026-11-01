@@ -48,6 +48,7 @@ vi.mock('../../../../helpers/transport', () => ({
 
 import { ActiveWebHelper as WebHelper } from '../../../../helpers/transport';
 import { TemplatesPanel } from './TemplatesPanel';
+import { tokenEditAction } from '../../tokenEditing';
 
 const treeRequests = () => WebHelper.get.mock.calls.filter(([url]) => url.startsWith('battlemap/getTree'));
 
@@ -103,6 +104,16 @@ describe('TemplatesPanel folder tree', () => {
     await screen.findByTestId('settings');
 
     expect(editorProps.editableKeyLabelDict).toContainEqual(expect.objectContaining({ key: 'isHidden', type: 'boolean' }));
+  });
+
+  it("the template's default token can be opened in the token editor", async () => {
+    renderWithProviders(<TemplatesPanel />);
+    fireEvent.click(await screen.findByText('Loot table'));
+    await screen.findByTestId('settings');
+
+    const field = editorProps.editableKeyLabelDict.find((f) => f.key === 'token');
+    expect(field.editAction).toBeDefined();
+    expect(field.editAction).toBe(tokenEditAction);
   });
 });
 

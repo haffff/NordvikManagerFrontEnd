@@ -11,9 +11,12 @@ import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import { toaster } from "../../ui/toaster";
 import { FaArrowUp } from "@react-icons/all-files/fa/FaArrowUp";
 import ClientMediator from "../../../ClientMediator";
+import { tokenEditAction } from "../tokenEditing";
+import { usePermissions } from "../../../contexts/PermissionsContext";
 
 export const CardSettingsPanel = ({ cardId }) => {
   const [dto, setDto] = React.useState(undefined);
+  const { canEditGame } = usePermissions();
   const [updatingFromTemplate, setUpdatingFromTemplate] = React.useState(false);
 
   const generalSettings = [
@@ -57,6 +60,8 @@ export const CardSettingsPanel = ({ cardId }) => {
       type: "materialSelect",
       additionalFilter: (foundItem) =>
         foundItem.mimeType === "application/json",
+      // It overwrites the game's token file: for editors of the game.
+      ...(canEditGame ? { editAction: tokenEditAction } : {}),
       property: true,
     },
     {

@@ -25,6 +25,7 @@ import { SettingsPanelWithPropertySettings } from "../../settings/SettingsPanelW
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../../helpers/transport";
 import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import ClientMediator from "../../../../ClientMediator";
+import { tokenEditAction } from "../../tokenEditing";
 import { SplitPane, useSplitView } from "../../../uiComponents/base/SplitPane";
 import themeColors from "../../../../helpers/themeColors";
 
@@ -57,6 +58,7 @@ const EDITABLE_DICT = [
     label: "Default Token",
     type: "materialSelect",
     additionalFilter: (item) => item.mimeType === "application/json",
+    editAction: tokenEditAction,
   },
 ];
 

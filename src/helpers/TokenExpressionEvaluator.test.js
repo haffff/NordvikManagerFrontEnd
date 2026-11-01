@@ -45,3 +45,42 @@ describe('TokenExpressionEvaluator Math rule', () => {
     expect(create.mock.calls.length - before).toBe(0);
   });
 });
+
+describe('TokenExpressionEvaluator Enum rule', () => {
+  it('maps a value through the object', () => {
+    expect(evaluate('Enum(%faction%, {"ally":"green","enemy":"red"})', props({ faction: 'enemy' }), 'string')).toBe('red');
+  });
+
+  it('without a default, a value it has no entry for gives nothing (the part keeps what it had)', () => {
+    expect(evaluate('Enum(%faction%, {"ally":"green"})', props({ faction: 'neutral' }), 'string')).toBeUndefined();
+  });
+
+  it('an optional third argument is used for any other value, or none', () => {
+    const expression = 'Enum(%faction%, {"ally":"green"}, transparent)';
+    expect(evaluate(expression, props({ faction: 'neutral' }), 'string')).toBe('transparent');
+    expect(evaluate(expression, props({}), 'string')).toBe('transparent');
+    expect(evaluate(expression, props({ faction: 'ally' }), 'string')).toBe('green');
+  });
+});
+
+describe('TokenExpressionEvaluator FromToEnum rule', () => {
+  const ranges = JSON.stringify([
+    { min: 0, max: 25, enumValue: 'red' },
+    { min: 25, max: 50, enumValue: 'yellow' },
+    { min: 50, max: 9999, enumValue: 'green' },
+  ]);
+  const expression = `FromToEnum(%hp%, 0, %maxhp%, 0, 100, grey, ${ranges})`;
+  const at = (hp) => evaluate(expression, props({ hp: String(hp), maxhp: '20' }), 'string');
+
+  it('a value at the very bottom of the first range is in it (HP 0 is red, not the default)', () => {
+    expect(at(0)).toBe('red');
+  });
+
+  it('a value on an inner boundary stays in the lower range; above max is the last', () => {
+    expect([at(5), at(6), at(10), at(11), at(30)]).toEqual(['red', 'yellow', 'yellow', 'green', 'green']);
+  });
+
+  it('below every range is the default', () => {
+    expect(at(-2)).toBe('grey');
+  });
+});

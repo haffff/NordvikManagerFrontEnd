@@ -2,6 +2,7 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 import { screen, act } from '@testing-library/react';
 import { renderWithProviders } from '../../../setupTests';
 import { CardSettingsPanel } from './CardSettingsPanel';
+import { tokenEditAction } from '../tokenEditing';
 
 // Saving the card's General tab used to send "settings_game", so renaming a card renamed
 // the game; the panel also listened for "settings_card", which the backend never sends.
@@ -27,6 +28,8 @@ vi.mock('@hlorenzi/react-dockable', () => ({
   useContentContext: () => ({ setTitle: vi.fn(), setPreferredSize: vi.fn() }),
 }));
 vi.mock('../../../ClientMediator', () => ({ default: { sendCommand: vi.fn(), sendCommandAsync: vi.fn() } }));
+const perms = vi.hoisted(() => ({ canEditGame: true }));
+vi.mock('../../../contexts/PermissionsContext', () => ({ usePermissions: () => perms }));
 vi.mock('../../ui/toaster', () => ({ toaster: { create: vi.fn() } }));
 vi.mock('./SecuritySettingsPanel', () => ({ default: () => null }));
 vi.mock('./PropertiesSettingsPanel', () => ({ default: () => null }));
@@ -51,6 +54,7 @@ vi.mock('@chakra-ui/react', async (importOriginal) => {
 });
 
 const card = { id: 'card-1', name: 'Goblin', description: 'A goblin', mainResource: null, additionalResources: [] };
+const tokenTab = () => settingsProps.latest.find((p) => p.editableKeyLabelDict?.[0]?.key === 'tokenImage');
 const generalTab = () => settingsProps.latest.find((p) => p.editableKeyLabelDict?.[0]?.key === 'name');
 
 describe('CardSettingsPanel', () => {
@@ -69,6 +73,20 @@ describe('CardSettingsPanel', () => {
     const [sent] = transport.Send.mock.calls[0];
     expect(sent.command).toBe('card_update');
     expect(sent.data).toMatchObject({ id: 'card-1', name: 'Hobgoblin', description: 'A goblin' });
+  });
+
+  it("the card's token can be opened in the token editor", () => {
+    renderWithProviders(<CardSettingsPanel cardId="card-1" />);
+    const field = tokenTab().editableKeyLabelDict.find((f) => f.key === 'token');
+    expect(field.editAction).toBeDefined();
+    expect(field.editAction).toBe(tokenEditAction);
+  });
+
+  it("only an editor of the game gets the token editor (it overwrites the game's file)", () => {
+    perms.canEditGame = false;
+    renderWithProviders(<CardSettingsPanel cardId="card-1" />);
+    expect(tokenTab().editableKeyLabelDict.find((f) => f.key === 'token')).not.toHaveProperty('editAction');
+    perms.canEditGame = true;
   });
 
   it('shows the new name when this card is updated, and ignores other cards', () => {
