@@ -7,7 +7,7 @@ import { createPreviewSession } from "./previewSession";
 import { registerPreviewPanels } from "./previewPanels";
 import { stubCanvasContext, fakeCanvas } from "./testCanvas";
 import character from "./fixtures/token_character.json";
-import { addPart, joinParts, updatePart, setPartGroup } from "./patterns/parts";
+import { addPart, joinParts, updatePart, setPartGroup, setPartRules } from "./patterns/parts";
 
 // The token editor's preview: the real TokenManager draws the token file on a canvas,
 // with sample values for its properties instead of a game's.
@@ -145,9 +145,9 @@ describe("previewSession", () => {
     expect(hp.every((o) => o.visible)).toBe(true);
   });
 
-  it("a ring coloured by a property: its colour for a known value, none for others", async () => {
+  it("a ring coloured by a rule: its colour for a known value, none for others", async () => {
     const [ring] = addPart([], "ring");
-    const coloured = updatePart(ring, { ...ring.params, property: "faction", colors: { ally: "#00ff00" } });
+    const coloured = setPartRules(ring, [{ expression: 'Enum(%faction%, {"ally":"#00ff00"}, transparent)', objectProperty: "stroke", type: "string", source: "card" }]);
     state.values.card.faction = "ally";
     await open(joinParts({ name: "t", object: { type: "image" } }, [coloured]));
     const stroke = () => part("ring").stroke;

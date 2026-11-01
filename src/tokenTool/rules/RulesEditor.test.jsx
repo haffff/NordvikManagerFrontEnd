@@ -5,17 +5,17 @@ import { Provider } from "../../components/ui/provider";
 import { RulesEditor } from "./RulesEditor";
 
 // A part's (or the token picture's) own rules: each sets one object property from a game
-// property, directly or through a range, thresholds, a value table or a formula. Locked
-// rows are what the part's pattern sets itself.
+// property, directly or through a range, thresholds, a value table, a yes / no or a
+// formula. Every rule is editable, the ones a part's pattern made too.
 
-function Harness({ initial, onChange, locked, targets }) {
+function Harness({ initial, onChange, targets }) {
   const [rules, setRules] = React.useState(initial);
-  return <RulesEditor rules={rules} locked={locked} targets={targets} onChange={(next) => { onChange(next); setRules(next); }} />;
+  return <RulesEditor rules={rules} targets={targets} onChange={(next) => { onChange(next); setRules(next); }} />;
 }
 const TARGETS = ["opacity", "fill", "text", "angle", "visible"];
-const setup = (initial = [], { locked = [], targets = TARGETS } = {}) => {
+const setup = (initial = [], { targets = TARGETS } = {}) => {
   const onChange = vi.fn();
-  render(<Provider><Harness initial={initial} onChange={onChange} locked={locked} targets={targets} /></Provider>);
+  render(<Provider><Harness initial={initial} onChange={onChange} targets={targets} /></Provider>);
   return { last: () => onChange.mock.lastCall[0], onChange };
 };
 const ruleRow = (target) => screen.getByRole("group", { name: `Rule: ${target}` });
@@ -23,11 +23,11 @@ const change = (row, label, value) => fireEvent.change(within(row).getByLabelTex
 
 describe("RulesEditor", () => {
   it("+ Rule adds a Direct rule on the first target not used yet, read from the card", () => {
-    const { last } = setup([], { locked: [{ target: "text", by: "Label" }] });
+    const { last } = setup([{ objectProperty: "text", type: "string", source: "card", dtoProperty: "name" }]);
     fireEvent.click(screen.getByRole("button", { name: "Add rule" }));
-    expect(last()).toEqual([{ objectProperty: "opacity", type: "number", source: "card", dtoProperty: "" }]);
+    expect(last()[1]).toEqual({ objectProperty: "opacity", type: "number", source: "card", dtoProperty: "" });
     change(ruleRow("opacity"), "Property", "hp");
-    expect(last()[0].dtoProperty).toBe("hp");
+    expect(last()[1].dtoProperty).toBe("hp");
     expect(within(ruleRow("opacity")).getByText("%hp%")).toBeInTheDocument();
   });
 
@@ -85,21 +85,6 @@ describe("RulesEditor", () => {
     const { last } = setup([{ objectProperty: "opacity", type: "number", source: "card", dtoProperty: "hp" }]);
     fireEvent.click(within(ruleRow("opacity")).getByRole("button", { name: "Remove rule" }));
     expect(last()).toEqual([]);
-  });
-
-  it("locked rows: what the pattern sets, read-only, and not offered as a target", () => {
-    setup([], { locked: [{ target: "text", by: "Label" }] });
-    expect(screen.getByRole("group", { name: "Locked rule: text" })).toHaveTextContent(/set by the Label's settings/);
-    fireEvent.click(screen.getByRole("button", { name: "Add rule" }));
-    const options = [...document.querySelectorAll("datalist option")].map((o) => o.value);
-    expect(options).not.toContain("text");
-  });
-
-  it("a target the pattern sets can't be typed in either", () => {
-    const { last } = setup([{ objectProperty: "opacity", type: "number", source: "card", dtoProperty: "hp" }], { locked: [{ target: "text", by: "Label" }] });
-    change(ruleRow("opacity"), "Set", "text");
-    expect(last).toBeDefined();
-    expect(within(ruleRow("opacity")).getByText(/set by the part's settings/)).toBeInTheDocument();
   });
 
   it("the old dtoProperty + rule form is read-only, and converts to an expression", () => {

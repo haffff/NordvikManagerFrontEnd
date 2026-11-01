@@ -7,7 +7,7 @@ import { RULE_KINDS, PICKABLE_KINDS, parseRule, buildRule, targetType, defaultPa
 
 // Rules (propDeps) as rows a creator edits: set [target] from [source] as [kind], then the
 // kind's settings, with the expression it writes shown under it. Used for a part's own
-// rules and for the token picture's. Locked rows are what a pattern sets itself.
+// rules and for the token picture's. Every rule is editable, a pattern's too.
 
 const SOURCES = [["card", "Card"], ["element", "Token"], ["map", "Map"], ["game", "Game"]];
 const COLOURS = new Set(["fill", "stroke", "backgroundColor"]);
@@ -83,6 +83,14 @@ function KindFields({ rule, set }) {
           <FieldRow label="Otherwise"><ValueField colour={colour} label="Otherwise" value={p.other} onChange={(other) => set({ other })} /></FieldRow>
         </>
       );
+    case "switch":
+      return (
+        <>
+          {property}
+          <FieldRow label="When on"><ValueField colour={colour} label="When on" value={p.on} onChange={(on) => set({ on })} /></FieldRow>
+          <FieldRow label="When off"><ValueField colour={colour} label="When off" value={p.off} onChange={(off) => set({ off })} /></FieldRow>
+        </>
+      );
     case "formula":
       return (
         <>
@@ -96,15 +104,9 @@ function KindFields({ rule, set }) {
   }
 }
 
-function RuleRow({ rule, listId, lockedTargets, onChange, onRemove }) {
+function RuleRow({ rule, listId, onChange, onRemove }) {
   const readOnly = RULE_KINDS[rule.kind].readOnly;
-  // A target the pattern sets isn't taken: it would fight the pattern's own rule.
-  const [problem, setProblem] = React.useState(null);
-  const retarget = (target) => {
-    if (lockedTargets.has(target)) return setProblem(`"${target}" is set by the part's settings: pick another.`);
-    setProblem(null);
-    onChange({ ...rule, target, type: targetType(target) });
-  };
+  const retarget = (target) => onChange({ ...rule, target, type: targetType(target) });
   const set = (patch) => onChange({ ...rule, params: { ...rule.params, ...patch } });
   const converted = readOnly ? convertLegacy(rule.params.dep) : null;
   return (
@@ -116,7 +118,6 @@ function RuleRow({ rule, listId, lockedTargets, onChange, onRemove }) {
               <Input size="xs" aria-label="Set" list={listId} value={rule.target ?? ""} onChange={(e) => retarget(e.target.value)} />
               <IconButton size="2xs" variant="ghost" aria-label="Remove rule" onClick={onRemove}><FaTimes /></IconButton>
             </Flex>
-            {problem && <Text fontSize="xs" color="fg.error">{problem}</Text>}
           </FieldRow>
           <FieldRow label="From">
             <Select label="From" value={rule.source ?? "card"} options={SOURCES} onChange={(source) => onChange({ ...rule, source })} />
@@ -146,10 +147,9 @@ function RuleRow({ rule, listId, lockedTargets, onChange, onRemove }) {
 
 /**
  * @param rules   the propDeps
- * @param locked  [{ target, by }]: what a pattern sets itself, shown read-only
  * @param targets the object properties offered for a rule to set (any can be typed)
  */
-export function RulesEditor({ rules = [], locked = [], targets = [], onChange }) {
+export function RulesEditor({ rules = [], targets = [], onChange }) {
   const listId = React.useId();
   // The rules as edited: a kind stays what the creator picked even while a field is half
   // typed. Rules changed from outside (the JSON) are read again.
@@ -165,8 +165,7 @@ export function RulesEditor({ rules = [], locked = [], targets = [], onChange })
     sent.current = deps;
     onChange(deps);
   };
-  const lockedTargets = new Set(locked.map((l) => l.target));
-  const offered = targets.filter((t) => !lockedTargets.has(t));
+  const offered = targets;
   const add = () => {
     const used = new Set(state.map((r) => r.target));
     const target = offered.find((t) => !used.has(t)) ?? offered[0] ?? "opacity";
@@ -175,13 +174,8 @@ export function RulesEditor({ rules = [], locked = [], targets = [], onChange })
   return (
     <Stack gap="6px">
       <datalist id={listId}>{offered.map((t) => <option key={t} value={t} />)}</datalist>
-      {locked.map((l) => (
-        <Box key={l.target} role="group" aria-label={`Locked rule: ${l.target}`} borderWidth="1px" borderStyle="dashed" borderRadius="md" p="4px 6px" opacity={0.7}>
-          <Text fontSize="xs"><b>{l.target}</b>: set by the {l.by}'s settings</Text>
-        </Box>
-      ))}
       {state.map((rule, i) => (
-        <RuleRow key={i} rule={rule} listId={listId} lockedTargets={lockedTargets}
+        <RuleRow key={i} rule={rule} listId={listId}
           onChange={(next) => emit(state.map((r, j) => (j === i ? next : r)))}
           onRemove={() => emit(state.filter((_, j) => j !== i))} />
       ))}

@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { splitParts, joinParts, addPart, updatePart, setPartGroup, renameGroup, groupsOf, isGroupKey, movePartToGroup, removeGroup, renamePart, nameOfPart, setPartRules } from "./parts";
+import { splitParts, joinParts, addPart, updatePart, setPartGroup, renameGroup, groupsOf, isGroupKey, movePartToGroup, removeGroup, renamePart, nameOfPart, setPartRules, setAdditionRules } from "./parts";
 import { PATTERNS } from "./index";
 import character from "../fixtures/token_character.json";
 
@@ -114,11 +114,19 @@ describe("updatePart keeps what the pattern doesn't model", () => {
     expect(changed.additions[1].width).toBe(60);
   });
 
-  it("what a pattern models goes when the setting is cleared (a ring's colour property)", () => {
-    let [ring] = addPart([], "ring");
-    ring = updatePart(ring, { ...ring.params, property: "faction", colors: { ally: "green" } });
-    const plain = updatePart(ring, { ...ring.params, property: "" });
-    expect(plain.additions[0].tokenData.propDeps).toBeUndefined();
+  it("a ring's colour rule, of any kind (a value table, HP thresholds, a yes/no), is its own: still a ring, kept as written", () => {
+    for (const expression of [
+      'Enum(%faction%, {"ally":"green"}, transparent)',
+      'FromToEnum(%hp%, 0, %maxhp%, 0, 100, red, [{"min":0,"max":50,"enumValue":"red"},{"min":50,"max":9999,"enumValue":"green"}])',
+      'Enum(%infected%, {"true":"green"}, transparent)',
+    ]) {
+      const dep = { expression, objectProperty: "stroke", type: "string", source: "card" };
+      const def = { name: "t", object: {}, additions: [{ name: "ring", type: "circle", radius: 50, stroke: "gold", strokeWidth: 3, tokenData: { anchor: "center", offsetX: 0, offsetY: 0, fitToToken: true, propDeps: [dep] } }] };
+      const { base, parts } = splitParts(def);
+      expect(parts[0]).toMatchObject({ pattern: "ring", rules: [dep] });
+      expect(joinParts(base, parts)).toEqual(def);
+      expect(updatePart(parts[0], { ...parts[0].params, width: 5 }).additions[0].tokenData.propDeps).toEqual([dep]);
+    }
   });
 
   it("an unchanged update leaves the dnd5e token as it was", () => {
@@ -339,6 +347,19 @@ describe("a part's own rules", () => {
     const split = splitParts(file);
     expect(split.parts.map((p) => p.pattern)).not.toContain("bar");
     expect(joinParts(split.base, split.parts)).toEqual(file);
+  });
+
+  it("setAdditionRules writes one addition's rules as given (the pattern's too); a visible rule starts it hidden", () => {
+    const [bar] = addPart([], "bar");
+    const [width] = bar.additions[1].tokenData.propDeps;
+    const visible = { objectProperty: "visible", type: "bool", source: "card", dtoProperty: "shown" };
+    const next = setAdditionRules(bar, 1, [width, visible]);
+    expect(next.additions[1].tokenData.propDeps).toEqual([width, visible]);
+    expect(next.additions[1].visible).toBe(false);
+    expect(next.additions[0]).toEqual(bar.additions[0]);
+    const cleared = setAdditionRules(next, 1, []);
+    expect(cleared.additions[1].tokenData).not.toHaveProperty("propDeps");
+    expect(cleared.additions[1]).not.toHaveProperty("visible");
   });
 
   it("setPartRules writes the rules on every addition and keeps the pattern's", () => {

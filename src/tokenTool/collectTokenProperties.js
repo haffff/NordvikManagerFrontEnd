@@ -8,6 +8,17 @@ const RANK = { text: 0, number: 1, bool: 2 };
 // The picture comes from the editor's image chooser, not a sample value.
 const PICTURE = "tokenImage";
 
+// A value table on true / false only (the editor's Yes / no rule): its property is a switch.
+const isYesNo = (dep) => {
+  const keys = /^\s*Enum\(\s*%\w+%\s*,\s*(\{[^}]*\})/.exec(dep.expression)?.[1];
+  try {
+    const list = Object.keys(JSON.parse(keys));
+    return list.length > 0 && list.every((k) => k === "true" || k === "false");
+  } catch {
+    return false;
+  }
+};
+
 const depKind = (dep) => (dep.objectProperty === "visible" || dep.type === "bool" ? "bool" : dep.type === "number" ? "number" : "text");
 
 /** @returns {{ name, source, kind: "text"|"number"|"bool" }[]} in the order first read */
@@ -27,7 +38,7 @@ export function collectTokenProperties(definition) {
         // A rule call (FromTo, FromToEnum, Math) works on numbers, but a value table
         // (Enum) looks up text; a plain substitution takes the dep's own type.
         const call = /^\s*(\w+)\(/.exec(dep.expression)?.[1];
-        const kind = !call ? depKind(dep) : depKind(dep) === "bool" ? "bool" : call === "Enum" ? "text" : "number";
+        const kind = !call ? depKind(dep) : depKind(dep) === "bool" || isYesNo(dep) ? "bool" : call === "Enum" ? "text" : "number";
         for (const name of extractPropNames(dep.expression)) add(name, dep.source, kind);
         continue;
       }

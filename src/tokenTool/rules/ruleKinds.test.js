@@ -42,6 +42,16 @@ describe("rule kinds", () => {
     roundTrip(rule("table", { property: "faction", entries: [{ when: "ally", value: "green" }], other: "" }, "stroke"));
   });
 
+  it("Yes / no: one value while a property is on (true), another otherwise", () => {
+    const r = rule("switch", { property: "infected", on: "green", off: "transparent" }, "stroke");
+    roundTrip(r);
+    expect(buildRule(r).expression).toBe('Enum(%infected%, {"true":"green"}, transparent)');
+    const at = (infected) => evaluate(buildRule(r).expression, props({ infected }), "string");
+    expect([at("true"), at("false"), at("")]).toEqual(["green", "transparent", "transparent"]);
+    // A table of other values stays a table.
+    expect(parseRule(buildRule(rule("table", { property: "f", entries: [{ when: "ally", value: "g" }], other: "" }, "stroke"))).kind).toBe("table");
+  });
+
   it("Formula: math over properties", () => {
     const r = rule("formula", { value: "0", formula: "%hp% / %maxhp% * 0.5 + 0.5" }, "opacity");
     roundTrip(r);

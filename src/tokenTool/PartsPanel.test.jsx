@@ -181,12 +181,23 @@ describe("PartsPanel", () => {
     expect(last().additions[0].name).toBe("even");
   });
 
-  // A part's own rules: what its pattern doesn't set (that's locked).
-  it("a part's rules: the pattern's locked, its own added and written after them", () => {
+  // Every rule a part has is editable, the ones its pattern made too: the file is read
+  // again, so an edit the pattern can make keeps the part (with new settings), and one it
+  // can't turns it into a custom part, nothing lost.
+  it("a part's rules are all editable: a label's text rule reads another property, and it's still a label", () => {
     const { last } = setup();
     open("Label: name_label");
     const label = partItem("Label: name_label");
-    expect(within(label).getByRole("group", { name: "Locked rule: text" })).toHaveTextContent(/Label's settings/);
+    expect(within(label).queryByText(/Locked rule/)).toBeNull();
+    fireEvent.change(within(within(label).getByRole("group", { name: "Rule: text" })).getByLabelText("Property"), { target: { value: "nickname" } });
+    expect(last().additions.find((a) => a.name === "name_label").tokenData.propDeps[0]).toMatchObject({ objectProperty: "text", dtoProperty: "nickname" });
+    expect(within(partItem("Label: name_label")).getByRole("group", { name: "Rule: text" })).toBeInTheDocument();
+  });
+
+  it("a part's own rules are added after the ones it has", () => {
+    const { last } = setup();
+    open("Label: name_label");
+    const label = partItem("Label: name_label");
     fireEvent.click(within(label).getByRole("button", { name: "Add rule" }));
     fireEvent.change(within(within(label).getByRole("group", { name: "Rule: opacity" })).getByLabelText("Property"), { target: { value: "alpha" } });
     const deps = last().additions.find((a) => a.name === "name_label").tokenData.propDeps;
@@ -196,7 +207,26 @@ describe("PartsPanel", () => {
     expect(within(partItem("Label: name_label")).getByRole("group", { name: "Rule: opacity" })).toBeInTheDocument();
   });
 
-  it("a custom part's rules: the shared ones editable, the others counted", () => {
+  it("a part of several additions: the rules all of them have, then each one's own (a bar's fill)", () => {
+    const { last } = setup();
+    open("Bar: hp_bar");
+    const bar = () => partItem("Bar: hp_bar");
+    fireEvent.click(within(bar()).getByRole("button", { name: /^Rules of hp_bar_fill/ }));
+    const width = within(bar()).getByRole("group", { name: "Rule: width" });
+    expect(within(width).getByLabelText("As")).toHaveValue("range");
+    // An edit the bar doesn't make: read again, it's two rectangles now, each with its rules.
+    fireEvent.change(within(width).getByLabelText("As"), { target: { value: "expression" } });
+    expect(screen.queryByRole("group", { name: "Bar: hp_bar" })).toBeNull();
+    open("Rectangle: hp_bar_fill");
+    // Read again, the rule is what it now says (%hp%: Direct); it can be made anything.
+    const rule = () => within(partItem("Rectangle: hp_bar_fill")).getByRole("group", { name: "Rule: width" });
+    expect(within(rule()).getByLabelText("As")).toHaveValue("direct");
+    fireEvent.change(within(rule()).getByLabelText("As"), { target: { value: "expression" } });
+    fireEvent.change(within(rule()).getByLabelText("Expression"), { target: { value: "50" } });
+    expect(last().additions.find((a) => a.name === "hp_bar_fill").tokenData.propDeps[0]).toMatchObject({ objectProperty: "width", expression: "50" });
+  });
+
+  it("a custom part's rules: the shared ones and each addition's own, all editable", () => {
     const shared = { objectProperty: "angle", type: "number", source: "card", dtoProperty: "facing" };
     const { last } = setup({ name: "t", object: {}, additions: [
       { name: "odd_a", type: "triangle", tokenData: { propDeps: [{ objectProperty: "fill", type: "string", source: "card", dtoProperty: "c" }, shared] } },
@@ -204,9 +234,13 @@ describe("PartsPanel", () => {
     ] });
     open("Custom: odd");
     const item = partItem("Custom: odd");
-    expect(within(item).getByText(/1 more rule on some of its additions only/)).toBeInTheDocument();
+    expect(within(item).queryByText(/some of its additions only/)).toBeNull();
     fireEvent.change(within(within(item).getByRole("group", { name: "Rule: angle" })).getByLabelText("Property"), { target: { value: "heading" } });
     expect(last().additions.map((a) => a.tokenData.propDeps.at(-1).dtoProperty)).toEqual(["heading", "heading"]);
+    fireEvent.click(within(partItem("Custom: odd")).getByRole("button", { name: /^Rules of odd_a/ }));
+    fireEvent.change(within(within(partItem("Custom: odd")).getByRole("group", { name: "Rule: fill" })).getByLabelText("Property"), { target: { value: "d" } });
+    expect(last().additions[0].tokenData.propDeps.map((d) => d.dtoProperty)).toEqual(["d", "heading"]);
+    expect(last().additions[1].tokenData.propDeps.map((d) => d.dtoProperty)).toEqual(["heading"]);
   });
 
   it("colours use the colour picker", () => {
@@ -252,7 +286,7 @@ describe("PartsPanel", () => {
     expect(button.tokenData.actions.onClick).toEqual({ Action: "dnd5e/attack" });
   });
 
-  it("a ring: a colour per value of a property", () => {
+  it("a ring: its colour from a property is a rule of any kind, e.g. yes / no (infected)", () => {
     const def = { name: "t", object: {}, additions: [{
       name: "r_ring", type: "circle", radius: 50, stroke: "gold", strokeWidth: 3,
       tokenData: { anchor: "center", offsetX: 0, offsetY: 0, fitToToken: true, maskGroup: "r", label: "Faction ring" },
@@ -260,10 +294,13 @@ describe("PartsPanel", () => {
     const { last } = setup(def);
     open("Ring: r_ring");
     const item = partItem("Ring: r_ring");
-    fireEvent.change(within(item).getByLabelText("Colour from property"), { target: { value: "faction" } });
-    fireEvent.click(within(item).getByRole("button", { name: "Add colour" }));
-    const rows = within(item).getAllByLabelText("Value");
-    fireEvent.change(rows.at(-1), { target: { value: "ally" } });
-    expect(last().additions[0].tokenData.propDeps[0].expression).toMatch(/^Enum\(%faction%, \{"ally":/);
+    fireEvent.click(within(item).getByRole("button", { name: "Add rule" }));
+    const rule = () => within(item).getAllByRole("group").find((g) => /^Rule: /.test(g.getAttribute("aria-label")));
+    fireEvent.change(within(rule()).getByLabelText("Set"), { target: { value: "stroke" } });
+    fireEvent.change(within(rule()).getByLabelText("As"), { target: { value: "switch" } });
+    fireEvent.change(within(rule()).getByLabelText("Property"), { target: { value: "infected" } });
+    expect(last().additions[0].tokenData.propDeps).toEqual([
+      expect.objectContaining({ objectProperty: "stroke", expression: expect.stringMatching(/^Enum\(%infected%, \{"true":/) }),
+    ]);
   });
 });

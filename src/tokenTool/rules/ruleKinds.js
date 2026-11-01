@@ -101,6 +101,17 @@ export const RULE_KINDS = {
     },
   },
 
+  // A table of one row, on "true": what a yes / no property (e.g. infected) gives.
+  switch: {
+    title: "Yes / no",
+    parse(dep) {
+      const t = RULE_KINDS.table.parse(dep);
+      if (!t || t.entries.length !== 1 || t.entries[0].when !== "true") return null;
+      return { property: t.property, on: t.entries[0].value, off: t.other };
+    },
+    build: ({ property, on, off }) => RULE_KINDS.table.build({ property, entries: [{ when: "true", value: on }], other: off }),
+  },
+
   formula: {
     title: "Formula",
     parse(dep) {
@@ -129,7 +140,7 @@ export const RULE_KINDS = {
   },
 };
 
-const ORDER = ["legacy", "direct", "range", "thresholds", "table", "formula", "expression"];
+const ORDER = ["legacy", "direct", "range", "thresholds", "switch", "table", "formula", "expression"];
 
 /** The kinds a creator can pick (not the read-only old syntax). */
 export const PICKABLE_KINDS = ORDER.filter((id) => !RULE_KINDS[id].readOnly);
@@ -169,6 +180,7 @@ export function defaultParams(kind, from = {}) {
     case "range": return { property, from: ["0", "max"], to: ["0", "1"] };
     case "thresholds": return { property, max: "max", steps: [{ upTo: 50, value: "red" }, { upTo: 100, value: "green" }], fallback: "red" };
     case "table": return { property, entries: [{ when: "", value: "" }], other: "" };
+    case "switch": return { property, on: "", off: "" };
     case "formula": return { value: "0", formula: property ? `%${property}%` : "" };
     default: return { text: property ? `%${property}%` : "" };
   }

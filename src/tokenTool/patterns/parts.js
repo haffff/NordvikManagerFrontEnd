@@ -286,6 +286,46 @@ export function setPartRules(part, rules) {
   };
 }
 
+// Which additions the part's pattern makes hidden itself (a button until selected).
+const hiddenByPattern = (part) => (part.params ? built(part.pattern, part.params).additions.map((a) => a.visible === false) : []);
+
+/** An addition with these deps; a first visible rule starts it hidden, the last one gone shows it. */
+function withDeps(addition, deps, keepHidden) {
+  const [had, has] = [hasVisibleRule(depsOf(addition)), hasVisibleRule(deps)];
+  const { propDeps, ...rest } = addition.tokenData ?? {};
+  const next = { ...addition, tokenData: deps.length ? { ...rest, propDeps: deps } : rest };
+  if (has && !had) return { ...next, visible: false };
+  if (had && !has && !keepHidden) {
+    const { visible, ...shown } = next;
+    return shown;
+  }
+  return next;
+}
+
+/**
+ * A part's rules for the editor: the ones all its additions have, and each addition's
+ * others (with one addition, all of them are its own). The pattern's rules are rules
+ * like any other: the file is read again, so the part stays what it is if its pattern
+ * still makes them, and becomes a custom part (nothing lost) if not.
+ */
+export function rulesOfPart(part) {
+  const shared = part.additions.length > 1 ? sharedRules(part.additions) : [];
+  return { shared, own: part.additions.map((a) => depsOf(a).filter((d) => !shared.some((r) => same(r, d)))) };
+}
+
+/** The part with these rules on every one of its additions, after each one's own. */
+export function setSharedRules(part, rules) {
+  const { own } = rulesOfPart(part);
+  const hidden = hiddenByPattern(part);
+  return { ...part, additions: part.additions.map((a, i) => withDeps(a, [...own[i], ...rules], hidden[i])) };
+}
+
+/** The part with one addition's rules (all of them, the shared ones too) as given. */
+export function setAdditionRules(part, index, deps) {
+  const hidden = hiddenByPattern(part);
+  return { ...part, additions: part.additions.map((a, i) => (i === index ? withDeps(a, deps, hidden[i]) : a)) };
+}
+
 // What every pattern decides in a part's tokenData; anything else there is the file's.
 const MODELLED = ["anchor", "offsetX", "offsetY", "maskGroup", "label", "propDeps", "showOnTokenControl", "fitToToken"];
 

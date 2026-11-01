@@ -9,7 +9,7 @@ import { FaPlus } from "@react-icons/all-files/fa/FaPlus";
 import { DynamicIcon } from "../components/uiComponents/icons/DynamicIcon";
 import { ColorField, Control, FieldRow, IconField, Rows, Section, WideRow } from "./settingsTable";
 import { PATTERNS } from "./patterns";
-import { splitParts, joinParts, updatePart, groupsOf, movePartToGroup, nameOfPart, renamePart, setPartRules } from "./patterns/parts";
+import { splitParts, joinParts, updatePart, groupsOf, movePartToGroup, nameOfPart, renamePart, rulesOfPart, setSharedRules, setAdditionRules } from "./patterns/parts";
 import { RulesEditor } from "./rules/RulesEditor";
 import { OPEN_CARD } from "./patterns/button";
 
@@ -55,8 +55,7 @@ const SECTIONS = {
     ["Icons", [], "icons"],
   ],
   ring: [
-    ["Content", [f("property", "Colour from property", "text"), SOURCE]],
-    ["Appearance", [f("color", "Colour", "color"), f("width", "Line width", "number"), f("otherColor", "Other values", "color")], "ringColours"],
+    ["Appearance", [f("color", "Colour", "color"), f("width", "Line width", "number")], "ringHint"],
   ],
   rect: [
     ["Content", SHOWN_WHILE],
@@ -178,15 +177,12 @@ function Extra({ kind, part, set }) {
             make={(items) => ({ upTo: 100, color: items.at(-1)?.color ?? "rgba(50,200,50,0.9)" })} onChange={(colors) => colors.length && set({ colors })} />
         </WideRow>
       );
-    case "ringColours":
-      return p.property ? (
+    case "ringHint":
+      return (
         <WideRow>
-          <Text fontSize="xs" mb="4px">Colour per value of {p.property}</Text>
-          <Rows items={Object.entries(p.colors).map(([value, color]) => ({ value, color }))} addLabel="Add colour"
-            columns={[["value", "Value", "text"], ["color", "Colour", "color"]]} make={() => ({ value: "", color: "#ffffff" })}
-            onChange={(rows) => set({ colors: Object.fromEntries(rows.map((r) => [r.value, r.color])) })} />
+          <Text fontSize="xs" color="fg.muted">To colour it from a property (a faction, HP, a yes / no like infected), add a stroke rule under Rules.</Text>
         </WideRow>
-      ) : null;
+      );
     case "icons":
       return <WideRow><IconCards icons={p.icons} group={p.name ?? p.group} onChange={(icons) => set({ icons })} /></WideRow>;
     case "click":
@@ -289,22 +285,40 @@ function PatternSettings({ part, onChange, ...rows }) {
 // The object properties a part's rules are offered to set (any other can be typed).
 const PART_TARGETS = ["opacity", "fill", "stroke", "strokeWidth", "angle", "scaleX", "scaleY", "visible", "text", "fontSize", "width", "height"];
 
-// The part's own rules: what its pattern doesn't set (that's shown locked). A custom part's
-// are the ones all its additions share; the others stay in the JSON.
+// One addition's own rules, behind a toggle (an icon set has one per icon).
+function AdditionRules({ addition, rules, onChange }) {
+  const [open, setOpen] = React.useState(false);
+  return (
+    <Box>
+      <Button size="2xs" variant="ghost" aria-expanded={open} onClick={() => setOpen((o) => !o)}>
+        Rules of {addition.name} ({rules.length})
+      </Button>
+      {open && <RulesEditor rules={rules} targets={PART_TARGETS} onChange={onChange} />}
+    </Box>
+  );
+}
+
+// Every rule the part has, editable, the ones its pattern made too: the file is read again,
+// so the part stays what it is while its pattern still makes them (with new settings), and
+// becomes a custom part (nothing lost) when it doesn't.
 function PartRules({ part, onChange }) {
-  const locked = (PATTERNS[part.pattern]?.writes ?? []).map((target) => ({ target, by: kindOf(part) }));
-  const rules = part.rules ?? [];
-  const others = new Set(part.additions.flatMap((a) => (a.tokenData?.propDeps ?? []).map((d) => JSON.stringify(d))));
-  for (const r of rules) others.delete(JSON.stringify(r));
-  if (part.params) for (const a of part.additions) for (const d of a.tokenData?.propDeps ?? []) if ((PATTERNS[part.pattern].writes ?? []).includes(d.objectProperty)) others.delete(JSON.stringify(d));
+  const { shared, own } = rulesOfPart(part);
+  const single = part.additions.length === 1;
   return (
     <Stack gap="4px" mt="6px">
       <Text fontSize="xs" fontWeight="semibold" color="fg.muted" textTransform="uppercase">Rules</Text>
       <Text fontSize="xs" color="fg.muted">Each sets a property of the part from a game property, live. Try them with Sample values.</Text>
-      {others.size > 0 && (
-        <Text fontSize="xs" color="fg.muted">{others.size === 1 ? "1 more rule" : `${others.size} more rules`} on some of its additions only: edit {others.size === 1 ? "it" : "them"} in the JSON.</Text>
+      {single ? (
+        <RulesEditor rules={own[0]} targets={PART_TARGETS} onChange={(deps) => onChange(setAdditionRules(part, 0, deps))} />
+      ) : (
+        <>
+          <Text fontSize="xs">On all its parts</Text>
+          <RulesEditor rules={shared} targets={PART_TARGETS} onChange={(deps) => onChange(setSharedRules(part, deps))} />
+          {part.additions.map((a, i) => (
+            <AdditionRules key={a.name ?? i} addition={a} rules={own[i]} onChange={(deps) => onChange(setAdditionRules(part, i, [...deps, ...shared]))} />
+          ))}
+        </>
       )}
-      <RulesEditor rules={rules} locked={locked} targets={PART_TARGETS} onChange={(deps) => onChange(setPartRules(part, deps))} />
     </Stack>
   );
 }
@@ -380,7 +394,7 @@ export function PartsPanel({ definition, onChange }) {
               <IconButton size="2xs" variant="ghost" aria-label="Move down" disabled={i === parts.length - 1} onClick={() => move(i, 1)}><FaArrowDown /></IconButton>
               <IconButton size="2xs" variant="ghost" aria-label="Remove" onClick={() => save(parts.filter((_, j) => j !== i))}><FaTimes /></IconButton>
             </Flex>
-            {custom && <Text fontSize="xs" color="fg.muted" pl="28px">Not a pattern the editor knows: change its settings in the JSON.</Text>}
+            {custom && <Text fontSize="xs" color="fg.muted" pl="28px">Not a pattern the editor knows: its rules are below, its other settings in the JSON.</Text>}
             {expanded && custom && (
               <Table.Root size="sm" mt="4px"><Table.Body><PartRows part={part} {...rows} /></Table.Body></Table.Root>
             )}

@@ -70,11 +70,13 @@ describe("iconSet", () => {
 describe("ring", () => {
   const ring = PATTERNS.ring;
 
-  it("fits the token and can take its colour from a property, transparent (no ring) for other values", () => {
-    const params = { ...ring.create({ group: "faction" }), property: "faction", colors: { ally: "green", enemy: "red" } };
+  it("fits the token, one colour and line width; a colour from a property is one of its own rules, of any kind", () => {
+    const params = { ...ring.create({ group: "faction" }), color: "gold", width: 4 };
     const [part] = ring.build(params).additions;
     expect(part.tokenData).toMatchObject({ anchor: "center", fitToToken: true });
-    expect(part.tokenData.propDeps).toEqual([{ expression: 'Enum(%faction%, {"ally":"green","enemy":"red"}, transparent)', objectProperty: "stroke", type: "string", source: "card" }]);
+    expect(part.tokenData).not.toHaveProperty("propDeps");
+    expect(part).toMatchObject({ stroke: "gold", strokeWidth: 4 });
+    expect(ring.writes).toEqual([]);
     expect(roundTrip(ring, params)).toEqual(params);
   });
 });

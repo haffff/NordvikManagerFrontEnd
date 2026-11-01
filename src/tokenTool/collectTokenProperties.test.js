@@ -31,6 +31,11 @@ describe("collectTokenProperties", () => {
     expect(props).toEqual([{ name: "faction", source: "card", kind: "text" }, { name: "size", source: "card", kind: "text" }]);
   });
 
+  it("a yes / no rule (Enum on true) reads a switch", () => {
+    const props = collectTokenProperties({ additions: [part(dep({ expression: 'Enum(%infected%, {"true":"green"}, transparent)', objectProperty: "stroke" }))] });
+    expect(props).toEqual([{ name: "infected", source: "card", kind: "bool" }]);
+  });
+
   it("a property that shows or hides a part is a switch", () => {
     const props = collectTokenProperties({ additions: [part(dep({ dtoProperty: "status_x", objectProperty: "visible", type: "bool" }))] });
     expect(find(props, "status_x").kind).toBe("bool");
