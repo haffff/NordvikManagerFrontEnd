@@ -543,6 +543,67 @@ describe('WebRTCManager', () => {
     });
   });
 
+  // Only the GM backend this client offered to may answer it or send it candidates. Another
+  // member of the session answering first would have the client connect to them instead.
+  describe('who may answer', () => {
+    let pc;
+    const OriginalPeerConnection = globalThis.RTCPeerConnection;
+    const OriginalDescription = globalThis.RTCSessionDescription;
+    const OriginalCandidate = globalThis.RTCIceCandidate;
+
+    beforeEach(async () => {
+      globalThis.RTCSessionDescription = class { constructor(init) { Object.assign(this, init); } };
+      globalThis.RTCIceCandidate = class { constructor(init) { Object.assign(this, init); } };
+      globalThis.RTCPeerConnection = class FakePeerConnection {
+        constructor() {
+          pc = this;
+          this.remoteDescription = null;
+          this.setRemoteDescription = vi.fn(async (d) => { this.remoteDescription = d; });
+          this.addIceCandidate = vi.fn(async () => {});
+        }
+        createDataChannel() { return { readyState: 'connecting', bufferedAmount: 0, close: vi.fn(), send: vi.fn() }; }
+        async createOffer() { return {}; }
+        async setLocalDescription() {}
+        close() {}
+      };
+      WebRTCManagerInstance.Close();
+      await WebRTCManagerInstance.Start('session-1', vi.fn());
+      WebRTCManagerInstance._gmPeerId = 'gm-1';
+      await WebRTCManagerInstance._startPeerConnection();
+    });
+
+    afterEach(() => {
+      globalThis.RTCPeerConnection = OriginalPeerConnection;
+      globalThis.RTCSessionDescription = OriginalDescription;
+      globalThis.RTCIceCandidate = OriginalCandidate;
+    });
+
+    const answer = (fromPeerId) => signalingHandlers.get('webrtc-answer')({ fromPeerId, answer: { type: 'answer', sdp: 'v=0' } });
+    const ice = (fromPeerId) => signalingHandlers.get('ice-candidate')({ fromPeerId, candidate: { candidate: 'candidate:1 1 udp 1 10.0.0.9 9 typ host', sdpMid: '0' } });
+
+    it('ignores an answer from anyone but the GM it offered to', () => {
+      answer('another-player');
+      answer(undefined);
+
+      expect(pc.setRemoteDescription).not.toHaveBeenCalled();
+    });
+
+    it('takes the answer from the GM', () => {
+      answer('gm-1');
+
+      expect(pc.setRemoteDescription).toHaveBeenCalledTimes(1);
+    });
+
+    it('ignores ICE candidates from anyone but the GM', async () => {
+      answer('gm-1');
+      await Promise.resolve();
+      ice('another-player');
+      ice('gm-1');
+
+      expect(pc.addIceCandidate).toHaveBeenCalledTimes(1);
+    });
+  });
+
   // Chrome can report 'failed' before the GM backend's later candidates arrive (e.g. coturn
   // refuses relaying to its first, private, candidate) and recover once they do.
   describe('connection failure', () => {
@@ -666,6 +727,33 @@ describe('WebRTCManager', () => {
       await afterReconnectDelay();
 
       expect(signalingState.authenticate).not.toHaveBeenCalled();
+    });
+
+    // The GM server banned this user: it says so, then closes the channel. Reconnecting
+    // would only be refused again, so the client stops and shows why.
+    it('stops for good and says why when the server bans this user', async () => {
+      open();
+      WebRTCManagerInstance._handleChannelMessage({ data: JSON.stringify({ command: 'error', data: 'err: banned' }) });
+
+      expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: 'You are banned from this server.', isBanned: true }));
+      expect(WebRTCManagerInstance.getConnectionState()).toBe('DISCONNECTED');
+      // Detached: the server closing the channel next can't start a reconnect.
+      expect(dc.onclose).toBeNull();
+      await afterReconnectDelay();
+      expect(signalingState.authenticate).not.toHaveBeenCalled();
+      expect(signalingState.cycle).not.toHaveBeenCalled();
+    });
+
+    it('passes other server errors on to subscribers and keeps the connection', () => {
+      const seen = [];
+      WebRTCManagerInstance.Subscribe('test', (m) => seen.push(m));
+      open();
+      WebRTCManagerInstance._handleChannelMessage({ data: JSON.stringify({ command: 'error', data: 'err: something else' }) });
+
+      expect(seen.at(-1)).toMatchObject({ command: 'error', data: 'err: something else' });
+      expect(onError).not.toHaveBeenCalled();
+      expect(WebRTCManagerInstance.getConnectionState()).toBe('READY');
+      WebRTCManagerInstance.Unsubscribe('test');
     });
 
     describe('heartbeat', () => {
