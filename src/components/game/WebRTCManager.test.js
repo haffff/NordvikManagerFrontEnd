@@ -668,6 +668,33 @@ describe('WebRTCManager', () => {
       expect(signalingState.authenticate).not.toHaveBeenCalled();
     });
 
+    // The GM server banned this user: it says so, then closes the channel. Reconnecting
+    // would only be refused again, so the client stops and shows why.
+    it('stops for good and says why when the server bans this user', async () => {
+      open();
+      WebRTCManagerInstance._handleChannelMessage({ data: JSON.stringify({ command: 'error', data: 'err: banned' }) });
+
+      expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: 'You are banned from this server.', isBanned: true }));
+      expect(WebRTCManagerInstance.getConnectionState()).toBe('DISCONNECTED');
+      // Detached: the server closing the channel next can't start a reconnect.
+      expect(dc.onclose).toBeNull();
+      await afterReconnectDelay();
+      expect(signalingState.authenticate).not.toHaveBeenCalled();
+      expect(signalingState.cycle).not.toHaveBeenCalled();
+    });
+
+    it('passes other server errors on to subscribers and keeps the connection', () => {
+      const seen = [];
+      WebRTCManagerInstance.Subscribe('test', (m) => seen.push(m));
+      open();
+      WebRTCManagerInstance._handleChannelMessage({ data: JSON.stringify({ command: 'error', data: 'err: something else' }) });
+
+      expect(seen.at(-1)).toMatchObject({ command: 'error', data: 'err: something else' });
+      expect(onError).not.toHaveBeenCalled();
+      expect(WebRTCManagerInstance.getConnectionState()).toBe('READY');
+      WebRTCManagerInstance.Unsubscribe('test');
+    });
+
     describe('heartbeat', () => {
       const heartbeats = () => dc.send.mock.calls
         .map(([json]) => JSON.parse(json))
