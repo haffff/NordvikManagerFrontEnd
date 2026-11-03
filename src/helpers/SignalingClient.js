@@ -65,6 +65,12 @@ class SignalingClient {
     this.emit(SIGNAL_EVENTS.ICE_CANDIDATE, { targetPeerId, candidate });
   }
 
+  // Reconnects a socket that was closed (Socket.IO doesn't by itself after the server
+  // closed it); its 'connect' handlers run again once it's up.
+  reconnect() {
+    if (this._socket && !this._socket.connected) this._socket.connect();
+  }
+
   disconnect() {
     this._socket?.disconnect();
     this._socket = null;
