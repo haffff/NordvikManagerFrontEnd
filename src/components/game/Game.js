@@ -13,6 +13,7 @@ import WebSocketStatus from "../uiComponents/WebSocketStatus";
 import { useGameEventHandlers } from "./hooks/useGameEventHandlers";
 import { useGameInitialization } from "./hooks/useGameInitialization";
 import { useReconnectNotice } from "./hooks/useReconnectNotice";
+import { useResync } from "../../helpers/resync";
 import { useGameApi } from "./hooks/useGameApi";
 import { useGameState } from "./hooks/useGameState";
 import { useStableDockState } from "./hooks/useStableDockState";
@@ -151,7 +152,9 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
 
   // Initialize custom hooks
   const eventHandlers = useGameEventHandlers({ state: dockState, gameState, CreateLayoutElement });
-  const { loadGame, initError, clearInitError, resetInitialization, isInitialized, ready } = useGameInitialization({ state: dockState, gameState, CreateLayoutElement });
+  const { loadGame, refreshGame, initError, clearInitError, resetInitialization, isInitialized, ready } = useGameInitialization({ state: dockState, gameState, CreateLayoutElement });
+  // Back after a dropped connection: players, permissions and maps may have changed meanwhile.
+  useResync(() => { if (isInitialized()) return refreshGame(); });
 
   // Reset the module-level initialization flag on unmount so that re-entering the same
   // game (e.g. after being kicked and rejoining) triggers a fresh loadGame call.
