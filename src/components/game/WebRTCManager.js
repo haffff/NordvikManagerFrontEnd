@@ -267,8 +267,14 @@ class WebRTCManager {
       }
     });
 
-    this._signaling.on(SIGNAL_EVENTS.WEBRTC_ANSWER, ({ answer }) => {
+    // Only the GM backend this client offered to may answer it or send it candidates;
+    // another member of the session answering first would have it connect to them instead.
+    this._signaling.on(SIGNAL_EVENTS.WEBRTC_ANSWER, ({ fromPeerId, answer }) => {
       if (!this._pc) return;
+      if (!this._gmPeerId || fromPeerId !== this._gmPeerId) {
+        this._log('warn', `Ignoring an answer from ${fromPeerId ?? 'unknown'}, not the GM backend`);
+        return;
+      }
       this._log('log', 'Received answer from GM backend');
       this._pc.setRemoteDescription(new RTCSessionDescription(answer))
         .then(() => {
@@ -280,8 +286,9 @@ class WebRTCManager {
         .catch((e) => this._log('error', 'setRemoteDescription error', e));
     });
 
-    this._signaling.on(SIGNAL_EVENTS.ICE_CANDIDATE, ({ candidate }) => {
+    this._signaling.on(SIGNAL_EVENTS.ICE_CANDIDATE, ({ fromPeerId, candidate }) => {
       if (!this._pc || !candidate) return;
+      if (!this._gmPeerId || fromPeerId !== this._gmPeerId) return;
       // Buffer candidates that arrive before the remote description is set — they are flushed
       // immediately after setRemoteDescription resolves in the WEBRTC_ANSWER handler above.
       if (!this._pc.remoteDescription) {
