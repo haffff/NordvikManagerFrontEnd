@@ -28,6 +28,7 @@ import ClientMediator from "../../../../ClientMediator";
 import { tokenEditAction } from "../../tokenEditing";
 import { SplitPane, useSplitView } from "../../../uiComponents/base/SplitPane";
 import themeColors from "../../../../helpers/themeColors";
+import { useResyncKey } from "../../../../helpers/resync";
 
 // ── Module-level constants ────────────────────────────────────────────────────
 
@@ -180,6 +181,8 @@ export const TemplatesPanel = ({ gameDataRef }) => {
   const split = useSplitView();
   const openTemplate = (template) => { setSelectedTemplate(template); split.showDetail(); };
 
+  // Loaded again once the connection is back after a drop.
+  const resyncKey = useResyncKey();
   React.useEffect(() => {
     const load = async () => {
       const gameId = await ClientMediator.sendCommandAsync("Game", "GetGameId");
@@ -189,7 +192,7 @@ export const TemplatesPanel = ({ gameDataRef }) => {
       if (data) setTemplates(data);
     };
     load();
-  }, []);
+  }, [resyncKey]);
 
   // Reset two-step confirm when selection changes
   React.useEffect(() => {

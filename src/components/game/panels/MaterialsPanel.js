@@ -47,6 +47,7 @@ import uploadMaterials from '../../../helpers/uploadMaterials';
 import { takeDroppedExports } from '../../../helpers/droppedExports';
 import { askImportDropped, reportImported, reportImportFailed } from '../../uiComponents/ImportDropPrompt';
 import themeColors from "../../../helpers/themeColors";
+import { useResync } from "../../../helpers/resync";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -259,6 +260,8 @@ export const MaterialsPanel = ({ state }) => {
     }, []);
 
     React.useEffect(() => { loadData(); }, [loadData]);
+    // Back after a dropped connection: resources added or removed meanwhile never arrived.
+    useResync(loadData);
 
     const ctx = Dockable.useContentContext();
     ctx.setTitle("Materials");
