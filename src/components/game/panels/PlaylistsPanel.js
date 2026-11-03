@@ -22,6 +22,7 @@ import ClientMediator from "../../../ClientMediator";
 import { usePermissions } from "../../../contexts/PermissionsContext";
 import { SplitPane, useSplitView } from "../../uiComponents/base/SplitPane";
 import themeColors from "../../../helpers/themeColors";
+import { useResync, useResyncKey } from "../../../helpers/resync";
 
 // ── Module-level constants ────────────────────────────────────────────────────
 
@@ -212,6 +213,9 @@ export const PlaylistsPanel = () => {
   React.useEffect(() => {
     loadPlaylists();
   }, [loadPlaylists]);
+  // Back after a dropped connection: changes made meanwhile never arrived.
+  const resyncKey = useResyncKey();
+  useResync(reloadAll);
 
   // Initial playback status, for button/badge state — actual audio playback is owned by
   // PlaybackManager (Game.js), this is display-only.
@@ -222,7 +226,7 @@ export const PlaylistsPanel = () => {
       data.forEach((s) => { next[s.playlistId] = s.isPaused ? "paused" : "playing"; });
       setPlaybackStatus(next);
     });
-  }, []);
+  }, [resyncKey]);
 
   // Reset two-step confirm when selection changes
   React.useEffect(() => {

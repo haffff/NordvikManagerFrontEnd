@@ -10,6 +10,7 @@ import { playOrWait, forgetWaiting } from "../../helpers/audioUnlock";
 import AudioUnlockNotice from "./AudioUnlockNotice";
 import { streamUrl } from "../../helpers/mediaStream";
 import { playingSounds } from "../../helpers/playingSounds";
+import { useResync } from "../../helpers/resync";
 
 // Always-mounted singleton (see Game.js) that owns actual audio playback for the
 // soundboard and playlist player. It is not a panel — it keeps playing regardless of
@@ -340,6 +341,32 @@ export const PlaybackManager = () => {
       if (audio?.__volumeCategory === category) refreshVolume(audio);
     });
   }), []);
+
+  // Back after a dropped connection: the playlist pushes sent meanwhile never arrived, so
+  // playback follows what the server says now. A playlist still on the same track keeps
+  // playing as it is (no audible restart).
+  useResync(async () => {
+    const states = await WebHelper.getAsync("Playlist/GetCurrentPlayback");
+    if (!Array.isArray(states)) return;
+    const current = new Map(states.map((state) => [state.playlistId, state]));
+    Object.keys(playlistsRef.current).forEach((id) => {
+      if (!current.has(id)) teardownPlaylist(id);
+    });
+    current.forEach((state, id) => {
+      const entry = playlistsRef.current[id];
+      if (state.isPaused) {
+        if (entry) pausePlaylist(id);
+        return;
+      }
+      const sameTrack = entry && (state.mode === 1 /* Concurrent */ || entry.currentTrackIndex === (state.currentTrackIndex ?? 0));
+      if (!sameTrack) {
+        startPlaylist(state);
+        return;
+      }
+      resumePlaylist(id);
+      if (state.volume !== undefined) changePlaylistVolume(state);
+    });
+  });
 
   // Resync on mount — pick up any playlists already playing when this client (re)connects.
   React.useEffect(() => {

@@ -1,5 +1,5 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
-import { renderHook } from '@testing-library/react';
+import { renderHook, act } from '@testing-library/react';
 
 const { subscribers } = vi.hoisted(() => ({ subscribers: new Map() }));
 
@@ -10,7 +10,7 @@ vi.mock('./transport', () => ({
   },
 }));
 
-import { onResync, useResync } from './resync';
+import { onResync, useResync, useResyncKey } from './resync';
 
 const broadcast = (message) => [...subscribers.values()].forEach((fn) => fn(message));
 const reconnected = () => broadcast({ command: '__channel_ready__', reconnected: true });
@@ -73,5 +73,20 @@ describe('resync', () => {
 
     unmount();
     expect(subscribers.size).toBe(0);
+  });
+
+  it('useResyncKey changes on each reconnect, so effects that depend on it run again', () => {
+    const { result } = renderHook(() => useResyncKey());
+    const first = result.current;
+
+    act(() => broadcast({ command: '__channel_ready__', reconnected: false }));
+    expect(result.current).toBe(first);
+
+    act(() => reconnected());
+    const second = result.current;
+    expect(second).not.toBe(first);
+
+    act(() => reconnected());
+    expect(result.current).not.toBe(second);
   });
 });

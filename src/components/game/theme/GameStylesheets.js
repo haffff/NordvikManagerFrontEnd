@@ -11,6 +11,7 @@ import {
   parseStylesheetList,
 } from "../../../helpers/customStyles";
 import { setAppliedGameCss, sheetText } from "../../../helpers/cardAppStyles";
+import { useResyncKey } from "../../../helpers/resync";
 
 // Fired on window when this player changes their own stylesheets (they live
 // in this browser, so there's no server broadcast for them).
@@ -31,7 +32,8 @@ export const GameStylesheets = ({ gameId }) => {
   const idsRef = React.useRef([]);
   idsRef.current = [...gmIds, ...personalIds];
 
-  // The GM's list, and this player's.
+  // The GM's list, and this player's (again once the connection is back after a drop).
+  const resyncKey = useResyncKey();
   React.useEffect(() => {
     if (!gameId || disabled) return;
     let cancelled = false;
@@ -44,7 +46,7 @@ export const GameStylesheets = ({ gameId }) => {
       .catch((e) => console.warn("GameStylesheets: couldn't load the game's stylesheets", e));
     setPersonalIds(getPersonalStylesheets(gameId));
     return () => { cancelled = true; };
-  }, [gameId, disabled]);
+  }, [gameId, disabled, resyncKey]);
 
   React.useEffect(() => {
     if (disabled) return;

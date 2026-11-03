@@ -704,3 +704,71 @@ describe('CardAPI — Resources.Open, ReadWhole, Upload', () => {
     api.destroy();
   });
 });
+
+// Property changes made while the connection was down never arrive as pushes: once it's
+// back, the open card and the shared cache load the values again.
+describe('resync after a dropped connection', () => {
+  const reconnected = { command: '__channel_ready__', reconnected: true };
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+
+  beforeEach(() => {
+    ActiveTransportManager.Subscribe.mockClear();
+    ActiveWebHelper.getAsync.mockReset();
+  });
+
+  it("an open card tells its code which properties changed or went away, and only those", async () => {
+    ActiveWebHelper.getAsync.mockResolvedValueOnce([
+      { id: 'p1', name: 'hp', value: '10', parentId: 'card-r' },
+      { id: 'p2', name: 'ac', value: '15', parentId: 'card-r' },
+      { id: 'p3', name: 'note', value: 'x', parentId: 'card-r' },
+    ]);
+    const api = await CardAPIFactory('card-r');
+    const onMessage = subscribedCallback('CardAPI_');
+    const hp = vi.fn(); const ac = vi.fn(); const note = vi.fn();
+    api.Properties.Subscribe('hp', hp);
+    api.Properties.Subscribe('ac', ac);
+    api.Properties.Subscribe('note', note);
+
+    ActiveWebHelper.getAsync.mockResolvedValueOnce([
+      { id: 'p1', name: 'hp', value: '4', parentId: 'card-r' },
+      { id: 'p2', name: 'ac', value: '15', parentId: 'card-r' },
+    ]);
+    onMessage(reconnected);
+    await flush();
+
+    expect(ActiveWebHelper.getAsync).toHaveBeenLastCalledWith('properties/QueryProperties?parentIds=card-r');
+    expect(hp).toHaveBeenCalledWith(expect.objectContaining({ value: '4' }));
+    expect(ac).not.toHaveBeenCalled();
+    expect(note).toHaveBeenCalledWith(null);
+  });
+
+  it('the shared cache reloads every parent it holds and drops properties removed meanwhile', async () => {
+    for (const key of Object.keys(PropertiesManagerInstance._propertyCache)) delete PropertiesManagerInstance._propertyCache[key];
+    propertiesManagerCallback({ command: 'property_add', data: { id: 'a1', name: 'hp', value: '10', parentId: 'el-1' } });
+    propertiesManagerCallback({ command: 'property_add', data: { id: 'a2', name: 'gone', value: '1', parentId: 'el-1' } });
+    propertiesManagerCallback({ command: 'property_add', data: { id: 'b1', name: 'hp', value: '7', parentId: 'el-2' } });
+    ActiveWebHelper.getAsync.mockResolvedValueOnce([
+      { id: 'a1', name: 'hp', value: '3', parentId: 'el-1' },
+      { id: 'b1', name: 'hp', value: '7', parentId: 'el-2' },
+    ]);
+
+    propertiesManagerCallback(reconnected);
+    await flush();
+
+    const path = ActiveWebHelper.getAsync.mock.calls[0][0];
+    expect(path).toMatch(/^properties\/QueryProperties\?parentIds=/);
+    expect(decodeURIComponent(path.split('=')[1]).split(',').sort()).toEqual(['el-1', 'el-2']);
+    expect(PropertiesManagerInstance._propertyCache.a1.value).toBe('3');
+    expect(PropertiesManagerInstance._propertyCache.a2).toBeUndefined();
+    expect(PropertiesManagerInstance._propertyCache.b1.value).toBe('7');
+  });
+
+  it('the shared cache asks nothing when it holds nothing', async () => {
+    for (const key of Object.keys(PropertiesManagerInstance._propertyCache)) delete PropertiesManagerInstance._propertyCache[key];
+
+    propertiesManagerCallback(reconnected);
+    await flush();
+
+    expect(ActiveWebHelper.getAsync).not.toHaveBeenCalled();
+  });
+});

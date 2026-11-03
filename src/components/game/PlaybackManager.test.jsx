@@ -13,15 +13,16 @@ vi.mock('../uiComponents/base/Subscribable', () => ({
   },
 }));
 
-const { getMaterialAsyncMock, postAsyncMock } = vi.hoisted(() => ({
+const { getMaterialAsyncMock, postAsyncMock, getAsyncMock } = vi.hoisted(() => ({
   getMaterialAsyncMock: vi.fn(),
   postAsyncMock: vi.fn(() => Promise.resolve()),
+  getAsyncMock: vi.fn(() => Promise.resolve([])),
 }));
 vi.mock('../../helpers/transport', () => ({
   ActiveWebHelper: {
     getMaterialAsync: getMaterialAsyncMock,
     postAsync: postAsyncMock,
-    getAsync: vi.fn(() => Promise.resolve([])),
+    getAsync: getAsyncMock,
   },
 }));
 
@@ -47,6 +48,9 @@ vi.mock('./PlaylistService', () => ({ default: {} }));
 
 const { streamUrlMock } = vi.hoisted(() => ({ streamUrlMock: vi.fn(() => null) }));
 vi.mock('../../helpers/mediaStream', () => ({ streamUrl: streamUrlMock }));
+// The latest load each mounted component registered for "back after a dropped connection".
+const { resync } = vi.hoisted(() => ({ resync: { run: null } }));
+vi.mock('../../helpers/resync', () => ({ useResync: (fn) => { resync.run = fn; } }));
 
 import { PlaybackManager } from './PlaybackManager';
 import { playingSounds } from '../../helpers/playingSounds';
@@ -602,5 +606,71 @@ describe('PlaybackManager — streaming', () => {
 
     expect(audio.src).toBe('blob:fake-url');
     expect(audio.currentTime).toBe(42);
+  });
+});
+
+// Back after a dropped connection: the playlist pushes sent meanwhile never arrived, so
+// playback follows what the server says is playing now.
+describe('PlaybackManager — catching up after a reconnect', () => {
+  const playing = (overrides = {}) => ({
+    playlistId: 'p1', mode: 0, trackOrder: ['t1', 't2'], currentTrackIndex: 0, repeat: false, isPaused: false, ...overrides,
+  });
+  const flush = async () => { for (let i = 0; i < 4; i++) await Promise.resolve(); };
+  const catchUp = async (states) => {
+    getAsyncMock.mockResolvedValueOnce(states);
+    await resync.run();
+    await flush();
+  };
+
+  it('starts a playlist the GM started meanwhile', async () => {
+    await mount();
+
+    await catchUp([playing()]);
+
+    expect(getAsyncMock).toHaveBeenLastCalledWith('Playlist/GetCurrentPlayback');
+    expect(FakeAudio.instances).toHaveLength(1);
+    expect(FakeAudio.instances[0].paused).toBe(false);
+  });
+
+  it('stops a playlist the GM stopped meanwhile', async () => {
+    vi.useFakeTimers();
+    try {
+      await mount();
+      subscriptions.playlist({ command: 'playlist_play', data: playing() });
+      await flush();
+      const audio = FakeAudio.instances[0];
+
+      await catchUp([]);
+      await settle();
+
+      expect(audio.paused).toBe(true);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('keeps a playlist still on the same track playing, without restarting it', async () => {
+    await mount();
+    subscriptions.playlist({ command: 'playlist_play', data: playing() });
+    await flush();
+
+    await catchUp([playing()]);
+
+    expect(FakeAudio.instances).toHaveLength(1);
+    expect(getMaterialAsyncMock).toHaveBeenCalledTimes(1);
+    expect(FakeAudio.instances[0].paused).toBe(false);
+  });
+
+  it('follows a track change and a pause made meanwhile', async () => {
+    await mount();
+    subscriptions.playlist({ command: 'playlist_play', data: playing() });
+    subscriptions.playlist({ command: 'playlist_play', data: playing({ playlistId: 'p2', trackOrder: ['t9'] }) });
+    await flush();
+
+    await catchUp([playing({ currentTrackIndex: 1 }), playing({ playlistId: 'p2', trackOrder: ['t9'], isPaused: true })]);
+
+    expect(getMaterialAsyncMock).toHaveBeenCalledWith('t2');
+    const t9 = FakeAudio.instances[1];
+    expect(t9.paused).toBe(true);
   });
 });

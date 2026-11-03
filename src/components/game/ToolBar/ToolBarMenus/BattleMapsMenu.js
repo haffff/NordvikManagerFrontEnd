@@ -24,6 +24,7 @@ import { ENTITY_TYPES, PERM, PERM_LEVEL } from '../../../BattleMap/Helpers/permi
 import UtilityHelper from '../../../../helpers/UtilityHelper';
 import { Tooltip } from '../../../ui/tooltip';
 import SwitchMapSubmenu from '../ContextMenus/SwitchMapSubmenu';
+import { useResyncKey } from '../../../../helpers/resync';
 
 export const BattleMapsMenu = ({ state, maps, onCreateBmModalRef }) => {
     const [battleMaps, setBattleMaps] = React.useState(undefined);
@@ -69,9 +70,11 @@ export const BattleMapsMenu = ({ state, maps, onCreateBmModalRef }) => {
     // { [bmId]: { [playerId]: bits } } — loaded from server, kept live via permission_update
     const [bmPermissions, setBmPermissions] = React.useState({});
 
+    // Reloaded once the connection is back after a drop (battle maps added meanwhile).
+    const resyncKey = useResyncKey();
     React.useEffect(() => {
         WebHelper.get('battleMap/getBattleMaps', setBattleMaps);
-    }, []);
+    }, [resyncKey]);
 
     // Fetch permissions for all battlemaps whenever the list is (re)loaded.
     React.useEffect(() => {

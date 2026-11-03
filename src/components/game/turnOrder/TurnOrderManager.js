@@ -5,6 +5,7 @@ import UtilityHelper from "../../../helpers/UtilityHelper";
 import { playSystemSound, SYSTEM_ASSET_KEYS } from "../../../helpers/systemAssets";
 import TurnOrderService, { activeMapId } from "./TurnOrderService";
 import { getTurnOrderState, setTurnOrderState } from "./turnOrderStore";
+import { onResync } from "../../../helpers/resync";
 
 /**
  * Whether `next` is a new turn of this player's: on the same map as before, the turn
@@ -72,9 +73,13 @@ export const TurnOrderManager = ({ isGM = false }) => {
     });
 
     refresh();
+    // Back after a dropped connection: turns taken meanwhile never arrived. `previous` is
+    // kept, so a turn that came to this player meanwhile still sounds.
+    const stopResync = onResync(refresh);
 
     return () => {
       disposed = true;
+      stopResync();
       Transport.Unsubscribe(subscriptionKey);
       ClientMediator.off(onPanel);
     };

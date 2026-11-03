@@ -23,6 +23,7 @@ import { ActiveTransportManager as WebSocketManagerInstance } from "../../../../
 import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import { SplitPane, useSplitView } from "../../../uiComponents/base/SplitPane";
 import themeColors from "../../../../helpers/themeColors";
+import { useResyncKey } from "../../../../helpers/resync";
 
 // ── Module-level constants ────────────────────────────────────────────────────
 
@@ -157,13 +158,15 @@ export const CustomViewsPanel = ({ gameDataRef, state }) => {
   const split = useSplitView();
   const openView = (view) => { setSelectedView(view); split.showDetail(); };
 
+  // Loaded again once the connection is back after a drop.
+  const resyncKey = useResyncKey();
   React.useEffect(() => {
     const load = async () => {
       const data = await WebHelper.getAsync("materials/getcustomwiews");
       if (data) setViews(data);
     };
     load();
-  }, []);
+  }, [resyncKey]);
 
   // Reset two-step confirm when selection changes
   React.useEffect(() => {
