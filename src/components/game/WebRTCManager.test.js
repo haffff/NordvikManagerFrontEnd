@@ -4,7 +4,7 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 // reference must go through vi.hoisted().
 const { signalingHandlers, signalingState } = vi.hoisted(() => ({
   signalingHandlers: new Map(),
-  signalingState: { connected: true, authenticate: null, reconnect: null },
+  signalingState: { connected: true, authenticate: null, reconnect: null, cycle: null },
 }));
 
 // Fake signaling transport — captures handlers registered via .on() so tests can
@@ -15,6 +15,7 @@ vi.mock('../../helpers/SignalingClient', () => ({
     authenticate(payload) { signalingState.authenticate?.(payload); }
     connect() {}
     reconnect() { signalingState.reconnect?.(); }
+    cycle() { signalingState.cycle?.(); }
     isConnected() { return signalingState.connected; }
     disconnect() {}
     sendOffer() {}
@@ -60,6 +61,13 @@ vi.mock('../../helpers/WebRTCWebHelper', () => ({
   default: webRTCWebHelperMock,
 }));
 
+const { appModeMock, gmRefreshMock } = vi.hoisted(() => ({
+  appModeMock: { player: true },
+  gmRefreshMock: vi.fn(),
+}));
+vi.mock('../../helpers/appMode', () => ({ isPlayerMode: () => appModeMock.player }));
+vi.mock('../../helpers/gmCentralToken', () => ({ refreshCentralTokenViaBackend: gmRefreshMock }));
+
 const { protocolMock } = vi.hoisted(() => ({
   protocolMock: {
     PROTOCOL_VERSION: 1,
@@ -90,6 +98,9 @@ describe('WebRTCManager', () => {
     signalingState.connected = true;
     signalingState.authenticate = vi.fn();
     signalingState.reconnect = vi.fn();
+    // A new signaling socket: Socket.IO fires 'connect' on it.
+    signalingState.cycle = vi.fn(() => signalingHandlers.get('connect')?.());
+    appModeMock.player = true;
     WebRTCManagerInstance.Close();
     await WebRTCManagerInstance.Start('session-1', vi.fn());
   });
@@ -102,7 +113,7 @@ describe('WebRTCManager', () => {
   // the data channel, which runs peer to peer. Closing a healthy channel here, while keeping
   // the old GM peer id, left the player stuck on CONNECTING until a reload.
   describe('PEER_LEFT handling', () => {
-    it('keeps an open data channel and forgets the GM peer id, so the GM coming back is noticed', () => {
+    it('keeps an open data channel and forgets the GM peer id, so the GM coming back is noticed', async () => {
       WebRTCManagerInstance._gmPeerId = 'gm-1';
       const fakeDataChannel = { readyState: 'open', close: vi.fn() };
       const fakePc = { close: vi.fn() };
@@ -118,6 +129,7 @@ describe('WebRTCManager', () => {
 
       // The GM's new signaling connection: re-authenticate to learn its peer id.
       signalingHandlers.get('peer-joined')({ peerId: 'gm-2' });
+      await new Promise((r) => setTimeout(r, 0));
       expect(signalingState.authenticate).toHaveBeenCalledTimes(1);
     });
 
@@ -170,6 +182,21 @@ describe('WebRTCManager', () => {
 
       expect(startPeer).toHaveBeenCalledTimes(1);
       expect(protocolMock.navigateTo).not.toHaveBeenCalled();
+    });
+
+    // The GM backend only sets up a peer for sockets it saw join. This socket joined while
+    // another (or no) GM connection was up, so it gets a new socket before offering.
+    it('takes a new signaling socket before offering to a GM that never saw this socket join', async () => {
+      sessionInfo({ gmPeerId: null });
+      sessionInfo({ gmPeerId: 'gm-1' });
+      await flush();
+
+      expect(signalingState.cycle).toHaveBeenCalledTimes(1);
+      expect(startPeer).not.toHaveBeenCalled();
+
+      sessionInfo({ gmPeerId: 'gm-1' }); // the new socket's first session-info
+      await flush();
+      expect(startPeer).toHaveBeenCalledTimes(1);
     });
 
     it('connects normally when the GM sends no protocol', async () => {
@@ -264,6 +291,32 @@ describe('WebRTCManager', () => {
       expect(refreshAccessTokenMock).toHaveBeenCalledTimes(1);
     });
 
+    it('in the GM app, refreshes through the GM backend (it has no Central cookie)', async () => {
+      appModeMock.player = false;
+      TokenStore.getAccessToken.mockReturnValueOnce(jwtExpiringIn(-60));
+      gmRefreshMock.mockResolvedValue(true);
+
+      await WebRTCManagerInstance._ensureAccessToken();
+
+      expect(gmRefreshMock).toHaveBeenCalledTimes(1);
+      expect(refreshAccessTokenMock).not.toHaveBeenCalled();
+    });
+
+    it('a refresh Central could not answer is tried again, not a reason to log in again', async () => {
+      vi.useFakeTimers();
+      TokenStore.getAccessToken.mockReturnValue(null);
+      refreshAccessTokenMock.mockResolvedValueOnce(null).mockResolvedValueOnce(true);
+
+      await signalingHandlers.get('connect')();
+      expect(signalingState.authenticate).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      expect(signalingState.authenticate).toHaveBeenCalledTimes(1);
+      expect(WebRTCManagerInstance._onErrorCallback).not.toHaveBeenCalled();
+      TokenStore.getAccessToken.mockReturnValue('fake-access-token');
+      vi.useRealTimers();
+    });
+
     it('keeps a token that is still good', async () => {
       TokenStore.getAccessToken.mockReturnValueOnce(jwtExpiringIn(600));
 
@@ -292,6 +345,32 @@ describe('WebRTCManager', () => {
       expect(refreshAccessTokenMock).toHaveBeenCalledTimes(1);
       expect(signalingState.reconnect).toHaveBeenCalledTimes(1);
       expect(WebRTCManagerInstance._onErrorCallback).not.toHaveBeenCalled();
+    });
+
+    // Only a stale token is worth a refresh: refreshing and reconnecting on any other
+    // refusal went round forever.
+    it('reports any other refusal without refreshing or reconnecting', async () => {
+      signalingState.connected = false;
+
+      await signalingHandlers.get('auth-error')({ error: 'Session is full' });
+
+      expect(refreshAccessTokenMock).not.toHaveBeenCalled();
+      expect(signalingState.reconnect).not.toHaveBeenCalled();
+      const err = WebRTCManagerInstance._onErrorCallback.mock.calls[0][0];
+      expect(err.message).toBe('Session is full');
+      expect(err.isAuthError).toBeFalsy();
+    });
+
+    it('refreshes a stale token once per connection, then reports it', async () => {
+      refreshAccessTokenMock.mockResolvedValue(true);
+      TokenStore.getAccessToken.mockReturnValueOnce(null);
+
+      await signalingHandlers.get('auth-error')({ error: 'Invalid or expired token' });
+      await signalingHandlers.get('connect')(); // e.g. the socket reconnected meanwhile
+      await signalingHandlers.get('auth-error')({ error: 'Invalid or expired token' });
+
+      expect(refreshAccessTokenMock).toHaveBeenCalledTimes(1);
+      expect(WebRTCManagerInstance._onErrorCallback).toHaveBeenCalledWith(expect.objectContaining({ isAuthError: true }));
     });
   });
 
@@ -521,6 +600,9 @@ describe('WebRTCManager', () => {
       expect(WebRTCManagerInstance.getConnectionState()).toBe('CONNECTING');
 
       await afterReconnectDelay();
+      // A new socket: the GM backend hears it join and sets up a peer for it. Re-offering
+      // on the old socket went unanswered by a backend that had cleaned it up.
+      expect(signalingState.cycle).toHaveBeenCalledTimes(1);
       expect(signalingState.authenticate).toHaveBeenCalledTimes(1);
 
       sessionInfo({ gmPeerId: 'gm-2' });
@@ -557,6 +639,14 @@ describe('WebRTCManager', () => {
       }
 
       expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringMatching(/lost the connection/i) }));
+    });
+
+    it('starts over when the GM backend never answers the offer', async () => {
+      vi.advanceTimersByTime(20_000);
+
+      expect(WebRTCManagerInstance._pc).toBeNull();
+      await afterReconnectDelay();
+      expect(signalingState.cycle).toHaveBeenCalled();
     });
 
     it('keeps an open channel when signaling reconnects and session-info arrives again', async () => {
@@ -605,14 +695,26 @@ describe('WebRTCManager', () => {
 
       it('reconnects when a ping goes unanswered', () => {
         open();
+        vi.advanceTimersByTime(5_000);
+        answer(heartbeats()[0].id);
         vi.advanceTimersByTime(30_000);
 
         expect(dc.close).toHaveBeenCalled();
         expect(WebRTCManagerInstance._pc).toBeNull();
       });
 
+      it('never gives up on a backend that has not answered a single ping', () => {
+        // A backend that doesn't answer heartbeats at all: nothing to measure by.
+        open();
+        vi.advanceTimersByTime(120_000);
+
+        expect(dc.close).not.toHaveBeenCalled();
+      });
+
       it('waits while the channel is still busy sending', () => {
         open();
+        vi.advanceTimersByTime(5_000);
+        answer(heartbeats()[0].id);
         dc.bufferedAmount = 2_000_000; // a large upload ahead of the ping
         vi.advanceTimersByTime(30_000);
 

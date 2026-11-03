@@ -14,6 +14,8 @@ import { debugLog } from '../../helpers/debugLog';
 import { demoRecorder } from '../../helpers/demoRecorder';
 import CentralWebHelper, { refreshAccessToken } from '../../helpers/CentralWebHelper';
 import { expiresWithin } from '../../helpers/jwtExpiry';
+import { isPlayerMode } from '../../helpers/appMode';
+import { refreshCentralTokenViaBackend } from '../../helpers/gmCentralToken';
 import {
   PROTOCOL_VERSION,
   clientPathForProtocol,
@@ -83,6 +85,12 @@ const HEARTBEAT_INTERVAL_MS = 5000;
 const HEARTBEAT_TIMEOUT_MS = 20000;
 // An access token expiring this soon is refreshed before signaling is handed it.
 const TOKEN_REFRESH_MARGIN_MS = 30_000;
+// A token refresh Central (or the GM backend) couldn't answer is tried again after this.
+const AUTH_RETRY_MS = 5000;
+// An offer the GM backend hasn't answered (with the channel open) by then is given up on.
+const CONNECT_TIMEOUT_MS = 20000;
+// Central's reason for a stale token: the one refusal a refresh can fix.
+const STALE_TOKEN_ERROR = 'Invalid or expired token';
 
 class WebRTCManager {
   // Mirrors WebSocketManager properties used by Game.js / hooks
@@ -112,6 +120,12 @@ class WebRTCManager {
   _resyncOnOpen = false;     // the next open follows a drop: pushes may have been missed
   _heartbeatTimer = null;
   _heartbeatPending = null;  // { id, sentAt } of the ping waiting for its answer
+  _heartbeatAnswered = false; // this channel's backend answers heartbeats (only then do they time out)
+  _connectTimer = null;      // pending "offer never answered"
+  _authRetryTimer = null;    // pending retry of a token refresh that couldn't be done
+  // The GM peer id in this signaling socket's first session-info (undefined until then).
+  // The GM backend sets up a peer only for sockets it saw join, i.e. when this is still the GM.
+  _announcedGm = undefined;
 
   // ── Observability fields ──────────────────────────────────────────────────
   _traceId = null;          // short 8-char UUID prefix generated at Start(), shared with Central Server
@@ -157,17 +171,10 @@ class WebRTCManager {
 
     // Also fires when Socket.IO reconnects the socket by itself (Central gives it a new
     // peer id, which needs authenticating), possibly long after the token was fetched.
-    this._signaling.on('connect', async () => {
+    this._signaling.on('connect', () => {
       this._log('log', 'Signaling connected, authenticating');
-      this._authRetried = false;
-      try {
-        await this._ensureAccessToken();
-      } catch (e) {
-        this._log('error', 'Token refresh failed before authenticating', e);
-        this._handleError(this._authError(e.message));
-        return;
-      }
-      this._authenticate();
+      this._announcedGm = undefined; // a new socket: the GM hears it join now
+      return this._authenticateFresh();
     });
 
     this._signaling.on('connect_error', (err) => {
@@ -178,20 +185,21 @@ class WebRTCManager {
     this._signaling.on(SIGNAL_EVENTS.AUTH_ERROR, async ({ error }) => {
       this._log('error', `Signaling auth error: ${error}`);
 
-      // Token expired — try a silent refresh and re-authenticate once
+      // Any other refusal (e.g. "Session is full") a refresh can't fix: report it.
+      if (error !== STALE_TOKEN_ERROR) {
+        this._pendingAuth = false;
+        this._handleError(new Error(error));
+        return;
+      }
+
+      // Token expired: refresh it and authenticate again, once until session-info confirms.
+      // (An older Central closed the socket along with the error: it is reconnected then.)
       if (!this._authRetried) {
         this._authRetried = true;
         this._log('log', 'Attempting token refresh after auth error...');
-        try {
-          TokenStore.setAccessToken(null); // force _ensureAccessToken to refresh
-          await this._ensureAccessToken();
-          this._log('log', 'Token refreshed, re-authenticating');
-          // An older Central closed the socket along with the error: reconnect it then.
-          this._authenticate();
-          return;
-        } catch (e) {
-          this._log('error', 'Token refresh failed', e);
-        }
+        TokenStore.setAccessToken(null); // force _ensureAccessToken to refresh
+        await this._authenticateFresh();
+        return;
       }
 
       this._handleError(this._authError(error));
@@ -200,6 +208,7 @@ class WebRTCManager {
     this._signaling.on(SIGNAL_EVENTS.SESSION_INFO, ({ gmPeerId, gmProtocol }) => {
       this._pendingAuth = false;
       this._authRetried = false;
+      if (this._announcedGm === undefined) this._announcedGm = gmPeerId ?? null;
       if (!gmPeerId) {
         // Still connected to the GM peer to peer: its signaling is just away for now, and
         // peer-joined says when it's back.
@@ -209,19 +218,10 @@ class WebRTCManager {
         // do not trigger a concurrent re-authentication. The flag stays true until the
         // next SESSION_INFO response clears it.
         this._pendingAuth = true;
-        setTimeout(async () => {
+        setTimeout(() => {
           if (!this.WebSocketStarted || !this._signaling) return;
           if (this._gmPeerId) return;
-          this._authRetried = false; // allow one token refresh per retry attempt
-          try {
-            await this._ensureAccessToken();
-          } catch (e) {
-            this._pendingAuth = false;
-            this._log('error', 'Token refresh failed during session retry', e);
-            this._handleError(e);
-            return;
-          }
-          this._authenticate();
+          this._authenticateFresh();
           // _pendingAuth stays true — the next SESSION_INFO response will clear it
         }, 3000);
         return;
@@ -230,6 +230,14 @@ class WebRTCManager {
         // Connected (signaling re-authenticated after its socket came back) or connecting:
         // keep the connection, and note the GM's current peer id if it's up.
         if (this.isChannelReady()) this._gmPeerId = gmPeerId;
+        return;
+      }
+      if (gmPeerId !== this._announcedGm) {
+        // This socket joined while another (or no) GM connection was up, so this GM backend
+        // may have no peer for it and would drop the offer. A new socket is announced to it.
+        this._log('log', 'GM backend never saw this signaling socket join, taking a new one');
+        this._pendingAuth = true;
+        this._signaling.cycle();
         return;
       }
       this._log('log', `GM peer id: ${gmPeerId}`);
@@ -253,7 +261,7 @@ class WebRTCManager {
       if (!this._gmPeerId && !this._pendingAuth) {
         this._log('log', 'Peer joined, re-authenticating to get GM peer id');
         this._pendingAuth = true;
-        this._authenticate();
+        this._authenticateFresh();
       }
     });
 
@@ -302,6 +310,9 @@ class WebRTCManager {
     this._log('log', 'Closing');
     clearTimeout(this._reconnectTimer);
     this._reconnectTimer = null;
+    clearTimeout(this._authRetryTimer);
+    this._authRetryTimer = null;
+    this._announcedGm = undefined;
     this._teardownPeer();
     this._signaling?.disconnect();
     // Drain any request still queued/in-flight on the REST-over-WebRTC helper —
@@ -485,8 +496,13 @@ class WebRTCManager {
     // The access token lives 15 minutes: one fetched at the start is long stale by the
     // time a reconnect hands it to signaling.
     if (token && !expiresWithin(token, TOKEN_REFRESH_MARGIN_MS)) return;
-    // The refresh token is an httpOnly cookie; the shared helper refreshes one at a time.
-    if (!(await refreshAccessToken())) throw new Error('Token refresh failed. Please log in again.');
+    // The player's refresh token is an httpOnly Central cookie (the shared helper refreshes
+    // one at a time); the GM app has none and asks its GM backend.
+    const refreshed = isPlayerMode() ? await refreshAccessToken() : await refreshCentralTokenViaBackend();
+    if (refreshed) return;
+    // false: the refresh token was refused. null: couldn't ask right now, try again later.
+    if (refreshed === false) throw this._authError('Token refresh failed. Please log in again.');
+    throw new Error('Could not refresh the access token right now.');
   }
 
   async _startPeerConnection() {
@@ -504,6 +520,7 @@ class WebRTCManager {
     dc.onopen = () => {
       const elapsed = Date.now() - (this._connectStartTime ?? Date.now());
       this._log('log', `Data channel open — ${elapsed}ms from Start() | iceSent=${this._iceSentCount} iceReceived=${this._iceReceivedCount}`);
+      clearTimeout(this._connectTimer);
       const reconnected = this._resyncOnOpen;
       this._resyncOnOpen = false;
       this._reconnectAttempts = 0;
@@ -563,6 +580,11 @@ class WebRTCManager {
       await pc.setLocalDescription(offer);
       this._signaling.sendOffer({ targetPeerId: this._gmPeerId, offer: pc.localDescription });
       this._log('log', `Offer sent to GM backend (gmPeerId=${this._gmPeerId})`);
+      // A dropped offer leaves the connection at 'new' for good, with nothing to retry it.
+      clearTimeout(this._connectTimer);
+      this._connectTimer = setTimeout(() => {
+        if (this._pc === pc && !this.isChannelReady()) this._scheduleReconnect('the GM backend never answered');
+      }, CONNECT_TIMEOUT_MS);
     } catch (e) {
       this._log('error', 'Failed to create/send offer', e);
       this._handleError(e);
@@ -617,6 +639,7 @@ class WebRTCManager {
   _routeIncoming(data) {
     if (data?.type === 'api-response' && typeof data.id === 'string' && data.id.startsWith('hb-')) {
       if (this._heartbeatPending?.id === data.id) this._heartbeatPending = null;
+      this._heartbeatAnswered = true;
       return;
     }
     if (data?.type === 'api-response') {
@@ -694,6 +717,28 @@ class WebRTCManager {
     if (this._onErrorCallback) this._onErrorCallback(err);
   }
 
+  // Makes sure the token is fresh, then authenticates. A refresh that couldn't be done right
+  // now is tried again shortly; a refused one is reported (back to the login).
+  async _authenticateFresh() {
+    clearTimeout(this._authRetryTimer);
+    this._authRetryTimer = null;
+    try {
+      await this._ensureAccessToken();
+    } catch (e) {
+      if (e.isAuthError) {
+        this._log('error', 'Token refresh refused', e);
+        this._pendingAuth = false;
+        this._handleError(e);
+        return;
+      }
+      this._log('warn', 'Token refresh not possible right now, trying again shortly', e);
+      if (this.WebSocketStarted) this._authRetryTimer = setTimeout(() => this._authenticateFresh(), AUTH_RETRY_MS);
+      return;
+    }
+    if (!this.WebSocketStarted) return;
+    this._authenticate();
+  }
+
   _authError(message) {
     const err = new Error(message);
     err.isAuthError = true;
@@ -723,6 +768,7 @@ class WebRTCManager {
   // closing them here doesn't report a loss of its own.
   _teardownPeer() {
     clearTimeout(this._failedTimer);
+    clearTimeout(this._connectTimer);
     this._stopHeartbeat();
     const dc = this._dataChannel;
     const pc = this._pc;
@@ -742,9 +788,10 @@ class WebRTCManager {
     this._failOutgoing();
   }
 
-  // The connection is lost: tear it down and, after a wait, ask signaling for the GM peer
-  // again (session-info then starts a new peer connection). Requests made meanwhile queue
-  // until the channel is back. After the last attempt the error is shown instead.
+  // The connection is lost: tear it down and, after a wait, take a new signaling socket
+  // (the GM backend hears it join and sets up a peer for it; session-info then starts a new
+  // peer connection). Requests made meanwhile queue until the channel is back. After the
+  // last attempt the error is shown instead.
   _scheduleReconnect(reason) {
     if (!this.WebSocketStarted || this._reconnectTimer) return;
     this._log('warn', `Connection lost (${reason}), reconnecting`);
@@ -762,24 +809,18 @@ class WebRTCManager {
     }, delay);
   }
 
-  async _requestSessionInfo() {
+  // Its 'connect' handler authenticates (with a fresh token) on the new socket.
+  _requestSessionInfo() {
     if (!this.WebSocketStarted || !this._signaling) return;
-    try {
-      await this._ensureAccessToken();
-    } catch (e) {
-      this._log('error', 'Token refresh failed while reconnecting', e);
-      this._handleError(this._authError(e.message));
-      return;
-    }
-    if (!this.WebSocketStarted) return;
     this._pendingAuth = true; // session-info clears it
-    this._authenticate();
+    this._signaling.cycle();
   }
 
   // ── Heartbeat ─────────────────────────────────────────────────────────────
 
   _startHeartbeat() {
     this._stopHeartbeat();
+    this._heartbeatAnswered = false;
     this._heartbeatTimer = setInterval(() => this._heartbeatTick(), HEARTBEAT_INTERVAL_MS);
   }
 
@@ -796,6 +837,8 @@ class WebRTCManager {
     if (!dc || dc.readyState !== 'open') return;
     const now = Date.now();
     if (this._heartbeatPending) {
+      // A backend that never answered one gives nothing to measure by (ICE failure still ends it).
+      if (!this._heartbeatAnswered) return;
       const busy = dc.bufferedAmount > 0 || this._outgoing.length > 0;
       if (!busy && now - this._heartbeatPending.sentAt > HEARTBEAT_TIMEOUT_MS) {
         this._scheduleReconnect('heartbeat unanswered');
