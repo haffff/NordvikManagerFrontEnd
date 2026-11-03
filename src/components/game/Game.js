@@ -12,6 +12,7 @@ import { LoadingScreen } from "../uiComponents/LoadingScreen";
 import WebSocketStatus from "../uiComponents/WebSocketStatus";
 import { useGameEventHandlers } from "./hooks/useGameEventHandlers";
 import { useGameInitialization } from "./hooks/useGameInitialization";
+import { useReconnectNotice } from "./hooks/useReconnectNotice";
 import { useGameApi } from "./hooks/useGameApi";
 import { useGameState } from "./hooks/useGameState";
 import { useStableDockState } from "./hooks/useStableDockState";
@@ -144,6 +145,9 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
   const [connectionError, setConnectionError] = React.useState(null);
   // GM backend speaks a protocol no deployed player client supports — retrying can't help.
   const [versionMismatch, setVersionMismatch] = React.useState(false);
+  // The connection drops and comes back by itself: once it's open again, an error shown
+  // meanwhile is out of date (a version mismatch never gets this far).
+  useReconnectNotice({ onChannelReady: () => setConnectionError(null) });
 
   // Initialize custom hooks
   const eventHandlers = useGameEventHandlers({ state: dockState, gameState, CreateLayoutElement });
@@ -303,7 +307,8 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
                 onClick={() => {
                   resetInitialization();
                   setConnectionError(null);
-                  WebSocketManagerInstance.forceReconnect();
+                  // No catch-up notice: this reloads the game itself, below.
+                  WebSocketManagerInstance.forceReconnect({ resync: false });
                   // forceReconnect() flips WebSocketStarted false→true synchronously
                   // (Close() then Start() in the same tick), so React never observes
                   // an intermediate value and the init effect below (which depends on

@@ -2,15 +2,21 @@ import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 // vi.mock factories are hoisted above imports/top-level consts, so anything they
 // reference must go through vi.hoisted().
-const { signalingHandlers } = vi.hoisted(() => ({ signalingHandlers: new Map() }));
+const { signalingHandlers, signalingState } = vi.hoisted(() => ({
+  signalingHandlers: new Map(),
+  signalingState: { connected: true, authenticate: null, reconnect: null, cycle: null },
+}));
 
 // Fake signaling transport — captures handlers registered via .on() so tests can
 // fire them directly, without a real Socket.IO connection.
 vi.mock('../../helpers/SignalingClient', () => ({
   default: class FakeSignalingClient {
     on(event, handler) { signalingHandlers.set(event, handler); }
-    authenticate() {}
+    authenticate(payload) { signalingState.authenticate?.(payload); }
     connect() {}
+    reconnect() { signalingState.reconnect?.(); }
+    cycle() { signalingState.cycle?.(); }
+    isConnected() { return signalingState.connected; }
     disconnect() {}
     sendOffer() {}
     sendIceCandidate() {}
@@ -55,6 +61,13 @@ vi.mock('../../helpers/WebRTCWebHelper', () => ({
   default: webRTCWebHelperMock,
 }));
 
+const { appModeMock, gmRefreshMock } = vi.hoisted(() => ({
+  appModeMock: { player: true },
+  gmRefreshMock: vi.fn(),
+}));
+vi.mock('../../helpers/appMode', () => ({ isPlayerMode: () => appModeMock.player }));
+vi.mock('../../helpers/gmCentralToken', () => ({ refreshCentralTokenViaBackend: gmRefreshMock }));
+
 const { protocolMock } = vi.hoisted(() => ({
   protocolMock: {
     PROTOCOL_VERSION: 1,
@@ -72,10 +85,22 @@ vi.mock('../../helpers/demoRecorder', () => ({ demoRecorder: { record: recordMoc
 import WebRTCManagerInstance, { iceServersFrom, describeIceServers, camelizeKeys } from './WebRTCManager';
 import TokenStore from '../../helpers/TokenStore';
 
+// An unsigned JWT-shaped token expiring `seconds` from now (negative: already expired).
+const jwtExpiringIn = (seconds) => {
+  const b64 = (o) => btoa(JSON.stringify(o)).replace(/=+$/, '').replace(/\+/g, '-').replace(/\//g, '_');
+  return `${b64({ alg: 'HS256' })}.${b64({ sub: 'u', exp: Math.floor(Date.now() / 1000) + seconds })}.sig`;
+};
+
 describe('WebRTCManager', () => {
   beforeEach(async () => {
     signalingHandlers.clear();
     vi.clearAllMocks();
+    signalingState.connected = true;
+    signalingState.authenticate = vi.fn();
+    signalingState.reconnect = vi.fn();
+    // A new signaling socket: Socket.IO fires 'connect' on it.
+    signalingState.cycle = vi.fn(() => signalingHandlers.get('connect')?.());
+    appModeMock.player = true;
     WebRTCManagerInstance.Close();
     await WebRTCManagerInstance.Start('session-1', vi.fn());
   });
@@ -84,11 +109,11 @@ describe('WebRTCManager', () => {
     WebRTCManagerInstance.Close();
   });
 
-  // Regression: PEER_LEFT used to only set WebSocketReady=false, leaving
-  // _dataChannel/_pc alive — isChannelReady() (which checks readyState, not
-  // WebSocketReady) kept reporting "ready" until the browser noticed on its own.
+  // The GM backend's signaling socket leaving (it reconnects on its own) says nothing about
+  // the data channel, which runs peer to peer. Closing a healthy channel here, while keeping
+  // the old GM peer id, left the player stuck on CONNECTING until a reload.
   describe('PEER_LEFT handling', () => {
-    it('closes the data channel and peer connection, and isChannelReady() reports false immediately', () => {
+    it('keeps an open data channel and forgets the GM peer id, so the GM coming back is noticed', async () => {
       WebRTCManagerInstance._gmPeerId = 'gm-1';
       const fakeDataChannel = { readyState: 'open', close: vi.fn() };
       const fakePc = { close: vi.fn() };
@@ -96,17 +121,33 @@ describe('WebRTCManager', () => {
       WebRTCManagerInstance._pc = fakePc;
       WebRTCManagerInstance.WebSocketReady = true;
 
-      const peerLeftHandler = signalingHandlers.get('peer-left');
-      expect(peerLeftHandler).toBeInstanceOf(Function);
+      signalingHandlers.get('peer-left')({ peerId: 'gm-1' });
 
-      peerLeftHandler({ peerId: 'gm-1' });
+      expect(fakeDataChannel.close).not.toHaveBeenCalled();
+      expect(WebRTCManagerInstance.isChannelReady()).toBe(true);
+      expect(WebRTCManagerInstance._gmPeerId).toBeNull();
+
+      // The GM's new signaling connection: re-authenticate to learn its peer id.
+      signalingHandlers.get('peer-joined')({ peerId: 'gm-2' });
+      await new Promise((r) => setTimeout(r, 0));
+      expect(signalingState.authenticate).toHaveBeenCalledTimes(1);
+    });
+
+    it('drops a connection still being set up and tries again', () => {
+      vi.useFakeTimers();
+      WebRTCManagerInstance._gmPeerId = 'gm-1';
+      const fakeDataChannel = { readyState: 'connecting', close: vi.fn() };
+      const fakePc = { close: vi.fn() };
+      WebRTCManagerInstance._dataChannel = fakeDataChannel;
+      WebRTCManagerInstance._pc = fakePc;
+
+      signalingHandlers.get('peer-left')({ peerId: 'gm-1' });
 
       expect(fakeDataChannel.close).toHaveBeenCalledTimes(1);
       expect(fakePc.close).toHaveBeenCalledTimes(1);
-      expect(WebRTCManagerInstance._dataChannel).toBeNull();
       expect(WebRTCManagerInstance._pc).toBeNull();
-      expect(WebRTCManagerInstance.WebSocketReady).toBe(false);
       expect(WebRTCManagerInstance.isChannelReady()).toBe(false);
+      vi.useRealTimers();
     });
 
     it('ignores PEER_LEFT for a peer that is not the GM', () => {
@@ -141,6 +182,21 @@ describe('WebRTCManager', () => {
 
       expect(startPeer).toHaveBeenCalledTimes(1);
       expect(protocolMock.navigateTo).not.toHaveBeenCalled();
+    });
+
+    // The GM backend only sets up a peer for sockets it saw join. This socket joined while
+    // another (or no) GM connection was up, so it gets a new socket before offering.
+    it('takes a new signaling socket before offering to a GM that never saw this socket join', async () => {
+      sessionInfo({ gmPeerId: null });
+      sessionInfo({ gmPeerId: 'gm-1' });
+      await flush();
+
+      expect(signalingState.cycle).toHaveBeenCalledTimes(1);
+      expect(startPeer).not.toHaveBeenCalled();
+
+      sessionInfo({ gmPeerId: 'gm-1' }); // the new socket's first session-info
+      await flush();
+      expect(startPeer).toHaveBeenCalledTimes(1);
     });
 
     it('connects normally when the GM sends no protocol', async () => {
@@ -223,6 +279,98 @@ describe('WebRTCManager', () => {
       refreshAccessTokenMock.mockResolvedValue(false);
 
       await expect(WebRTCManagerInstance._ensureAccessToken()).rejects.toThrow(/log in again/i);
+    });
+
+    // The access token lives 15 minutes; a reconnect later in the game must not reuse it.
+    it('refreshes a token that has expired, not only a missing one', async () => {
+      TokenStore.getAccessToken.mockReturnValueOnce(jwtExpiringIn(-60));
+      refreshAccessTokenMock.mockResolvedValue(true);
+
+      await WebRTCManagerInstance._ensureAccessToken();
+
+      expect(refreshAccessTokenMock).toHaveBeenCalledTimes(1);
+    });
+
+    it('in the GM app, refreshes through the GM backend (it has no Central cookie)', async () => {
+      appModeMock.player = false;
+      TokenStore.getAccessToken.mockReturnValueOnce(jwtExpiringIn(-60));
+      gmRefreshMock.mockResolvedValue(true);
+
+      await WebRTCManagerInstance._ensureAccessToken();
+
+      expect(gmRefreshMock).toHaveBeenCalledTimes(1);
+      expect(refreshAccessTokenMock).not.toHaveBeenCalled();
+    });
+
+    it('a refresh Central could not answer is tried again, not a reason to log in again', async () => {
+      vi.useFakeTimers();
+      TokenStore.getAccessToken.mockReturnValue(null);
+      refreshAccessTokenMock.mockResolvedValueOnce(null).mockResolvedValueOnce(true);
+
+      await signalingHandlers.get('connect')();
+      expect(signalingState.authenticate).not.toHaveBeenCalled();
+      await vi.advanceTimersByTimeAsync(10_000);
+
+      expect(signalingState.authenticate).toHaveBeenCalledTimes(1);
+      expect(WebRTCManagerInstance._onErrorCallback).not.toHaveBeenCalled();
+      TokenStore.getAccessToken.mockReturnValue('fake-access-token');
+      vi.useRealTimers();
+    });
+
+    it('keeps a token that is still good', async () => {
+      TokenStore.getAccessToken.mockReturnValueOnce(jwtExpiringIn(600));
+
+      await WebRTCManagerInstance._ensureAccessToken();
+
+      expect(refreshAccessTokenMock).not.toHaveBeenCalled();
+    });
+
+    it('authenticates with a fresh token whenever the signaling socket (re)connects', async () => {
+      TokenStore.getAccessToken.mockReturnValueOnce(jwtExpiringIn(-60));
+      refreshAccessTokenMock.mockResolvedValue(true);
+
+      await signalingHandlers.get('connect')();
+
+      expect(refreshAccessTokenMock).toHaveBeenCalledTimes(1);
+      expect(signalingState.authenticate).toHaveBeenCalledTimes(1);
+    });
+
+    it('after a refused token, refreshes and authenticates again, reconnecting the socket if it was closed', async () => {
+      refreshAccessTokenMock.mockResolvedValue(true);
+      TokenStore.getAccessToken.mockReturnValueOnce(null); // the refused token is dropped first
+      signalingState.connected = false; // an older Central closes the socket on auth errors
+
+      await signalingHandlers.get('auth-error')({ error: 'Invalid or expired token' });
+
+      expect(refreshAccessTokenMock).toHaveBeenCalledTimes(1);
+      expect(signalingState.reconnect).toHaveBeenCalledTimes(1);
+      expect(WebRTCManagerInstance._onErrorCallback).not.toHaveBeenCalled();
+    });
+
+    // Only a stale token is worth a refresh: refreshing and reconnecting on any other
+    // refusal went round forever.
+    it('reports any other refusal without refreshing or reconnecting', async () => {
+      signalingState.connected = false;
+
+      await signalingHandlers.get('auth-error')({ error: 'Session is full' });
+
+      expect(refreshAccessTokenMock).not.toHaveBeenCalled();
+      expect(signalingState.reconnect).not.toHaveBeenCalled();
+      const err = WebRTCManagerInstance._onErrorCallback.mock.calls[0][0];
+      expect(err.message).toBe('Session is full');
+      expect(err.isAuthError).toBeFalsy();
+    });
+
+    it('refreshes a stale token once per connection, then reports it', async () => {
+      refreshAccessTokenMock.mockResolvedValue(true);
+      TokenStore.getAccessToken.mockReturnValueOnce(null);
+
+      await signalingHandlers.get('auth-error')({ error: 'Invalid or expired token' });
+      await signalingHandlers.get('connect')(); // e.g. the socket reconnected meanwhile
+      await signalingHandlers.get('auth-error')({ error: 'Invalid or expired token' });
+
+      expect(refreshAccessTokenMock).toHaveBeenCalledTimes(1);
+      expect(WebRTCManagerInstance._onErrorCallback).toHaveBeenCalledWith(expect.objectContaining({ isAuthError: true }));
     });
   });
 
@@ -399,14 +547,20 @@ describe('WebRTCManager', () => {
   // refuses relaying to its first, private, candidate) and recover once they do.
   describe('connection failure', () => {
     let pc;
+    let dc;
     let onError;
+    let peers;
     const OriginalPeerConnection = globalThis.RTCPeerConnection;
 
     beforeEach(async () => {
       vi.useFakeTimers();
+      peers = 0;
       globalThis.RTCPeerConnection = class FakePeerConnection {
-        constructor() { pc = this; this.connectionState = 'new'; }
-        createDataChannel() { return { close: vi.fn() }; }
+        constructor() { pc = this; peers++; this.connectionState = 'new'; }
+        createDataChannel() {
+          dc = { readyState: 'connecting', bufferedAmount: 0, close: vi.fn(), send: vi.fn() };
+          return dc;
+        }
         async createOffer() { return {}; }
         async setLocalDescription() {}
         close() {}
@@ -424,14 +578,148 @@ describe('WebRTCManager', () => {
     });
 
     const setState = (state) => { pc.connectionState = state; pc.onconnectionstatechange(); };
+    const open = () => { dc.readyState = 'open'; dc.onopen(); };
+    const drop = () => { dc.readyState = 'closed'; dc.onclose(); };
+    const sessionInfo = (payload) => signalingHandlers.get('session-info')(payload);
+    // Lets the reconnect's async token check and authenticate run.
+    const afterReconnectDelay = async () => { await vi.runOnlyPendingTimersAsync(); };
 
-    it('reports an error when the connection stays failed', () => {
+    it('reconnects, instead of giving up, when the connection stays failed', async () => {
       setState('failed');
+      vi.advanceTimersByTime(5_000);
+
       expect(onError).not.toHaveBeenCalled();
+      expect(WebRTCManagerInstance._pc).toBeNull();
+      await afterReconnectDelay();
+      expect(signalingState.authenticate).toHaveBeenCalled();
+    });
 
-      vi.advanceTimersByTime(10_000);
+    it('reconnects when an open data channel closes, and starts a new peer connection', async () => {
+      open();
+      drop();
+      expect(WebRTCManagerInstance.getConnectionState()).toBe('CONNECTING');
 
-      expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: 'WebRTC connection failed' }));
+      await afterReconnectDelay();
+      // A new socket: the GM backend hears it join and sets up a peer for it. Re-offering
+      // on the old socket went unanswered by a backend that had cleaned it up.
+      expect(signalingState.cycle).toHaveBeenCalledTimes(1);
+      expect(signalingState.authenticate).toHaveBeenCalledTimes(1);
+
+      sessionInfo({ gmPeerId: 'gm-2' });
+      await vi.advanceTimersByTimeAsync(0);
+      expect(peers).toBe(2);
+      expect(WebRTCManagerInstance._gmPeerId).toBe('gm-2');
+    });
+
+    it('tells subscribers when the channel is back after a drop, so they can catch up', async () => {
+      const seen = [];
+      WebRTCManagerInstance.Subscribe('test', (m) => seen.push(m));
+      open();
+      expect(seen.at(-1)).toMatchObject({ command: '__channel_ready__', reconnected: false });
+
+      drop();
+      await afterReconnectDelay();
+      sessionInfo({ gmPeerId: 'gm-1' });
+      await vi.advanceTimersByTimeAsync(0);
+      open();
+
+      expect(seen.at(-1)).toMatchObject({ command: '__channel_ready__', reconnected: true });
+      WebRTCManagerInstance.Unsubscribe('test');
+    });
+
+    it('reports the lost connection once reconnecting keeps failing', async () => {
+      open();
+      drop();
+      for (let i = 0; i < 20 && !onError.mock.calls.length; i++) {
+        await afterReconnectDelay();
+        // The GM is gone: every attempt's peer connection fails too.
+        if (WebRTCManagerInstance._pc) { setState('failed'); vi.advanceTimersByTime(5_000); }
+        else sessionInfo({ gmPeerId: 'gm-1' });
+        await vi.advanceTimersByTimeAsync(0);
+      }
+
+      expect(onError).toHaveBeenCalledWith(expect.objectContaining({ message: expect.stringMatching(/lost the connection/i) }));
+    });
+
+    it('starts over when the GM backend never answers the offer', async () => {
+      vi.advanceTimersByTime(20_000);
+
+      expect(WebRTCManagerInstance._pc).toBeNull();
+      await afterReconnectDelay();
+      expect(signalingState.cycle).toHaveBeenCalled();
+    });
+
+    it('keeps an open channel when signaling reconnects and session-info arrives again', async () => {
+      open();
+      sessionInfo({ gmPeerId: 'gm-2' });
+      await vi.advanceTimersByTimeAsync(0);
+
+      expect(peers).toBe(1);
+      expect(dc.close).not.toHaveBeenCalled();
+      expect(WebRTCManagerInstance._gmPeerId).toBe('gm-2');
+    });
+
+    it('does not reconnect after Close()', async () => {
+      open();
+      drop();
+      WebRTCManagerInstance.Close();
+      await afterReconnectDelay();
+
+      expect(signalingState.authenticate).not.toHaveBeenCalled();
+    });
+
+    describe('heartbeat', () => {
+      const heartbeats = () => dc.send.mock.calls
+        .map(([json]) => JSON.parse(json))
+        .filter((m) => m.type === 'api-request' && m.path === '/heartbeat');
+      const answer = (id) => WebRTCManagerInstance._handleChannelMessage({ data: JSON.stringify({ type: 'api-response', id, status: 200 }) });
+
+      it('pings over an open channel', () => {
+        open();
+        vi.advanceTimersByTime(5_000);
+        expect(heartbeats()).toHaveLength(1);
+        expect(heartbeats()[0].method).toBe('GET');
+      });
+
+      it('keeps the channel while the backend answers, without handing answers to the REST helper', () => {
+        open();
+        for (let i = 0; i < 10; i++) {
+          vi.advanceTimersByTime(5_000);
+          const last = heartbeats().at(-1);
+          answer(last.id);
+        }
+        expect(WebRTCManagerInstance.isChannelReady()).toBe(true);
+        expect(dc.close).not.toHaveBeenCalled();
+        expect(webRTCWebHelperMock.handleApiResponse).not.toHaveBeenCalled();
+      });
+
+      it('reconnects when a ping goes unanswered', () => {
+        open();
+        vi.advanceTimersByTime(5_000);
+        answer(heartbeats()[0].id);
+        vi.advanceTimersByTime(30_000);
+
+        expect(dc.close).toHaveBeenCalled();
+        expect(WebRTCManagerInstance._pc).toBeNull();
+      });
+
+      it('never gives up on a backend that has not answered a single ping', () => {
+        // A backend that doesn't answer heartbeats at all: nothing to measure by.
+        open();
+        vi.advanceTimersByTime(120_000);
+
+        expect(dc.close).not.toHaveBeenCalled();
+      });
+
+      it('waits while the channel is still busy sending', () => {
+        open();
+        vi.advanceTimersByTime(5_000);
+        answer(heartbeats()[0].id);
+        dc.bufferedAmount = 2_000_000; // a large upload ahead of the ping
+        vi.advanceTimersByTime(30_000);
+
+        expect(dc.close).not.toHaveBeenCalled();
+      });
     });
 
     it('does not report a failure the connection recovers from', () => {
@@ -451,6 +739,20 @@ describe('WebRTCManager', () => {
       vi.advanceTimersByTime(10_000);
 
       expect(onError).not.toHaveBeenCalled();
+    });
+
+    // The status bar's reconnect: the next open is a catch-up one. The Retry button
+    // reloads the game itself, so it asks for none.
+    it('forceReconnect() makes the next open a catch-up one, unless told not to', async () => {
+      const start = vi.spyOn(WebRTCManagerInstance, 'Start').mockResolvedValue();
+      WebRTCManagerInstance.forceReconnect();
+      expect(WebRTCManagerInstance._resyncOnOpen).toBe(true);
+      WebRTCManagerInstance._resyncOnOpen = false;
+
+      WebRTCManagerInstance._sessionId = 'session-1';
+      WebRTCManagerInstance.forceReconnect({ resync: false });
+      expect(WebRTCManagerInstance._resyncOnOpen).toBe(false);
+      start.mockRestore();
     });
   });
 

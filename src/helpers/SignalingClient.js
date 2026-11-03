@@ -65,6 +65,20 @@ class SignalingClient {
     this.emit(SIGNAL_EVENTS.ICE_CANDIDATE, { targetPeerId, candidate });
   }
 
+  // Reconnects a socket that was closed (Socket.IO doesn't by itself after the server
+  // closed it); its 'connect' handlers run again once it's up.
+  reconnect() {
+    if (this._socket && !this._socket.connected) this._socket.connect();
+  }
+
+  // Closes the socket and opens a new one (handlers stay): Central sees a new peer id join,
+  // so the GM backend hears of it and sets up a peer for it. Its 'connect' handlers run.
+  cycle() {
+    if (!this._socket) return;
+    this._socket.disconnect();
+    this._socket.connect();
+  }
+
   disconnect() {
     this._socket?.disconnect();
     this._socket = null;
