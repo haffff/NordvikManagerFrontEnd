@@ -91,6 +91,8 @@ const AUTH_RETRY_MS = 5000;
 const CONNECT_TIMEOUT_MS = 20000;
 // Central's reason for a stale token: the one refusal a refresh can fix.
 const STALE_TOKEN_ERROR = 'Invalid or expired token';
+// What the GM server sends on the data channel to a user it banned, before closing it.
+const BANNED_ERROR = 'err: banned';
 
 class WebRTCManager {
   // Mirrors WebSocketManager properties used by Game.js / hooks
@@ -648,8 +650,22 @@ class WebRTCManager {
     } else {
       const message = camelizeKeys(data);
       demoRecorder.record('in', message);
+      if (message?.command === 'error' && message.data === BANNED_ERROR) {
+        this._stopBanned();
+        return;
+      }
       this._dispatchToSubscribers(message);
     }
+  }
+
+  // Banned by the GM server: reconnecting would only be refused, so stop for good and say why.
+  _stopBanned() {
+    this._log('warn', 'Banned by the game server');
+    const onError = this._onErrorCallback;
+    this.Close();
+    const err = new Error('You are banned from this server.');
+    err.isBanned = true;
+    onError?.(err);
   }
 
   _applyIceCandidate(candidate) {
