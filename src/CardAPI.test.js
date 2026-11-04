@@ -17,6 +17,7 @@ vi.mock('./helpers/transport', () => ({
   ActiveWebHelper: {
     getAsync: vi.fn(),
     postAsync: vi.fn(),
+    uploadInPieces: vi.fn(),
   },
 }));
 
@@ -574,6 +575,47 @@ describe('CardAPI — Resources.ReadRange', () => {
 
     await api.Resources.Global.Create('plain', 'x');
     expect(ActiveWebHelper.postAsync.mock.calls.at(-1)[1].storageKind).toBeUndefined();
+    api.destroy();
+  });
+});
+
+// A card's big file goes up in parts too (WebRTCWebHelper.uploadInPieces), under its key.
+describe('CardAPI — Resources.Create with a big file', () => {
+  const big = () => new Blob([new Uint8Array(3 * 1024 * 1024)], { type: 'application/pdf' });
+
+  beforeEach(() => {
+    ActiveWebHelper.postAsync.mockReset().mockResolvedValue({ status: 200, body: { id: 'one-piece' } });
+    ActiveWebHelper.uploadInPieces.mockReset();
+  });
+
+  it('sends it in parts under the card-scoped (or global) key, into file storage when asked', async () => {
+    const api = await CardAPIFactory('card-up1');
+    ActiveWebHelper.uploadInPieces.mockResolvedValue({ status: 200, body: { id: 'res-big' } });
+
+    expect(await api.Resources.Create('book', big(), 'Book.pdf')).toBe('res-big');
+    expect(ActiveWebHelper.uploadInPieces.mock.calls[0][1]).toEqual({ name: 'Book.pdf', mimeType: 'application/pdf', key: 'card-up1/book', storageKind: 0 });
+
+    await api.Resources.Global.Create('pdf_src_x.pdf', big(), 'Book.pdf', 'application/pdf', { storage: 'file' });
+    expect(ActiveWebHelper.uploadInPieces.mock.calls[1][1]).toMatchObject({ key: 'pdf_src_x.pdf', storageKind: 1 });
+    expect(ActiveWebHelper.postAsync).not.toHaveBeenCalled();
+    api.destroy();
+  });
+
+  it('a taken key is refused as before; an older server gets it in one piece', async () => {
+    const api = await CardAPIFactory('card-up2');
+    ActiveWebHelper.uploadInPieces.mockResolvedValueOnce({ status: 409, body: { error: 'taken' } });
+    await expect(api.Resources.Global.Create('k', big())).rejects.toThrow('taken');
+
+    ActiveWebHelper.uploadInPieces.mockResolvedValueOnce(null);
+    expect(await api.Resources.Global.Create('k2', big())).toBe('one-piece');
+    expect(ActiveWebHelper.postAsync).toHaveBeenCalledWith('materials/createresource', expect.objectContaining({ key: 'k2' }));
+    api.destroy();
+  });
+
+  it('a small file is still one request', async () => {
+    const api = await CardAPIFactory('card-up3');
+    expect(await api.Resources.Global.Create('small', 'text')).toBe('one-piece');
+    expect(ActiveWebHelper.uploadInPieces).not.toHaveBeenCalled();
     api.destroy();
   });
 });

@@ -368,3 +368,84 @@ describe('WebRTCWebHelper queued request timeout', () => {
     expect(transport.sendRaw).toHaveBeenCalledTimes(1);
   });
 });
+
+// A big file goes up in parts (materials/UploadStart, UploadPart, UploadFinish): no huge
+// request, progress as parts arrive, and a lost part resumes from what the server has.
+describe('WebRTCWebHelper.uploadInPieces', () => {
+  let send;
+  let server; // { bytes: number[], started: body, finished }
+  let lose; // offsets whose next UploadPart is lost on the way
+  let hasRoutes;
+
+  const fake = async (method, path, body) => {
+    const p = path.split('?')[0];
+    if (!hasRoutes && p.startsWith('materials/upload')) return { status: 404, body: null };
+    if (p === 'materials/uploadstart') {
+      if (body.Key === 'taken') return { status: 409, body: { error: 'taken' } };
+      server.started = body;
+      return { status: 200, body: { uploadId: 'u1' } };
+    }
+    if (p === 'materials/uploadpart') {
+      if (lose.has(body.Offset)) { lose.delete(body.Offset); throw new Error('WebRTC API timeout'); }
+      if (body.Offset !== server.bytes.length) return { status: 409, body: { received: server.bytes.length } };
+      server.bytes.push(...Uint8Array.from(atob(body.Data), (c) => c.charCodeAt(0)));
+      return { status: 200, body: { received: server.bytes.length } };
+    }
+    if (p === 'materials/uploadstatus') return { status: 200, body: { received: server.bytes.length } };
+    if (p === 'materials/uploadfinish') { server.finished = true; return { status: 200, body: { id: 'new-res' } }; }
+    if (p === 'Materials/AddResource') return { status: 200, body: { id: 'one-piece' } };
+    return { status: 404, body: null };
+  };
+  const paths = () => send.mock.calls.map((c) => c[1].split('?')[0]);
+  const blob = (text, type = 'application/pdf') => new Blob([text], { type });
+
+  beforeEach(() => {
+    WebRTCWebHelperInstance.pieceSize = 4;
+    WebRTCWebHelperInstance.retryDelayMs = 0;
+    server = { bytes: [], started: null, finished: false };
+    lose = new Set();
+    hasRoutes = true;
+    send = vi.spyOn(WebRTCWebHelperInstance, '_sendRequest').mockImplementation(fake);
+  });
+  afterEach(() => { send.mockRestore(); delete WebRTCWebHelperInstance.pieceSize; delete WebRTCWebHelperInstance.retryDelayMs; });
+
+  it('sends the parts in order and finishes; progress follows them', async () => {
+    const progress = vi.fn();
+    const result = await WebRTCWebHelperInstance.uploadInPieces(blob('abcdefghij'), { name: 'book.pdf', mimeType: 'application/pdf', key: 'pdf_src_1.pdf', storageKind: 1 }, { onProgress: progress });
+
+    expect(result).toEqual({ status: 200, body: { id: 'new-res' } });
+    expect(server.started).toMatchObject({ Name: 'book.pdf', MimeType: 'application/pdf', Key: 'pdf_src_1.pdf', StorageKind: 1, Size: 10 });
+    expect(String.fromCharCode(...server.bytes)).toBe('abcdefghij');
+    expect(paths()).toEqual(['materials/uploadstart', 'materials/uploadpart', 'materials/uploadpart', 'materials/uploadpart', 'materials/uploadfinish']);
+    expect(progress.mock.calls.map(([f]) => f)).toEqual([0.4, 0.8, 1]);
+  });
+
+  it('a lost part: asks where the upload is and carries on from there', async () => {
+    lose.add(4);
+    const result = await WebRTCWebHelperInstance.uploadInPieces(blob('abcdefghij'), { name: 'a.pdf' });
+
+    expect(result.status).toBe(200);
+    expect(String.fromCharCode(...server.bytes)).toBe('abcdefghij');
+    expect(paths()).toContain('materials/uploadstatus');
+  });
+
+  it('an older server: null, so the caller sends it in one piece; a refused start: its answer', async () => {
+    hasRoutes = false;
+    expect(await WebRTCWebHelperInstance.uploadInPieces(blob('abcdefghij'), { name: 'a.pdf' })).toBeNull();
+
+    hasRoutes = true;
+    expect((await WebRTCWebHelperInstance.uploadInPieces(blob('abcdefghij'), { name: 'a.pdf', key: 'taken' })).status).toBe(409);
+  });
+
+  it('postMaterial: a big file goes in parts, a small one in one request', async () => {
+    convertBlobToB64.mockReset().mockResolvedValue('YWJj');
+    const big = Object.assign(blob('abcdefghij', 'image/png'), { name: 'map.png' });
+    const done = await new Promise((resolve, reject) => WebRTCWebHelperInstance.postMaterial(big, resolve, reject, reject, undefined, 'folder-1'));
+    expect(done).toEqual({ id: 'new-res' });
+    expect(server.started).toMatchObject({ Name: 'map.png', MimeType: 'image/png', ParentFolder: 'folder-1', Size: 10 });
+
+    const small = Object.assign(blob('abc', 'image/png'), { name: 'tiny.png' });
+    const one = await new Promise((resolve, reject) => WebRTCWebHelperInstance.postMaterial(small, resolve, reject, reject));
+    expect(one).toEqual({ id: 'one-piece' });
+  });
+});

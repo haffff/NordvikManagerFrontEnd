@@ -36,6 +36,18 @@ function _camelizeKeys(obj) {
 const PIECE_SIZE = 2 * 1024 * 1024;
 const PARALLEL_PIECES = 2;
 const CACHED = 'cached', WHOLE = 'whole', FAILED = 'failed';
+// An upload gives up after this many parts in a row lost on the way.
+const MAX_UPLOAD_MISSES = 5;
+
+// A Blob (or slice) as base64, without the data: prefix.
+function _blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).replace(/^data:[^,]*,/, ''));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
 
 function _base64ToBytes(b64) {
   const stripped = b64.replace(/^data:[^;]+;base64,/, '');
@@ -404,7 +416,65 @@ class WebRTCWebHelper {
   // then sends as a tunneled POST, matching the Materials/AddResource body schema.
   // onProgress(fraction 0..1) follows the upload.
   // parentFolder: the Materials folder (tree entry) it goes into; the top level when null.
+  // A file bigger than one piece goes up in parts (uploadInPieces); an older server without
+  // that gets the single request below.
   postMaterial(file, onok, onerror, onException, onProgress, parentFolder = null) {
+    if (file?.size > (this.pieceSize ?? PIECE_SIZE)) {
+      this.uploadInPieces(file, { name: file.name, mimeType: file.type?.toString(), parentFolder }, { onProgress })
+        .then((r) => {
+          if (r === null) return this._postMaterialWhole(file, onok, onerror, onException, onProgress, parentFolder);
+          if (r.status >= 200 && r.status < 300) { if (onok) onok(r.body); }
+          else if (onerror) onerror(r);
+        })
+        .catch((e) => { if (onException) onException(e); else console.error(e); });
+      return;
+    }
+    this._postMaterialWhole(file, onok, onerror, onException, onProgress, parentFolder);
+  }
+
+  /**
+   * Uploads a Blob in parts of pieceSize (materials/UploadStart, UploadPart, UploadFinish):
+   * no huge request, onProgress(fraction) as parts arrive, and a part lost on the way is
+   * resumed from what the server has (UploadStatus). meta: { name, mimeType, key, parentFolder,
+   * storageKind } (with a key: made like CreateResource; without: like a Materials upload).
+   * Resolves to the finishing answer { status, body }, the refusal of the start, or null
+   * when the server has no such routes (send it in one piece then).
+   */
+  async uploadInPieces(blob, { name, mimeType, key = null, parentFolder = null, storageKind = 0 }, { onProgress } = {}) {
+    const pieceSize = this.pieceSize ?? PIECE_SIZE;
+    const size = blob.size;
+    const start = await this._sendRequest('POST', 'materials/uploadstart', {
+      Name: name, MimeType: mimeType, Key: key, ParentFolder: parentFolder, StorageKind: storageKind, Size: size,
+    });
+    if (start?.status === 404) return null;
+    if (start?.status !== 200 || !start.body?.uploadId) return start;
+    const uploadId = start.body.uploadId;
+
+    let offset = 0;
+    let misses = 0;
+    while (offset < size) {
+      const data = await _blobToBase64(blob.slice(offset, offset + pieceSize));
+      let r = null;
+      try { r = await this._sendRequest('POST', 'materials/uploadpart', { UploadId: uploadId, Offset: offset, Data: data }); } catch { r = null; }
+      if (r?.status === 200 && typeof r.body?.received === 'number') {
+        offset = r.body.received;
+        misses = 0;
+        onProgress?.(offset / size);
+        continue;
+      }
+      if (r?.status === 409 && typeof r.body?.received === 'number') { offset = r.body.received; continue; }
+      if (r?.status === 404 || ++misses > MAX_UPLOAD_MISSES) return r ?? { status: 0, body: { error: 'The upload was lost.' } };
+      // lost on the way (or the connection dropped): wait a little, then ask where it is
+      await new Promise((res) => setTimeout(res, (this.retryDelayMs ?? 1000) * misses));
+      try {
+        const status = await this._sendRequest('GET', `materials/uploadstatus?uploadId=${uploadId}`);
+        if (status?.status === 200 && typeof status.body?.received === 'number') offset = status.body.received;
+      } catch { /* asked again on the next miss */ }
+    }
+    return this._sendRequest('POST', 'materials/uploadfinish', { UploadId: uploadId });
+  }
+
+  _postMaterialWhole(file, onok, onerror, onException, onProgress, parentFolder) {
     UtilityHelper.ConvertBlobToB64(file).then((b64) => {
       this.post(
         'Materials/AddResource',

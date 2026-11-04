@@ -162,6 +162,38 @@ const _readRange = (ref, start, length) => readRange(ref, start, length).then((p
 // Resources.Create options → CreateResourceRequest.StorageKind (0 database, 1 server file).
 const _storageKind = (options) => (options?.storage === "file" ? { storageKind: 1 } : {});
 
+// Files bigger than this go up in parts (WebRTCWebHelper.uploadInPieces).
+const _UPLOAD_PIECE = 2 * 1024 * 1024;
+
+/**
+ * Creates a resource under key (already scoped): a big file in parts, otherwise in one
+ * request (also on an older server without parts). Rejects a taken key. Resolves to its id.
+ */
+async function _createResource(key, data, name, mimeType, options) {
+  const mt = mimeType ?? _mimeTypeOf(data);
+  const size = data?.size ?? data?.byteLength ?? 0;
+  if (size > _UPLOAD_PIECE && typeof WebHelper.uploadInPieces === "function") {
+    const blob = data instanceof Blob ? data : new Blob([data], { type: mt });
+    const resp = await WebHelper.uploadInPieces(blob, { name, mimeType: mt, key, storageKind: options?.storage === "file" ? 1 : 0 });
+    if (resp !== null) {
+      if (resp?.status === 409)
+        throw new Error(resp.body?.error ?? "Resource with that key already exists.");
+      if (!resp || resp.status >= 300)
+        throw new Error(resp?.body?.error ?? "Failed to create resource.");
+      return resp.body?.id;
+    }
+  }
+  const content = await _toBase64(data);
+  const resp = await WebHelper.postAsync("materials/createresource", {
+    key, content, mimeType: mt, name, ..._storageKind(options),
+  });
+  if (resp?.status === 409)
+    throw new Error(resp.body?.error ?? "Resource with that key already exists.");
+  if (!resp || resp.status >= 300)
+    throw new Error(resp?.body?.error ?? "Failed to create resource.");
+  return resp.body?.id;
+}
+
 // ─── CardAPI ──────────────────────────────────────────────────────────────────
 
 class CardAPI {
@@ -677,19 +709,7 @@ class CardAPI {
      * @param {string} [mimeType]  - MIME type string. Auto-detected when omitted.
      * @returns {Promise<string>}  GUID of the new resource.
      */
-    Create: async (key, data, name, mimeType) => {
-      const scopedKey = this._scopeKey(key);
-      const mt = mimeType ?? _mimeTypeOf(data);
-      const content = await _toBase64(data);
-      const resp = await WebHelper.postAsync("materials/createresource", {
-        key: scopedKey, content, mimeType: mt, name: name ?? key,
-      });
-      if (resp?.status === 409)
-        throw new Error(resp.body?.error ?? "Resource with that key already exists.");
-      if (!resp || resp.status >= 300)
-        throw new Error(resp?.body?.error ?? "Failed to create resource.");
-      return resp.body?.id;
-    },
+    Create: async (key, data, name, mimeType, options) => _createResource(this._scopeKey(key), data, name ?? key, mimeType, options),
 
     /**
      * Read a resource's content by key.
@@ -779,18 +799,7 @@ class CardAPI {
      */
     Global: {
       /** options.storage: "file" keeps a big file in the server's file storage (needs Edit on the game). */
-      Create: async (key, data, name, mimeType, options) => {
-        const mt = mimeType ?? _mimeTypeOf(data);
-        const content = await _toBase64(data);
-        const resp = await WebHelper.postAsync("materials/createresource", {
-          key, content, mimeType: mt, name: name ?? key, ..._storageKind(options),
-        });
-        if (resp?.status === 409)
-          throw new Error(resp.body?.error ?? "Resource with that key already exists.");
-        if (!resp || resp.status >= 300)
-          throw new Error(resp?.body?.error ?? "Failed to create resource.");
-        return resp.body?.id;
-      },
+      Create: async (key, data, name, mimeType, options) => _createResource(key, data, name ?? key, mimeType, options),
 
       Read: async (key) => _readResource({ key }),
 
