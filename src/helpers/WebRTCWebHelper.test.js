@@ -184,86 +184,146 @@ describe('WebRTCWebHelper sending', () => {
 });
 
 // Resources are kept in the browser (ResourceCache) with the server's version, and
-// only downloaded again when the server says the version changed.
-describe('WebRTCWebHelper.getMaterialAsync caching', () => {
-  const b64 = (text) => btoa(text);
+// only downloaded again when the server says the version changed. They come in pieces
+// (materials/resourcerange): other messages get through in between, and a big file
+// shows progress.
+describe('WebRTCWebHelper.getMaterialAsync', () => {
   const bytesOf = (text) => Uint8Array.from(text, (c) => c.charCodeAt(0)).buffer;
-  // jsdom's Blob has no .text()
   const readText = (blob) => new Promise((resolve) => {
     const reader = new FileReader();
     reader.onload = () => resolve(reader.result);
     reader.readAsText(blob);
   });
   let send;
+  let files; // id or key → { text, mimeType, version }
+  let failures; // start → how many times that piece fails first
+  let hasRangeRoute;
+
+  // A fake GM backend: materials/resourcerange and materials/resource (whole file, thumbnails).
+  const answer = async (method, path) => {
+    const url = new URL('http://x/' + path);
+    const ref = url.searchParams.get('id') || url.searchParams.get('key');
+    const file = files[ref];
+    const ifVersion = url.searchParams.get('ifVersion');
+    if (url.pathname === '/materials/resourcerange') {
+      if (!hasRangeRoute || !file) return { status: 404, body: null };
+      const start = Number(url.searchParams.get('start'));
+      if ((failures[start] ?? 0) > 0) { failures[start]--; throw new Error('WebRTC API timeout'); }
+      if (ifVersion === file.version) return { status: 200, body: { notModified: true, start, total: file.text.length, version: file.version } };
+      const part = file.text.slice(start, start + Number(url.searchParams.get('length')));
+      return { status: 200, body: { data: btoa(part), start, total: file.text.length, mimeType: file.mimeType, version: file.version } };
+    }
+    if (!file) return { status: 404, body: null };
+    if (ifVersion === file.version) return { status: 200, body: { notModified: true, version: file.version } };
+    return { status: 200, body: { data: btoa(file.text), mimeType: file.mimeType, version: file.version } };
+  };
+  const paths = () => send.mock.calls.map((c) => c[1]);
 
   beforeEach(() => {
     vi.clearAllMocks();
     WebRTCWebHelperInstance.GameId = 'game-1';
+    WebRTCWebHelperInstance.pieceSize = 4;
+    files = { r1: { text: 'music', mimeType: 'audio/mpeg', version: 'v1' } };
+    failures = {};
+    hasRangeRoute = true;
     ResourceCache.get.mockResolvedValue(null);
     ResourceCache.put.mockResolvedValue(true);
-    send = vi.spyOn(WebRTCWebHelperInstance, '_sendRequest');
+    send = vi.spyOn(WebRTCWebHelperInstance, '_sendRequest').mockImplementation(answer);
   });
 
-  afterEach(() => send.mockRestore());
+  afterEach(() => { send.mockRestore(); delete WebRTCWebHelperInstance.pieceSize; });
 
-  it('not cached: plain request, result stored with its version', async () => {
-    send.mockResolvedValue({ status: 200, body: { data: b64('music'), mimeType: 'audio/mpeg', version: 'v1' } });
+  it('fetches the file in pieces, assembles it and stores it whole with its version', async () => {
+    files.r1.text = 'abcdefghij';
+    const progress = vi.fn();
 
-    const blob = await WebRTCWebHelperInstance.getMaterialAsync('r1');
+    const blob = await WebRTCWebHelperInstance.getMaterialAsync('r1', null, null, false, { onProgress: progress });
 
-    expect(send.mock.calls[0][1]).toBe('materials/resource?id=r1');
-    expect(blob).toBeInstanceOf(Blob);
-    expect(await readText(blob)).toBe('music');
+    expect(paths()).toEqual([
+      'materials/resourcerange?id=r1&start=0&length=4',
+      'materials/resourcerange?id=r1&start=4&length=4',
+      'materials/resourcerange?id=r1&start=8&length=4',
+    ]);
+    expect(await readText(blob)).toBe('abcdefghij');
+    expect(blob.type).toBe('audio/mpeg');
     const [key, stored] = ResourceCache.put.mock.calls[0];
     expect(key).toBe('game-1:r1');
     expect(stored.version).toBe('v1');
-    expect(stored.mimeType).toBe('audio/mpeg');
-    expect(new Uint8Array(stored.data)).toEqual(new Uint8Array(bytesOf('music')));
+    expect(new Uint8Array(stored.data)).toEqual(new Uint8Array(bytesOf('abcdefghij')));
+    expect(progress.mock.calls.map(([f]) => f)).toEqual([0.4, 0.8, 1]);
+  });
+
+  it('a small file is one request', async () => {
+    files.r1.text = 'abc';
+    expect(await readText(await WebRTCWebHelperInstance.getMaterialAsync('r1'))).toBe('abc');
+    expect(paths()).toEqual(['materials/resourcerange?id=r1&start=0&length=4']);
   });
 
   it('cached and unchanged: asks with its version and uses the cached bytes', async () => {
     ResourceCache.get.mockResolvedValue({ data: bytesOf('music'), mimeType: 'audio/mpeg', version: 'v1' });
-    send.mockResolvedValue({ status: 200, body: { notModified: true, version: 'v1' } });
 
     const blob = await WebRTCWebHelperInstance.getMaterialAsync('r1');
 
-    expect(send.mock.calls[0][1]).toBe('materials/resource?id=r1&ifVersion=v1');
+    expect(paths()).toEqual(['materials/resourcerange?id=r1&start=0&length=4&ifVersion=v1']);
     expect(blob.type).toBe('audio/mpeg');
     expect(await readText(blob)).toBe('music');
     expect(ResourceCache.put).not.toHaveBeenCalled();
   });
 
   it('cached but changed on the server: new bytes returned and stored', async () => {
-    ResourceCache.get.mockResolvedValue({ data: bytesOf('old'), mimeType: 'audio/mpeg', version: 'v1' });
-    send.mockResolvedValue({ status: 200, body: { data: b64('new'), mimeType: 'audio/mpeg', version: 'v2' } });
+    ResourceCache.get.mockResolvedValue({ data: bytesOf('old'), mimeType: 'audio/mpeg', version: 'v0' });
+    files.r1.text = 'new';
 
-    const blob = await WebRTCWebHelperInstance.getMaterialAsync('r1');
-
-    expect(await readText(blob)).toBe('new');
-    expect(ResourceCache.put.mock.calls[0][1].version).toBe('v2');
+    expect(await readText(await WebRTCWebHelperInstance.getMaterialAsync('r1'))).toBe('new');
+    expect(ResourceCache.put.mock.calls[0][1].version).toBe('v1');
   });
 
-  it('text types come back as the same string as before caching, also from the cache', async () => {
-    ResourceCache.get.mockResolvedValue({ data: bytesOf('body{}'), mimeType: 'text/css', version: 'v1' });
-    send.mockResolvedValue({ status: 200, body: { notModified: true, version: 'v1' } });
+  it('a piece that fails is asked for again; one that keeps failing fails the download', async () => {
+    files.r1.text = 'abcdefghij';
+    failures[4] = 1;
+    expect(await readText(await WebRTCWebHelperInstance.getMaterialAsync('r1'))).toBe('abcdefghij');
+
+    failures[8] = 5;
+    ResourceCache.put.mockClear();
+    expect(await WebRTCWebHelperInstance.getMaterialAsync('r1')).toBeUndefined();
+    expect(ResourceCache.put).not.toHaveBeenCalled();
+  });
+
+  it('the file changing during the download: fetched again whole', async () => {
+    files.r1.text = 'abcdefghij';
+    let calls = 0;
+    send.mockImplementation(async (m, p) => {
+      calls++;
+      if (calls === 2) files.r1 = { text: 'ABCDEFGHIJ', mimeType: 'audio/mpeg', version: 'v2' };
+      return answer(m, p);
+    });
+
+    expect(await readText(await WebRTCWebHelperInstance.getMaterialAsync('r1'))).toBe('ABCDEFGHIJ');
+    expect(paths().at(-1)).toBe('materials/resource?id=r1');
+  });
+
+  it('an older server without ranges: the whole file, as before', async () => {
+    hasRangeRoute = false;
+
+    expect(await readText(await WebRTCWebHelperInstance.getMaterialAsync('r1'))).toBe('music');
+    expect(paths()).toEqual(['materials/resourcerange?id=r1&start=0&length=4', 'materials/resource?id=r1']);
+  });
+
+  it('text types come back as strings; thumbnails and key lookups keep their routes and cache keys', async () => {
+    files['style.css'] = { text: 'body{}', mimeType: 'text/css', version: 'v1' };
+    files.r2 = { text: 'body{}', mimeType: 'text/plain', version: 'v1' };
 
     expect(await WebRTCWebHelperInstance.getMaterialAsync(null, 'application/octet-stream', 'style.css')).toBeInstanceOf(Blob);
     expect(await WebRTCWebHelperInstance.getMaterialAsync('r2', 'text/plain')).toBe('body{}');
-  });
-
-  it('thumbnails and key lookups have their own cache keys', async () => {
-    send.mockResolvedValue({ status: 200, body: { data: b64('x'), mimeType: 'image/png', version: 't-v1' } });
-
     await WebRTCWebHelperInstance.getMaterialAsync('r1', null, null, true);
-    await WebRTCWebHelperInstance.getMaterialAsync(null, null, 'emptyImage');
 
-    expect(ResourceCache.get.mock.calls.map(([k]) => k)).toEqual(['game-1:t:r1', 'game-1:emptyImage']);
+    expect(paths()).toContain('materials/resourcerange?key=style.css&start=0&length=4');
+    expect(paths()).toContain('materials/resource?id=r1&thumbnail=true');
+    expect(ResourceCache.get.mock.calls.map(([k]) => k)).toEqual(['game-1:style.css', 'game-1:r2', 'game-1:t:r1']);
   });
 
-  it('a failed request still returns undefined', async () => {
-    send.mockResolvedValue({ status: 404, body: null });
-
-    expect(await WebRTCWebHelperInstance.getMaterialAsync('r1')).toBeUndefined();
+  it('a missing file still returns undefined', async () => {
+    expect(await WebRTCWebHelperInstance.getMaterialAsync('gone')).toBeUndefined();
     expect(ResourceCache.put).not.toHaveBeenCalled();
   });
 });

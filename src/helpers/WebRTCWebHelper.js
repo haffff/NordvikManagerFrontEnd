@@ -32,6 +32,11 @@ function _camelizeKeys(obj) {
 }
 
 // Convert a base64 string (with optional data-URI prefix) to blob or text.
+// Resources come in pieces of this size (the most the server sends per part), two at a time.
+const PIECE_SIZE = 2 * 1024 * 1024;
+const PARALLEL_PIECES = 2;
+const CACHED = 'cached', WHOLE = 'whole', FAILED = 'failed';
+
 function _base64ToBytes(b64) {
   const stripped = b64.replace(/^data:[^;]+;base64,/, '');
   return Uint8Array.from(atob(stripped), (c) => c.charCodeAt(0));
@@ -276,12 +281,33 @@ class WebRTCWebHelper {
   // Results are kept in ResourceCache (in the browser, between sessions): a cached
   // resource is requested with its version, and the server answers { notModified }
   // instead of sending it again while that version is current.
-  async getMaterialAsync(id, mimeType, key, thumbnail = false) {
+  //
+  // A file comes in pieces (materials/resourcerange, PIECE_SIZE each, two at a time), so
+  // other messages get through while a big one loads, the server never holds the whole file
+  // for it, and onProgress(fraction) can follow it. An older server without that route, or a
+  // file that changes during the download, gets the whole-file request below instead.
+  async getMaterialAsync(id, mimeType, key, thumbnail = false, { onProgress } = {}) {
     const queryParam = id ? `id=${id}` : `key=${key}`;
     const thumbParam = thumbnail ? '&thumbnail=true' : '';
     const cacheKey = `${this.GameId}:${thumbnail ? 't:' : ''}${id || key}`;
     const cached = await ResourceCache.get(cacheKey);
     const versionParam = cached ? `&ifVersion=${encodeURIComponent(cached.version)}` : '';
+
+    if (!thumbnail) {
+      const pieces = await this._getInPieces(queryParam, cached, onProgress);
+      if (pieces === FAILED) {
+        console.warn(`[WebRTCWebHelper] getMaterialAsync failed for id=${id} key=${key}`);
+        return undefined;
+      }
+      if (pieces === CACHED)
+        return _bytesToData(new Uint8Array(cached.data), mimeType ?? cached.mimeType ?? 'application/octet-stream');
+      if (pieces !== WHOLE) {
+        const serverMimeType = pieces.mimeType ?? 'application/octet-stream';
+        // Not awaited: storing mustn't delay the caller.
+        if (pieces.version) ResourceCache.put(cacheKey, { data: pieces.bytes.buffer, mimeType: serverMimeType, version: pieces.version });
+        return _bytesToData(pieces.bytes, mimeType ?? serverMimeType);
+      }
+    }
 
     const result = await this._sendRequest('GET', `materials/resource?${queryParam}${thumbParam}${versionParam}`);
     if (result?.status === 200 && result.body?.notModified && cached) {
@@ -298,6 +324,52 @@ class WebRTCWebHelper {
       ResourceCache.put(cacheKey, { data: bytes.buffer, mimeType: serverMimeType, version: result.body.version });
     }
     return _bytesToData(bytes, mimeType ?? serverMimeType);
+  }
+
+  // The pieces of a resource, assembled: { bytes, mimeType, version }, or CACHED (the cached
+  // copy is current), WHOLE (ask with the whole-file request instead) or FAILED.
+  async _getInPieces(queryParam, cached, onProgress) {
+    const pieceSize = this.pieceSize ?? PIECE_SIZE;
+    const path = (start) => `materials/resourcerange?${queryParam}&start=${start}&length=${pieceSize}`;
+    const first = await this._sendRequest('GET', path(0) + (cached ? `&ifVersion=${encodeURIComponent(cached.version)}` : ''));
+    if (first?.status === 404) return WHOLE; // an older server (or no such file: the whole-file request says so)
+    if (first?.status !== 200) return FAILED;
+    if (first.body?.notModified && cached) return CACHED;
+    if (typeof first.body?.data !== 'string') return FAILED;
+
+    const { total, version, mimeType } = first.body;
+    const head = _base64ToBytes(first.body.data);
+    if (head.length >= total) return { bytes: head, mimeType, version };
+    const bytes = new Uint8Array(total);
+    bytes.set(head, 0);
+    let received = head.length;
+    onProgress?.(received / total);
+
+    const starts = [];
+    for (let start = pieceSize; start < total; start += pieceSize) starts.push(start);
+    let outcome = null; // WHOLE or FAILED, once something goes wrong
+    const fetchPiece = async (start) => {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        let result;
+        try { result = await this._sendRequest('GET', path(start)); } catch { continue; }
+        if (result?.status !== 200 || typeof result.body?.data !== 'string') continue;
+        if (result.body.version !== version) return WHOLE; // changed meanwhile
+        return _base64ToBytes(result.body.data);
+      }
+      return FAILED;
+    };
+    const worker = async () => {
+      while (starts.length && !outcome) {
+        const start = starts.shift();
+        const piece = await fetchPiece(start);
+        if (piece === WHOLE || piece === FAILED) { outcome ??= piece; return; }
+        bytes.set(piece, start);
+        received += piece.length;
+        onProgress?.(received / total);
+      }
+    };
+    await Promise.all(Array.from({ length: PARALLEL_PIECES }, worker));
+    return outcome ?? { bytes, mimeType, version };
   }
 
   // Fetch a resource as a Blob, with session-level in-memory caching.
