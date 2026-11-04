@@ -7,6 +7,13 @@ import ResourceCache from './ResourceCache';
 import UtilityHelper from './UtilityHelper';
 import addonOpLog, { isAddonOpPath } from './addonOpLog';
 import { debugLog } from './debugLog';
+import transferStats from './transferStats';
+
+// Roughly how many bytes a request or answer carries: its base64 payload, if it has one.
+const _payloadBytes = (body) => {
+  const b64 = body?.data ?? body?.Data ?? body?.content ?? body?.Content;
+  return typeof b64 === 'string' ? Math.floor(b64.length * 3 / 4) : 0;
+};
 
 const REQUEST_TIMEOUT_MS = 30000;
 
@@ -94,6 +101,7 @@ class WebRTCWebHelper {
     if (entry.trace) addonOpLog(`api-response ${entry.trace} → ${status}`, body);
     clearTimeout(entry.timeoutHandle);
     this._pending.delete(id);
+    entry.stat?.done({ status, bytes: Math.max(_payloadBytes(body), entry.sentBytes ?? 0) });
     entry.resolve({ status, body: _camelizeKeys(body) });
   }
 
@@ -101,7 +109,7 @@ class WebRTCWebHelper {
   // response they belong to, so every request waiting for its answer gets the full
   // timeout again: a big response (a whole PDF) is given up on only when it stops coming.
   responseProgress() {
-    for (const entry of this._pending.values()) entry.armTimeout?.();
+    for (const entry of this._pending.values()) { entry.armTimeout?.(); entry.stat?.firstByte(); }
   }
 
   // Called by WebRTCManager when data channel opens — flush queued requests
@@ -124,7 +132,8 @@ class WebRTCWebHelper {
     const trace = message.method !== 'GET' && isAddonOpPath(message.path)
       ? `${message.method} ${message.path} id=${id}` : null;
     if (trace) addonOpLog(`sending ${trace}`);
-    this._pending.set(id, { resolve, reject, timeoutHandle: null, trace });
+    const stat = transferStats.start(message.method, message.path);
+    this._pending.set(id, { resolve, reject, timeoutHandle: null, trace, stat, sentBytes: _payloadBytes(message.body) });
     let sending;
     try {
       sending = this._transport.sendRaw(message, { onProgress });

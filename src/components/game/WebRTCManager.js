@@ -9,6 +9,7 @@
 
 import SignalingClient, { SIGNAL_EVENTS } from '../../helpers/SignalingClient';
 import WebRTCWebHelperInstance from '../../helpers/WebRTCWebHelper';
+import transferStats from '../../helpers/transferStats';
 import TokenStore from '../../helpers/TokenStore';
 import { debugLog } from '../../helpers/debugLog';
 import { demoRecorder } from '../../helpers/demoRecorder';
@@ -651,7 +652,10 @@ class WebRTCManager {
   // Route api-responses to WebRTCWebHelper; everything else to subscribers.
   _routeIncoming(data) {
     if (data?.type === 'api-response' && typeof data.id === 'string' && data.id.startsWith('hb-')) {
-      if (this._heartbeatPending?.id === data.id) this._heartbeatPending = null;
+      if (this._heartbeatPending?.id === data.id) {
+        transferStats.heartbeat(Date.now() - this._heartbeatPending.sentAt);
+        this._heartbeatPending = null;
+      }
       this._heartbeatAnswered = true;
       return;
     }
