@@ -104,6 +104,18 @@ describe('CardAPI bridge, calls to the app', () => {
     ]);
   });
 
+  it('sends Resources.ReadRange, and Global.Create with its options, to the app', () => {
+    const { api, posted } = ready();
+
+    api.Resources.ReadRange({ id: 'res-1' }, 1024, 4096);
+    api.Resources.Global.Create('k', 'data', 'Book.pdf', 'application/pdf', { storage: 'file' });
+
+    expect(posted('CMD').slice(-2)).toEqual([
+      expect.objectContaining({ panel: 'Resources', command: 'ReadRange', data: { ref: { id: 'res-1' }, start: 1024, length: 4096 } }),
+      expect.objectContaining({ panel: 'Resources', command: 'Create', data: expect.objectContaining({ key: 'k', global: true, options: { storage: 'file' } }) }),
+    ]);
+  });
+
   it('refuses to send a server command cards may not send', () => {
     const { api, posted } = ready();
 

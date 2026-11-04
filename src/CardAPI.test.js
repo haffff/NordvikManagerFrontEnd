@@ -501,3 +501,79 @@ describe('CardAPI — Resources reads use the resource cache', () => {
     api.destroy();
   });
 });
+
+
+// Part of a big resource (pdf.js asks for the bytes of the pages it shows): each part cached
+// in the browser; once the server has said which version is current, cached parts of that
+// version come without asking again.
+describe('CardAPI — Resources.ReadRange', () => {
+  const b64 = (bytes) => btoa(String.fromCharCode(...bytes));
+  const stored = new Map();
+
+  beforeEach(() => {
+    ActiveWebHelper.GameId = 'game-1';
+    ActiveWebHelper.getAsync.mockReset().mockResolvedValue([]);
+    stored.clear();
+    ResourceCache.get.mockReset().mockImplementation(async (k) => stored.get(k) ?? null);
+    ResourceCache.put.mockReset().mockImplementation(async (k, v) => { stored.set(k, v); return true; });
+  });
+
+  it('asks for the part, returns its bytes with the total, and caches it', async () => {
+    const api = await CardAPIFactory('card-rr1');
+    ActiveWebHelper.getAsync.mockResolvedValue({ data: b64([1, 2, 3]), start: 4096, total: 9000, mimeType: 'application/pdf', version: 'v1' });
+
+    const part = await api.Resources.ReadRange({ id: 'res-1' }, 4096, 3);
+
+    expect(ActiveWebHelper.getAsync).toHaveBeenLastCalledWith('materials/resourcerange?id=res-1&start=4096&length=3');
+    expect([...part.bytes]).toEqual([1, 2, 3]);
+    expect(part).toMatchObject({ start: 4096, total: 9000, version: 'v1' });
+    expect(stored.get('game-1:res-1@4096+3')).toMatchObject({ version: 'v1' });
+    api.destroy();
+  });
+
+  it('serves a cached part of the version the server named this session without asking', async () => {
+    const api = await CardAPIFactory('card-rr2');
+    stored.set('game-1:pdf_src_a.pdf@0+2', { data: new Uint8Array([7, 7]).buffer, mimeType: 'application/pdf', version: 'v2' });
+    stored.set('game-1:pdf_src_a.pdf@2+2', { data: new Uint8Array([8, 8]).buffer, mimeType: 'application/pdf', version: 'v2' });
+    ActiveWebHelper.getAsync.mockResolvedValue({ notModified: true, start: 0, total: 4, version: 'v2' });
+
+    const first = await api.Resources.ReadRange({ key: 'pdf_src_a.pdf' }, 0, 2);
+    expect(ActiveWebHelper.getAsync).toHaveBeenLastCalledWith('materials/resourcerange?key=pdf_src_a.pdf&start=0&length=2&ifVersion=v2');
+    expect([...first.bytes]).toEqual([7, 7]);
+    expect(first.total).toBe(4);
+
+    ActiveWebHelper.getAsync.mockClear();
+    const second = await api.Resources.ReadRange({ key: 'pdf_src_a.pdf' }, 2, 2);
+    expect(ActiveWebHelper.getAsync).not.toHaveBeenCalled();
+    expect([...second.bytes]).toEqual([8, 8]);
+    expect(second.total).toBe(4);
+    api.destroy();
+  });
+
+  it('asks again when the file changed, and gives nothing past the end or for a missing file', async () => {
+    const api = await CardAPIFactory('card-rr3');
+    stored.set('game-1:res-3@0+2', { data: new Uint8Array([1, 1]).buffer, mimeType: 'application/pdf', version: 'old' });
+    ActiveWebHelper.getAsync.mockResolvedValueOnce({ data: b64([2, 2]), start: 0, total: 2, mimeType: 'application/pdf', version: 'new' });
+    expect([...(await api.Resources.ReadRange({ id: 'res-3' }, 0, 2)).bytes]).toEqual([2, 2]);
+
+    ActiveWebHelper.getAsync.mockResolvedValueOnce({ data: '', start: 50, total: 2, mimeType: 'application/pdf', version: 'new' });
+    expect((await api.Resources.ReadRange({ id: 'res-3' }, 50, 2)).bytes.length).toBe(0);
+
+    ActiveWebHelper.getAsync.mockResolvedValueOnce(null);
+    expect(await api.Resources.ReadRange({ id: 'gone' }, 0, 2)).toBeNull();
+    expect(await api.Resources.ReadRange({}, 0, 2)).toBeNull();
+    api.destroy();
+  });
+
+  it("Global.Create can put a big file in the server's file storage", async () => {
+    const api = await CardAPIFactory('card-rr4');
+    ActiveWebHelper.postAsync.mockReset().mockResolvedValue({ status: 200, body: { id: 'new-id' } });
+
+    await api.Resources.Global.Create('pdf_src_b.pdf', 'x', 'Book.pdf', 'application/pdf', { storage: 'file' });
+    expect(ActiveWebHelper.postAsync).toHaveBeenLastCalledWith('materials/createresource', expect.objectContaining({ key: 'pdf_src_b.pdf', storageKind: 1 }));
+
+    await api.Resources.Global.Create('plain', 'x');
+    expect(ActiveWebHelper.postAsync.mock.calls.at(-1)[1].storageKind).toBeUndefined();
+    api.destroy();
+  });
+});

@@ -315,12 +315,15 @@ function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, 
             case "List":
               result = await method(data?.filter);
               break;
+            case "ReadRange":
+              result = await method(data?.ref, data?.start, data?.length);
+              break;
             case "Update":
               result = await method(data?.key, data?.data, data?.mimeType);
               break;
             case "Create":
             case "Upsert":
-              result = await method(data?.key, data?.data, data?.name, data?.mimeType);
+              result = await method(data?.key, data?.data, data?.name, data?.mimeType, data?.options);
               break;
             default:
               result = await method(data?.key, data?.data, data?.name, data?.mimeType);

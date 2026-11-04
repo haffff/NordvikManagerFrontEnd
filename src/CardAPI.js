@@ -155,6 +155,43 @@ async function _readResource({ id, key }) {
   return _decodeResourceBytes(bytes, resp.mimeType);
 }
 
+// The version the server last named for a resource this session ("<game>:<id or key>"):
+// a cached part of that version is served without asking again.
+const _rangeVersions = new Map();
+
+/**
+ * Part of a resource (ref: { id } or { key }), kept in ResourceCache per part. Resolves to
+ * { bytes: Uint8Array, start, total, version } (bytes empty past the end), or null.
+ */
+async function _readRange(ref, start, length) {
+  const id = ref?.id, key = ref?.key;
+  if (!id && !key) return null;
+  const base = `${WebHelper.GameId}:${id || key}`;
+  const cacheKey = `${base}@${start}+${length}`;
+  const cached = await ResourceCache.get(cacheKey);
+  const known = _rangeVersions.get(base);
+  if (cached && known && cached.version === known.version)
+    return { bytes: new Uint8Array(cached.data), start, total: known.total, version: known.version };
+
+  const query = `${id ? `id=${encodeURIComponent(id)}` : `key=${encodeURIComponent(key)}`}&start=${start}&length=${length}`;
+  const version = cached ? `&ifVersion=${encodeURIComponent(cached.version)}` : "";
+  const resp = await WebHelper.getAsync(`materials/resourcerange?${query}${version}`);
+  if (resp?.version) _rangeVersions.set(base, { version: resp.version, total: resp.total });
+
+  if (resp?.notModified && cached)
+    return { bytes: new Uint8Array(cached.data), start, total: resp.total, version: resp.version };
+  if (typeof resp?.data !== "string") return null;
+
+  const bytes = _base64ToUint8(resp.data);
+  // Not awaited: storing mustn't delay the card.
+  if (resp.version && bytes.length)
+    ResourceCache.put(cacheKey, { data: bytes.buffer, mimeType: resp.mimeType, version: resp.version });
+  return { bytes, start: resp.start ?? start, total: resp.total, version: resp.version };
+}
+
+// Resources.Create options → CreateResourceRequest.StorageKind (0 database, 1 server file).
+const _storageKind = (options) => (options?.storage === "file" ? { storageKind: 1 } : {});
+
 // ─── CardAPI ──────────────────────────────────────────────────────────────────
 
 class CardAPI {
@@ -700,6 +737,16 @@ class CardAPI {
     ReadById: async (id) => (id ? _readResource({ id }) : null),
 
     /**
+     * Part of any game resource the player may read, without downloading the rest, e.g.
+     * the bytes of the PDF pages on screen. Each part is cached in the browser.
+     * @param {{ id?: string, key?: string }} ref - The resource's id, or its (game-wide) key.
+     * @param {number} start   - First byte.
+     * @param {number} length  - How many bytes (the server sends at most 2 MB).
+     * @returns {Promise<{ bytes: Uint8Array, start: number, total: number, version: string }|null>}
+     */
+    ReadRange: async (ref, start, length) => _readRange(ref, start, length),
+
+    /**
      * The game's resources this player can see (all of them for whoever may edit the
      * game, otherwise their own), without file data.
      * @param {{ mimeType?: string }} [filter] - Only resources of this MIME type.
@@ -761,11 +808,12 @@ class CardAPI {
      * (e.g. shared token images, global config blobs).
      */
     Global: {
-      Create: async (key, data, name, mimeType) => {
+      /** options.storage: "file" keeps a big file in the server's file storage (needs Edit on the game). */
+      Create: async (key, data, name, mimeType, options) => {
         const mt = mimeType ?? _mimeTypeOf(data);
         const content = await _toBase64(data);
         const resp = await WebHelper.postAsync("materials/createresource", {
-          key, content, mimeType: mt, name: name ?? key,
+          key, content, mimeType: mt, name: name ?? key, ..._storageKind(options),
         });
         if (resp?.status === 409)
           throw new Error(resp.body?.error ?? "Resource with that key already exists.");

@@ -205,10 +205,12 @@ const BRIDGE_TEMPLATE = `<script>
       ReadById: (id)                       => _rpc('Resources', 'ReadById', { id }),
       /** The game's resources this player can see, without data; filter: { mimeType }. */
       List:   (filter)                     => _rpc('Resources', 'List',   { filter }),
+      /** Part of a game resource ({ id } or { key }): { bytes, start, total, version }. */
+      ReadRange: (ref, start, length)      => _rpc('Resources', 'ReadRange', { ref, start, length }),
 
       /** Game-wide resources — key is NOT scoped to this card. */
       Global: Object.freeze({
-        Create: (key, data, name, mimeType) => _rpc('Resources', 'Create', { key, data, name, mimeType, global: true }),
+        Create: (key, data, name, mimeType, options) => _rpc('Resources', 'Create', { key, data, name, mimeType, options, global: true }),
         Read:   (key)                        => _rpc('Resources', 'Read',   { key, global: true }),
         Update: (key, data, mimeType)        => _rpc('Resources', 'Update', { key, data, mimeType, global: true }),
         Delete: (key)                        => _rpc('Resources', 'Delete', { key, global: true }),
