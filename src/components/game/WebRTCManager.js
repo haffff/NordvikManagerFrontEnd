@@ -615,15 +615,7 @@ class WebRTCManager {
           return;
         }
         if (!this._chunkBuffer.has(chunkId)) {
-          // If a chunk is ever lost, this entry would otherwise sit in the map
-          // forever — drop it after a generous timeout so it can't accumulate.
-          const staleTimeout = setTimeout(() => {
-            if (this._chunkBuffer.has(chunkId)) {
-              this._log('warn', `Dropping incomplete chunked message ${chunkId} (timed out)`);
-              this._chunkBuffer.delete(chunkId);
-            }
-          }, 60_000);
-          this._chunkBuffer.set(chunkId, { parts: new Array(total), received: 0, total, staleTimeout });
+          this._chunkBuffer.set(chunkId, { parts: new Array(total), received: 0, total, staleTimeout: null });
         }
         const entry = this._chunkBuffer.get(chunkId);
         // Only a new slot inside this message counts — a repeat or a stray index
@@ -631,6 +623,18 @@ class WebRTCManager {
         if (!Number.isInteger(index) || index < 0 || index >= entry.total || entry.parts[index] !== undefined) return;
         entry.parts[index] = slice;
         entry.received++;
+        // If a chunk is ever lost, this entry would otherwise sit in the map forever:
+        // drop it when no chunk of it has come for a minute. A big message that keeps
+        // coming (a whole PDF) may take as long as it needs, and so may the request
+        // waiting for it.
+        clearTimeout(entry.staleTimeout);
+        entry.staleTimeout = setTimeout(() => {
+          if (this._chunkBuffer.get(chunkId) === entry) {
+            this._log('warn', `Dropping incomplete chunked message ${chunkId} (timed out)`);
+            this._chunkBuffer.delete(chunkId);
+          }
+        }, 60_000);
+        WebRTCWebHelperInstance.responseProgress();
         if (entry.received < entry.total) return; // wait for remaining chunks
         clearTimeout(entry.staleTimeout);
         this._chunkBuffer.delete(chunkId);

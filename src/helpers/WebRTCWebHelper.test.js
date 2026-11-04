@@ -144,6 +144,24 @@ describe('WebRTCWebHelper sending', () => {
     expect(error?.message).toMatch(/timeout/i);
   });
 
+  // A big response arrives in many chunks: while they come, the request isn't given up on.
+  it('waits as long as the response keeps arriving, and 30 s after it stops', async () => {
+    const result = WebRTCWebHelperInstance.getAsync('materials/resource?id=r1');
+    let error;
+    result.catch((e) => { error = e; });
+    finishSend();
+    await vi.advanceTimersByTimeAsync(0);
+
+    for (let i = 0; i < 6; i++) {
+      await vi.advanceTimersByTimeAsync(25_000);
+      WebRTCWebHelperInstance.responseProgress();
+    }
+    expect(error).toBeUndefined(); // 150 s in, still coming
+
+    await vi.advanceTimersByTimeAsync(31_000);
+    expect(error?.message).toMatch(/timeout/i);
+  });
+
   it('a failed send rejects the request and forgets it', async () => {
     const result = WebRTCWebHelperInstance.postAsync('materials/addresource', { data: 'x' });
 

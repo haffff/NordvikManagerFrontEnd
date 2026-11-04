@@ -97,6 +97,13 @@ class WebRTCWebHelper {
     entry.resolve({ status, body: _camelizeKeys(body) });
   }
 
+  // Called by WebRTCManager while a chunked message comes in. Chunks don't say which
+  // response they belong to, so every request waiting for its answer gets the full
+  // timeout again: a big response (a whole PDF) is given up on only when it stops coming.
+  responseProgress() {
+    for (const entry of this._pending.values()) entry.armTimeout?.();
+  }
+
   // Called by WebRTCManager when data channel opens — flush queued requests
   flushQueue() {
     const channelReady = this._transport?.isChannelReady() ?? false;
@@ -129,11 +136,15 @@ class WebRTCWebHelper {
         const entry = this._pending.get(id);
         if (!entry) return; // already answered or reset
         if (trace) addonOpLog(`sent ${trace}, waiting up to ${REQUEST_TIMEOUT_MS / 1000}s for the answer`);
-        entry.timeoutHandle = setTimeout(() => {
-          if (trace) addonOpLog(`TIMEOUT ${trace}: no answer from the server`);
-          this._pending.delete(id);
-          reject(new Error(`WebRTC API timeout: ${message.method} ${message.path}`));
-        }, REQUEST_TIMEOUT_MS);
+        entry.armTimeout = () => {
+          clearTimeout(entry.timeoutHandle);
+          entry.timeoutHandle = setTimeout(() => {
+            if (trace) addonOpLog(`TIMEOUT ${trace}: no answer from the server`);
+            this._pending.delete(id);
+            reject(new Error(`WebRTC API timeout: ${message.method} ${message.path}`));
+          }, REQUEST_TIMEOUT_MS);
+        };
+        entry.armTimeout();
       },
       (err) => {
         if (trace) addonOpLog(`send FAILED ${trace}: ${err?.message}`);
