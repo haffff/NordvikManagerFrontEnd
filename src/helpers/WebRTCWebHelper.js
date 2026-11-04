@@ -443,7 +443,17 @@ class WebRTCWebHelper {
    * Resolves to the finishing answer { status, body }, the refusal of the start, or null
    * when the server has no such routes (send it in one piece then).
    */
-  async uploadInPieces(blob, { name, mimeType, key = null, parentFolder = null, storageKind = 0 }, { onProgress } = {}) {
+  // One upload at a time: two big uploads at once kept the data channel full without a pause
+  // and the GM backend's WebRTC stack dropped the connection (seen with two 20 MB PDFs; one at
+  // a time was fine). The others wait their turn, also when one before them fails.
+  uploadInPieces(blob, meta, options) {
+    const run = () => this._uploadInPiecesNow(blob, meta, options);
+    const result = (this._uploadQueue ?? Promise.resolve()).then(run, run);
+    this._uploadQueue = result.catch(() => {});
+    return result;
+  }
+
+  async _uploadInPiecesNow(blob, { name, mimeType, key = null, parentFolder = null, storageKind = 0 }, { onProgress } = {}) {
     const pieceSize = this.pieceSize ?? PIECE_SIZE;
     const size = blob.size;
     const start = await this._sendRequest('POST', 'materials/uploadstart', {

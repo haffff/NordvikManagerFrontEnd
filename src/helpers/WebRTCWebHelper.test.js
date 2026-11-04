@@ -453,6 +453,34 @@ describe('WebRTCWebHelper.uploadInPieces', () => {
     expect((await WebRTCWebHelperInstance.uploadInPieces(blob('abcdefghij'), { name: 'a.pdf', key: 'taken' })).status).toBe(409);
   });
 
+  // Two big uploads at once kept the data channel full without a pause, and the GM backend's
+  // WebRTC stack dropped the connection (seen live with two 20 MB PDFs; one at a time was fine).
+  it('uploads one file at a time: the second starts when the first has finished', async () => {
+    const order = [];
+    send.mockImplementation(async (method, path, body) => {
+      const r = await fake(method, path, body);
+      order.push(path.split('?')[0].replace('materials/upload', '') + (body?.Name ? ':' + body.Name : ''));
+      if (path.startsWith('materials/uploadstart')) r.body = { uploadId: 'u-' + body.Name };
+      if (path.startsWith('materials/uploadpart')) r.body = { received: body.Offset + atob(body.Data).length };
+      return r;
+    });
+
+    await Promise.all([
+      WebRTCWebHelperInstance.uploadInPieces(blob('abcdefgh'), { name: 'one' }),
+      WebRTCWebHelperInstance.uploadInPieces(blob('ABCDEFGH'), { name: 'two' }),
+    ]);
+
+    expect(order).toEqual(['start:one', 'part', 'part', 'finish', 'start:two', 'part', 'part', 'finish']);
+  });
+
+  it('a failed upload does not hold up the next one', async () => {
+    hasRoutes = true;
+    const first = WebRTCWebHelperInstance.uploadInPieces(blob('abcdefgh'), { name: 'a', key: 'taken' });
+    const second = WebRTCWebHelperInstance.uploadInPieces(blob('abcdefgh'), { name: 'b' });
+    expect((await first).status).toBe(409);
+    expect((await second).status).toBe(200);
+  });
+
   it('postMaterial: a big file goes in parts, a small one in one request', async () => {
     convertBlobToB64.mockReset().mockResolvedValue('YWJj');
     const big = Object.assign(blob('abcdefghij', 'image/png'), { name: 'map.png' });
