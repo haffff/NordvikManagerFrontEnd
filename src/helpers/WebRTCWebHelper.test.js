@@ -322,6 +322,22 @@ describe('WebRTCWebHelper.getMaterialAsync', () => {
     expect(ResourceCache.get.mock.calls.map(([k]) => k)).toEqual(['game-1:style.css', 'game-1:r2', 'game-1:t:r1']);
   });
 
+  it('raw: the bytes and the server type, fetched or from the cache (for the Card API)', async () => {
+    files.r1 = { text: 'abcdefghij', mimeType: 'application/json', version: 'v1' };
+    const fetched = await WebRTCWebHelperInstance.getMaterialAsync('r1', null, null, false, { raw: true });
+    expect(fetched.mimeType).toBe('application/json');
+    expect(String.fromCharCode(...fetched.bytes)).toBe('abcdefghij');
+
+    ResourceCache.get.mockResolvedValue({ data: bytesOf('cached'), mimeType: 'text/plain', version: 'v1' });
+    const cached = await WebRTCWebHelperInstance.getMaterialAsync('r1', null, null, false, { raw: true });
+    expect(cached).toEqual({ bytes: new Uint8Array(bytesOf('cached')), mimeType: 'text/plain' });
+
+    hasRangeRoute = false;
+    ResourceCache.get.mockResolvedValue(null);
+    const whole = await WebRTCWebHelperInstance.getMaterialAsync('r1', null, null, false, { raw: true });
+    expect(String.fromCharCode(...whole.bytes)).toBe('abcdefghij');
+  });
+
   it('a missing file still returns undefined', async () => {
     expect(await WebRTCWebHelperInstance.getMaterialAsync('gone')).toBeUndefined();
     expect(ResourceCache.put).not.toHaveBeenCalled();

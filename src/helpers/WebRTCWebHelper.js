@@ -298,12 +298,15 @@ class WebRTCWebHelper {
   // other messages get through while a big one loads, the server never holds the whole file
   // for it, and onProgress(fraction) can follow it. An older server without that route, or a
   // file that changes during the download, gets the whole-file request below instead.
-  async getMaterialAsync(id, mimeType, key, thumbnail = false, { onProgress } = {}) {
+  // raw: { bytes, mimeType } (the server's type) instead of a Blob or string, e.g. for the
+  // Card API, which decodes text itself.
+  async getMaterialAsync(id, mimeType, key, thumbnail = false, { onProgress, raw = false } = {}) {
     const queryParam = id ? `id=${id}` : `key=${key}`;
     const thumbParam = thumbnail ? '&thumbnail=true' : '';
     const cacheKey = `${this.GameId}:${thumbnail ? 't:' : ''}${id || key}`;
     const cached = await ResourceCache.get(cacheKey);
     const versionParam = cached ? `&ifVersion=${encodeURIComponent(cached.version)}` : '';
+    const out = (bytes, serverMimeType) => (raw ? { bytes, mimeType: serverMimeType } : _bytesToData(bytes, mimeType ?? serverMimeType));
 
     if (!thumbnail) {
       const pieces = await this._getInPieces(queryParam, cached, onProgress);
@@ -312,18 +315,18 @@ class WebRTCWebHelper {
         return undefined;
       }
       if (pieces === CACHED)
-        return _bytesToData(new Uint8Array(cached.data), mimeType ?? cached.mimeType ?? 'application/octet-stream');
+        return out(new Uint8Array(cached.data), cached.mimeType ?? 'application/octet-stream');
       if (pieces !== WHOLE) {
         const serverMimeType = pieces.mimeType ?? 'application/octet-stream';
         // Not awaited: storing mustn't delay the caller.
         if (pieces.version) ResourceCache.put(cacheKey, { data: pieces.bytes.buffer, mimeType: serverMimeType, version: pieces.version });
-        return _bytesToData(pieces.bytes, mimeType ?? serverMimeType);
+        return out(pieces.bytes, serverMimeType);
       }
     }
 
     const result = await this._sendRequest('GET', `materials/resource?${queryParam}${thumbParam}${versionParam}`);
     if (result?.status === 200 && result.body?.notModified && cached) {
-      return _bytesToData(new Uint8Array(cached.data), mimeType ?? cached.mimeType ?? 'application/octet-stream');
+      return out(new Uint8Array(cached.data), cached.mimeType ?? 'application/octet-stream');
     }
     if (result?.status !== 200 || !result?.body?.data) {
       console.warn(`[WebRTCWebHelper] getMaterialAsync failed for id=${id} key=${key}: status=${result?.status}`, result?.body);
@@ -335,7 +338,7 @@ class WebRTCWebHelper {
       // Not awaited: storing mustn't delay the caller.
       ResourceCache.put(cacheKey, { data: bytes.buffer, mimeType: serverMimeType, version: result.body.version });
     }
-    return _bytesToData(bytes, mimeType ?? serverMimeType);
+    return out(bytes, serverMimeType);
   }
 
   // The pieces of a resource, assembled: { bytes, mimeType, version }, or CACHED (the cached

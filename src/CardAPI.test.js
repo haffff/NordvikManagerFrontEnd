@@ -425,48 +425,39 @@ describe('CardAPI — register', () => {
 });
 
 
-// Resources a card reads (a PDF, a big JSON file) are kept in the browser's resource cache
-// like map images are: the server is asked "still this version?" instead of sending it again.
-describe('CardAPI — Resources reads use the resource cache', () => {
-  const b64 = (text) => btoa(String.fromCharCode(...new TextEncoder().encode(text)));
-  const bytesOf = (text) => new TextEncoder().encode(text).buffer;
+// Resources a card reads come through the app's own download (WebRTCWebHelper.getMaterialAsync):
+// in pieces for big files, kept in the browser's resource cache with their version. The card
+// gets text decoded as UTF-8, everything else as a Blob of its type.
+describe('CardAPI — Resources reads use the app download', () => {
+  const bytes = (text) => new TextEncoder().encode(text);
 
   beforeEach(() => {
     ActiveWebHelper.GameId = 'game-1';
     ActiveWebHelper.getAsync.mockReset().mockResolvedValue([]);
-    ResourceCache.get.mockReset().mockResolvedValue(null);
-    ResourceCache.put.mockReset().mockResolvedValue(true);
+    ActiveWebHelper.getMaterialAsync = vi.fn();
   });
 
-  it('stores what it fetched, under the same key the app caches resources by', async () => {
+  it('Read: the card-scoped key, text decoded as UTF-8', async () => {
     const api = await CardAPIFactory('card-rc1');
-    ActiveWebHelper.getAsync.mockResolvedValue({ data: b64('{"a":"żółw"}'), mimeType: 'application/json', version: 'v1' });
+    ActiveWebHelper.getMaterialAsync.mockResolvedValue({ bytes: bytes('{"a":"żółw"}'), mimeType: 'application/json' });
 
-    const text = await api.Resources.Read('notes');
-
-    expect(text).toBe('{"a":"żółw"}'); // UTF-8, not Latin-1
-    expect(ActiveWebHelper.getAsync).toHaveBeenLastCalledWith('materials/resource?key=card-rc1%2Fnotes');
-    expect(ResourceCache.put).toHaveBeenCalledWith('game-1:card-rc1/notes',
-      expect.objectContaining({ mimeType: 'application/json', version: 'v1' }));
+    expect(await api.Resources.Read('notes')).toBe('{"a":"żółw"}'); // UTF-8, not Latin-1
+    expect(ActiveWebHelper.getMaterialAsync).toHaveBeenLastCalledWith(null, null, 'card-rc1/notes', false, { raw: true });
     api.destroy();
   });
 
-  it('serves the cached copy when the server says it is still current', async () => {
+  it('Global.Read: the key as it is', async () => {
     const api = await CardAPIFactory('card-rc2');
-    ResourceCache.get.mockResolvedValue({ data: bytesOf('cached'), mimeType: 'text/plain', version: 'v7' });
-    ActiveWebHelper.getAsync.mockResolvedValue({ notModified: true, version: 'v7' });
+    ActiveWebHelper.getMaterialAsync.mockResolvedValue({ bytes: bytes('cached'), mimeType: 'text/plain' });
 
-    const text = await api.Resources.Global.Read('shared/thing');
-
-    expect(text).toBe('cached');
-    expect(ActiveWebHelper.getAsync).toHaveBeenLastCalledWith('materials/resource?key=shared%2Fthing&ifVersion=v7');
-    expect(ResourceCache.put).not.toHaveBeenCalled();
+    expect(await api.Resources.Global.Read('shared/thing')).toBe('cached');
+    expect(ActiveWebHelper.getMaterialAsync).toHaveBeenLastCalledWith(null, null, 'shared/thing', false, { raw: true });
     api.destroy();
   });
 
-  it('reads a resource by id (e.g. a file from the Materials panel) as a Blob', async () => {
+  it('ReadById: a Blob of its type (e.g. a file from the Materials panel)', async () => {
     const api = await CardAPIFactory('card-rc3');
-    ActiveWebHelper.getAsync.mockResolvedValue({ data: b64('%PDF-1.7'), mimeType: 'application/pdf', version: 'v2' });
+    ActiveWebHelper.getMaterialAsync.mockResolvedValue({ bytes: bytes('%PDF-1.7'), mimeType: 'application/pdf' });
 
     const blob = await api.Resources.ReadById('res-9');
 
@@ -475,16 +466,16 @@ describe('CardAPI — Resources reads use the resource cache', () => {
     // jsdom's Blob has no .text()
     const text = await new Promise((resolve) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.readAsText(blob); });
     expect(text).toBe('%PDF-1.7');
-    expect(ActiveWebHelper.getAsync).toHaveBeenLastCalledWith('materials/resource?id=res-9');
-    expect(ResourceCache.put).toHaveBeenCalledWith('game-1:res-9', expect.objectContaining({ version: 'v2' }));
+    expect(ActiveWebHelper.getMaterialAsync).toHaveBeenLastCalledWith('res-9', null, undefined, false, { raw: true });
     api.destroy();
   });
 
   it('returns null when there is no such resource', async () => {
     const api = await CardAPIFactory('card-rc4');
-    ActiveWebHelper.getAsync.mockResolvedValue(null);
+    ActiveWebHelper.getMaterialAsync.mockResolvedValue(undefined);
 
     expect(await api.Resources.ReadById('missing')).toBeNull();
+    expect(await api.Resources.Read('missing')).toBeNull();
     api.destroy();
   });
 

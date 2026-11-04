@@ -1,7 +1,6 @@
 import ClientMediator from "./ClientMediator";
 import { ActiveTransportManager as WebSocketManagerInstance, ActiveWebHelper as WebHelper } from "./helpers/transport";
 import UtilityHelper from "./helpers/UtilityHelper";
-import ResourceCache from "./helpers/ResourceCache";
 import { readRange } from "./helpers/rangeRead";
 
 // ─── Security: allowlists ─────────────────────────────────────────────────────
@@ -115,13 +114,6 @@ function _mimeTypeOf(data) {
   return "application/octet-stream";
 }
 
-function _base64ToUint8(base64) {
-  const binary = atob(base64);
-  const bytes = new Uint8Array(binary.length);
-  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
-  return bytes;
-}
-
 /**
  * Resource bytes as the right JS type: text and JSON (UTF-8) become strings,
  * everything else a Blob.
@@ -134,26 +126,13 @@ function _decodeResourceBytes(bytes, mimeType) {
 }
 
 /**
- * A resource by id or key, kept in the browser's ResourceCache between sessions:
- * a cached copy is sent back as its version, and the server answers notModified while
- * it's current. Same cache keys and entries as WebRTCWebHelper.getMaterialAsync.
+ * A resource by id or key, through the app's own download (WebRTCWebHelper.getMaterialAsync):
+ * in pieces for big files, kept in the browser's ResourceCache with its version. Text and
+ * JSON come back as UTF-8 strings, everything else as a Blob of its type; null if missing.
  */
 async function _readResource({ id, key }) {
-  const cacheKey = `${WebHelper.GameId}:${id || key}`;
-  const cached = await ResourceCache.get(cacheKey);
-  const query = id ? `id=${encodeURIComponent(id)}` : `key=${encodeURIComponent(key)}`;
-  const version = cached ? `&ifVersion=${encodeURIComponent(cached.version)}` : "";
-  const resp = await WebHelper.getAsync(`materials/resource?${query}${version}`);
-
-  if (resp?.notModified && cached)
-    return _decodeResourceBytes(new Uint8Array(cached.data), cached.mimeType);
-  if (!resp?.data) return null;
-
-  const bytes = _base64ToUint8(resp.data);
-  // Not awaited: storing mustn't delay the card.
-  if (resp.version)
-    ResourceCache.put(cacheKey, { data: bytes.buffer, mimeType: resp.mimeType, version: resp.version });
-  return _decodeResourceBytes(bytes, resp.mimeType);
+  const file = await WebHelper.getMaterialAsync(id ?? null, null, key, false, { raw: true });
+  return file?.bytes ? _decodeResourceBytes(file.bytes, file.mimeType) : null;
 }
 
 // Parts of a resource: helpers/rangeRead.js (shared with media streaming).
