@@ -20,7 +20,12 @@ vi.mock('./helpers/transport', () => ({
   },
 }));
 
+vi.mock('./helpers/ResourceCache', () => ({
+  default: { get: vi.fn(), put: vi.fn() },
+}));
+
 import { ActiveTransportManager, ActiveWebHelper } from './helpers/transport';
+import ResourceCache from './helpers/ResourceCache';
 import CardAPIFactory, { PropertiesManagerInstance } from './CardAPI';
 
 function subscribedCallback(prefix) {
@@ -414,6 +419,85 @@ describe('CardAPI — register', () => {
     const scoped = api.ClientMediator.register('addon_q', ['id', 'panel', 'Go', 42], vi.fn(async () => 1));
     const ClientMediator = (await import('./ClientMediator')).default;
     expect(ClientMediator._resolveClients(scoped)[0].panel).toBe(scoped);
+    api.destroy();
+  });
+});
+
+
+// Resources a card reads (a PDF, a big JSON file) are kept in the browser's resource cache
+// like map images are: the server is asked "still this version?" instead of sending it again.
+describe('CardAPI — Resources reads use the resource cache', () => {
+  const b64 = (text) => btoa(String.fromCharCode(...new TextEncoder().encode(text)));
+  const bytesOf = (text) => new TextEncoder().encode(text).buffer;
+
+  beforeEach(() => {
+    ActiveWebHelper.GameId = 'game-1';
+    ActiveWebHelper.getAsync.mockReset().mockResolvedValue([]);
+    ResourceCache.get.mockReset().mockResolvedValue(null);
+    ResourceCache.put.mockReset().mockResolvedValue(true);
+  });
+
+  it('stores what it fetched, under the same key the app caches resources by', async () => {
+    const api = await CardAPIFactory('card-rc1');
+    ActiveWebHelper.getAsync.mockResolvedValue({ data: b64('{"a":"żółw"}'), mimeType: 'application/json', version: 'v1' });
+
+    const text = await api.Resources.Read('notes');
+
+    expect(text).toBe('{"a":"żółw"}'); // UTF-8, not Latin-1
+    expect(ActiveWebHelper.getAsync).toHaveBeenLastCalledWith('materials/resource?key=card-rc1%2Fnotes');
+    expect(ResourceCache.put).toHaveBeenCalledWith('game-1:card-rc1/notes',
+      expect.objectContaining({ mimeType: 'application/json', version: 'v1' }));
+    api.destroy();
+  });
+
+  it('serves the cached copy when the server says it is still current', async () => {
+    const api = await CardAPIFactory('card-rc2');
+    ResourceCache.get.mockResolvedValue({ data: bytesOf('cached'), mimeType: 'text/plain', version: 'v7' });
+    ActiveWebHelper.getAsync.mockResolvedValue({ notModified: true, version: 'v7' });
+
+    const text = await api.Resources.Global.Read('shared/thing');
+
+    expect(text).toBe('cached');
+    expect(ActiveWebHelper.getAsync).toHaveBeenLastCalledWith('materials/resource?key=shared%2Fthing&ifVersion=v7');
+    expect(ResourceCache.put).not.toHaveBeenCalled();
+    api.destroy();
+  });
+
+  it('reads a resource by id (e.g. a file from the Materials panel) as a Blob', async () => {
+    const api = await CardAPIFactory('card-rc3');
+    ActiveWebHelper.getAsync.mockResolvedValue({ data: b64('%PDF-1.7'), mimeType: 'application/pdf', version: 'v2' });
+
+    const blob = await api.Resources.ReadById('res-9');
+
+    expect(blob).toBeInstanceOf(Blob);
+    expect(blob.type).toBe('application/pdf');
+    // jsdom's Blob has no .text()
+    const text = await new Promise((resolve) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.readAsText(blob); });
+    expect(text).toBe('%PDF-1.7');
+    expect(ActiveWebHelper.getAsync).toHaveBeenLastCalledWith('materials/resource?id=res-9');
+    expect(ResourceCache.put).toHaveBeenCalledWith('game-1:res-9', expect.objectContaining({ version: 'v2' }));
+    api.destroy();
+  });
+
+  it('returns null when there is no such resource', async () => {
+    const api = await CardAPIFactory('card-rc4');
+    ActiveWebHelper.getAsync.mockResolvedValue(null);
+
+    expect(await api.Resources.ReadById('missing')).toBeNull();
+    api.destroy();
+  });
+
+  it('lists the game resources the player can see, optionally of one type, without file data', async () => {
+    const api = await CardAPIFactory('card-rc5');
+    ActiveWebHelper.getAsync.mockResolvedValue([
+      { id: 'r1', name: 'Handbook.pdf', mimeType: 'application/pdf', key: null, path: 'C:/x', playerName: 'GM' },
+      { id: 'r2', name: 'map.png', mimeType: 'image/png', key: null },
+    ]);
+
+    expect(await api.Resources.List({ mimeType: 'application/pdf' }))
+      .toEqual([{ id: 'r1', name: 'Handbook.pdf', mimeType: 'application/pdf', key: null }]);
+    expect((await api.Resources.List()).map((r) => r.id)).toEqual(['r1', 'r2']);
+    expect(ActiveWebHelper.getAsync).toHaveBeenLastCalledWith('materials/getresources');
     api.destroy();
   });
 });

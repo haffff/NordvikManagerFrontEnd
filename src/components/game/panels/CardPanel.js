@@ -309,6 +309,12 @@ function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, 
             case "Delete":
               result = await method(data?.key);
               break;
+            case "ReadById":
+              result = await method(data?.id);
+              break;
+            case "List":
+              result = await method(data?.filter);
+              break;
             case "Update":
               result = await method(data?.key, data?.data, data?.mimeType);
               break;

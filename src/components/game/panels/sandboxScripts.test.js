@@ -92,6 +92,18 @@ describe('CardAPI bridge, calls to the app', () => {
     await expect(upload).rejects.toThrow('no answer from the app');
   });
 
+  it('sends Resources.ReadById and Resources.List to the app', () => {
+    const { api, posted } = ready();
+
+    api.Resources.ReadById('res-1');
+    api.Resources.List({ mimeType: 'application/pdf' });
+
+    expect(posted('CMD').slice(-2)).toEqual([
+      expect.objectContaining({ panel: 'Resources', command: 'ReadById', data: { id: 'res-1' } }),
+      expect.objectContaining({ panel: 'Resources', command: 'List', data: { filter: { mimeType: 'application/pdf' } } }),
+    ]);
+  });
+
   it('refuses to send a server command cards may not send', () => {
     const { api, posted } = ready();
 

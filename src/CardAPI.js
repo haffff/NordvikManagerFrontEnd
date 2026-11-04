@@ -1,6 +1,7 @@
 import ClientMediator from "./ClientMediator";
 import { ActiveTransportManager as WebSocketManagerInstance, ActiveWebHelper as WebHelper } from "./helpers/transport";
 import UtilityHelper from "./helpers/UtilityHelper";
+import ResourceCache from "./helpers/ResourceCache";
 
 // ─── Security: allowlists ─────────────────────────────────────────────────────
 
@@ -113,16 +114,45 @@ function _mimeTypeOf(data) {
   return "application/octet-stream";
 }
 
+function _base64ToUint8(base64) {
+  const binary = atob(base64);
+  const bytes = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+  return bytes;
+}
+
 /**
- * Decode a base64 payload from the server into the right JS type.
- * Text and JSON types become strings; everything else becomes a Blob.
+ * Resource bytes as the right JS type: text and JSON (UTF-8) become strings,
+ * everything else a Blob.
  */
-function _decodeResourceData(base64, mimeType) {
-  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+function _decodeResourceBytes(bytes, mimeType) {
   const mt = (mimeType ?? "").toLowerCase();
   if (mt.startsWith("text/") || mt === "application/json")
     return new TextDecoder().decode(bytes);
   return new Blob([bytes], { type: mt || "application/octet-stream" });
+}
+
+/**
+ * A resource by id or key, kept in the browser's ResourceCache between sessions:
+ * a cached copy is sent back as its version, and the server answers notModified while
+ * it's current. Same cache keys and entries as WebRTCWebHelper.getMaterialAsync.
+ */
+async function _readResource({ id, key }) {
+  const cacheKey = `${WebHelper.GameId}:${id || key}`;
+  const cached = await ResourceCache.get(cacheKey);
+  const query = id ? `id=${encodeURIComponent(id)}` : `key=${encodeURIComponent(key)}`;
+  const version = cached ? `&ifVersion=${encodeURIComponent(cached.version)}` : "";
+  const resp = await WebHelper.getAsync(`materials/resource?${query}${version}`);
+
+  if (resp?.notModified && cached)
+    return _decodeResourceBytes(new Uint8Array(cached.data), cached.mimeType);
+  if (!resp?.data) return null;
+
+  const bytes = _base64ToUint8(resp.data);
+  // Not awaited: storing mustn't delay the card.
+  if (resp.version)
+    ResourceCache.put(cacheKey, { data: bytes.buffer, mimeType: resp.mimeType, version: resp.version });
+  return _decodeResourceBytes(bytes, resp.mimeType);
 }
 
 // ─── CardAPI ──────────────────────────────────────────────────────────────────
@@ -659,13 +689,27 @@ class CardAPI {
      * @param {string} key  - Logical key (scoped to this card automatically).
      * @returns {Promise<string|Blob|null>} string for text/json types, Blob otherwise, null if not found.
      */
-    Read: async (key) => {
-      const scopedKey = this._scopeKey(key);
-      const resp = await WebHelper.getAsync(
-        `materials/resource?key=${encodeURIComponent(scopedKey)}`
-      );
-      if (!resp?.data) return null;
-      return _decodeResourceData(resp.data, resp.mimeType);
+    Read: async (key) => _readResource({ key: this._scopeKey(key) }),
+
+    /**
+     * Read any game resource the player may read by its id, e.g. a file from the
+     * Materials panel (see List). Cached in the browser like Read.
+     * @param {string} id  - The resource's GUID.
+     * @returns {Promise<string|Blob|null>}
+     */
+    ReadById: async (id) => (id ? _readResource({ id }) : null),
+
+    /**
+     * The game's resources this player can see (all of them for whoever may edit the
+     * game, otherwise their own), without file data.
+     * @param {{ mimeType?: string }} [filter] - Only resources of this MIME type.
+     * @returns {Promise<Array<{ id: string, name: string, mimeType: string, key: string|null }>>}
+     */
+    List: async (filter) => {
+      const resources = await WebHelper.getAsync("materials/getresources");
+      return (Array.isArray(resources) ? resources : [])
+        .filter((r) => !filter?.mimeType || r.mimeType === filter.mimeType)
+        .map((r) => ({ id: r.id, name: r.name, mimeType: r.mimeType, key: r.key ?? null }));
     },
 
     /**
@@ -730,13 +774,7 @@ class CardAPI {
         return resp.body?.id;
       },
 
-      Read: async (key) => {
-        const resp = await WebHelper.getAsync(
-          `materials/resource?key=${encodeURIComponent(key)}`
-        );
-        if (!resp?.data) return null;
-        return _decodeResourceData(resp.data, resp.mimeType);
-      },
+      Read: async (key) => _readResource({ key }),
 
       Update: async (key, data, mimeType) => {
         const content = await _toBase64(data);
