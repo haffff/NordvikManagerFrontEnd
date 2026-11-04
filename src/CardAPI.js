@@ -2,6 +2,7 @@ import ClientMediator from "./ClientMediator";
 import { ActiveTransportManager as WebSocketManagerInstance, ActiveWebHelper as WebHelper } from "./helpers/transport";
 import UtilityHelper from "./helpers/UtilityHelper";
 import ResourceCache from "./helpers/ResourceCache";
+import { readRange } from "./helpers/rangeRead";
 
 // ─── Security: allowlists ─────────────────────────────────────────────────────
 
@@ -155,39 +156,8 @@ async function _readResource({ id, key }) {
   return _decodeResourceBytes(bytes, resp.mimeType);
 }
 
-// The version the server last named for a resource this session ("<game>:<id or key>"):
-// a cached part of that version is served without asking again.
-const _rangeVersions = new Map();
-
-/**
- * Part of a resource (ref: { id } or { key }), kept in ResourceCache per part. Resolves to
- * { bytes: Uint8Array, start, total, version } (bytes empty past the end), or null.
- */
-async function _readRange(ref, start, length) {
-  const id = ref?.id, key = ref?.key;
-  if (!id && !key) return null;
-  const base = `${WebHelper.GameId}:${id || key}`;
-  const cacheKey = `${base}@${start}+${length}`;
-  const cached = await ResourceCache.get(cacheKey);
-  const known = _rangeVersions.get(base);
-  if (cached && known && cached.version === known.version)
-    return { bytes: new Uint8Array(cached.data), start, total: known.total, version: known.version };
-
-  const query = `${id ? `id=${encodeURIComponent(id)}` : `key=${encodeURIComponent(key)}`}&start=${start}&length=${length}`;
-  const version = cached ? `&ifVersion=${encodeURIComponent(cached.version)}` : "";
-  const resp = await WebHelper.getAsync(`materials/resourcerange?${query}${version}`);
-  if (resp?.version) _rangeVersions.set(base, { version: resp.version, total: resp.total });
-
-  if (resp?.notModified && cached)
-    return { bytes: new Uint8Array(cached.data), start, total: resp.total, version: resp.version };
-  if (typeof resp?.data !== "string") return null;
-
-  const bytes = _base64ToUint8(resp.data);
-  // Not awaited: storing mustn't delay the card.
-  if (resp.version && bytes.length)
-    ResourceCache.put(cacheKey, { data: bytes.buffer, mimeType: resp.mimeType, version: resp.version });
-  return { bytes, start: resp.start ?? start, total: resp.total, version: resp.version };
-}
+// Parts of a resource: helpers/rangeRead.js (shared with media streaming).
+const _readRange = (ref, start, length) => readRange(ref, start, length).then((part) => part && { bytes: part.bytes, start: part.start, total: part.total, version: part.version });
 
 // Resources.Create options → CreateResourceRequest.StorageKind (0 database, 1 server file).
 const _storageKind = (options) => (options?.storage === "file" ? { storageKind: 1 } : {});

@@ -8,6 +8,7 @@ import { applyVolume, fadeIn, fadeOut, onVolumeChange, refreshVolume, setGmVolum
 import PlaylistService from "./PlaylistService";
 import { playOrWait, forgetWaiting } from "../../helpers/audioUnlock";
 import AudioUnlockNotice from "./AudioUnlockNotice";
+import { streamUrl } from "../../helpers/mediaStream";
 import { playingSounds } from "../../helpers/playingSounds";
 
 // Always-mounted singleton (see Game.js) that owns actual audio playback for the
@@ -93,20 +94,33 @@ export const PlaybackManager = () => {
     // size-limited, least recently used dropped first), so a replayed track is only
     // checked with the server, not downloaded again. Each play gets its own object URL
     // below, released in disposeAudio().
-    WebHelper.getMaterialAsync(trackId)
+    const start = (src) => {
+      audio.src = src;
+      if (fadeInOnStart) fadeIn(audio);
+      // Music the autoplay policy refuses starts on the player's first click, where the
+      // others have got to by then. A sound effect is dropped: late, it's worse than none.
+      if (category !== "music") safePlay(audio);
+      else playOrWait(audio, () => {
+        if (seekFromUtc) seekToNow();
+        fadeIn(audio);
+      });
+    };
+    const fromWholeFile = () => WebHelper.getMaterialAsync(trackId)
       .then((blob) => {
         if (audio.__disposed || !(blob instanceof Blob)) return;
-        audio.src = URL.createObjectURL(blob);
-        if (fadeInOnStart) fadeIn(audio);
-        // Music the autoplay policy refuses starts on the player's first click, where the
-        // others have got to by then. A sound effect is dropped: late, it's worse than none.
-        if (category !== "music") safePlay(audio);
-        else playOrWait(audio, () => {
-          if (seekFromUtc) seekToNow();
-          fadeIn(audio);
-        });
+        start(URL.createObjectURL(blob));
       })
       .catch((e) => console.warn("[PlaybackManager] failed to fetch track blob:", e?.message ?? e));
+
+    // Streamed (helpers/mediaStream): plays after its first part, seeking fetches only what's
+    // needed. If the stream fails (an older server, the worker gone), the whole file instead.
+    const stream = streamUrl(trackId);
+    if (stream) {
+      audio.addEventListener("error", () => { if (!audio.__disposed && audio.src === stream) fromWholeFile(); }, { once: true });
+      start(stream);
+    } else {
+      fromWholeFile();
+    }
     return audio;
   };
 
