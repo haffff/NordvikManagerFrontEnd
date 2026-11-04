@@ -105,19 +105,91 @@ const BRIDGE_TEMPLATE = `<script>
   let _cardId              = null;
   let _additionalArguments = null;
 
-  function _rpc(panel, command, data) {
+  // onProgress: the call's RESOURCE_PROGRESS messages (an upload); each one also restarts
+  // the timeout, so a big upload that keeps going isn't given up on.
+  function _rpc(panel, command, data, onProgress) {
     return new Promise((resolve, reject) => {
       const reqId = 'r' + (++_reqCounter);
-      const timer = setTimeout(() => {
+      const wait = panel === 'Resources' ? RESOURCES_TIMEOUT_MS : RPC_TIMEOUT_MS;
+      const giveUp = () => {
         delete _pending[reqId];
         reject(new Error('CardAPI: no answer from the app for ' + panel + '.' + command));
-      }, panel === 'Resources' ? RESOURCES_TIMEOUT_MS : RPC_TIMEOUT_MS);
+      };
+      let timer = setTimeout(giveUp, wait);
       _pending[reqId] = {
         resolve: (v) => { clearTimeout(timer); resolve(v); },
         reject:  (e) => { clearTimeout(timer); reject(e); },
+        progress: (fraction) => {
+          clearTimeout(timer);
+          timer = setTimeout(giveUp, wait);
+          if (onProgress) { try { onProgress(fraction); } catch (e) { console.error('CardAPI upload progress callback error', e); } }
+        },
       };
       parent.postMessage({ type: 'CMD', reqId, panel, command, data }, '*');
     });
+  }
+
+  // Resources.Open's file handle: card code reads any bytes, the whole file or its text; the
+  // bytes come in whole pieces (each asked for once; the app caches them between sessions).
+  const FILE_PIECE = 256 * 1024;
+  function _fileHandle(meta) {
+    const pieces = new Map();
+    const piece = (index) => {
+      if (!pieces.has(index)) {
+        const start = index * FILE_PIECE;
+        const length = Math.min(FILE_PIECE, meta.size - start);
+        const loading = _rpc('Resources', 'ReadRange', { ref: meta.ref, start, length }).then((part) => {
+          if (!part || !part.bytes || part.bytes.length < length) throw new Error('CardAPI: bytes ' + start + '-' + (start + length) + ' of the file could not be read');
+          return new Uint8Array(part.bytes);
+        });
+        loading.catch(() => pieces.delete(index));
+        pieces.set(index, loading);
+      }
+      return pieces.get(index);
+    };
+    let whole = null;
+    const handle = {
+      size: meta.size,
+      mimeType: meta.mimeType,
+      version: meta.version,
+      /** The bytes from start up to (not including) end, as a Uint8Array. */
+      read: async (start, end) => {
+        const from = Math.max(0, start || 0);
+        const to = Math.min(meta.size, end === undefined ? meta.size : end);
+        if (to <= from) return new Uint8Array(0);
+        const first = Math.floor(from / FILE_PIECE);
+        const last = Math.floor((to - 1) / FILE_PIECE);
+        const parts = [];
+        for (let i = first; i <= last; i++) parts.push(piece(i));
+        const loaded = await Promise.all(parts);
+        const out = new Uint8Array(to - from);
+        let offset = 0;
+        loaded.forEach((bytes, i) => {
+          const pieceStart = (first + i) * FILE_PIECE;
+          const a = Math.max(from, pieceStart) - pieceStart;
+          const b = Math.min(to, pieceStart + bytes.length) - pieceStart;
+          out.set(bytes.subarray(a, b), offset);
+          offset += b - a;
+        });
+        return out;
+      },
+      /** The whole file as a Blob of its type. */
+      blob: async () => {
+        if (!whole) {
+          whole = _rpc('Resources', 'ReadWhole', { ref: meta.ref }).then((data) => {
+            if (!data) throw new Error('CardAPI: the file could not be read');
+            return new Blob([data], { type: meta.mimeType || 'application/octet-stream' });
+          });
+          whole.catch(() => { whole = null; });
+        }
+        return whole;
+      },
+      text: async () => new TextDecoder().decode(await new Response(await handle.blob()).arrayBuffer()),
+      json: async () => JSON.parse(await handle.text()),
+      /** A blob: URL an <img>, <audio> or <video> in the card can use (the whole file). */
+      mediaUrl: async () => URL.createObjectURL(await handle.blob()),
+    };
+    return Object.freeze(handle);
   }
 
   function _sendToServer(command, data) {
@@ -207,6 +279,14 @@ const BRIDGE_TEMPLATE = `<script>
       List:   (filter)                     => _rpc('Resources', 'List',   { filter }),
       /** Part of a game resource ({ id } or { key }): { bytes, start, total, version }. */
       ReadRange: (ref, start, length)      => _rpc('Resources', 'ReadRange', { ref, start, length }),
+      /** A file handle ({ size, mimeType, version, read, blob, text, json, mediaUrl }), or null.
+       *  ref: a game-wide key, { key } or { id }. */
+      Open: async (ref) => {
+        const meta = await _rpc('Resources', 'Open', { ref });
+        return meta ? _fileHandle(meta) : null;
+      },
+      /** Stores a file: { id, key }. options: { key, name, mimeType, global, storage: 'file' }. */
+      Upload: (data, options, onProgress) => _rpc('Resources', 'Upload', { data, options: options || {} }, onProgress),
 
       /** Game-wide resources — key is NOT scoped to this card. */
       Global: Object.freeze({
@@ -343,6 +423,12 @@ const BRIDGE_TEMPLATE = `<script>
         Promise.resolve()
           .then(() => handler(msg.data))
           .then((result) => reply(result ?? null), (e) => reply(null, String(e?.message ?? e)));
+        break;
+      }
+
+      case 'RESOURCE_PROGRESS': {
+        const pending = _pending[msg.reqId];
+        if (pending && pending.progress) pending.progress(msg.fraction);
         break;
       }
 

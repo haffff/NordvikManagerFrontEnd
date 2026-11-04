@@ -318,6 +318,14 @@ function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, 
             case "ReadRange":
               result = await method(data?.ref, data?.start, data?.length);
               break;
+            case "Open":
+            case "ReadWhole":
+              result = await method(data?.ref);
+              break;
+            case "Upload":
+              // progress goes to the frame as it comes (the card's onProgress)
+              result = await method(data?.data, data?.options, (fraction) => sendToFrame({ type: "RESOURCE_PROGRESS", reqId, fraction }));
+              break;
             case "Update":
               result = await method(data?.key, data?.data, data?.mimeType);
               break;

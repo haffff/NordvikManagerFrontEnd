@@ -159,3 +159,67 @@ describe('CardAPI bridge, calls to the app', () => {
     expect(handler).not.toHaveBeenCalled();
   });
 });
+
+// The card's file handle (Resources.Open) and Upload, on the frame side: card code reads any
+// bytes, the whole file or text, and uploads with progress; the bridge does the pieces.
+describe('CardAPI bridge — Resources.Open and Upload', () => {
+  const PIECE = 256 * 1024;
+  const SIZE = 600 * 1024; // three pieces, the last one short
+  const byteAt = (i) => i % 251;
+
+  // A frame whose host answers Resources calls at once, like CardPanel with CardAPI.
+  const withHost = (handlers) => {
+    const frame = runScript(sandboxBridgeScript('n-9'), { hash: '' });
+    frame.send({ type: 'INIT', cardId: 'card-1', nonce: 'n-9' });
+    const calls = [];
+    frame.parent.postMessage.mockImplementation((msg) => {
+      if (msg.type !== 'CMD' || msg.panel !== 'Resources') return;
+      calls.push({ command: msg.command, data: msg.data });
+      Promise.resolve(handlers[msg.command]?.(msg.data, (m) => frame.send({ ...m, reqId: msg.reqId, nonce: 'n-9' })))
+        .then((result) => frame.send({ type: 'CMD_RESULT', reqId: msg.reqId, result, nonce: 'n-9' }));
+    });
+    return { api: frame.win.CardAPI, calls };
+  };
+  const readRange = ({ start, length }) => ({ bytes: Uint8Array.from({ length }, (_, i) => byteAt(start + i)), start, total: SIZE });
+
+  it('Open gives a handle: size and type, any bytes (read in whole pieces, each once), the whole file', async () => {
+    const { api, calls } = withHost({
+      Open: ({ ref }) => ({ ref: { key: ref }, size: SIZE, mimeType: 'application/pdf', version: 'v1' }),
+      ReadRange: readRange,
+      ReadWhole: () => new Blob(['%PDF-1.7']),
+    });
+
+    const file = await api.Resources.Open('pdf_src_a.pdf');
+    expect(file).toMatchObject({ size: SIZE, mimeType: 'application/pdf', version: 'v1' });
+
+    const bytes = await file.read(PIECE - 2, PIECE + 3);
+    expect([...bytes]).toEqual([PIECE - 2, PIECE - 1, PIECE, PIECE + 1, PIECE + 2].map(byteAt));
+    await file.read(PIECE, PIECE + 10); // the second piece again: not asked for again
+    const ranges = calls.filter((c) => c.command === 'ReadRange').map((c) => [c.data.start, c.data.length]);
+    expect(ranges).toEqual([[0, PIECE], [PIECE, PIECE]]);
+
+    expect((await file.read(2 * PIECE, SIZE)).length).toBe(SIZE - 2 * PIECE);
+    expect(calls.at(-1).data).toEqual({ ref: { key: 'pdf_src_a.pdf' }, start: 2 * PIECE, length: SIZE - 2 * PIECE });
+
+    const blob = await file.blob();
+    expect(blob.type).toBe('application/pdf');
+  });
+
+  it('Open of a missing file is null', async () => {
+    const { api } = withHost({ Open: () => null });
+    expect(await api.Resources.Open({ id: 'gone' })).toBeNull();
+  });
+
+  it('Upload sends the file with its options and reports progress as it comes', async () => {
+    const { api, calls } = withHost({
+      Upload: (data, progress) => { progress({ type: 'RESOURCE_PROGRESS', fraction: 0.5 }); progress({ type: 'RESOURCE_PROGRESS', fraction: 1 }); return { id: 'res-1', key: 'card-1/book.pdf' }; },
+    });
+    const seen = [];
+
+    const result = await api.Resources.Upload('data', { key: 'book.pdf', storage: 'file' }, (f) => seen.push(f));
+
+    expect(result).toEqual({ id: 'res-1', key: 'card-1/book.pdf' });
+    expect(calls[0]).toEqual({ command: 'Upload', data: { data: 'data', options: { key: 'book.pdf', storage: 'file' } } });
+    expect(seen).toEqual([0.5, 1]);
+  });
+});

@@ -169,12 +169,12 @@ const _UPLOAD_PIECE = 2 * 1024 * 1024;
  * Creates a resource under key (already scoped): a big file in parts, otherwise in one
  * request (also on an older server without parts). Rejects a taken key. Resolves to its id.
  */
-async function _createResource(key, data, name, mimeType, options) {
+async function _createResource(key, data, name, mimeType, options, onProgress) {
   const mt = mimeType ?? _mimeTypeOf(data);
   const size = data?.size ?? data?.byteLength ?? 0;
   if (size > _UPLOAD_PIECE && typeof WebHelper.uploadInPieces === "function") {
     const blob = data instanceof Blob ? data : new Blob([data], { type: mt });
-    const resp = await WebHelper.uploadInPieces(blob, { name, mimeType: mt, key, storageKind: options?.storage === "file" ? 1 : 0 });
+    const resp = await WebHelper.uploadInPieces(blob, { name, mimeType: mt, key, storageKind: options?.storage === "file" ? 1 : 0 }, { onProgress });
     if (resp !== null) {
       if (resp?.status === 409)
         throw new Error(resp.body?.error ?? "Resource with that key already exists.");
@@ -187,12 +187,23 @@ async function _createResource(key, data, name, mimeType, options) {
   const resp = await WebHelper.postAsync("materials/createresource", {
     key, content, mimeType: mt, name, ..._storageKind(options),
   });
+  onProgress?.(1);
   if (resp?.status === 409)
     throw new Error(resp.body?.error ?? "Resource with that key already exists.");
   if (!resp || resp.status >= 300)
     throw new Error(resp?.body?.error ?? "Failed to create resource.");
   return resp.body?.id;
 }
+
+/** A resource reference: a game-wide key string, { key } or { id }; null for anything else. */
+function _normalizeRef(ref) {
+  if (typeof ref === "string" && ref) return { key: ref };
+  if (ref?.id) return { id: String(ref.id) };
+  if (ref?.key) return { key: String(ref.key) };
+  return null;
+}
+
+const _randomHex = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
 
 // ─── CardAPI ──────────────────────────────────────────────────────────────────
 
@@ -735,6 +746,41 @@ class CardAPI {
      * @returns {Promise<{ bytes: Uint8Array, start: number, total: number, version: string }|null>}
      */
     ReadRange: async (ref, start, length) => _readRange(ref, start, length),
+
+    /**
+     * What a file is, for the card's file handle (the frame side builds read/blob/text/json/
+     * mediaUrl on it): { ref, size, mimeType, version }, or null when there's no such file.
+     * @param {string|{ id?: string, key?: string }} ref - A game-wide key, { key } or { id }.
+     */
+    Open: async (ref) => {
+      const r = _normalizeRef(ref);
+      if (!r) return null;
+      const part = await readRange(r, 0, 1);
+      return part ? { ref: r, size: part.total, mimeType: part.mimeType, version: part.version } : null;
+    },
+
+    /** The whole file as a Blob (downloaded in pieces and cached by the app), or null. */
+    ReadWhole: async (ref) => {
+      const r = _normalizeRef(ref);
+      if (!r) return null;
+      const data = await WebHelper.getMaterialAsync(r.id ?? null, "application/octet-stream", r.key);
+      return data instanceof Blob ? data : null;
+    },
+
+    /**
+     * Stores a file and says where: { id, key }. Big files go up in parts, resumably.
+     * @param {Blob|ArrayBuffer|Uint8Array|string} data
+     * @param {{ key?: string, name?: string, mimeType?: string, global?: boolean, storage?: "file" }} [options]
+     *   key: scoped to this card unless global (a new one is made when none is given);
+     *   storage "file": the server's file storage (big files; needs Edit on the game).
+     * @param {(fraction: number) => void} [onProgress]
+     */
+    Upload: async (data, options = {}, onProgress) => {
+      const raw = options?.key || `upload_${_randomHex()}`;
+      const key = options?.global ? raw : this._scopeKey(raw);
+      const id = await _createResource(key, data, options?.name ?? raw, options?.mimeType, options, onProgress);
+      return { id, key };
+    },
 
     /**
      * The game's resources this player can see (all of them for whoever may edit the

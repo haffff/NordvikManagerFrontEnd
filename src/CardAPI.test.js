@@ -619,3 +619,63 @@ describe('CardAPI — Resources.Create with a big file', () => {
     api.destroy();
   });
 });
+
+// The simple file API for cards: Open gives what a file is (size, type, version) for the card's
+// file handle; ReadWhole the whole file (in pieces underneath); Upload sends a file under a key
+// (in parts when big) and tells how far it got. Card code never deals with byte ranges.
+describe('CardAPI — Resources.Open, ReadWhole, Upload', () => {
+  const b64 = (bytes) => btoa(String.fromCharCode(...bytes));
+
+  beforeEach(() => {
+    ActiveWebHelper.GameId = 'game-1';
+    ActiveWebHelper.getAsync.mockReset();
+    ActiveWebHelper.postAsync.mockReset().mockResolvedValue({ status: 200, body: { id: 'one-piece' } });
+    ActiveWebHelper.uploadInPieces.mockReset();
+    ActiveWebHelper.getMaterialAsync = vi.fn();
+    ResourceCache.get.mockReset().mockResolvedValue(null);
+    ResourceCache.put.mockReset().mockResolvedValue(true);
+  });
+
+  it('Open: what the file is, by key (game-wide), { key } or { id }; null when there is none', async () => {
+    const api = await CardAPIFactory('card-op1');
+    ActiveWebHelper.getAsync.mockResolvedValue({ data: b64([1]), start: 0, total: 9000, mimeType: 'application/pdf', version: 'v1' });
+
+    expect(await api.Resources.Open('pdf_src_a.pdf')).toEqual({ ref: { key: 'pdf_src_a.pdf' }, size: 9000, mimeType: 'application/pdf', version: 'v1' });
+    expect(ActiveWebHelper.getAsync).toHaveBeenLastCalledWith('materials/resourcerange?key=pdf_src_a.pdf&start=0&length=1');
+    expect((await api.Resources.Open({ id: 'res-1' })).ref).toEqual({ id: 'res-1' });
+
+    ActiveWebHelper.getAsync.mockResolvedValue(null);
+    expect(await api.Resources.Open({ id: 'gone' })).toBeNull();
+    expect(await api.Resources.Open({})).toBeNull();
+    api.destroy();
+  });
+
+  it('ReadWhole: the whole file as a Blob, through the app’s cached download', async () => {
+    const api = await CardAPIFactory('card-op2');
+    const blob = new Blob(['%PDF'], { type: 'application/octet-stream' });
+    ActiveWebHelper.getMaterialAsync.mockResolvedValue(blob);
+
+    expect(await api.Resources.ReadWhole({ key: 'k' })).toBe(blob);
+    expect(ActiveWebHelper.getMaterialAsync).toHaveBeenCalledWith(null, 'application/octet-stream', 'k');
+    await api.Resources.ReadWhole({ id: 'r1' });
+    expect(ActiveWebHelper.getMaterialAsync).toHaveBeenLastCalledWith('r1', 'application/octet-stream', undefined);
+    api.destroy();
+  });
+
+  it('Upload: under the card’s scope by default, game-wide when asked, a key made when none is given; progress passed on', async () => {
+    const api = await CardAPIFactory('card-op3');
+    const big = new Blob([new Uint8Array(3 * 1024 * 1024)], { type: 'application/pdf' });
+    ActiveWebHelper.uploadInPieces.mockImplementation(async (b, meta, { onProgress }) => { onProgress?.(0.5); onProgress?.(1); return { status: 200, body: { id: 'res-big' } }; });
+    const progress = vi.fn();
+
+    expect(await api.Resources.Upload(big, { key: 'book.pdf', name: 'Book' }, progress)).toEqual({ id: 'res-big', key: 'card-op3/book.pdf' });
+    expect(progress.mock.calls.map(([f]) => f)).toEqual([0.5, 1]);
+
+    const global = await api.Resources.Upload(big, { global: true, storage: 'file' });
+    expect(global.key).toMatch(/^upload_[0-9a-f]{32}$/);
+    expect(ActiveWebHelper.uploadInPieces.mock.calls[1][1]).toMatchObject({ key: global.key, storageKind: 1 });
+
+    expect(await api.Resources.Upload('small text', { key: 'notes.txt' })).toEqual({ id: 'one-piece', key: 'card-op3/notes.txt' });
+    api.destroy();
+  });
+});
