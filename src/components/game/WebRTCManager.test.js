@@ -55,6 +55,7 @@ const { webRTCWebHelperMock } = vi.hoisted(() => ({
     reset: vi.fn(),
     flushQueue: vi.fn(),
     handleApiResponse: vi.fn(),
+    responseProgress: vi.fn(),
   },
 }));
 vi.mock('../../helpers/WebRTCWebHelper', () => ({
@@ -426,6 +427,31 @@ describe('WebRTCManager', () => {
       chunk('c3', -1, 2, 'x');
       expect(dispatched).not.toHaveBeenCalled();
       expect(WebRTCManagerInstance._chunkBuffer.get('c3').received).toBe(1);
+    });
+
+    // A big download (a whole PDF) can take minutes: a message is only given up on when
+    // its chunks stop coming, and while they come, the request waiting for it is still alive.
+    it('keeps a message whose chunks keep coming, however long it takes in all', () => {
+      vi.useFakeTimers();
+      const progress = webRTCWebHelperMock.responseProgress;
+      progress.mockClear();
+      try {
+        chunk('c6', 0, 3, '{"type":"x","id":"req-1","a');
+        vi.advanceTimersByTime(50_000);
+        chunk('c6', 1, 3, '":');
+        vi.advanceTimersByTime(50_000);
+        chunk('c6', 2, 3, '6}');
+        expect(dispatched).toHaveBeenCalledWith({ type: 'x', id: 'req-1', a: 6 });
+        // the request the message answers (its id leads the first chunk), and only that one
+        expect(progress).toHaveBeenCalledTimes(3);
+        expect(progress.mock.calls.every(([id]) => id === 'req-1')).toBe(true);
+
+        chunk('c7', 0, 2, '{"a');
+        vi.advanceTimersByTime(60_001);
+        expect(WebRTCManagerInstance._chunkBuffer.has('c7')).toBe(false);
+      } finally {
+        vi.useRealTimers();
+      }
     });
 
     it('ignores a chunk claiming an absurd total', () => {

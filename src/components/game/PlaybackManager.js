@@ -8,6 +8,7 @@ import { applyVolume, fadeIn, fadeOut, onVolumeChange, refreshVolume, setGmVolum
 import PlaylistService from "./PlaylistService";
 import { playOrWait, forgetWaiting } from "../../helpers/audioUnlock";
 import AudioUnlockNotice from "./AudioUnlockNotice";
+import { streamUrl } from "../../helpers/mediaStream";
 import { playingSounds } from "../../helpers/playingSounds";
 
 // Always-mounted singleton (see Game.js) that owns actual audio playback for the
@@ -59,6 +60,8 @@ export const PlaybackManager = () => {
     forgetWaiting(audio);
     audio.pause();
     if (audio.src) URL.revokeObjectURL(audio.src);
+    // a streamed track would otherwise go on buffering through the service worker
+    if (audio.src && !audio.src.startsWith("blob:")) { audio.removeAttribute?.("src"); audio.load?.(); }
   };
 
   // Stop, track change: fade out, then dispose. Flagged disposed at once, so a track
@@ -93,20 +96,36 @@ export const PlaybackManager = () => {
     // size-limited, least recently used dropped first), so a replayed track is only
     // checked with the server, not downloaded again. Each play gets its own object URL
     // below, released in disposeAudio().
-    WebHelper.getMaterialAsync(trackId)
+    const start = (src) => {
+      audio.src = src;
+      if (fadeInOnStart) fadeIn(audio);
+      // Music the autoplay policy refuses starts on the player's first click, where the
+      // others have got to by then. A sound effect is dropped: late, it's worse than none.
+      if (category !== "music") safePlay(audio);
+      else playOrWait(audio, () => {
+        if (seekFromUtc) seekToNow();
+        fadeIn(audio);
+      });
+    };
+    // resumeAt: where a failed stream had got to (synced music seeks by seekFromUtc instead)
+    const fromWholeFile = (resumeAt = 0) => WebHelper.getMaterialAsync(trackId)
       .then((blob) => {
         if (audio.__disposed || !(blob instanceof Blob)) return;
-        audio.src = URL.createObjectURL(blob);
-        if (fadeInOnStart) fadeIn(audio);
-        // Music the autoplay policy refuses starts on the player's first click, where the
-        // others have got to by then. A sound effect is dropped: late, it's worse than none.
-        if (category !== "music") safePlay(audio);
-        else playOrWait(audio, () => {
-          if (seekFromUtc) seekToNow();
-          fadeIn(audio);
-        });
+        if (resumeAt > 0 && !seekFromUtc)
+          audio.addEventListener("loadedmetadata", () => { audio.currentTime = resumeAt; }, { once: true });
+        start(URL.createObjectURL(blob));
       })
       .catch((e) => console.warn("[PlaybackManager] failed to fetch track blob:", e?.message ?? e));
+
+    // Streamed (helpers/mediaStream): plays after its first part, seeking fetches only what's
+    // needed. If the stream fails (an older server, the worker gone), the whole file instead.
+    const stream = streamUrl(trackId);
+    if (stream) {
+      audio.addEventListener("error", () => { if (!audio.__disposed && audio.src === stream) fromWholeFile(audio.currentTime || 0); }, { once: true });
+      start(stream);
+    } else {
+      fromWholeFile();
+    }
     return audio;
   };
 

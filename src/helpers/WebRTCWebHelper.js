@@ -7,6 +7,13 @@ import ResourceCache from './ResourceCache';
 import UtilityHelper from './UtilityHelper';
 import addonOpLog, { isAddonOpPath } from './addonOpLog';
 import { debugLog } from './debugLog';
+import transferStats from './transferStats';
+
+// Roughly how many bytes a request or answer carries: its base64 payload, if it has one.
+const _payloadBytes = (body) => {
+  const b64 = body?.data ?? body?.Data ?? body?.content ?? body?.Content;
+  return typeof b64 === 'string' ? Math.floor(b64.length * 3 / 4) : 0;
+};
 
 const REQUEST_TIMEOUT_MS = 30000;
 
@@ -25,6 +32,23 @@ function _camelizeKeys(obj) {
 }
 
 // Convert a base64 string (with optional data-URI prefix) to blob or text.
+// Resources come in pieces of this size (the most the server sends per part), two at a time.
+const PIECE_SIZE = 2 * 1024 * 1024;
+const PARALLEL_PIECES = 2;
+const CACHED = 'cached', WHOLE = 'whole', FAILED = 'failed';
+// An upload gives up after this many parts in a row lost on the way.
+const MAX_UPLOAD_MISSES = 5;
+
+// A Blob (or slice) as base64, without the data: prefix.
+function _blobToBase64(blob) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result).replace(/^data:[^,]*,/, ''));
+    reader.onerror = () => reject(reader.error);
+    reader.readAsDataURL(blob);
+  });
+}
+
 function _base64ToBytes(b64) {
   const stripped = b64.replace(/^data:[^;]+;base64,/, '');
   return Uint8Array.from(atob(stripped), (c) => c.charCodeAt(0));
@@ -94,7 +118,19 @@ class WebRTCWebHelper {
     if (entry.trace) addonOpLog(`api-response ${entry.trace} → ${status}`, body);
     clearTimeout(entry.timeoutHandle);
     this._pending.delete(id);
+    entry.stat?.done({ status, bytes: Math.max(_payloadBytes(body), entry.sentBytes ?? 0) });
     entry.resolve({ status, body: _camelizeKeys(body) });
+  }
+
+  // Called by WebRTCManager while a chunked message comes in, with the id of the request it
+  // answers (read from its first chunk): that request gets the full timeout again, so a big
+  // response (a whole PDF) is given up on only when it stops coming. Other requests keep
+  // their own timeouts.
+  responseProgress(requestId) {
+    const entry = requestId ? this._pending.get(requestId) : null;
+    if (!entry) return;
+    entry.armTimeout?.();
+    entry.stat?.firstByte();
   }
 
   // Called by WebRTCManager when data channel opens — flush queued requests
@@ -117,7 +153,8 @@ class WebRTCWebHelper {
     const trace = message.method !== 'GET' && isAddonOpPath(message.path)
       ? `${message.method} ${message.path} id=${id}` : null;
     if (trace) addonOpLog(`sending ${trace}`);
-    this._pending.set(id, { resolve, reject, timeoutHandle: null, trace });
+    const stat = transferStats.start(message.method, message.path);
+    this._pending.set(id, { resolve, reject, timeoutHandle: null, trace, stat, sentBytes: _payloadBytes(message.body) });
     let sending;
     try {
       sending = this._transport.sendRaw(message, { onProgress });
@@ -129,11 +166,15 @@ class WebRTCWebHelper {
         const entry = this._pending.get(id);
         if (!entry) return; // already answered or reset
         if (trace) addonOpLog(`sent ${trace}, waiting up to ${REQUEST_TIMEOUT_MS / 1000}s for the answer`);
-        entry.timeoutHandle = setTimeout(() => {
-          if (trace) addonOpLog(`TIMEOUT ${trace}: no answer from the server`);
-          this._pending.delete(id);
-          reject(new Error(`WebRTC API timeout: ${message.method} ${message.path}`));
-        }, REQUEST_TIMEOUT_MS);
+        entry.armTimeout = () => {
+          clearTimeout(entry.timeoutHandle);
+          entry.timeoutHandle = setTimeout(() => {
+            if (trace) addonOpLog(`TIMEOUT ${trace}: no answer from the server`);
+            this._pending.delete(id);
+            reject(new Error(`WebRTC API timeout: ${message.method} ${message.path}`));
+          }, REQUEST_TIMEOUT_MS);
+        };
+        entry.armTimeout();
       },
       (err) => {
         if (trace) addonOpLog(`send FAILED ${trace}: ${err?.message}`);
@@ -256,16 +297,40 @@ class WebRTCWebHelper {
   // Results are kept in ResourceCache (in the browser, between sessions): a cached
   // resource is requested with its version, and the server answers { notModified }
   // instead of sending it again while that version is current.
-  async getMaterialAsync(id, mimeType, key, thumbnail = false) {
+  //
+  // A file comes in pieces (materials/resourcerange, PIECE_SIZE each, two at a time), so
+  // other messages get through while a big one loads, the server never holds the whole file
+  // for it, and onProgress(fraction) can follow it. An older server without that route, or a
+  // file that changes during the download, gets the whole-file request below instead.
+  // raw: { bytes, mimeType } (the server's type) instead of a Blob or string, e.g. for the
+  // Card API, which decodes text itself.
+  async getMaterialAsync(id, mimeType, key, thumbnail = false, { onProgress, raw = false } = {}) {
     const queryParam = id ? `id=${id}` : `key=${key}`;
     const thumbParam = thumbnail ? '&thumbnail=true' : '';
     const cacheKey = `${this.GameId}:${thumbnail ? 't:' : ''}${id || key}`;
     const cached = await ResourceCache.get(cacheKey);
     const versionParam = cached ? `&ifVersion=${encodeURIComponent(cached.version)}` : '';
+    const out = (bytes, serverMimeType) => (raw ? { bytes, mimeType: serverMimeType } : _bytesToData(bytes, mimeType ?? serverMimeType));
+
+    if (!thumbnail) {
+      const pieces = await this._getInPieces(queryParam, cached, onProgress);
+      if (pieces === FAILED) {
+        console.warn(`[WebRTCWebHelper] getMaterialAsync failed for id=${id} key=${key}`);
+        return undefined;
+      }
+      if (pieces === CACHED)
+        return out(new Uint8Array(cached.data), cached.mimeType ?? 'application/octet-stream');
+      if (pieces !== WHOLE) {
+        const serverMimeType = pieces.mimeType ?? 'application/octet-stream';
+        // Not awaited: storing mustn't delay the caller.
+        if (pieces.version) ResourceCache.put(cacheKey, { data: pieces.bytes.buffer, mimeType: serverMimeType, version: pieces.version });
+        return out(pieces.bytes, serverMimeType);
+      }
+    }
 
     const result = await this._sendRequest('GET', `materials/resource?${queryParam}${thumbParam}${versionParam}`);
     if (result?.status === 200 && result.body?.notModified && cached) {
-      return _bytesToData(new Uint8Array(cached.data), mimeType ?? cached.mimeType ?? 'application/octet-stream');
+      return out(new Uint8Array(cached.data), cached.mimeType ?? 'application/octet-stream');
     }
     if (result?.status !== 200 || !result?.body?.data) {
       console.warn(`[WebRTCWebHelper] getMaterialAsync failed for id=${id} key=${key}: status=${result?.status}`, result?.body);
@@ -277,7 +342,59 @@ class WebRTCWebHelper {
       // Not awaited: storing mustn't delay the caller.
       ResourceCache.put(cacheKey, { data: bytes.buffer, mimeType: serverMimeType, version: result.body.version });
     }
-    return _bytesToData(bytes, mimeType ?? serverMimeType);
+    return out(bytes, serverMimeType);
+  }
+
+  // The pieces of a resource, assembled: { bytes, mimeType, version }, or CACHED (the cached
+  // copy is current), WHOLE (ask with the whole-file request instead) or FAILED.
+  async _getInPieces(queryParam, cached, onProgress) {
+    const pieceSize = this.pieceSize ?? PIECE_SIZE;
+    const path = (start, length = pieceSize) => `materials/resourcerange?${queryParam}&start=${start}&length=${length}`;
+    const first = await this._sendRequest('GET', path(0) + (cached ? `&ifVersion=${encodeURIComponent(cached.version)}` : ''));
+    if (first?.status === 404) return WHOLE; // an older server (or no such file: the whole-file request says so)
+    if (first?.status !== 200) return FAILED;
+    if (first.body?.notModified && cached) return CACHED;
+    if (typeof first.body?.data !== 'string') return FAILED;
+
+    const { total, version, mimeType } = first.body;
+    const head = _base64ToBytes(first.body.data);
+    if (head.length >= total) return head.length === total ? { bytes: head, mimeType, version } : WHOLE;
+    if (!head.length) return WHOLE;
+    // The server may cap a piece below what was asked: go on in the size it sent.
+    const step = Math.min(pieceSize, head.length);
+    const bytes = new Uint8Array(total);
+    bytes.set(head, 0);
+    let received = head.length;
+    onProgress?.(received / total);
+
+    const starts = [];
+    for (let start = step; start < total; start += step) starts.push(start);
+    let outcome = null; // WHOLE or FAILED, once something goes wrong
+    const fetchPiece = async (start) => {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        let result;
+        try { result = await this._sendRequest('GET', path(start, step)); } catch { continue; }
+        if (result?.status !== 200 || typeof result.body?.data !== 'string') continue;
+        if (result.body.version !== version) return WHOLE; // changed meanwhile
+        const piece = _base64ToBytes(result.body.data);
+        // exactly the bytes asked for, or the file would have a gap (or overrun)
+        return piece.length === Math.min(step, total - start) ? piece : WHOLE;
+      }
+      return FAILED;
+    };
+    const worker = async () => {
+      while (starts.length && !outcome) {
+        const start = starts.shift();
+        const piece = await fetchPiece(start);
+        if (piece === WHOLE || piece === FAILED) { outcome ??= piece; return; }
+        bytes.set(piece, start);
+        received += piece.length;
+        onProgress?.(received / total);
+      }
+    };
+    await Promise.all(Array.from({ length: PARALLEL_PIECES }, worker));
+    if (!outcome && received !== total) return WHOLE;
+    return outcome ?? { bytes, mimeType, version };
   }
 
   // Fetch a resource as a Blob, with session-level in-memory caching.
@@ -312,7 +429,75 @@ class WebRTCWebHelper {
   // then sends as a tunneled POST, matching the Materials/AddResource body schema.
   // onProgress(fraction 0..1) follows the upload.
   // parentFolder: the Materials folder (tree entry) it goes into; the top level when null.
+  // A file bigger than one piece goes up in parts (uploadInPieces); an older server without
+  // that gets the single request below.
   postMaterial(file, onok, onerror, onException, onProgress, parentFolder = null) {
+    if (file?.size > (this.pieceSize ?? PIECE_SIZE)) {
+      this.uploadInPieces(file, { name: file.name, mimeType: file.type?.toString(), parentFolder }, { onProgress })
+        .then((r) => {
+          if (r === null) return this._postMaterialWhole(file, onok, onerror, onException, onProgress, parentFolder);
+          if (r.status >= 200 && r.status < 300) { if (onok) onok(r.body); }
+          else if (onerror) onerror(r);
+        })
+        .catch((e) => { if (onException) onException(e); else console.error(e); });
+      return;
+    }
+    this._postMaterialWhole(file, onok, onerror, onException, onProgress, parentFolder);
+  }
+
+  /**
+   * Uploads a Blob in parts of pieceSize (materials/UploadStart, UploadPart, UploadFinish):
+   * no huge request, onProgress(fraction) as parts arrive, and a part lost on the way is
+   * resumed from what the server has (UploadStatus). meta: { name, mimeType, key, parentFolder,
+   * storageKind } (with a key: made like CreateResource; without: like a Materials upload).
+   * Resolves to the finishing answer { status, body }, the refusal of the start, or null
+   * when the server has no such routes (send it in one piece then).
+   */
+  // One upload at a time: two big uploads at once kept the data channel full without a pause
+  // and the GM backend's WebRTC stack dropped the connection (seen with two 20 MB PDFs; one at
+  // a time was fine). The others wait their turn, also when one before them fails.
+  uploadInPieces(blob, meta, options) {
+    const run = () => this._uploadInPiecesNow(blob, meta, options);
+    const result = (this._uploadQueue ?? Promise.resolve()).then(run, run);
+    this._uploadQueue = result.catch(() => {});
+    return result;
+  }
+
+  async _uploadInPiecesNow(blob, { name, mimeType, key = null, parentFolder = null, storageKind = 0 }, { onProgress } = {}) {
+    const pieceSize = this.pieceSize ?? PIECE_SIZE;
+    const size = blob.size;
+    const start = await this._sendRequest('POST', 'materials/uploadstart', {
+      Name: name, MimeType: mimeType, Key: key, ParentFolder: parentFolder, StorageKind: storageKind, Size: size,
+    });
+    if (start?.status === 404) return null;
+    if (start?.status !== 200 || !start.body?.uploadId) return start;
+    const uploadId = start.body.uploadId;
+
+    let offset = 0;
+    let misses = 0;
+    while (offset < size) {
+      const data = await _blobToBase64(blob.slice(offset, offset + pieceSize));
+      let r = null;
+      try { r = await this._sendRequest('POST', 'materials/uploadpart', { UploadId: uploadId, Offset: offset, Data: data }); } catch { r = null; }
+      if (r?.status === 200 && typeof r.body?.received === 'number') {
+        offset = r.body.received;
+        misses = 0;
+        onProgress?.(offset / size);
+        continue;
+      }
+      if (r?.status === 409 && typeof r.body?.received === 'number') { offset = r.body.received; continue; }
+      if (r?.status === 404 || ++misses > MAX_UPLOAD_MISSES) return r ?? { status: 0, body: { error: 'The upload was lost.' } };
+      // lost on the way (or the connection dropped): wait a little, then ask where it is
+      await new Promise((res) => setTimeout(res, (this.retryDelayMs ?? 1000) * misses));
+      try {
+        const status = await this._sendRequest('GET', `materials/uploadstatus?uploadId=${uploadId}`);
+        if (status?.status === 200 && typeof status.body?.received === 'number') offset = status.body.received;
+      } catch { /* asked again on the next miss */ }
+    }
+    return this._sendRequest('POST', 'materials/uploadfinish', { UploadId: uploadId });
+  }
+
+  _postMaterialWhole(file, onok, onerror, onException, onProgress, parentFolder) {
     UtilityHelper.ConvertBlobToB64(file).then((b64) => {
       this.post(
         'Materials/AddResource',

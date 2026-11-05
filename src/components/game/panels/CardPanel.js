@@ -12,6 +12,9 @@ import { isMobileUi } from "../../../helpers/uiMode";
 import { closeTab } from "../mobile/mobileTabs";
 import { baseCardCss, cardStyleLinks, onGameCssChange } from "../../../helpers/cardAppStyles";
 
+// How often the app tells a card its Resources call is still running (the card waits 5 minutes).
+const RESOURCE_KEEPALIVE_MS = 60000;
+
 // ─── postMessage bridge ───────────────────────────────────────────────────────
 
 /**
@@ -304,20 +307,45 @@ function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, 
           const method = resourceTarget[command];
           if (typeof method !== "function") throw new Error(`Unknown Resources method: ${command}`);
 
+          // Still at it: a whole big file, or an upload waiting behind another, can outlast the
+          // card's 5-minute wait; this keeps the card's call alive (the app's own requests time
+          // out if the server stops answering).
+          const keepAlive = setInterval(() => sendToFrame({ type: "RESOURCE_PROGRESS", reqId, fraction: null }), RESOURCE_KEEPALIVE_MS);
+          try {
           switch (command) {
             case "Read":
             case "Delete":
               result = await method(data?.key);
+              break;
+            case "ReadById":
+              result = await method(data?.id);
+              break;
+            case "List":
+              result = await method(data?.filter);
+              break;
+            case "ReadRange":
+              result = await method(data?.ref, data?.start, data?.length);
+              break;
+            case "Open":
+            case "ReadWhole":
+              result = await method(data?.ref);
+              break;
+            case "Upload":
+              // progress goes to the frame as it comes (the card's onProgress)
+              result = await method(data?.data, data?.options, (fraction) => sendToFrame({ type: "RESOURCE_PROGRESS", reqId, fraction }));
               break;
             case "Update":
               result = await method(data?.key, data?.data, data?.mimeType);
               break;
             case "Create":
             case "Upsert":
-              result = await method(data?.key, data?.data, data?.name, data?.mimeType);
+              result = await method(data?.key, data?.data, data?.name, data?.mimeType, data?.options);
               break;
             default:
               result = await method(data?.key, data?.data, data?.name, data?.mimeType);
+          }
+          } finally {
+            clearInterval(keepAlive);
           }
 
         } else {

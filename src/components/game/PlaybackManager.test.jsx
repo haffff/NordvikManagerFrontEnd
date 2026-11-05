@@ -45,6 +45,9 @@ vi.mock('../../helpers/systemAssets', () => ({
 
 vi.mock('./PlaylistService', () => ({ default: {} }));
 
+const { streamUrlMock } = vi.hoisted(() => ({ streamUrlMock: vi.fn(() => null) }));
+vi.mock('../../helpers/mediaStream', () => ({ streamUrl: streamUrlMock }));
+
 import { PlaybackManager } from './PlaybackManager';
 import { playingSounds } from '../../helpers/playingSounds';
 
@@ -77,6 +80,9 @@ class FakeAudio {
   fireEnded() {
     (this._listeners.ended || []).forEach((cb) => cb());
   }
+  fire(evt) {
+    (this._listeners[evt] || []).forEach((cb) => cb());
+  }
 }
 FakeAudio.instances = [];
 FakeAudio.blocked = false;
@@ -95,6 +101,7 @@ beforeEach(() => {
   global.URL.createObjectURL = vi.fn(() => 'blob:fake-url');
   global.URL.revokeObjectURL = vi.fn();
   getMaterialAsyncMock.mockImplementation(() => Promise.resolve(new Blob(['x'])));
+  streamUrlMock.mockImplementation(() => null);
 });
 
 // Lets every fade (start/stop ~0.5 s, volume ramps ~0.3 s) and pending load finish.
@@ -544,5 +551,56 @@ describe('PlaybackManager — fades', () => {
     await loaded();
 
     expect(FakeAudio.instances[0].volume).toBe(1);
+  });
+});
+
+// With media streaming (a service worker controls the page), a track plays from its
+// __stream URL at once instead of after downloading the whole file; if streaming fails,
+// it falls back to the whole file.
+describe('PlaybackManager — streaming', () => {
+  it('plays a sound from its stream URL without downloading it first', async () => {
+    streamUrlMock.mockImplementation((id) => `https://nordvik.test/client/__stream/id/${id}`);
+    await mount();
+
+    subscriptions.sound({ command: 'sound_play', data: { resourceId: 'r1' } });
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(getMaterialAsyncMock).not.toHaveBeenCalled();
+    expect(FakeAudio.instances[0].src).toBe('https://nordvik.test/client/__stream/id/r1');
+    expect(FakeAudio.instances[0].paused).toBe(false);
+  });
+
+  it('falls back to the whole file when the stream fails', async () => {
+    streamUrlMock.mockImplementation((id) => `https://nordvik.test/client/__stream/id/${id}`);
+    await mount();
+
+    subscriptions.sound({ command: 'sound_play', data: { resourceId: 'r1' } });
+    await Promise.resolve();
+    FakeAudio.instances[0].fire('error');
+    await Promise.resolve();
+    await Promise.resolve();
+
+    expect(getMaterialAsyncMock).toHaveBeenCalledWith('r1');
+    expect(FakeAudio.instances[0].src).toBe('blob:fake-url');
+  });
+
+  // A stream failing halfway through a track: the whole file carries on from there, not from 0.
+  it('the whole file carries on where the stream stopped', async () => {
+    streamUrlMock.mockImplementation((id) => `https://nordvik.test/client/__stream/id/${id}`);
+    await mount();
+
+    subscriptions.sound({ command: 'sound_play', data: { resourceId: 'r1' } });
+    await Promise.resolve();
+    const audio = FakeAudio.instances[0];
+    audio.currentTime = 42;
+    audio.fire('error');
+    await Promise.resolve();
+    await Promise.resolve();
+    audio.currentTime = 0; // a new src starts at 0
+    audio.fire('loadedmetadata');
+
+    expect(audio.src).toBe('blob:fake-url');
+    expect(audio.currentTime).toBe(42);
   });
 });

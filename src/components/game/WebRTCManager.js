@@ -9,6 +9,7 @@
 
 import SignalingClient, { SIGNAL_EVENTS } from '../../helpers/SignalingClient';
 import WebRTCWebHelperInstance from '../../helpers/WebRTCWebHelper';
+import transferStats from '../../helpers/transferStats';
 import TokenStore from '../../helpers/TokenStore';
 import { debugLog } from '../../helpers/debugLog';
 import { demoRecorder } from '../../helpers/demoRecorder';
@@ -615,15 +616,7 @@ class WebRTCManager {
           return;
         }
         if (!this._chunkBuffer.has(chunkId)) {
-          // If a chunk is ever lost, this entry would otherwise sit in the map
-          // forever — drop it after a generous timeout so it can't accumulate.
-          const staleTimeout = setTimeout(() => {
-            if (this._chunkBuffer.has(chunkId)) {
-              this._log('warn', `Dropping incomplete chunked message ${chunkId} (timed out)`);
-              this._chunkBuffer.delete(chunkId);
-            }
-          }, 60_000);
-          this._chunkBuffer.set(chunkId, { parts: new Array(total), received: 0, total, staleTimeout });
+          this._chunkBuffer.set(chunkId, { parts: new Array(total), received: 0, total, staleTimeout: null });
         }
         const entry = this._chunkBuffer.get(chunkId);
         // Only a new slot inside this message counts — a repeat or a stray index
@@ -631,6 +624,22 @@ class WebRTCManager {
         if (!Number.isInteger(index) || index < 0 || index >= entry.total || entry.parts[index] !== undefined) return;
         entry.parts[index] = slice;
         entry.received++;
+        // An api-response starts {"type":"api-response","id":"<request id>",...: the request
+        // it answers, whose timeout its chunks keep alive.
+        if (index === 0 && typeof slice === 'string')
+          entry.requestId = /"id"\s*:\s*"([^"]+)"/.exec(slice.slice(0, 300))?.[1] ?? null;
+        // If a chunk is ever lost, this entry would otherwise sit in the map forever:
+        // drop it when no chunk of it has come for a minute. A big message that keeps
+        // coming (a whole PDF) may take as long as it needs, and so may the request
+        // waiting for it.
+        clearTimeout(entry.staleTimeout);
+        entry.staleTimeout = setTimeout(() => {
+          if (this._chunkBuffer.get(chunkId) === entry) {
+            this._log('warn', `Dropping incomplete chunked message ${chunkId} (timed out)`);
+            this._chunkBuffer.delete(chunkId);
+          }
+        }, 60_000);
+        WebRTCWebHelperInstance.responseProgress(entry.requestId);
         if (entry.received < entry.total) return; // wait for remaining chunks
         clearTimeout(entry.staleTimeout);
         this._chunkBuffer.delete(chunkId);
@@ -647,7 +656,10 @@ class WebRTCManager {
   // Route api-responses to WebRTCWebHelper; everything else to subscribers.
   _routeIncoming(data) {
     if (data?.type === 'api-response' && typeof data.id === 'string' && data.id.startsWith('hb-')) {
-      if (this._heartbeatPending?.id === data.id) this._heartbeatPending = null;
+      if (this._heartbeatPending?.id === data.id) {
+        transferStats.heartbeat(Date.now() - this._heartbeatPending.sentAt);
+        this._heartbeatPending = null;
+      }
       this._heartbeatAnswered = true;
       return;
     }
