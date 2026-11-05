@@ -436,13 +436,15 @@ describe('WebRTCManager', () => {
       const progress = webRTCWebHelperMock.responseProgress;
       progress.mockClear();
       try {
-        chunk('c6', 0, 3, '{"a');
+        chunk('c6', 0, 3, '{"type":"x","id":"req-1","a');
         vi.advanceTimersByTime(50_000);
         chunk('c6', 1, 3, '":');
         vi.advanceTimersByTime(50_000);
         chunk('c6', 2, 3, '6}');
-        expect(dispatched).toHaveBeenCalledWith({ a: 6 });
+        expect(dispatched).toHaveBeenCalledWith({ type: 'x', id: 'req-1', a: 6 });
+        // the request the message answers (its id leads the first chunk), and only that one
         expect(progress).toHaveBeenCalledTimes(3);
+        expect(progress.mock.calls.every(([id]) => id === 'req-1')).toBe(true);
 
         chunk('c7', 0, 2, '{"a');
         vi.advanceTimersByTime(60_001);

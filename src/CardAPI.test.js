@@ -542,6 +542,40 @@ describe('CardAPI — Resources.ReadRange', () => {
     api.destroy();
   });
 
+  // A file can change (a card updates it, a linked file is edited on disk): the version the
+  // server named is trusted only briefly, Open always asks, and the card's own changes forget it.
+  it('trusts a cached part only for a few seconds; Open always asks; Update and Delete forget the version', async () => {
+    const api = await CardAPIFactory('card-rr5');
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    try {
+      stored.set('game-1:pdf_src_c.pdf@0+2', { data: new Uint8Array([7, 7]).buffer, mimeType: 'application/pdf', version: 'v2' });
+      ActiveWebHelper.getAsync.mockResolvedValue({ notModified: true, start: 0, total: 4, version: 'v2' });
+      await api.Resources.ReadRange({ key: 'pdf_src_c.pdf' }, 0, 2);
+
+      ActiveWebHelper.getAsync.mockClear();
+      await api.Resources.ReadRange({ key: 'pdf_src_c.pdf' }, 0, 2);
+      expect(ActiveWebHelper.getAsync).not.toHaveBeenCalled(); // just confirmed
+
+      now.mockReturnValue(1_000_000 + 16_000);
+      await api.Resources.ReadRange({ key: 'pdf_src_c.pdf' }, 0, 2);
+      expect(ActiveWebHelper.getAsync).toHaveBeenCalledTimes(1); // asked again (with its version)
+
+      ActiveWebHelper.getAsync.mockClear();
+      stored.set('game-1:pdf_src_c.pdf@0+1', { data: new Uint8Array([7]).buffer, mimeType: 'application/pdf', version: 'v2' });
+      await api.Resources.Open('pdf_src_c.pdf');
+      expect(ActiveWebHelper.getAsync).toHaveBeenCalledTimes(1); // Open: always the current version
+
+      ActiveWebHelper.getAsync.mockClear();
+      ActiveWebHelper.putAsync = vi.fn().mockResolvedValue({ status: 200 });
+      await api.Resources.Global.Update('pdf_src_c.pdf', 'new');
+      await api.Resources.ReadRange({ key: 'pdf_src_c.pdf' }, 0, 2);
+      expect(ActiveWebHelper.getAsync).toHaveBeenCalledTimes(1);
+    } finally {
+      now.mockRestore();
+      api.destroy();
+    }
+  });
+
   it('asks again when the file changed, and gives nothing past the end or for a missing file', async () => {
     const api = await CardAPIFactory('card-rr3');
     stored.set('game-1:res-3@0+2', { data: new Uint8Array([1, 1]).buffer, mimeType: 'application/pdf', version: 'old' });

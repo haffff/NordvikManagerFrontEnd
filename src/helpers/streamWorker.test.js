@@ -28,11 +28,11 @@ function load({ clients = [], answer } = {}) {
     },
   };
   new Function('self', workerSource)(self);
-  const fetch = async (url, { range, clientId = clients[0] } = {}) => {
+  const fetch = async (url, { range, clientId = clients[0], mode = 'no-cors', destination = 'audio' } = {}) => {
     let responded = null;
     listeners.fetch({
       clientId,
-      request: { url, headers: { get: (h) => (h.toLowerCase() === 'range' ? range ?? null : null) } },
+      request: { url, mode, destination, headers: { get: (h) => (h.toLowerCase() === 'range' ? range ?? null : null) } },
       respondWith: (p) => { responded = p; },
     });
     return responded && (await responded);
@@ -98,6 +98,32 @@ describe('stream-sw.js', () => {
     const res = await sw.fetch('https://nordvik.test/client/__stream/id/r1', { clientId: '' });
     expect(res.status).toBe(206);
     expect(sw.asked[0].client).toBe('other-tab');
+  });
+
+  // Only media plays from here: a resource opened as a page (a player's HTML file in a link)
+  // would otherwise run as the app's own page. Answers are never sniffed or run.
+  it('never answers a page load, and serves only audio and video, unsniffed and sandboxed', async () => {
+    const sw = load({ clients: ['page'], answer: file(100, 'text/html') });
+    expect(await sw.fetch('https://nordvik.test/client/__stream/id/r1', { mode: 'navigate', destination: 'document' })).toBeNull();
+    expect(await sw.fetch('https://nordvik.test/client/__stream/id/r1', { destination: 'iframe' })).toBeNull();
+    expect((await sw.fetch('https://nordvik.test/client/__stream/id/r1')).status).toBe(415);
+
+    const media = load({ clients: ['page'], answer: file(100, 'video/mp4') });
+    const res = await media.fetch('https://nordvik.test/client/__stream/id/r1', { destination: 'video' });
+    expect(res.status).toBe(206);
+    expect(res.headers.get('X-Content-Type-Options')).toBe('nosniff');
+    expect(res.headers.get('Content-Security-Policy')).toBe('sandbox');
+  });
+
+  it('a suffix range gives the last bytes; a part coming back short is an error, not a bad range', async () => {
+    const total = 3 * PIECE;
+    const sw = load({ clients: ['page'], answer: file(total) });
+    const tail = await sw.fetch('https://nordvik.test/client/__stream/id/r1', { range: 'bytes=-10' });
+    expect(tail.headers.get('Content-Range')).toBe(`bytes ${total - 10}-${total - 1}/${total}`);
+    expect((await tail.arrayBuffer()).byteLength).toBe(10);
+
+    const short = load({ clients: ['page'], answer: (msg) => ({ ...file(total)(msg), bytes: new Uint8Array(5).buffer }) });
+    expect((await short.fetch('https://nordvik.test/client/__stream/id/r1', { range: 'bytes=100-' })).status).toBe(502);
   });
 
   it('takes over at once when installed', async () => {

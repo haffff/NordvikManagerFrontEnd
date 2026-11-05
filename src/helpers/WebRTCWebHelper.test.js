@@ -145,18 +145,27 @@ describe('WebRTCWebHelper sending', () => {
   });
 
   // A big response arrives in many chunks: while they come, the request isn't given up on.
-  it('waits as long as the response keeps arriving, and 30 s after it stops', async () => {
+  // Only that request: another one whose answer was lost still times out.
+  it('waits as long as its own response keeps arriving, and 30 s after it stops', async () => {
     const result = WebRTCWebHelperInstance.getAsync('materials/resource?id=r1');
     let error;
     result.catch((e) => { error = e; });
     finishSend();
     await vi.advanceTimersByTimeAsync(0);
+    const other = WebRTCWebHelperInstance.getAsync('chat/messages');
+    let otherError;
+    other.catch((e) => { otherError = e; });
+    finishSend();
+    await vi.advanceTimersByTimeAsync(0);
+    const [id] = [...WebRTCWebHelperInstance._pending.keys()];
 
     for (let i = 0; i < 6; i++) {
       await vi.advanceTimersByTimeAsync(25_000);
-      WebRTCWebHelperInstance.responseProgress();
+      WebRTCWebHelperInstance.responseProgress(id);
+      WebRTCWebHelperInstance.responseProgress(undefined); // a chunk nobody can tell: extends nothing
     }
     expect(error).toBeUndefined(); // 150 s in, still coming
+    expect(otherError?.message).toMatch(/timeout/i);
 
     await vi.advanceTimersByTimeAsync(31_000);
     expect(error?.message).toMatch(/timeout/i);
@@ -287,6 +296,28 @@ describe('WebRTCWebHelper.getMaterialAsync', () => {
     ResourceCache.put.mockClear();
     expect(await WebRTCWebHelperInstance.getMaterialAsync('r1')).toBeUndefined();
     expect(ResourceCache.put).not.toHaveBeenCalled();
+  });
+
+  // The server may send less than asked for (its own limit): the pieces follow what it sends,
+  // and a piece of the wrong length never leaves a gap in the file.
+  it('pieces follow the size the server sends; a piece of the wrong length fails over to the whole file', async () => {
+    files.r1.text = 'abcdefghij';
+    const serverMax = 3;
+    send.mockImplementation(async (m, p) => answer(m, p.replace(/length=\d+/, `length=${serverMax}`)));
+
+    expect(await readText(await WebRTCWebHelperInstance.getMaterialAsync('r1'))).toBe('abcdefghij');
+    expect(paths().filter((p) => p.includes('resourcerange')).map((p) => /start=(\d+)/.exec(p)[1])).toEqual(['0', '3', '6', '9']);
+
+    // a piece coming back short
+    send.mockClear();
+    ResourceCache.put.mockClear();
+    send.mockImplementation(async (m, p) => {
+      const r = await answer(m, p);
+      if (p.includes('start=4')) r.body.data = btoa('ef');
+      return r;
+    });
+    expect(await readText(await WebRTCWebHelperInstance.getMaterialAsync('r1'))).toBe('abcdefghij');
+    expect(paths().at(-1)).toBe('materials/resource?id=r1');
   });
 
   it('the file changing during the download: fetched again whole', async () => {

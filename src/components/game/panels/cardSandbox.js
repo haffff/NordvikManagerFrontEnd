@@ -106,7 +106,9 @@ const BRIDGE_TEMPLATE = `<script>
   let _additionalArguments = null;
 
   // onProgress: the call's RESOURCE_PROGRESS messages (an upload); each one also restarts
-  // the timeout, so a big upload that keeps going isn't given up on.
+  // the timeout, so a big upload that keeps going isn't given up on. The app also sends them
+  // with no fraction while any Resources call is still running (a whole big file, an upload
+  // waiting its turn): alive, nothing to report.
   function _rpc(panel, command, data, onProgress) {
     return new Promise((resolve, reject) => {
       const reqId = 'r' + (++_reqCounter);
@@ -122,7 +124,7 @@ const BRIDGE_TEMPLATE = `<script>
         progress: (fraction) => {
           clearTimeout(timer);
           timer = setTimeout(giveUp, wait);
-          if (onProgress) { try { onProgress(fraction); } catch (e) { console.error('CardAPI upload progress callback error', e); } }
+          if (onProgress && typeof fraction === 'number') { try { onProgress(fraction); } catch (e) { console.error('CardAPI upload progress callback error', e); } }
         },
       };
       parent.postMessage({ type: 'CMD', reqId, panel, command, data }, '*');
@@ -140,6 +142,8 @@ const BRIDGE_TEMPLATE = `<script>
         const length = Math.min(FILE_PIECE, meta.size - start);
         const loading = _rpc('Resources', 'ReadRange', { ref: meta.ref, start, length }).then((part) => {
           if (!part || !part.bytes || part.bytes.length < length) throw new Error('CardAPI: bytes ' + start + '-' + (start + length) + ' of the file could not be read');
+          // pieces of two versions would make a broken file
+          if (part.version && meta.version && part.version !== meta.version) throw new Error('CardAPI: the file changed since it was opened; open it again');
           return new Uint8Array(part.bytes);
         });
         loading.catch(() => pieces.delete(index));

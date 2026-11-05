@@ -12,6 +12,9 @@ import { isMobileUi } from "../../../helpers/uiMode";
 import { closeTab } from "../mobile/mobileTabs";
 import { baseCardCss, cardStyleLinks, onGameCssChange } from "../../../helpers/cardAppStyles";
 
+// How often the app tells a card its Resources call is still running (the card waits 5 minutes).
+const RESOURCE_KEEPALIVE_MS = 60000;
+
 // ─── postMessage bridge ───────────────────────────────────────────────────────
 
 /**
@@ -304,6 +307,11 @@ function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, 
           const method = resourceTarget[command];
           if (typeof method !== "function") throw new Error(`Unknown Resources method: ${command}`);
 
+          // Still at it: a whole big file, or an upload waiting behind another, can outlast the
+          // card's 5-minute wait; this keeps the card's call alive (the app's own requests time
+          // out if the server stops answering).
+          const keepAlive = setInterval(() => sendToFrame({ type: "RESOURCE_PROGRESS", reqId, fraction: null }), RESOURCE_KEEPALIVE_MS);
+          try {
           switch (command) {
             case "Read":
             case "Delete":
@@ -335,6 +343,9 @@ function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, 
               break;
             default:
               result = await method(data?.key, data?.data, data?.name, data?.mimeType);
+          }
+          } finally {
+            clearInterval(keepAlive);
           }
 
         } else {

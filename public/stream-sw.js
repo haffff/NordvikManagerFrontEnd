@@ -15,6 +15,10 @@ self.addEventListener('activate', (event) => event.waitUntil(self.clients.claim(
 self.addEventListener('fetch', (event) => {
   const url = new URL(event.request.url);
   if (url.origin !== self.location.origin) return;
+  // Media only: never a page load or a frame (a resource opened as a page would run as the
+  // app itself); those go to the network, which has no such path.
+  const { mode, destination } = event.request;
+  if (mode === 'navigate' || (destination && destination !== 'audio' && destination !== 'video' && destination !== 'track')) return;
   const at = url.pathname.indexOf(MARK);
   if (at < 0) return;
   const parts = url.pathname.slice(at + MARK.length).split('/');
@@ -24,10 +28,16 @@ self.addEventListener('fetch', (event) => {
   event.respondWith(answer(event, { [kind]: value }));
 });
 
+// { start, end } (end null: to the end), { suffix } for the last bytes (bytes=-N), or from 0.
 function parseRange(header) {
-  const m = /^bytes=(\d+)-(\d*)$/.exec(String(header || '').trim());
+  const text = String(header || '').trim();
+  const suffix = /^bytes=-(\d+)$/.exec(text);
+  if (suffix) return { suffix: Number(suffix[1]) };
+  const m = /^bytes=(\d+)-(\d*)$/.exec(text);
   return m ? { start: Number(m[1]), end: m[2] === '' ? null : Number(m[2]) } : { start: 0, end: null };
 }
+
+const isMedia = (mimeType) => /^(audio|video)\//i.test(mimeType || '');
 
 async function pageFor(event) {
   const own = event.clientId ? await self.clients.get(event.clientId) : null;
@@ -46,23 +56,39 @@ function ask(client, message) {
 }
 
 async function answer(event, ref) {
-  const { start, end } = parseRange(event.request.headers.get('range'));
-  const pieceStart = Math.floor(start / PIECE) * PIECE;
+  const range = parseRange(event.request.headers.get('range'));
   const client = await pageFor(event);
   if (!client) return new Response(null, { status: 503 });
 
-  const part = await ask(client, { type: 'nm-stream-read', ref, start: pieceStart, length: PIECE });
+  let start = range.start ?? 0;
+  let pieceStart = Math.floor(start / PIECE) * PIECE;
+  let part = await ask(client, { type: 'nm-stream-read', ref, start: pieceStart, length: PIECE });
   if (!part || part.error || !part.bytes) return new Response(null, { status: 502 });
   const total = part.total;
+  if (range.suffix !== undefined) {
+    // the last N bytes: now that the size is known, the part holding them
+    start = Math.max(0, total - range.suffix);
+    const wanted = Math.floor(start / PIECE) * PIECE;
+    if (wanted !== pieceStart) {
+      pieceStart = wanted;
+      part = await ask(client, { type: 'nm-stream-read', ref, start: pieceStart, length: PIECE });
+      if (!part || part.error || !part.bytes) return new Response(null, { status: 502 });
+    }
+  }
+  if (!isMedia(part.mimeType)) return new Response(null, { status: 415 });
   if (start >= total) return new Response(null, { status: 416, headers: { 'Content-Range': `bytes */${total}` } });
 
   const bytes = new Uint8Array(part.bytes);
+  if (start - pieceStart >= bytes.length) return new Response(null, { status: 502 }); // the part came back short
+  const end = range.end ?? null;
   const last = Math.min(end === null ? Infinity : end, pieceStart + bytes.length - 1, total - 1);
   const body = bytes.slice(start - pieceStart, last - pieceStart + 1);
   return new Response(body, {
     status: 206,
     headers: {
-      'Content-Type': part.mimeType || 'application/octet-stream',
+      'Content-Type': part.mimeType,
+      'X-Content-Type-Options': 'nosniff',
+      'Content-Security-Policy': 'sandbox',
       'Content-Range': `bytes ${start}-${last}/${total}`,
       'Content-Length': String(body.length),
       'Accept-Ranges': 'bytes',

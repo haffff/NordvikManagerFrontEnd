@@ -1,7 +1,7 @@
 import ClientMediator from "./ClientMediator";
 import { ActiveTransportManager as WebSocketManagerInstance, ActiveWebHelper as WebHelper } from "./helpers/transport";
 import UtilityHelper from "./helpers/UtilityHelper";
-import { readRange } from "./helpers/rangeRead";
+import { readRange, forgetVersion } from "./helpers/rangeRead";
 
 // ─── Security: allowlists ─────────────────────────────────────────────────────
 
@@ -734,7 +734,8 @@ class CardAPI {
     Open: async (ref) => {
       const r = _normalizeRef(ref);
       if (!r) return null;
-      const part = await readRange(r, 0, 1);
+      // always the current version: the handle refuses pieces of any other
+      const part = await readRange(r, 0, 1, { fresh: true });
       return part ? { ref: r, size: part.total, mimeType: part.mimeType, version: part.version } : null;
     },
 
@@ -785,6 +786,7 @@ class CardAPI {
       const content = await _toBase64(data);
       const mt = mimeType ?? _mimeTypeOf(data);
       const resp = await WebHelper.putAsync("materials/resourcedata", { key: scopedKey, content, mimeType: mt });
+      forgetVersion({ key: scopedKey });
       if (!resp || resp.status >= 300)
         throw new Error(resp?.body?.error ?? "Failed to update resource.");
     },
@@ -798,6 +800,7 @@ class CardAPI {
       const resp = await WebHelper.deleteAsync(
         `materials/resourcedata?key=${encodeURIComponent(scopedKey)}`
       );
+      forgetVersion({ key: scopedKey });
       if (resp?.error) throw new Error(resp.error);
     },    /**
      * Create the resource if it doesn't exist, otherwise update its content.
@@ -832,6 +835,7 @@ class CardAPI {
         const content = await _toBase64(data);
         const mt = mimeType ?? _mimeTypeOf(data);
         const resp = await WebHelper.putAsync("materials/resourcedata", { key, content, mimeType: mt });
+        forgetVersion({ key });
         if (!resp || resp.status >= 300)
           throw new Error(resp?.body?.error ?? "Failed to update resource.");
       },
@@ -840,6 +844,7 @@ class CardAPI {
         const resp = await WebHelper.deleteAsync(
           `materials/resourcedata?key=${encodeURIComponent(key)}`
         );
+        forgetVersion({ key });
         if (resp?.error) throw new Error(resp.error);
       },      Upsert: async (key, data, name, mimeType) => {
         try {

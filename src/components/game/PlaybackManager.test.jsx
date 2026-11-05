@@ -584,4 +584,23 @@ describe('PlaybackManager — streaming', () => {
     expect(getMaterialAsyncMock).toHaveBeenCalledWith('r1');
     expect(FakeAudio.instances[0].src).toBe('blob:fake-url');
   });
+
+  // A stream failing halfway through a track: the whole file carries on from there, not from 0.
+  it('the whole file carries on where the stream stopped', async () => {
+    streamUrlMock.mockImplementation((id) => `https://nordvik.test/client/__stream/id/${id}`);
+    await mount();
+
+    subscriptions.sound({ command: 'sound_play', data: { resourceId: 'r1' } });
+    await Promise.resolve();
+    const audio = FakeAudio.instances[0];
+    audio.currentTime = 42;
+    audio.fire('error');
+    await Promise.resolve();
+    await Promise.resolve();
+    audio.currentTime = 0; // a new src starts at 0
+    audio.fire('loadedmetadata');
+
+    expect(audio.src).toBe('blob:fake-url');
+    expect(audio.currentTime).toBe(42);
+  });
 });

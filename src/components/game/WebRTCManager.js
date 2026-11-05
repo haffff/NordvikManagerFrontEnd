@@ -624,6 +624,10 @@ class WebRTCManager {
         if (!Number.isInteger(index) || index < 0 || index >= entry.total || entry.parts[index] !== undefined) return;
         entry.parts[index] = slice;
         entry.received++;
+        // An api-response starts {"type":"api-response","id":"<request id>",...: the request
+        // it answers, whose timeout its chunks keep alive.
+        if (index === 0 && typeof slice === 'string')
+          entry.requestId = /"id"\s*:\s*"([^"]+)"/.exec(slice.slice(0, 300))?.[1] ?? null;
         // If a chunk is ever lost, this entry would otherwise sit in the map forever:
         // drop it when no chunk of it has come for a minute. A big message that keeps
         // coming (a whole PDF) may take as long as it needs, and so may the request
@@ -635,7 +639,7 @@ class WebRTCManager {
             this._chunkBuffer.delete(chunkId);
           }
         }, 60_000);
-        WebRTCWebHelperInstance.responseProgress();
+        WebRTCWebHelperInstance.responseProgress(entry.requestId);
         if (entry.received < entry.total) return; // wait for remaining chunks
         clearTimeout(entry.staleTimeout);
         this._chunkBuffer.delete(chunkId);

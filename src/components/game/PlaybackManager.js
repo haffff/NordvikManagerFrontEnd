@@ -60,6 +60,8 @@ export const PlaybackManager = () => {
     forgetWaiting(audio);
     audio.pause();
     if (audio.src) URL.revokeObjectURL(audio.src);
+    // a streamed track would otherwise go on buffering through the service worker
+    if (audio.src && !audio.src.startsWith("blob:")) { audio.removeAttribute?.("src"); audio.load?.(); }
   };
 
   // Stop, track change: fade out, then dispose. Flagged disposed at once, so a track
@@ -105,9 +107,12 @@ export const PlaybackManager = () => {
         fadeIn(audio);
       });
     };
-    const fromWholeFile = () => WebHelper.getMaterialAsync(trackId)
+    // resumeAt: where a failed stream had got to (synced music seeks by seekFromUtc instead)
+    const fromWholeFile = (resumeAt = 0) => WebHelper.getMaterialAsync(trackId)
       .then((blob) => {
         if (audio.__disposed || !(blob instanceof Blob)) return;
+        if (resumeAt > 0 && !seekFromUtc)
+          audio.addEventListener("loadedmetadata", () => { audio.currentTime = resumeAt; }, { once: true });
         start(URL.createObjectURL(blob));
       })
       .catch((e) => console.warn("[PlaybackManager] failed to fetch track blob:", e?.message ?? e));
@@ -116,7 +121,7 @@ export const PlaybackManager = () => {
     // needed. If the stream fails (an older server, the worker gone), the whole file instead.
     const stream = streamUrl(trackId);
     if (stream) {
-      audio.addEventListener("error", () => { if (!audio.__disposed && audio.src === stream) fromWholeFile(); }, { once: true });
+      audio.addEventListener("error", () => { if (!audio.__disposed && audio.src === stream) fromWholeFile(audio.currentTime || 0); }, { once: true });
       start(stream);
     } else {
       fromWholeFile();

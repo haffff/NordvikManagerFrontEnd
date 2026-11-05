@@ -205,6 +205,19 @@ describe('CardAPI bridge — Resources.Open and Upload', () => {
     expect(blob.type).toBe('application/pdf');
   });
 
+  // Pieces of two versions never make one file: a piece of another version than the one
+  // opened refuses the read (open the file again for the new one).
+  it('a piece of a newer version than the one opened refuses the read', async () => {
+    const { api } = withHost({
+      Open: () => ({ ref: { key: 'x' }, size: SIZE, mimeType: 'application/pdf', version: 'v1' }),
+      ReadRange: (d) => ({ ...readRange(d), version: d.start === 0 ? 'v1' : 'v2' }),
+    });
+    const file = await api.Resources.Open('x');
+
+    expect((await file.read(0, 10)).length).toBe(10);
+    await expect(file.read(PIECE, PIECE + 10)).rejects.toThrow(/changed/);
+  });
+
   it('Open of a missing file is null', async () => {
     const { api } = withHost({ Open: () => null });
     expect(await api.Resources.Open({ id: 'gone' })).toBeNull();
@@ -212,7 +225,8 @@ describe('CardAPI bridge — Resources.Open and Upload', () => {
 
   it('Upload sends the file with its options and reports progress as it comes', async () => {
     const { api, calls } = withHost({
-      Upload: (data, progress) => { progress({ type: 'RESOURCE_PROGRESS', fraction: 0.5 }); progress({ type: 'RESOURCE_PROGRESS', fraction: 1 }); return { id: 'res-1', key: 'card-1/book.pdf' }; },
+      // fraction null: the app is still at it (waiting in the upload queue, say): keeps the call alive, reports nothing
+      Upload: (data, progress) => { progress({ type: 'RESOURCE_PROGRESS', fraction: null }); progress({ type: 'RESOURCE_PROGRESS', fraction: 0.5 }); progress({ type: 'RESOURCE_PROGRESS', fraction: 1 }); return { id: 'res-1', key: 'card-1/book.pdf' }; },
     });
     const seen = [];
 

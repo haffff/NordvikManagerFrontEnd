@@ -122,11 +122,15 @@ class WebRTCWebHelper {
     entry.resolve({ status, body: _camelizeKeys(body) });
   }
 
-  // Called by WebRTCManager while a chunked message comes in. Chunks don't say which
-  // response they belong to, so every request waiting for its answer gets the full
-  // timeout again: a big response (a whole PDF) is given up on only when it stops coming.
-  responseProgress() {
-    for (const entry of this._pending.values()) { entry.armTimeout?.(); entry.stat?.firstByte(); }
+  // Called by WebRTCManager while a chunked message comes in, with the id of the request it
+  // answers (read from its first chunk): that request gets the full timeout again, so a big
+  // response (a whole PDF) is given up on only when it stops coming. Other requests keep
+  // their own timeouts.
+  responseProgress(requestId) {
+    const entry = requestId ? this._pending.get(requestId) : null;
+    if (!entry) return;
+    entry.armTimeout?.();
+    entry.stat?.firstByte();
   }
 
   // Called by WebRTCManager when data channel opens — flush queued requests
@@ -345,7 +349,7 @@ class WebRTCWebHelper {
   // copy is current), WHOLE (ask with the whole-file request instead) or FAILED.
   async _getInPieces(queryParam, cached, onProgress) {
     const pieceSize = this.pieceSize ?? PIECE_SIZE;
-    const path = (start) => `materials/resourcerange?${queryParam}&start=${start}&length=${pieceSize}`;
+    const path = (start, length = pieceSize) => `materials/resourcerange?${queryParam}&start=${start}&length=${length}`;
     const first = await this._sendRequest('GET', path(0) + (cached ? `&ifVersion=${encodeURIComponent(cached.version)}` : ''));
     if (first?.status === 404) return WHOLE; // an older server (or no such file: the whole-file request says so)
     if (first?.status !== 200) return FAILED;
@@ -354,22 +358,27 @@ class WebRTCWebHelper {
 
     const { total, version, mimeType } = first.body;
     const head = _base64ToBytes(first.body.data);
-    if (head.length >= total) return { bytes: head, mimeType, version };
+    if (head.length >= total) return head.length === total ? { bytes: head, mimeType, version } : WHOLE;
+    if (!head.length) return WHOLE;
+    // The server may cap a piece below what was asked: go on in the size it sent.
+    const step = Math.min(pieceSize, head.length);
     const bytes = new Uint8Array(total);
     bytes.set(head, 0);
     let received = head.length;
     onProgress?.(received / total);
 
     const starts = [];
-    for (let start = pieceSize; start < total; start += pieceSize) starts.push(start);
+    for (let start = step; start < total; start += step) starts.push(start);
     let outcome = null; // WHOLE or FAILED, once something goes wrong
     const fetchPiece = async (start) => {
       for (let attempt = 0; attempt < 2; attempt++) {
         let result;
-        try { result = await this._sendRequest('GET', path(start)); } catch { continue; }
+        try { result = await this._sendRequest('GET', path(start, step)); } catch { continue; }
         if (result?.status !== 200 || typeof result.body?.data !== 'string') continue;
         if (result.body.version !== version) return WHOLE; // changed meanwhile
-        return _base64ToBytes(result.body.data);
+        const piece = _base64ToBytes(result.body.data);
+        // exactly the bytes asked for, or the file would have a gap (or overrun)
+        return piece.length === Math.min(step, total - start) ? piece : WHOLE;
       }
       return FAILED;
     };
@@ -384,6 +393,7 @@ class WebRTCWebHelper {
       }
     };
     await Promise.all(Array.from({ length: PARALLEL_PIECES }, worker));
+    if (!outcome && received !== total) return WHOLE;
     return outcome ?? { bytes, mimeType, version };
   }
 
