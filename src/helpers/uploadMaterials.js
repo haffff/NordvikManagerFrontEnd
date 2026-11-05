@@ -20,6 +20,7 @@ export function uploadMaterials(files, { onUploaded, parentFolder = null } = {})
   const opId = UtilityHelper.GenerateUUID();
   const uploaded = [];
   const failed = [];
+  const reasons = new Map(); // file → what the server said (e.g. over the upload limit)
 
   ProgressToastManager.start(opId, {
     title: single ? `Uploading ${single}…` : `Uploading ${total} files…`,
@@ -55,6 +56,8 @@ export function uploadMaterials(files, { onUploaded, parentFolder = null } = {})
     new Promise((resolve) => {
       const fail = (err) => {
         console.error("uploadMaterials: upload failed", file.name, err);
+        const reason = err?.body?.error;
+        if (typeof reason === "string" && reason) reasons.set(file, reason);
         failed.push(file);
         report(file, false);
         resolve();
@@ -74,6 +77,8 @@ export function uploadMaterials(files, { onUploaded, parentFolder = null } = {})
       );
     });
 
+  const describe = () => failed.map((f) => (reasons.has(f) ? `${f.name}: ${reasons.get(f)}` : f.name)).join(reasons.size ? "\n" : ", ");
+
   return Promise.all(files.map(uploadOne)).then(() => {
     if (failed.length === 0) {
       ProgressToastManager.complete(opId, {
@@ -82,12 +87,12 @@ export function uploadMaterials(files, { onUploaded, parentFolder = null } = {})
     } else if (failed.length === total) {
       ProgressToastManager.fail(opId, {
         title: "Upload failed",
-        description: failed.map((f) => f.name).join(", "),
+        description: describe(),
       });
     } else {
       ProgressToastManager.fail(opId, {
         title: `${failed.length} of ${total} uploads failed`,
-        description: failed.map((f) => f.name).join(", "),
+        description: describe(),
       });
     }
     return { uploaded, failed };

@@ -23,6 +23,7 @@ const settings = (overrides = {}) => ({
     mainRepository: { fromConfig: 'https://repo.example/addons.json', saved: null },
     featuredAddons: { fromConfig: ['dnd5e'], saved: null },
   },
+  uploadLimits: { gmGameLimitMb: 0, playerLimitMb: 200 },
   ...overrides,
 });
 
@@ -138,6 +139,35 @@ describe('ServerSettingsTab', () => {
     expect(registry.textContent).toContain('https://repo.example/addons.json');
     expect(registry.textContent).toContain('dnd5e');
     expect(screen.queryByRole('button', { name: 'Use the server config registry' })).toBeNull();
+  });
+
+  // How much may be uploaded into one game: by its GMs together, and by each other player.
+  it('shows the upload limits and saves them as numbers of MB (0: no limit)', async () => {
+    WebHelper.putAsync.mockResolvedValue(ok(settings({ uploadLimits: { gmGameLimitMb: 5000, playerLimitMb: 0 } })));
+    renderWithProviders(<ServerSettingsTab />);
+    await screen.findByText('localhost:8080');
+
+    const gm = screen.getByLabelText('GM upload limit per game (MB)');
+    const player = screen.getByLabelText('Player upload limit per game (MB)');
+    expect(gm.value).toBe('0');
+    expect(player.value).toBe('200');
+
+    fireEvent.change(gm, { target: { value: '5000' } });
+    fireEvent.change(player, { target: { value: '0' } });
+    fireEvent.click(screen.getByRole('button', { name: 'Save upload limits' }));
+
+    await waitFor(() =>
+      expect(WebHelper.putAsync).toHaveBeenCalledWith('serversettings/upload-limits', { gmGameLimitMb: 5000, playerLimitMb: 0 })
+    );
+  });
+
+  it('does not save an upload limit that is not a whole number of MB', async () => {
+    renderWithProviders(<ServerSettingsTab />);
+    await screen.findByText('localhost:8080');
+
+    fireEvent.change(screen.getByLabelText('Player upload limit per game (MB)'), { target: { value: '-3' } });
+
+    expect(screen.getByRole('button', { name: 'Save upload limits' }).disabled).toBe(true);
   });
 
   it('saves a registry URL, keeping the featured addons as they are', async () => {

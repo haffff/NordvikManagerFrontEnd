@@ -43,6 +43,19 @@ describe('uploadMaterials', () => {
     expect(result.failed.map((f) => f.name)).toEqual(['bad.png']);
   });
 
+  // e.g. over the server's upload limit: the server says why, and the toast shows it
+  it("a refusal shows the server's reason", async () => {
+    ActiveWebHelper.postMaterial.mockImplementation((f, onok, onerror) =>
+      setTimeout(() => onerror({ status: 413, body: { error: "That's over the server's upload limit: You have 190 MB of 200 MB in this game, and this file is 40 MB." } }), 0));
+
+    await uploadMaterials([file('song.mp3')]);
+
+    expect(ProgressToastManager.fail).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+      title: 'Upload failed',
+      description: expect.stringContaining("song.mp3: That's over the server's upload limit"),
+    }));
+  });
+
   it('an exception while reading a file counts as a failure, not a hang', async () => {
     ActiveWebHelper.postMaterial.mockImplementation((f, onok, onerror, onException) => setTimeout(() => onException(new Error('read')), 0));
 
