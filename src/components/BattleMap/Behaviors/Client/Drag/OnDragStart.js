@@ -1,6 +1,7 @@
 import { fabric } from "fabric";
 import UtilityHelper from "../../../../../helpers/UtilityHelper";
 import ClientMediator from "../../../../../ClientMediator";
+import { isTouchEvent, touchPans, touchPoint } from "../../../Helpers/touchGestures";
 
 export class OnDragStartClientBehavior {
   async Handle(opt, canvas, map, battleMapId) {
@@ -16,12 +17,17 @@ export class OnDragStartClientBehavior {
     canvas.lastClickTarget = opt.target ?? null;
 
     var evt = opt.e;
-    if(opt.button === 2 || canvas.draggingMode)
+    // A finger on the empty map pans it, as the right mouse button does.
+    const touchPan = isTouchEvent(evt) && touchPans(canvas, opt.target);
+    if(opt.button === 2 || canvas.draggingMode || touchPan)
     {
         canvas.isDragging = true;
         canvas.selection = false;
-        canvas.lastPosX = evt.clientX;
-        canvas.lastPosY = evt.clientY;
+        // Fabric already started a selection rubber band for a press on the empty map.
+        if (touchPan) canvas._groupSelector = null;
+        const point = touchPoint(evt);
+        canvas.lastPosX = point.x;
+        canvas.lastPosY = point.y;
         return;
     }
 

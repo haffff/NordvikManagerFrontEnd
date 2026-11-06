@@ -1,11 +1,14 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import "./index.css";
+import "./stylesheets/touch.css";
+import "./stylesheets/screens.css";
 import App from "./App";
 import { ErrorBoundary } from "./components/uiComponents/base/ErrorBoundary";
 import { RootErrorFallback } from "./components/RootErrorFallback";
 import reportWebVitals from "./reportWebVitals";
 import { installIframePointerGuard } from "./helpers/iframePointerGuard";
+import { startMediaStreaming } from "./helpers/mediaStream";
 import { defaultConfig, createSystem } from "@chakra-ui/react"
 
 const root = ReactDOM.createRoot(document.getElementById("root"));
@@ -32,6 +35,8 @@ export const system = createSystem({
 });
 
 installIframePointerGuard();
+// Music and other media stream over the game connection through a service worker.
+startMediaStreaming();
 root.render(
   <ErrorBoundary name="app" fallback={() => <RootErrorFallback />}>
     <App />

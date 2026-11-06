@@ -63,6 +63,12 @@ WebRTCManager.Start(sessionId)
   → flushes Send() queue + WebRTCWebHelper request queue
 ```
 
+Staying connected (`WebRTCManager`):
+- A lost connection (data channel closed, peer connection `failed` for 5 s, or an unanswered heartbeat, `GET /heartbeat` api-request every 5 s) is torn down and re-established by itself with backoff; only after the last attempt does the error (with Retry) show. Requests made meanwhile queue.
+- The GM backend's signaling socket leaving (PEER_LEFT) doesn't close an open channel — the channel runs peer to peer; the GM's new peer id is picked up on PEER_JOINED.
+- The access token is refreshed when it's missing *or* about to expire, on every (re)authentication.
+- The open after a drop broadcasts `__channel_ready__` with `reconnected: true`. Pushes in the gap are lost, so views that load server data re-run their load then via `helpers/resync.js` (`useResync(load)`, `onResync(load)` outside React, or `useResyncKey()` in an effect's deps when the load lives with its subscriptions). **A new view that loads server data and follows pushes should register its load there.** Editors and forms (card definition, action editor, settings panels) deliberately don't, so unsaved edits are never overwritten. `useReconnectNotice` only shows a short "Reconnected" toast.
+
 ### Protocol version (player builds per backend protocol)
 
 `src/protocol.json` holds the player↔backend protocol number (`PROTOCOL_VERSION` via `src/helpers/protocol.js`). The GM backend's number arrives as `gmProtocol` in `SESSION_INFO`; if it differs, `WebRTCManager._switchToProtocolClient` reloads into the frozen build at `/client/p<N>/?game=<centralSessionId>` before any peer connection (or reports `isVersionMismatch` if that build isn't deployed). Player builds use a relative Vite `base` so one build works at `/client/` and `/client/p<N>/`.
@@ -105,6 +111,7 @@ REACT_APP_PROTOCOL = "https://"
 REACT_APP_CENTRAL_URL = ""        # central signaling/auth server
 REACT_APP_STUN_SERVER = ""        # fallback if Central /api/ice-servers fails; defaults to stun:stun.l.google.com:19302
 REACT_APP_FORCE_TURN = ""         # "true" = relay-only ICE (TURN testing)
+REACT_APP_TOKEN_EDITOR_URL = ""  # token editor opened by "Edit in token editor"; empty = <Central>/client/tokens/
 ```
 All custom env vars must be prefixed `REACT_APP_`.
 

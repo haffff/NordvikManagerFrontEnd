@@ -1435,62 +1435,77 @@ class TokenManager {
       y: center.y - halfSize,
     };
 
-    // Auto-stacking for "right-top" only (status icons — see TokenIconPickerOverlay):
-    // multiple simultaneously-visible icons pack together left-to-right from the
-    // token's corner instead of each sitting at its own static authored offsetX,
-    // which would leave a gap where a currently-hidden icon's fixed slot used to
-    // be. Scoped to this one anchor value — nothing else uses "right-top" today,
-    // and every other anchor keeps its existing static-offset behavior unchanged.
+    // Status icons stack (see TokenIconPickerOverlay): the icons turned on pack together
+    // left to right from their anchor (+ their offset) instead of each sitting at its own
+    // authored slot, which would leave a gap where a hidden icon's slot used to be. Parts
+    // with tokenData.stack stack at their anchor; "right-top" always stacks (the status
+    // icons' corner, from before the flag). Each anchor's stack is its own row.
     // getScaledWidth() is reliable here: _loadSVGElement scales SVG/reactIcon
     // groups to their declared width synchronously before pushing them into
     // additionalObjects, so it's already correct by the time this runs.
-    const RIGHT_TOP_GAP = 2;
-    const rightTopStackOffset = new Map();
-    {
+    const STACK_GAP = 2;
+    const stackOffset = new Map();
+    const stacks = new Map();
+    for (const element of token.additionalObjects) {
+      const td = element?.tokenData;
+      if (!td || td.overflowMarker || !(td.stack || td.anchor === "right-top")) continue;
       // While the token is dragged its UI is hidden, with the real visibility kept in
       // visibleBeforeDrag — repositioning then must not pile every icon onto one slot.
-      const icons = token.additionalObjects.filter(
-        (element) =>
-          element?.tokenData?.anchor === "right-top" &&
-          !element.tokenData.overflowMarker &&
-          (element.visibleBeforeDrag ?? element.visible) !== false
-      );
+      if ((element.visibleBeforeDrag ?? element.visible) === false) continue;
+      const anchor = td.anchor ?? "left-top";
+      if (!stacks.has(anchor)) stacks.set(anchor, []);
+      stacks.get(anchor).push(element);
+    }
+    const markers = token.additionalObjects.filter((e) => e?.tokenData?.overflowMarker);
+    for (const m of markers) if (!stacks.has(m.tokenData.anchor)) setOverflowHidden(m, true);
 
-      // More icons than fit: the first ones, then a small "+N" right after them —
-      // all of them while the token is selected on its own (OnTokenSelectedBehavior).
-      const max = token.tokenData?.maxStatusIcons;
-      const limit = Number.isInteger(max) && max >= 1 ? max : DEFAULT_MAX_STATUS_ICONS;
+    // More icons than fit: the first ones, then a small "+N" right after them —
+    // all of them while the token is selected on its own (OnTokenSelectedBehavior).
+    const max = token.tokenData?.maxStatusIcons;
+    const limit = Number.isInteger(max) && max >= 1 ? max : DEFAULT_MAX_STATUS_ICONS;
+    for (const [anchor, icons] of stacks) {
       const collapse = icons.length > limit && !token._iconsExpanded;
       const kept = collapse ? icons.slice(0, limit) : icons;
       for (const icon of icons) setOverflowHidden(icon, !kept.includes(icon));
 
-      let marker = token.additionalObjects.find((e) => e?.tokenData?.overflowMarker);
+      let marker = markers.find((m) => m.tokenData.anchor === anchor);
       if (collapse && !marker) {
         marker = this._createOverflowMarker(icons[0]);
+        marker.tokenData.anchor = anchor;
         marker.uiOf = token;
         token.additionalObjects.push(marker);
+        markers.push(marker);
         canvas.add(marker);
       }
       if (marker) setOverflowHidden(marker, !collapse);
       if (collapse) {
         marker.set("text", `+${icons.length - limit}`);
-        // Centred on the icon row.
+        // Right after the row, centred on it.
         const rowHeight = kept[0].getScaledHeight?.() ?? kept[0].height ?? 0;
         const ownHeight = marker.getScaledHeight?.() ?? marker.height ?? 0;
+        marker.tokenData.offsetX = kept[0].tokenData?.offsetX ?? 0;
         marker.tokenData.offsetY = (kept[0].tokenData?.offsetY ?? 0) + (rowHeight - ownHeight) / 2;
       }
 
       let running = 0;
       for (const element of collapse ? [...kept, marker] : icons) {
-        rightTopStackOffset.set(element, running);
-        running += (element.getScaledWidth?.() ?? element.width ?? 0) + RIGHT_TOP_GAP;
+        stackOffset.set(element, running);
+        running += (element.getScaledWidth?.() ?? element.width ?? 0) + STACK_GAP;
       }
     }
 
     for (const element of token.additionalObjects) {
       if (element?.tokenData?.ignoreRelativePosition) continue;
 
-      const oX = element.tokenData?.offsetX ?? 0;
+      // A part that fits the token (e.g. a ring around it) is as wide as the token is
+      // shown, at any token size, keeping its own aspect.
+      if (element.tokenData?.fitToToken && element.width > 0) {
+        const fit = expectedSize / element.width;
+        element.set({ scaleX: fit, scaleY: fit });
+      }
+
+      // A stacked icon: its offset plus its place in the row.
+      const oX = (element.tokenData?.offsetX ?? 0) + (stackOffset.get(element) ?? 0);
       const oY = element.tokenData?.offsetY ?? 0;
 
       switch (element.tokenData?.anchor) {
@@ -1511,7 +1526,7 @@ class TokenManager {
           element.top = zero.y + halfSize + oY;
           break;
         case "right-top":
-          element.left = zero.x + expectedSize + (rightTopStackOffset.get(element) ?? oX);
+          element.left = zero.x + expectedSize + oX;
           element.top = zero.y + oY;
           break;
         case "left-bottom":

@@ -28,6 +28,28 @@ describe('useCanvasFitsPanel', () => {
     expect(c.setDimensions).toHaveBeenCalledTimes(2);
   });
 
+  // The panel's rect includes the panel's padding and margin: a canvas that big made the
+  // panel scroll both ways. The space the map's own box gets is what the canvas fills.
+  it("sizes the canvas to the map's own box when it has one", () => {
+    const c = canvas();
+    const box = { clientWidth: 628, clientHeight: 466 };
+    const { rerender } = renderHook(({ w }) => useCanvasFitsPanel(c, w, 480, true, box), { initialProps: { w: 640 } });
+
+    expect(c.setDimensions).toHaveBeenCalledWith({ width: 628, height: 466 });
+
+    box.clientWidth = 788;
+    rerender({ w: 800 });
+    expect(c.setDimensions).toHaveBeenLastCalledWith({ width: 788, height: 466 });
+  });
+
+  it('falls back to the panel size while the box has no size yet', () => {
+    const c = canvas();
+
+    renderHook(() => useCanvasFitsPanel(c, 640, 480, true, { clientWidth: 0, clientHeight: 0 }));
+
+    expect(c.setDimensions).toHaveBeenCalledWith({ width: 640, height: 480 });
+  });
+
   it('waits until the canvas exists and the map is loaded', () => {
     const c = canvas();
     const { rerender } = renderHook(({ cv, ready }) => useCanvasFitsPanel(cv, 640, 480, ready), {

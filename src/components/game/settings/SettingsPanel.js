@@ -74,7 +74,8 @@ const SettingFieldCard = ({ fieldKey, editable, disabled, validationError, child
 
 // A short fixed choice as a row of buttons, all options in view (like the dice
 // roller's Normal / Advantage / Disadvantage).
-const SegmentedField = ({ options, value, disabled, onChange }) => {
+// Also used by the token editor (its Mask groups panel).
+export const SegmentedField = ({ options, value, disabled, onChange }) => {
   const [current, setCurrent] = React.useState(value);
   return (
     <HStack gap={1} wrap="wrap">
@@ -239,8 +240,8 @@ const buildInput = (editable, key, value, validationError, disabled, OnChange) =
         />
       );
 
-    case "materialSelect":
-      return (
+    case "materialSelect": {
+      const chooser = (
         <MaterialChooser
           isDisabled={disabled}
           additionalFilter={editable.additionalFilter}
@@ -248,7 +249,18 @@ const buildInput = (editable, key, value, validationError, disabled, OnChange) =
           materialsSelected={value}
           onSelect={(name) => OnChange(key, name)}
         />
-      );    case "playerSelect":
+      );
+      // An action on the chosen resource (editAction: { label, onClick(value) }).
+      if (!editable.editAction) return chooser;
+      return (
+        <HStack gap="2" align="center" wrap="wrap">
+          {chooser}
+          <Button size="xs" variant="outline" disabled={!value} onClick={() => editable.editAction.onClick(value)}>
+            {editable.editAction.label}
+          </Button>
+        </HStack>
+      );
+    }    case "playerSelect":
       return (
         <PlayerChooser
           isDisabled={disabled}

@@ -84,18 +84,12 @@ export const GameList = ({ OnSuccess, OnLogout }) => {
       <AboutDialog openRef={openAboutRef} />
       <UpdateNoticeDialog enabled={!!userData?.localAdmin} onOpenSettings={() => openAppSettingsRef.current("server")} />
       <JoinDialog OnSuccess={(r) => OnSuccess(r)} />
-      <Stack
-        style={{
-          width: "60%",
-          margin: "0 auto",
-          height: "100vh",
-        }}
-      >
+      <Stack className="nm_lobby">
         <Heading padding={4} size={"md"}>
           Hello, {userData?.userName ?? "…"}
         </Heading>
 
-        <HStack margin={"25px"} marginBottom={"50px"} gap={2}>
+        <HStack className="nm_lobbyToolbar" margin={"25px"} marginBottom={"50px"} gap={2}>
           {userData?.localAdmin && (
             <Button variant="outline" onClick={() => openAppSettingsRef.current()}>
               <Icon as={FaCog} /> Application Settings

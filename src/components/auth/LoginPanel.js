@@ -22,7 +22,7 @@ export const LoginPanel = ({ OnSuccess, onRegister }) => {
     }
 
     return (
-        <form onKeyUp={e => {if(e.key == "Enter") {onFormSubmit()}}} onSubmit={() => { }} style={{ width: '400px', margin: '0 auto', marginTop: '50px' }}>
+        <form onKeyUp={e => {if(e.key == "Enter") {onFormSubmit()}}} onSubmit={() => { }} className="nm_authForm">
             <Stack spacing={4} borderColor={error ? "tomato" : "gray.200"}>
                 <Heading as="h6" size="xs">Login</Heading>
                 <Input placeholder="Login" size="md" onInput={(input) => setLoginForm({ ...loginForm, UserName: input.target.value })} />

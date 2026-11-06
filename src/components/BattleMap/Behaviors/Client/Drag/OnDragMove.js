@@ -1,16 +1,18 @@
 import { fabric } from "fabric";
 import UtilityHelper from "../../../../../helpers/UtilityHelper";
+import { touchPoint } from "../../../Helpers/touchGestures";
 
 export class OnDragMoveClientBehavior {
   async Handle(opt, canvas, map, battleMapId) {
     if (canvas.isDragging) {
-        var e = opt.e;
+        // A mouse event, or a touch event (its point is on its touch).
+        const point = touchPoint(opt.e);
         var vpt = canvas.viewportTransform;
-        vpt[4] += e.clientX - canvas.lastPosX;
-        vpt[5] += e.clientY - canvas.lastPosY;
+        vpt[4] += point.x - canvas.lastPosX;
+        vpt[5] += point.y - canvas.lastPosY;
         canvas.requestRenderAll();
-        canvas.lastPosX = e.clientX;
-        canvas.lastPosY = e.clientY;
+        canvas.lastPosX = point.x;
+        canvas.lastPosY = point.y;
       }
   
     //   if (references.popupVisibleRef && references.popupVisibleRef.current) {

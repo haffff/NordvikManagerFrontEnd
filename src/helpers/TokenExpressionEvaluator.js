@@ -1,15 +1,15 @@
 import TokenUIRules from "./TokenUIRules";
 
 // Positional argument order for each rule function
-const RULE_ARG_MAPS = {
+export const RULE_ARG_MAPS = {
   FromTo:     ["value", "valueMin", "valueMax", "targetMin", "targetMax"],
-  Enum:       ["value", "enumObject"],
+  Enum:       ["value", "enumObject", "defaultValue"],
   FromToEnum: ["value", "valueMin", "valueMax", "targetMin", "targetMax", "defaultValue", "enumObject"],
   Math:       ["value", "operation"],
 };
 
 // Depth-aware comma split (respects nested parens, brackets, braces, and quoted strings)
-function splitArgs(str) {
+export function splitArgs(str) {
   const args = [];
   let depth = 0;
   let inStr = false;

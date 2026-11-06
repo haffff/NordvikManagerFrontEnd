@@ -48,7 +48,7 @@ const sameAs = (a, b) => a?.type === b?.type && (a.type === "Battlemap"
   ? a.syncId === b.syncId
   : stableJson(a.props) === stableJson(b.props));
 
-const stableJson = (value) => JSON.stringify(value ?? {}, (key, val) =>
+export const stableJson = (value) => JSON.stringify(value ?? {}, (key, val) =>
   val && typeof val === "object" && !Array.isArray(val)
     ? Object.fromEntries(Object.keys(val).sort().map((k) => [k, val[k]]))
     : val);

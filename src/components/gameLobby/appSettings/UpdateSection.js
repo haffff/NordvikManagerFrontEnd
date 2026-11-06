@@ -169,7 +169,7 @@ export const UpdateSection = () => {
                         I backed up the database myself
                       </Checkbox>
                     )}
-                    <HStack>
+                    <HStack className="nm_wrapRow">
                       <Button
                         colorPalette="orange"
                         onClick={install}
@@ -185,11 +185,12 @@ export const UpdateSection = () => {
                   </Stack>
                 )}
               </Stack>
-            ) : (
+            ) : status.checkError ? null : (
+              // Only when the check worked: a failed one knows of no newer version either.
               <Text>This is the latest version.</Text>
             )}
             {status.checkError && <Text color="red.300">{status.checkError}</Text>}
-            <HStack>
+            <HStack className="nm_wrapRow">
               <Button size="sm" variant="outline" onClick={check} disabled={busy}>
                 Check now
               </Button>

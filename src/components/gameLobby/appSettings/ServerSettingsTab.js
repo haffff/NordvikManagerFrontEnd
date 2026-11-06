@@ -58,7 +58,7 @@ const ListSetting = ({ locked, entries, canEdit, placeholder, addLabel, inputLab
         ))}
         {locked.length === 0 && entries.length === 0 && <Text color="fg.muted">None.</Text>}
       </Wrap>
-      <HStack>
+      <HStack className="nm_wrapRow">
         <Input
           maxW="md"
           placeholder={placeholder}
@@ -87,9 +87,50 @@ const Section = ({ title, children }) => (
   </Box>
 );
 
+const isWholeMb = (text) => /^\d{1,8}$/.test(String(text).trim());
+
+/** How much may be uploaded into one game, in MB (0 = no limit). */
+const UploadLimits = ({ limits, canEdit, onSave }) => {
+  const [gm, setGm] = React.useState(String(limits.gmGameLimitMb));
+  const [player, setPlayer] = React.useState(String(limits.playerLimitMb));
+  const [busy, setBusy] = React.useState(false);
+  React.useEffect(() => { setGm(String(limits.gmGameLimitMb)); setPlayer(String(limits.playerLimitMb)); }, [limits.gmGameLimitMb, limits.playerLimitMb]);
+  const valid = isWholeMb(gm) && isWholeMb(player);
+
+  const save = async () => {
+    setBusy(true);
+    try {
+      await onSave({ gmGameLimitMb: Number(gm.trim()), playerLimitMb: Number(player.trim()) });
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <Section title="Upload limits">
+      <Text fontSize="sm" color="fg.muted">
+        How much may be uploaded into one game, in MB; 0 means no limit. The GM limit is for everything the
+        game's GMs (owner and co-GMs) uploaded together; the player limit is for each other player. Linked
+        files and addon files don't count. Applies to new uploads at once.
+      </Text>
+      <HStack className="nm_wrapRow" alignItems="flex-end">
+        <Box>
+          <Text fontSize="sm">GMs, per game</Text>
+          <Input type="number" min={0} maxW="40" aria-label="GM upload limit per game (MB)" value={gm} disabled={!canEdit} onChange={(e) => setGm(e.target.value)} />
+        </Box>
+        <Box>
+          <Text fontSize="sm">Each player, per game</Text>
+          <Input type="number" min={0} maxW="40" aria-label="Player upload limit per game (MB)" value={player} disabled={!canEdit} onChange={(e) => setPlayer(e.target.value)} />
+        </Box>
+        <Button aria-label="Save upload limits" disabled={!canEdit || busy || !valid} onClick={save}>Save</Button>
+      </HStack>
+    </Section>
+  );
+};
+
 /**
  * Application Settings → Server. Owner settings kept in the server's server-settings.json:
- * private hosts actions may reach, hosts addon cards may load from, and the addon registry.
+ * private hosts actions may reach, hosts addon cards may load from, upload limits, and the addon registry.
  * Entries from appsettings are shown locked; the rest can be changed here and apply at once.
  */
 export const ServerSettingsTab = () => {
@@ -190,6 +231,15 @@ export const ServerSettingsTab = () => {
         />
       </Section>
 
+      {/* an older server has no upload limits */}
+      {settings.uploadLimits && (
+        <UploadLimits
+          limits={settings.uploadLimits}
+          canEdit={canEdit}
+          onSave={(body) => put("serversettings/upload-limits", body, "Could not save the upload limits")}
+        />
+      )}
+
       <Section title="Addon registry">
         <Text fontSize="sm" color="fg.muted">
           Where addons are listed and downloaded from (an https addons.json), and which of them are offered
@@ -199,7 +249,7 @@ export const ServerSettingsTab = () => {
           In use: <b>{repository.saved ?? repository.fromConfig ?? "none"}</b>{" "}
           {repository.saved ? "(set here)" : repository.fromConfig ? "(from appsettings)" : ""}
         </Text>
-        <HStack>
+        <HStack className="nm_wrapRow">
           <Input
             maxW="xl"
             aria-label="Registry URL"

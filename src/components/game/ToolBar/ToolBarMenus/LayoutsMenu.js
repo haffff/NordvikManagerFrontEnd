@@ -15,6 +15,7 @@ import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import InputModal from "../../../uiComponents/base/Modals/InputModal";
 import LayoutPersistence from "../../../../helpers/LayoutPersistence";
 import Subscribable from "../../../uiComponents/base/Subscribable";
+import { useResync } from "../../../../helpers/resync";
 
 export const LayoutsMenu = ({ state, battlemapsRef, canSave = true }) => {
   const width = 200;
@@ -29,6 +30,8 @@ export const LayoutsMenu = ({ state, battlemapsRef, canSave = true }) => {
   React.useEffect(() => {
     refreshLayouts();
   }, [refreshLayouts]);
+  // Back after a dropped connection: layouts added or shared meanwhile never arrived.
+  useResync(refreshLayouts);
 
   // The server-side layout list is filtered by permission — a share/unshare
   // doesn't touch the layout entity itself, so the "layout" CollectionSyncer

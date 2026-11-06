@@ -102,6 +102,14 @@ describe('UpdateSection', () => {
     expect(screen.queryByRole('button', { name: 'Check now' })).toBeNull();
   });
 
+  it("doesn't call itself the latest version when the check failed", async () => {
+    WebHelper.getAsync.mockResolvedValue(status({ available: null, checkError: "Couldn't check for updates: 502 (Bad Gateway)." }));
+    renderWithProviders(<UpdateSection />);
+
+    expect(await screen.findByText(/Couldn't check for updates/)).toBeTruthy();
+    expect(screen.queryByText(/latest version/)).toBeNull();
+  });
+
   it('checks again on request', async () => {
     WebHelper.getAsync.mockResolvedValue(status({ available: null }));
     WebHelper.postAsync.mockResolvedValue(ok(status()));

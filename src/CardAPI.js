@@ -1,6 +1,7 @@
 import ClientMediator from "./ClientMediator";
 import { ActiveTransportManager as WebSocketManagerInstance, ActiveWebHelper as WebHelper } from "./helpers/transport";
 import UtilityHelper from "./helpers/UtilityHelper";
+import { readRange, forgetVersion } from "./helpers/rangeRead";
 
 // ─── Security: allowlists ─────────────────────────────────────────────────────
 
@@ -114,16 +115,74 @@ function _mimeTypeOf(data) {
 }
 
 /**
- * Decode a base64 payload from the server into the right JS type.
- * Text and JSON types become strings; everything else becomes a Blob.
+ * Resource bytes as the right JS type: text and JSON (UTF-8) become strings,
+ * everything else a Blob.
  */
-function _decodeResourceData(base64, mimeType) {
-  const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+function _decodeResourceBytes(bytes, mimeType) {
   const mt = (mimeType ?? "").toLowerCase();
   if (mt.startsWith("text/") || mt === "application/json")
     return new TextDecoder().decode(bytes);
   return new Blob([bytes], { type: mt || "application/octet-stream" });
 }
+
+/**
+ * A resource by id or key, through the app's own download (WebRTCWebHelper.getMaterialAsync):
+ * in pieces for big files, kept in the browser's ResourceCache with its version. Text and
+ * JSON come back as UTF-8 strings, everything else as a Blob of its type; null if missing.
+ */
+async function _readResource({ id, key }) {
+  const file = await WebHelper.getMaterialAsync(id ?? null, null, key, false, { raw: true });
+  return file?.bytes ? _decodeResourceBytes(file.bytes, file.mimeType) : null;
+}
+
+// Parts of a resource: helpers/rangeRead.js (shared with media streaming).
+const _readRange = (ref, start, length) => readRange(ref, start, length).then((part) => part && { bytes: part.bytes, start: part.start, total: part.total, version: part.version });
+
+// Resources.Create options → CreateResourceRequest.StorageKind (0 database, 1 server file).
+const _storageKind = (options) => (options?.storage === "file" ? { storageKind: 1 } : {});
+
+// Files bigger than this go up in parts (WebRTCWebHelper.uploadInPieces).
+const _UPLOAD_PIECE = 2 * 1024 * 1024;
+
+/**
+ * Creates a resource under key (already scoped): a big file in parts, otherwise in one
+ * request (also on an older server without parts). Rejects a taken key. Resolves to its id.
+ */
+async function _createResource(key, data, name, mimeType, options, onProgress) {
+  const mt = mimeType ?? _mimeTypeOf(data);
+  const size = data?.size ?? data?.byteLength ?? 0;
+  if (size > _UPLOAD_PIECE && typeof WebHelper.uploadInPieces === "function") {
+    const blob = data instanceof Blob ? data : new Blob([data], { type: mt });
+    const resp = await WebHelper.uploadInPieces(blob, { name, mimeType: mt, key, storageKind: options?.storage === "file" ? 1 : 0 }, { onProgress });
+    if (resp !== null) {
+      if (resp?.status === 409)
+        throw new Error(resp.body?.error ?? "Resource with that key already exists.");
+      if (!resp || resp.status >= 300)
+        throw new Error(resp?.body?.error ?? "Failed to create resource.");
+      return resp.body?.id;
+    }
+  }
+  const content = await _toBase64(data);
+  const resp = await WebHelper.postAsync("materials/createresource", {
+    key, content, mimeType: mt, name, ..._storageKind(options),
+  });
+  onProgress?.(1);
+  if (resp?.status === 409)
+    throw new Error(resp.body?.error ?? "Resource with that key already exists.");
+  if (!resp || resp.status >= 300)
+    throw new Error(resp?.body?.error ?? "Failed to create resource.");
+  return resp.body?.id;
+}
+
+/** A resource reference: a game-wide key string, { key } or { id }; null for anything else. */
+function _normalizeRef(ref) {
+  if (typeof ref === "string" && ref) return { key: ref };
+  if (ref?.id) return { id: String(ref.id) };
+  if (ref?.key) return { key: String(ref.key) };
+  return null;
+}
+
+const _randomHex = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, "0")).join("");
 
 // ─── CardAPI ──────────────────────────────────────────────────────────────────
 
@@ -150,8 +209,14 @@ class CardAPI {
   // ── WebSocket message router ────────────────────────────────────────────
 
   _handleWebSocketMessage(message) {
-    const { command, data } = message;    
-    
+    const { command, data } = message;
+
+    // Back after a dropped connection: changes made meanwhile never arrived as pushes.
+    if (command === "__channel_ready__") {
+      if (message.reconnected) this._resync();
+      return;
+    }
+
     if (command === "property_add" || command === "property_update") {
       // PropertyDTO.ParentID is explicitly tagged [JsonProperty("parentId")]
       // server-side (matches WebSocketCommandNames.DataKeyParentId, which
@@ -182,6 +247,31 @@ class CardAPI {
       } catch (err) {
         console.error(`CardAPI: subscriber error for "${propertyName}"`, err);
       }
+    }
+  }
+
+  // Loads the card's properties again and tells the card's code about each one that
+  // changed, appeared or went away while the connection was down.
+  async _resync() {
+    let props;
+    try {
+      props = await WebHelper.getAsync(`properties/QueryProperties?parentIds=${this._cardId}`);
+    } catch (err) {
+      console.warn("CardAPI: reloading properties after reconnect failed", err);
+      return;
+    }
+    if (this._destroyed || !Array.isArray(props)) return;
+    const fresh = new Map(props.filter((p) => p?.name).map((p) => [p.name, p]));
+    for (const [name, prop] of fresh) {
+      const old = this._propertyCache.get(name);
+      if (old && old.value === prop.value && old.id === prop.id) continue;
+      this._updateCache(prop);
+      this._notifySubscribers(name, prop);
+    }
+    for (const name of [...this._propertyCache.keys()]) {
+      if (fresh.has(name)) continue;
+      this._propertyCache.delete(name);
+      this._notifySubscribers(name, null);
     }
   }
 
@@ -640,32 +730,80 @@ class CardAPI {
      * @param {string} [mimeType]  - MIME type string. Auto-detected when omitted.
      * @returns {Promise<string>}  GUID of the new resource.
      */
-    Create: async (key, data, name, mimeType) => {
-      const scopedKey = this._scopeKey(key);
-      const mt = mimeType ?? _mimeTypeOf(data);
-      const content = await _toBase64(data);
-      const resp = await WebHelper.postAsync("materials/createresource", {
-        key: scopedKey, content, mimeType: mt, name: name ?? key,
-      });
-      if (resp?.status === 409)
-        throw new Error(resp.body?.error ?? "Resource with that key already exists.");
-      if (!resp || resp.status >= 300)
-        throw new Error(resp?.body?.error ?? "Failed to create resource.");
-      return resp.body?.id;
-    },
+    Create: async (key, data, name, mimeType, options) => _createResource(this._scopeKey(key), data, name ?? key, mimeType, options),
 
     /**
      * Read a resource's content by key.
      * @param {string} key  - Logical key (scoped to this card automatically).
      * @returns {Promise<string|Blob|null>} string for text/json types, Blob otherwise, null if not found.
      */
-    Read: async (key) => {
-      const scopedKey = this._scopeKey(key);
-      const resp = await WebHelper.getAsync(
-        `materials/resource?key=${encodeURIComponent(scopedKey)}`
-      );
-      if (!resp?.data) return null;
-      return _decodeResourceData(resp.data, resp.mimeType);
+    Read: async (key) => _readResource({ key: this._scopeKey(key) }),
+
+    /**
+     * Read any game resource the player may read by its id, e.g. a file from the
+     * Materials panel (see List). Cached in the browser like Read.
+     * @param {string} id  - The resource's GUID.
+     * @returns {Promise<string|Blob|null>}
+     */
+    ReadById: async (id) => (id ? _readResource({ id }) : null),
+
+    /**
+     * Part of any game resource the player may read, without downloading the rest, e.g.
+     * the bytes of the PDF pages on screen. Each part is cached in the browser.
+     * @param {{ id?: string, key?: string }} ref - The resource's id, or its (game-wide) key.
+     * @param {number} start   - First byte.
+     * @param {number} length  - How many bytes (the server sends at most 2 MB).
+     * @returns {Promise<{ bytes: Uint8Array, start: number, total: number, version: string }|null>}
+     */
+    ReadRange: async (ref, start, length) => _readRange(ref, start, length),
+
+    /**
+     * What a file is, for the card's file handle (the frame side builds read/blob/text/json/
+     * mediaUrl on it): { ref, size, mimeType, version }, or null when there's no such file.
+     * @param {string|{ id?: string, key?: string }} ref - A game-wide key, { key } or { id }.
+     */
+    Open: async (ref) => {
+      const r = _normalizeRef(ref);
+      if (!r) return null;
+      // always the current version: the handle refuses pieces of any other
+      const part = await readRange(r, 0, 1, { fresh: true });
+      return part ? { ref: r, size: part.total, mimeType: part.mimeType, version: part.version } : null;
+    },
+
+    /** The whole file as a Blob (downloaded in pieces and cached by the app), or null. */
+    ReadWhole: async (ref) => {
+      const r = _normalizeRef(ref);
+      if (!r) return null;
+      const data = await WebHelper.getMaterialAsync(r.id ?? null, "application/octet-stream", r.key);
+      return data instanceof Blob ? data : null;
+    },
+
+    /**
+     * Stores a file and says where: { id, key }. Big files go up in parts, resumably.
+     * @param {Blob|ArrayBuffer|Uint8Array|string} data
+     * @param {{ key?: string, name?: string, mimeType?: string, global?: boolean, storage?: "file" }} [options]
+     *   key: scoped to this card unless global (a new one is made when none is given);
+     *   storage "file": the server's file storage (big files; needs Edit on the game).
+     * @param {(fraction: number) => void} [onProgress]
+     */
+    Upload: async (data, options = {}, onProgress) => {
+      const raw = options?.key || `upload_${_randomHex()}`;
+      const key = options?.global ? raw : this._scopeKey(raw);
+      const id = await _createResource(key, data, options?.name ?? raw, options?.mimeType, options, onProgress);
+      return { id, key };
+    },
+
+    /**
+     * The game's resources this player can see (all of them for whoever may edit the
+     * game, otherwise their own), without file data.
+     * @param {{ mimeType?: string }} [filter] - Only resources of this MIME type.
+     * @returns {Promise<Array<{ id: string, name: string, mimeType: string, key: string|null }>>}
+     */
+    List: async (filter) => {
+      const resources = await WebHelper.getAsync("materials/getresources");
+      return (Array.isArray(resources) ? resources : [])
+        .filter((r) => !filter?.mimeType || r.mimeType === filter.mimeType)
+        .map((r) => ({ id: r.id, name: r.name, mimeType: r.mimeType, key: r.key ?? null }));
     },
 
     /**
@@ -679,6 +817,7 @@ class CardAPI {
       const content = await _toBase64(data);
       const mt = mimeType ?? _mimeTypeOf(data);
       const resp = await WebHelper.putAsync("materials/resourcedata", { key: scopedKey, content, mimeType: mt });
+      forgetVersion({ key: scopedKey });
       if (!resp || resp.status >= 300)
         throw new Error(resp?.body?.error ?? "Failed to update resource.");
     },
@@ -692,6 +831,7 @@ class CardAPI {
       const resp = await WebHelper.deleteAsync(
         `materials/resourcedata?key=${encodeURIComponent(scopedKey)}`
       );
+      forgetVersion({ key: scopedKey });
       if (resp?.error) throw new Error(resp.error);
     },    /**
      * Create the resource if it doesn't exist, otherwise update its content.
@@ -717,31 +857,16 @@ class CardAPI {
      * (e.g. shared token images, global config blobs).
      */
     Global: {
-      Create: async (key, data, name, mimeType) => {
-        const mt = mimeType ?? _mimeTypeOf(data);
-        const content = await _toBase64(data);
-        const resp = await WebHelper.postAsync("materials/createresource", {
-          key, content, mimeType: mt, name: name ?? key,
-        });
-        if (resp?.status === 409)
-          throw new Error(resp.body?.error ?? "Resource with that key already exists.");
-        if (!resp || resp.status >= 300)
-          throw new Error(resp?.body?.error ?? "Failed to create resource.");
-        return resp.body?.id;
-      },
+      /** options.storage: "file" keeps a big file in the server's file storage (needs Edit on the game). */
+      Create: async (key, data, name, mimeType, options) => _createResource(key, data, name ?? key, mimeType, options),
 
-      Read: async (key) => {
-        const resp = await WebHelper.getAsync(
-          `materials/resource?key=${encodeURIComponent(key)}`
-        );
-        if (!resp?.data) return null;
-        return _decodeResourceData(resp.data, resp.mimeType);
-      },
+      Read: async (key) => _readResource({ key }),
 
       Update: async (key, data, mimeType) => {
         const content = await _toBase64(data);
         const mt = mimeType ?? _mimeTypeOf(data);
         const resp = await WebHelper.putAsync("materials/resourcedata", { key, content, mimeType: mt });
+        forgetVersion({ key });
         if (!resp || resp.status >= 300)
           throw new Error(resp?.body?.error ?? "Failed to update resource.");
       },
@@ -750,6 +875,7 @@ class CardAPI {
         const resp = await WebHelper.deleteAsync(
           `materials/resourcedata?key=${encodeURIComponent(key)}`
         );
+        forgetVersion({ key });
         if (resp?.error) throw new Error(resp.error);
       },      Upsert: async (key, data, name, mimeType) => {
         try {
@@ -912,6 +1038,9 @@ class CardAPI {
  * Unlike CardAPI (per-card, sandboxed), PropertiesManager operates across any
  * parentId and maintains a shared cache for the entire session.
  */
+// How many parents one request asks for when the cache catches up after a reconnect.
+const RESYNC_PARENTS_PER_REQUEST = 100;
+
 class PropertiesManager {
   panel = "Properties";
   id = "PropertiesHelper";
@@ -920,6 +1049,10 @@ class PropertiesManager {
 
   constructor() {
     WebSocketManagerInstance.Subscribe("PropertiesManager_subs", (command) => {
+      if (command.command === "__channel_ready__") {
+        if (command.reconnected) this._resync();
+        return;
+      }
       if (command.command === "property_update" || command.command === "property_add") {
         this._propertyCache[command.data.id] = command.data;
       }
@@ -929,6 +1062,30 @@ class PropertiesManager {
         delete this._propertyCache[command.data.id];
       }
     });
+  }
+
+  // Back after a dropped connection: every parent with properties in the cache is loaded
+  // again (in batches), and properties removed meanwhile leave the cache.
+  async _resync() {
+    const parentIds = [...new Set(Object.values(this._propertyCache).map((x) => x.parentId).filter(Boolean))];
+    for (let i = 0; i < parentIds.length; i += RESYNC_PARENTS_PER_REQUEST) {
+      const batch = parentIds.slice(i, i + RESYNC_PARENTS_PER_REQUEST);
+      let fresh;
+      try {
+        fresh = await WebHelper.getAsync(
+          `properties/QueryProperties?parentIds=${batch.map(encodeURIComponent).join(",")}`
+        );
+      } catch (err) {
+        console.warn("PropertiesManager: reloading properties after reconnect failed", err);
+        continue;
+      }
+      if (!Array.isArray(fresh)) continue;
+      const inBatch = new Set(batch);
+      for (const [id, prop] of Object.entries(this._propertyCache)) {
+        if (inBatch.has(prop.parentId)) delete this._propertyCache[id];
+      }
+      fresh.forEach((x) => { this._propertyCache[x.id] = x; });
+    }
   }
 
   async Get({ parentId, isCommand }) {

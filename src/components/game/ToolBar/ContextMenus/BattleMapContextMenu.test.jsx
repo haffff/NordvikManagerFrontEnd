@@ -64,6 +64,46 @@ describe('BattleMapContextMenu', () => {
     await waitFor(() => expect(trigger).toHaveAttribute('data-state', 'open'));
   });
 
+  // fireEvent.pointerDown builds a MouseEvent: give it the pointer fields jsdom leaves out.
+  const touchDown = (el) => {
+    const e = new MouseEvent('pointerdown', { bubbles: true, cancelable: true, clientX: 50, clientY: 60 });
+    Object.defineProperty(e, 'pointerType', { value: 'touch' });
+    Object.defineProperty(e, 'pointerId', { value: 7 });
+    act(() => { el.dispatchEvent(e); });
+  };
+
+  it("a finger held on the map is the map's own long-press, not the menu's", async () => {
+    vi.useFakeTimers();
+    try {
+      renderWithProviders(
+        <BattleMapContextMenu battleMapId="bm" canvas={canvasStub}>
+          <canvas data-testid="map" />
+        </BattleMapContextMenu>
+      );
+      const trigger = screen.getByTestId('map').closest('[data-part="context-trigger"]');
+      touchDown(screen.getByTestId('map'));
+      // The menu's own long-press would open it here, without placing it at the finger.
+      await act(async () => { await vi.advanceTimersByTimeAsync(1000); });
+      expect(trigger).toHaveAttribute('data-state', 'closed');
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it('a finger on the map closes the open menu (no click follows a touch on the canvas)', async () => {
+    renderWithProviders(
+      <BattleMapContextMenu battleMapId="bm" canvas={canvasStub}>
+        <canvas data-testid="map" />
+      </BattleMapContextMenu>
+    );
+    const trigger = screen.getByTestId('map').closest('[data-part="context-trigger"]');
+    fireEvent.contextMenu(trigger);
+    await waitFor(() => expect(trigger).toHaveAttribute('data-state', 'open'));
+
+    touchDown(screen.getByTestId('map'));
+    await waitFor(() => expect(trigger).toHaveAttribute('data-state', 'closed'));
+  });
+
   it('offers Add (to place tokens) with Control on the map, but not Paste', async () => {
     mapPermission = 1 | 2 | 4; // See + Execute + Control, no Edit
     renderWithProviders(

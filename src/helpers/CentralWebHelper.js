@@ -12,8 +12,9 @@ const DEFAULT_HEADERS = {
 // access token. Central rotates the refresh token on every use, so two refreshes at
 // once would revoke each other's token: calls in this tab share one request, and tabs
 // take turns through a Web Lock (each finds the cookie the previous one left).
-// Resolves true on success. Only a 401/403 ends the session — a 5xx, 429 or network
-// error leaves it alone, so a hiccup at Central doesn't log anyone out.
+// Resolves true on success, false when Central rejects the refresh token (only a 401/403
+// ends the session), and null when it couldn't be asked (5xx, 429, network): a hiccup at
+// Central doesn't log anyone out, and callers that can wait try again later.
 let refreshInFlight = null;
 
 export function refreshAccessToken() {
@@ -43,13 +44,13 @@ async function requestRefresh() {
       TokenStore.clear();
       return false;
     }
-    if (!resp.ok) return false;
+    if (!resp.ok) return null;
 
     const data = await resp.json();
     TokenStore.setAccessToken(data.accessToken);
     return true;
   } catch {
-    return false;
+    return null;
   }
 }
 

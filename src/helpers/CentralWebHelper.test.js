@@ -77,11 +77,12 @@ describe('CentralWebHelper token refresh', () => {
     expect(JSON.parse(init.body)).toEqual({ refreshMode: 'cookie' });
   });
 
+  // null, not false: "try again later", so a reconnect keeps going instead of asking to log in.
   it('keeps the session when Central fails for another reason (5xx, 429, network)', async () => {
     const clear = vi.spyOn(TokenStore, 'clear');
     for (const respond of [() => new Response('', { status: 500 }), () => new Response('', { status: 429 }), () => Promise.reject(new Error('offline'))]) {
       serve(respond);
-      expect(await refreshAccessToken()).toBe(false);
+      expect(await refreshAccessToken()).toBeNull();
     }
     expect(clear).not.toHaveBeenCalled();
   });

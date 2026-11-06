@@ -18,7 +18,7 @@ const AutoJoinScreen = ({
     {state === 'pending' && <Text color="gray.400">Connecting to game…</Text>}
 
     {state === 'password' && (
-      <Stack gap={3} width="320px">
+      <Stack gap={3} width="320px" maxW="calc(100vw - 32px)">
         <Heading size="sm">Password required</Heading>
         <Input
           type="password"
@@ -38,7 +38,7 @@ const AutoJoinScreen = ({
           <Text fontSize="sm" color="red.300">{error}</Text>
         </Box>
         {requiresPassword && (
-          <Stack gap={3} width="320px">
+          <Stack gap={3} width="320px" maxW="calc(100vw - 32px)">
             <Input
               type="password"
               placeholder="Try a different password"

@@ -21,11 +21,13 @@ import createLoadCanvas from './Handlers/LoadCanvas';
 import createHandleDrop from './Handlers/HandleDrop';
 import { useCanvasFitsPanel } from './Hooks/useCanvasFitsPanel';
 import { useLayerView } from './Hooks/useLayerView';
+import { installTouchGestures, openContextMenuAt } from './Helpers/touchGestures';
 import BasePanel from "../uiComponents/base/BasePanel";
 import { _entityPermissionSetter } from "../../contexts/PermissionsContext";
 import { ENTITY_TYPES, PERM } from "./Helpers/permissionBits";
 import UtilityHelper from "../../helpers/UtilityHelper";
 import { fitFloatingSize } from "../../helpers/floatingSize";
+import { useResync } from "../../helpers/resync";
 
 const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
   // Performance monitor: track renders for this component
@@ -188,6 +190,15 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
     [editor, battleMapModel]
   );
 
+  // Back after a dropped connection: elements moved, added or removed meanwhile (or the
+  // panel switched to another map) never arrived. Load what the panel shows now, as on open.
+  useResync(async () => {
+    const resp = await WebHelper.getAsync(`battlemap/getbattlemap?id=${withID}`);
+    if (!resp?.mapId) return;
+    await ApplyMapChange(resp.mapId);
+    setBattleMapModel(resp);
+  });
+
   // Legacy one-shot initialization effect moved below after ApplyMapChange definition
   React.useEffect(() => {
     WebHelper.get(
@@ -230,7 +241,14 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
     if (battleMapObjectRef.current) battleMapObjectRef.current.Panel = panel;
   }, [panel]);
 
-  useCanvasFitsPanel(editor?.canvas, panelWidth, panelHeight, !!battleMapModel);
+  useCanvasFitsPanel(editor?.canvas, panelWidth, panelHeight, !!battleMapModel, battleMapContainerRef);
+
+  // Touch: two fingers zoom and pan, and a finger held still opens the map's menu, as a
+  // right click does.
+  React.useEffect(() => installTouchGestures(editor?.canvas, {
+    onLongPress: (point) =>
+      openContextMenuAt(battleMapContainerRef.current?.querySelector(".nm_bm_contextTrigger"), point),
+  }), [editor?.canvas]);
 
   React.useEffect(() => {
     if (battleMapModel) ctx.setTitle("BM - " + battleMapModel.name);
@@ -261,7 +279,7 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
         battleMapId={uuid}
         canvas={editor?.canvas}
       >
-        <FabricJSCanvas onReady={onReady} />{" "}
+        <FabricJSCanvas onReady={onReady} />
       </BattleMapContextMenu>
       <PopupBMOverlay key={uuid + "popup"} battleMapId={uuid} />
       <InfoBMOverlay battleMapId={uuid} />

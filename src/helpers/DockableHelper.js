@@ -1,4 +1,6 @@
 import * as Dockable from "@hlorenzi/react-dockable"
+import { isMobileUi } from "./uiMode";
+import { openTab } from "../components/game/mobile/mobileTabs";
 
 let globalDockableState = null;
 let dragStateListeners = new Set();
@@ -6,7 +8,14 @@ let lastDraggedPanel = null;
 let popOutHandler = null;
 
 export const DockableHelper = {
+    // The one way panels open. In the mobile UI there is no dock: the panel opens as a
+    // tab (or switches to it if already open) and there is no dock panel to return.
     NewFloating: (state,Element) => {
+        if (isMobileUi()) {
+            openTab(Element);
+            return null;
+        }
+
         let panel = Dockable.spawnFloating(state, Element);
 
         state.commit();

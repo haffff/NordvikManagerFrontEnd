@@ -6,7 +6,6 @@ import {
   Flex,
   HStack,
   Icon,
-  Stack,
   Text,
 } from "@chakra-ui/react";
 import * as Dockable from "@hlorenzi/react-dockable";
@@ -26,8 +25,10 @@ import { SettingsPanelWithPropertySettings } from "../../settings/SettingsPanelW
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../../helpers/transport";
 import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import ClientMediator from "../../../../ClientMediator";
-import { ResizeDivider, useDragResize } from "../../../uiComponents/ResizeDivider";
+import { tokenEditAction } from "../../tokenEditing";
+import { SplitPane, useSplitView } from "../../../uiComponents/base/SplitPane";
 import themeColors from "../../../../helpers/themeColors";
+import { useResyncKey } from "../../../../helpers/resync";
 
 // ── Module-level constants ────────────────────────────────────────────────────
 
@@ -58,6 +59,7 @@ const EDITABLE_DICT = [
     label: "Default Token",
     type: "materialSelect",
     additionalFilter: (item) => item.mimeType === "application/json",
+    editAction: tokenEditAction,
   },
 ];
 
@@ -175,10 +177,12 @@ export const TemplatesPanel = ({ gameDataRef }) => {
   const [confirmDelete, setConfirmDelete] = React.useState(false);
   const [pushing, setPushing] = React.useState(false);
 
-  // Resizable sidebar
-  const colContainerRef = React.useRef(null);
-  const { fracs, onDividerMouseDown } = useDragResize(colContainerRef, [0.35]);
+  // List and detail side by side, or one at a time when narrow.
+  const split = useSplitView();
+  const openTemplate = (template) => { setSelectedTemplate(template); split.showDetail(); };
 
+  // Loaded again once the connection is back after a drop.
+  const resyncKey = useResyncKey();
   React.useEffect(() => {
     const load = async () => {
       const gameId = await ClientMediator.sendCommandAsync("Game", "GetGameId");
@@ -188,7 +192,7 @@ export const TemplatesPanel = ({ gameDataRef }) => {
       if (data) setTemplates(data);
     };
     load();
-  }, []);
+  }, [resyncKey]);
 
   // Reset two-step confirm when selection changes
   React.useEffect(() => {
@@ -210,7 +214,7 @@ export const TemplatesPanel = ({ gameDataRef }) => {
 
   const handleDelete = (template) => {
     WebSocketManagerInstance.Send({ command: "template_delete", data: template.id });
-    if (selectedTemplate?.id === template.id) setSelectedTemplate(null);
+    if (selectedTemplate?.id === template.id) { setSelectedTemplate(null); split.showList(); }
   };
 
   const handleSave = (dto) => {
@@ -316,24 +320,18 @@ export const TemplatesPanel = ({ gameDataRef }) => {
         setCollection={setTemplates}
         commandPrefix="template"
         onAdd={(newTemplate) => {
-          setSelectedTemplate(newTemplate);
+          openTemplate(newTemplate);
           // The server files the new template in the folder tree on the next load.
           treeRefreshRef.current?.();
         }}
         onDelete={(deletedId) => {
-          if (selectedTemplate?.id === deletedId) setSelectedTemplate(null);
+          if (selectedTemplate?.id === deletedId) { setSelectedTemplate(null); split.showList(); }
         }}
-      />      <Flex height="100%" width="100%" overflow="hidden" ref={colContainerRef}>
-
-        {/* ── Left list pane ── */}
-        <Stack
-          width={`${fracs[0] * 100}%`}
-          flexShrink={0}
-          height="100%"
-          overflow="hidden"
-          gap={0}
-        >
-          {/* Folder tree (with its own search) */}
+      />
+      <SplitPane
+        split={split}
+        backLabel="templates"
+        list={
           <Flex flex={1} minH={0} direction="column" px="4px" pt="4px">
             <DTreeList
               entityType="CardTemplate"
@@ -345,81 +343,73 @@ export const TemplatesPanel = ({ gameDataRef }) => {
               addRowLabel="New template"
               refreshRef={treeRefreshRef}
               estimatedRowHeight={44}
-              onSelect={(sel) => { if (sel?.itemRef) setSelectedTemplate(sel.itemRef); }}
+              onSelect={(sel) => { if (sel?.itemRef) openTemplate(sel.itemRef); }}
               generateItem={(t) => (
                 <TemplateCard
                   template={t}
                   isSelected={selectedTemplate?.id === t.id}
-                  onSelect={setSelectedTemplate}
+                  onSelect={openTemplate}
                   onDelete={handleDelete}
                 />
               )}
             />
           </Flex>
-
-        </Stack>
-
-        <ResizeDivider onMouseDown={(e) => onDividerMouseDown(0, e)} />
-
-        {/* ── Right detail pane ── */}
-        <Flex direction="column" flex={1} height="100%" overflow="hidden">
-          {selectedTemplate ? (
-            <>
-              <RightPaneHeader
-                template={selectedTemplate}
-                confirmDelete={confirmDelete}
-                onDelete={() => setConfirmDelete(true)}
-                onConfirmDelete={() => {
-                  handleDelete(selectedTemplate);
-                  setConfirmDelete(false);
-                }}
-                onCancelDelete={() => setConfirmDelete(false)}
+        }
+        detail={selectedTemplate ? (
+          <>
+            <RightPaneHeader
+              template={selectedTemplate}
+              confirmDelete={confirmDelete}
+              onDelete={() => setConfirmDelete(true)}
+              onConfirmDelete={() => {
+                handleDelete(selectedTemplate);
+                setConfirmDelete(false);
+              }}
+              onCancelDelete={() => setConfirmDelete(false)}
+            />
+            <Box flex={1} overflowY="auto" px="4px" py="4px">
+              <SettingsPanelWithPropertySettings
+                withExport
+                key={selectedTemplate.id}
+                entityName="CardModel"
+                editableKeyLabelDict={EDITABLE_DICT}
+                dto={selectedTemplate}
+                onSave={handleSave}
               />
-              <Box flex={1} overflowY="auto" px="4px" py="4px">
-                <SettingsPanelWithPropertySettings
-                  withExport
-                  key={selectedTemplate.id}
-                  entityName="CardModel"
-                  editableKeyLabelDict={EDITABLE_DICT}
-                  dto={selectedTemplate}
-                  onSave={handleSave}
-                />
-                {/* ── Push to cards ── */}
-                <Box
-                  mx="4px"
-                  mt="4px"
-                  mb="8px"
-                  p="12px"
-                  borderWidth="1px"
-                  borderColor={themeColors.divider}
-                  borderRadius="md"
+              {/* ── Push to cards ── */}
+              <Box
+                mx="4px"
+                mt="4px"
+                mb="8px"
+                p="12px"
+                borderWidth="1px"
+                borderColor={themeColors.divider}
+                borderRadius="md"
+              >
+                <Text fontSize="sm" fontWeight="medium" color="gray.200" mb="6px">
+                  Push to cards
+                </Text>
+                <Text fontSize="xs" color="gray.400" mb="8px">
+                  Updates all cards using this template: main resource, additional resources, and default token.
+                </Text>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  loading={pushing}
+                  onClick={handlePushToCards}
                 >
-                  <Text fontSize="sm" fontWeight="medium" color="gray.200" mb="6px">
-                    Push to cards
-                  </Text>
-                  <Text fontSize="xs" color="gray.400" mb="8px">
-                    Updates all cards using this template: main resource, additional resources, and default token.
-                  </Text>
-                  <Button
-                    size="sm"
-                    variant="outline"
-                    loading={pushing}
-                    onClick={handlePushToCards}
-                  >
-                    <HStack gap="6px">
-                      <Icon as={FaArrowDown} />
-                      <span>Push to all using this template</span>
-                    </HStack>
-                  </Button>
-                </Box>
+                  <HStack gap="6px">
+                    <Icon as={FaArrowDown} />
+                    <span>Push to all using this template</span>
+                  </HStack>
+                </Button>
               </Box>
-            </>
-          ) : (
-            <EmptyState />
-          )}
-        </Flex>
-
-      </Flex>
+            </Box>
+          </>
+        ) : (
+          <EmptyState />
+        )}
+      />
     </BasePanel>
   );
 };

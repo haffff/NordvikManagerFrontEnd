@@ -4,6 +4,7 @@ import ClientMediator from "../../../ClientMediator";
 import UtilityHelper from "../../../helpers/UtilityHelper";
 import { parseListValue } from "../../game/settings/PropertiesSettingsPanel";
 import { RESERVED_LAYERS } from "../../BattleMap/Constants/layers";
+import { useResyncKey } from "../../../helpers/resync";
 
 const LAYER_LIST_PROPERTY_NAME = "customLayers";
 
@@ -50,6 +51,9 @@ export const useCustomLayers = (gameId) => {
   const [layers, setLayers] = React.useState(RESERVED_ROWS);
   const prevByIdRef = React.useRef(new Map());
 
+  // Loaded again once the connection is back after a drop. No layer reassignment then: the
+  // battle map reloads its elements, already on their current layers.
+  const resyncKey = useResyncKey();
   React.useEffect(() => {
     if (!gameId) return;
 
@@ -98,7 +102,7 @@ export const useCustomLayers = (gameId) => {
     });
 
     return () => WebSocketManagerInstance.Unsubscribe(subscriptionKey);
-  }, [gameId]);
+  }, [gameId, resyncKey]);
 
   return { propertyId, layers };
 };

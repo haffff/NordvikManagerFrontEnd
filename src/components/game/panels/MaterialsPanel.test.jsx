@@ -12,8 +12,18 @@ vi.mock('../../../contexts/PermissionsContext', () => ({
   usePermissions: () => ({ ...perms, hasEntityPermission: () => perms.canEditGame }),
 }));
 // The tree draws each folder's add row (Upload files / Link local file or folder…).
+// Its items' buttons are drawn for two sample resources: a JSON file and a picture.
+const SAMPLE_ITEMS = vi.hoisted(() => [
+  { id: 'r-json', name: 'token_hero.json', mimeType: 'application/json', storage: 0 },
+  { id: 'r-png', name: 'hero.png', mimeType: 'image/png', storage: 0 },
+]);
 vi.mock('../../uiComponents/treeList/DTreeList', () => ({
-  default: ({ renderAddRow }) => (renderAddRow ? renderAddRow(null) : null),
+  default: ({ renderAddRow, onGenerateEditButtons }) => (
+    <>
+      {renderAddRow ? renderAddRow(null) : null}
+      {onGenerateEditButtons && SAMPLE_ITEMS.map((item) => <div key={item.id} data-testid={`item-${item.id}`}>{onGenerateEditButtons(item)}</div>)}
+    </>
+  ),
   AddRow: ({ label, onClick, children }) => <div><button onClick={onClick}>{label}</button>{children}</div>,
 }));
 vi.mock('../../uiComponents/base/Modals/InputModal', () => ({ default: () => null }));
@@ -34,7 +44,11 @@ vi.mock('../../../helpers/transport', () => ({
   ActiveTransportManager: { Send: vi.fn(), Subscribe: vi.fn(), Unsubscribe: vi.fn() },
 }));
 
+const tokenEditing = vi.hoisted(() => ({ editTokenResource: vi.fn() }));
+vi.mock('../tokenEditing', async (importOriginal) => ({ ...(await importOriginal()), editTokenResource: tokenEditing.editTokenResource }));
+
 import { MaterialsPanel } from './MaterialsPanel';
+import { fireEvent, within } from '@testing-library/react';
 
 const LINK = 'Link local file or folder…';
 
@@ -83,5 +97,27 @@ describe('MaterialsPanel add row', () => {
     upload.click();
 
     expect(click).toHaveBeenCalled();
+  });
+});
+
+// A JSON resource can be a token file: an editor of the game opens it in the token
+// editor, whose "Save to game" writes it back (components/game/tokenEditing.js).
+describe('MaterialsPanel token files', () => {
+  beforeEach(() => { perms.canEditGame = false; });
+
+  it('JSON resources get "Edit in token editor" for an editor of the game', async () => {
+    perms.canEditGame = true;
+    renderWithProviders(<MaterialsPanel state={{}} />);
+
+    const json = (await screen.findAllByTestId('item-r-json'))[0];
+    fireEvent.click(within(json).getByRole('button', { name: 'Edit in token editor' }));
+    expect(tokenEditing.editTokenResource).toHaveBeenCalledWith({ id: 'r-json', name: 'token_hero.json' });
+    expect(within(screen.getAllByTestId('item-r-png')[0]).queryByRole('button', { name: 'Edit in token editor' })).toBeNull();
+  });
+
+  it('not for players', async () => {
+    renderWithProviders(<MaterialsPanel state={{}} />);
+    await waitFor(() => expect(screen.queryAllByText(/Upload files/).length).toBeGreaterThan(0));
+    expect(screen.queryByRole('button', { name: 'Edit in token editor' })).toBeNull();
   });
 });

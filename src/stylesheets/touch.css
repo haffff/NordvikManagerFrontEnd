@@ -1,0 +1,21 @@
+/* Small and touch screens, in either UI mode (a tablet keeps the desktop UI). */
+
+/* A finger needs a bigger row than a mouse pointer. Rows set their minimum height
+   inline, and the tree measures rows, so taller rows lay out correctly. */
+@media (pointer: coarse) {
+  .nm_treeRow {
+    min-height: 36px !important;
+  }
+}
+
+/* On a phone a dialog takes the whole screen, whatever width it asks for. */
+@media (max-width: 600px) {
+  .nm_dialog {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: 100dvh;
+    margin: 0 !important;
+    border-radius: 0 !important;
+    padding-bottom: env(safe-area-inset-bottom);
+  }
+}

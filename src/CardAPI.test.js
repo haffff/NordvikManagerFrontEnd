@@ -17,10 +17,16 @@ vi.mock('./helpers/transport', () => ({
   ActiveWebHelper: {
     getAsync: vi.fn(),
     postAsync: vi.fn(),
+    uploadInPieces: vi.fn(),
   },
 }));
 
+vi.mock('./helpers/ResourceCache', () => ({
+  default: { get: vi.fn(), put: vi.fn() },
+}));
+
 import { ActiveTransportManager, ActiveWebHelper } from './helpers/transport';
+import ResourceCache from './helpers/ResourceCache';
 import CardAPIFactory, { PropertiesManagerInstance } from './CardAPI';
 
 function subscribedCallback(prefix) {
@@ -415,5 +421,354 @@ describe('CardAPI — register', () => {
     const ClientMediator = (await import('./ClientMediator')).default;
     expect(ClientMediator._resolveClients(scoped)[0].panel).toBe(scoped);
     api.destroy();
+  });
+});
+
+
+// Resources a card reads come through the app's own download (WebRTCWebHelper.getMaterialAsync):
+// in pieces for big files, kept in the browser's resource cache with their version. The card
+// gets text decoded as UTF-8, everything else as a Blob of its type.
+describe('CardAPI — Resources reads use the app download', () => {
+  const bytes = (text) => new TextEncoder().encode(text);
+
+  beforeEach(() => {
+    ActiveWebHelper.GameId = 'game-1';
+    ActiveWebHelper.getAsync.mockReset().mockResolvedValue([]);
+    ActiveWebHelper.getMaterialAsync = vi.fn();
+  });
+
+  it('Read: the card-scoped key, text decoded as UTF-8', async () => {
+    const api = await CardAPIFactory('card-rc1');
+    ActiveWebHelper.getMaterialAsync.mockResolvedValue({ bytes: bytes('{"a":"żółw"}'), mimeType: 'application/json' });
+
+    expect(await api.Resources.Read('notes')).toBe('{"a":"żółw"}'); // UTF-8, not Latin-1
+    expect(ActiveWebHelper.getMaterialAsync).toHaveBeenLastCalledWith(null, null, 'card-rc1/notes', false, { raw: true });
+    api.destroy();
+  });
+
+  it('Global.Read: the key as it is', async () => {
+    const api = await CardAPIFactory('card-rc2');
+    ActiveWebHelper.getMaterialAsync.mockResolvedValue({ bytes: bytes('cached'), mimeType: 'text/plain' });
+
+    expect(await api.Resources.Global.Read('shared/thing')).toBe('cached');
+    expect(ActiveWebHelper.getMaterialAsync).toHaveBeenLastCalledWith(null, null, 'shared/thing', false, { raw: true });
+    api.destroy();
+  });
+
+  it('ReadById: a Blob of its type (e.g. a file from the Materials panel)', async () => {
+    const api = await CardAPIFactory('card-rc3');
+    ActiveWebHelper.getMaterialAsync.mockResolvedValue({ bytes: bytes('%PDF-1.7'), mimeType: 'application/pdf' });
+
+    const blob = await api.Resources.ReadById('res-9');
+
+    expect(blob).toBeInstanceOf(Blob);
+    expect(blob.type).toBe('application/pdf');
+    // jsdom's Blob has no .text()
+    const text = await new Promise((resolve) => { const r = new FileReader(); r.onload = () => resolve(r.result); r.readAsText(blob); });
+    expect(text).toBe('%PDF-1.7');
+    expect(ActiveWebHelper.getMaterialAsync).toHaveBeenLastCalledWith('res-9', null, undefined, false, { raw: true });
+    api.destroy();
+  });
+
+  it('returns null when there is no such resource', async () => {
+    const api = await CardAPIFactory('card-rc4');
+    ActiveWebHelper.getMaterialAsync.mockResolvedValue(undefined);
+
+    expect(await api.Resources.ReadById('missing')).toBeNull();
+    expect(await api.Resources.Read('missing')).toBeNull();
+    api.destroy();
+  });
+
+  it('lists the game resources the player can see, optionally of one type, without file data', async () => {
+    const api = await CardAPIFactory('card-rc5');
+    ActiveWebHelper.getAsync.mockResolvedValue([
+      { id: 'r1', name: 'Handbook.pdf', mimeType: 'application/pdf', key: null, path: 'C:/x', playerName: 'GM' },
+      { id: 'r2', name: 'map.png', mimeType: 'image/png', key: null },
+    ]);
+
+    expect(await api.Resources.List({ mimeType: 'application/pdf' }))
+      .toEqual([{ id: 'r1', name: 'Handbook.pdf', mimeType: 'application/pdf', key: null }]);
+    expect((await api.Resources.List()).map((r) => r.id)).toEqual(['r1', 'r2']);
+    expect(ActiveWebHelper.getAsync).toHaveBeenLastCalledWith('materials/getresources');
+    api.destroy();
+  });
+});
+
+
+// Part of a big resource (pdf.js asks for the bytes of the pages it shows): each part cached
+// in the browser; once the server has said which version is current, cached parts of that
+// version come without asking again.
+describe('CardAPI — Resources.ReadRange', () => {
+  const b64 = (bytes) => btoa(String.fromCharCode(...bytes));
+  const stored = new Map();
+
+  beforeEach(() => {
+    ActiveWebHelper.GameId = 'game-1';
+    ActiveWebHelper.getAsync.mockReset().mockResolvedValue([]);
+    stored.clear();
+    ResourceCache.get.mockReset().mockImplementation(async (k) => stored.get(k) ?? null);
+    ResourceCache.put.mockReset().mockImplementation(async (k, v) => { stored.set(k, v); return true; });
+  });
+
+  it('asks for the part, returns its bytes with the total, and caches it', async () => {
+    const api = await CardAPIFactory('card-rr1');
+    ActiveWebHelper.getAsync.mockResolvedValue({ data: b64([1, 2, 3]), start: 4096, total: 9000, mimeType: 'application/pdf', version: 'v1' });
+
+    const part = await api.Resources.ReadRange({ id: 'res-1' }, 4096, 3);
+
+    expect(ActiveWebHelper.getAsync).toHaveBeenLastCalledWith('materials/resourcerange?id=res-1&start=4096&length=3');
+    expect([...part.bytes]).toEqual([1, 2, 3]);
+    expect(part).toMatchObject({ start: 4096, total: 9000, version: 'v1' });
+    expect(stored.get('game-1:res-1@4096+3')).toMatchObject({ version: 'v1' });
+    api.destroy();
+  });
+
+  it('serves a cached part of the version the server named this session without asking', async () => {
+    const api = await CardAPIFactory('card-rr2');
+    stored.set('game-1:pdf_src_a.pdf@0+2', { data: new Uint8Array([7, 7]).buffer, mimeType: 'application/pdf', version: 'v2' });
+    stored.set('game-1:pdf_src_a.pdf@2+2', { data: new Uint8Array([8, 8]).buffer, mimeType: 'application/pdf', version: 'v2' });
+    ActiveWebHelper.getAsync.mockResolvedValue({ notModified: true, start: 0, total: 4, version: 'v2' });
+
+    const first = await api.Resources.ReadRange({ key: 'pdf_src_a.pdf' }, 0, 2);
+    expect(ActiveWebHelper.getAsync).toHaveBeenLastCalledWith('materials/resourcerange?key=pdf_src_a.pdf&start=0&length=2&ifVersion=v2');
+    expect([...first.bytes]).toEqual([7, 7]);
+    expect(first.total).toBe(4);
+
+    ActiveWebHelper.getAsync.mockClear();
+    const second = await api.Resources.ReadRange({ key: 'pdf_src_a.pdf' }, 2, 2);
+    expect(ActiveWebHelper.getAsync).not.toHaveBeenCalled();
+    expect([...second.bytes]).toEqual([8, 8]);
+    expect(second.total).toBe(4);
+    api.destroy();
+  });
+
+  // A file can change (a card updates it, a linked file is edited on disk): the version the
+  // server named is trusted only briefly, Open always asks, and the card's own changes forget it.
+  it('trusts a cached part only for a few seconds; Open always asks; Update and Delete forget the version', async () => {
+    const api = await CardAPIFactory('card-rr5');
+    const now = vi.spyOn(Date, 'now').mockReturnValue(1_000_000);
+    try {
+      stored.set('game-1:pdf_src_c.pdf@0+2', { data: new Uint8Array([7, 7]).buffer, mimeType: 'application/pdf', version: 'v2' });
+      ActiveWebHelper.getAsync.mockResolvedValue({ notModified: true, start: 0, total: 4, version: 'v2' });
+      await api.Resources.ReadRange({ key: 'pdf_src_c.pdf' }, 0, 2);
+
+      ActiveWebHelper.getAsync.mockClear();
+      await api.Resources.ReadRange({ key: 'pdf_src_c.pdf' }, 0, 2);
+      expect(ActiveWebHelper.getAsync).not.toHaveBeenCalled(); // just confirmed
+
+      now.mockReturnValue(1_000_000 + 16_000);
+      await api.Resources.ReadRange({ key: 'pdf_src_c.pdf' }, 0, 2);
+      expect(ActiveWebHelper.getAsync).toHaveBeenCalledTimes(1); // asked again (with its version)
+
+      ActiveWebHelper.getAsync.mockClear();
+      stored.set('game-1:pdf_src_c.pdf@0+1', { data: new Uint8Array([7]).buffer, mimeType: 'application/pdf', version: 'v2' });
+      await api.Resources.Open('pdf_src_c.pdf');
+      expect(ActiveWebHelper.getAsync).toHaveBeenCalledTimes(1); // Open: always the current version
+
+      ActiveWebHelper.getAsync.mockClear();
+      ActiveWebHelper.putAsync = vi.fn().mockResolvedValue({ status: 200 });
+      await api.Resources.Global.Update('pdf_src_c.pdf', 'new');
+      await api.Resources.ReadRange({ key: 'pdf_src_c.pdf' }, 0, 2);
+      expect(ActiveWebHelper.getAsync).toHaveBeenCalledTimes(1);
+    } finally {
+      now.mockRestore();
+      api.destroy();
+    }
+  });
+
+  it('asks again when the file changed, and gives nothing past the end or for a missing file', async () => {
+    const api = await CardAPIFactory('card-rr3');
+    stored.set('game-1:res-3@0+2', { data: new Uint8Array([1, 1]).buffer, mimeType: 'application/pdf', version: 'old' });
+    ActiveWebHelper.getAsync.mockResolvedValueOnce({ data: b64([2, 2]), start: 0, total: 2, mimeType: 'application/pdf', version: 'new' });
+    expect([...(await api.Resources.ReadRange({ id: 'res-3' }, 0, 2)).bytes]).toEqual([2, 2]);
+
+    ActiveWebHelper.getAsync.mockResolvedValueOnce({ data: '', start: 50, total: 2, mimeType: 'application/pdf', version: 'new' });
+    expect((await api.Resources.ReadRange({ id: 'res-3' }, 50, 2)).bytes.length).toBe(0);
+
+    ActiveWebHelper.getAsync.mockResolvedValueOnce(null);
+    expect(await api.Resources.ReadRange({ id: 'gone' }, 0, 2)).toBeNull();
+    expect(await api.Resources.ReadRange({}, 0, 2)).toBeNull();
+    api.destroy();
+  });
+
+  it("Global.Create can put a big file in the server's file storage", async () => {
+    const api = await CardAPIFactory('card-rr4');
+    ActiveWebHelper.postAsync.mockReset().mockResolvedValue({ status: 200, body: { id: 'new-id' } });
+
+    await api.Resources.Global.Create('pdf_src_b.pdf', 'x', 'Book.pdf', 'application/pdf', { storage: 'file' });
+    expect(ActiveWebHelper.postAsync).toHaveBeenLastCalledWith('materials/createresource', expect.objectContaining({ key: 'pdf_src_b.pdf', storageKind: 1 }));
+
+    await api.Resources.Global.Create('plain', 'x');
+    expect(ActiveWebHelper.postAsync.mock.calls.at(-1)[1].storageKind).toBeUndefined();
+    api.destroy();
+  });
+});
+
+// A card's big file goes up in parts too (WebRTCWebHelper.uploadInPieces), under its key.
+describe('CardAPI — Resources.Create with a big file', () => {
+  const big = () => new Blob([new Uint8Array(3 * 1024 * 1024)], { type: 'application/pdf' });
+
+  beforeEach(() => {
+    ActiveWebHelper.postAsync.mockReset().mockResolvedValue({ status: 200, body: { id: 'one-piece' } });
+    ActiveWebHelper.uploadInPieces.mockReset();
+  });
+
+  it('sends it in parts under the card-scoped (or global) key, into file storage when asked', async () => {
+    const api = await CardAPIFactory('card-up1');
+    ActiveWebHelper.uploadInPieces.mockResolvedValue({ status: 200, body: { id: 'res-big' } });
+
+    expect(await api.Resources.Create('book', big(), 'Book.pdf')).toBe('res-big');
+    expect(ActiveWebHelper.uploadInPieces.mock.calls[0][1]).toEqual({ name: 'Book.pdf', mimeType: 'application/pdf', key: 'card-up1/book', storageKind: 0 });
+
+    await api.Resources.Global.Create('pdf_src_x.pdf', big(), 'Book.pdf', 'application/pdf', { storage: 'file' });
+    expect(ActiveWebHelper.uploadInPieces.mock.calls[1][1]).toMatchObject({ key: 'pdf_src_x.pdf', storageKind: 1 });
+    expect(ActiveWebHelper.postAsync).not.toHaveBeenCalled();
+    api.destroy();
+  });
+
+  it('a taken key is refused as before; an older server gets it in one piece', async () => {
+    const api = await CardAPIFactory('card-up2');
+    ActiveWebHelper.uploadInPieces.mockResolvedValueOnce({ status: 409, body: { error: 'taken' } });
+    await expect(api.Resources.Global.Create('k', big())).rejects.toThrow('taken');
+
+    ActiveWebHelper.uploadInPieces.mockResolvedValueOnce(null);
+    expect(await api.Resources.Global.Create('k2', big())).toBe('one-piece');
+    expect(ActiveWebHelper.postAsync).toHaveBeenCalledWith('materials/createresource', expect.objectContaining({ key: 'k2' }));
+    api.destroy();
+  });
+
+  it('a small file is still one request', async () => {
+    const api = await CardAPIFactory('card-up3');
+    expect(await api.Resources.Global.Create('small', 'text')).toBe('one-piece');
+    expect(ActiveWebHelper.uploadInPieces).not.toHaveBeenCalled();
+    api.destroy();
+  });
+});
+
+// The simple file API for cards: Open gives what a file is (size, type, version) for the card's
+// file handle; ReadWhole the whole file (in pieces underneath); Upload sends a file under a key
+// (in parts when big) and tells how far it got. Card code never deals with byte ranges.
+describe('CardAPI — Resources.Open, ReadWhole, Upload', () => {
+  const b64 = (bytes) => btoa(String.fromCharCode(...bytes));
+
+  beforeEach(() => {
+    ActiveWebHelper.GameId = 'game-1';
+    ActiveWebHelper.getAsync.mockReset();
+    ActiveWebHelper.postAsync.mockReset().mockResolvedValue({ status: 200, body: { id: 'one-piece' } });
+    ActiveWebHelper.uploadInPieces.mockReset();
+    ActiveWebHelper.getMaterialAsync = vi.fn();
+    ResourceCache.get.mockReset().mockResolvedValue(null);
+    ResourceCache.put.mockReset().mockResolvedValue(true);
+  });
+
+  it('Open: what the file is, by key (game-wide), { key } or { id }; null when there is none', async () => {
+    const api = await CardAPIFactory('card-op1');
+    ActiveWebHelper.getAsync.mockResolvedValue({ data: b64([1]), start: 0, total: 9000, mimeType: 'application/pdf', version: 'v1' });
+
+    expect(await api.Resources.Open('pdf_src_a.pdf')).toEqual({ ref: { key: 'pdf_src_a.pdf' }, size: 9000, mimeType: 'application/pdf', version: 'v1' });
+    expect(ActiveWebHelper.getAsync).toHaveBeenLastCalledWith('materials/resourcerange?key=pdf_src_a.pdf&start=0&length=1');
+    expect((await api.Resources.Open({ id: 'res-1' })).ref).toEqual({ id: 'res-1' });
+
+    ActiveWebHelper.getAsync.mockResolvedValue(null);
+    expect(await api.Resources.Open({ id: 'gone' })).toBeNull();
+    expect(await api.Resources.Open({})).toBeNull();
+    api.destroy();
+  });
+
+  it('ReadWhole: the whole file as a Blob, through the app’s cached download', async () => {
+    const api = await CardAPIFactory('card-op2');
+    const blob = new Blob(['%PDF'], { type: 'application/octet-stream' });
+    ActiveWebHelper.getMaterialAsync.mockResolvedValue(blob);
+
+    expect(await api.Resources.ReadWhole({ key: 'k' })).toBe(blob);
+    expect(ActiveWebHelper.getMaterialAsync).toHaveBeenCalledWith(null, 'application/octet-stream', 'k');
+    await api.Resources.ReadWhole({ id: 'r1' });
+    expect(ActiveWebHelper.getMaterialAsync).toHaveBeenLastCalledWith('r1', 'application/octet-stream', undefined);
+    api.destroy();
+  });
+
+  it('Upload: under the card’s scope by default, game-wide when asked, a key made when none is given; progress passed on', async () => {
+    const api = await CardAPIFactory('card-op3');
+    const big = new Blob([new Uint8Array(3 * 1024 * 1024)], { type: 'application/pdf' });
+    ActiveWebHelper.uploadInPieces.mockImplementation(async (b, meta, { onProgress }) => { onProgress?.(0.5); onProgress?.(1); return { status: 200, body: { id: 'res-big' } }; });
+    const progress = vi.fn();
+
+    expect(await api.Resources.Upload(big, { key: 'book.pdf', name: 'Book' }, progress)).toEqual({ id: 'res-big', key: 'card-op3/book.pdf' });
+    expect(progress.mock.calls.map(([f]) => f)).toEqual([0.5, 1]);
+
+    const global = await api.Resources.Upload(big, { global: true, storage: 'file' });
+    expect(global.key).toMatch(/^upload_[0-9a-f]{32}$/);
+    expect(ActiveWebHelper.uploadInPieces.mock.calls[1][1]).toMatchObject({ key: global.key, storageKind: 1 });
+
+    expect(await api.Resources.Upload('small text', { key: 'notes.txt' })).toEqual({ id: 'one-piece', key: 'card-op3/notes.txt' });
+    api.destroy();
+  });
+});
+
+// Property changes made while the connection was down never arrive as pushes: once it's
+// back, the open card and the shared cache load the values again.
+describe('resync after a dropped connection', () => {
+  const reconnected = { command: '__channel_ready__', reconnected: true };
+  const flush = () => new Promise((r) => setTimeout(r, 0));
+
+  beforeEach(() => {
+    ActiveTransportManager.Subscribe.mockClear();
+    ActiveWebHelper.getAsync.mockReset();
+  });
+
+  it("an open card tells its code which properties changed or went away, and only those", async () => {
+    ActiveWebHelper.getAsync.mockResolvedValueOnce([
+      { id: 'p1', name: 'hp', value: '10', parentId: 'card-r' },
+      { id: 'p2', name: 'ac', value: '15', parentId: 'card-r' },
+      { id: 'p3', name: 'note', value: 'x', parentId: 'card-r' },
+    ]);
+    const api = await CardAPIFactory('card-r');
+    const onMessage = subscribedCallback('CardAPI_');
+    const hp = vi.fn(); const ac = vi.fn(); const note = vi.fn();
+    api.Properties.Subscribe('hp', hp);
+    api.Properties.Subscribe('ac', ac);
+    api.Properties.Subscribe('note', note);
+
+    ActiveWebHelper.getAsync.mockResolvedValueOnce([
+      { id: 'p1', name: 'hp', value: '4', parentId: 'card-r' },
+      { id: 'p2', name: 'ac', value: '15', parentId: 'card-r' },
+    ]);
+    onMessage(reconnected);
+    await flush();
+
+    expect(ActiveWebHelper.getAsync).toHaveBeenLastCalledWith('properties/QueryProperties?parentIds=card-r');
+    expect(hp).toHaveBeenCalledWith(expect.objectContaining({ value: '4' }));
+    expect(ac).not.toHaveBeenCalled();
+    expect(note).toHaveBeenCalledWith(null);
+  });
+
+  it('the shared cache reloads every parent it holds and drops properties removed meanwhile', async () => {
+    for (const key of Object.keys(PropertiesManagerInstance._propertyCache)) delete PropertiesManagerInstance._propertyCache[key];
+    propertiesManagerCallback({ command: 'property_add', data: { id: 'a1', name: 'hp', value: '10', parentId: 'el-1' } });
+    propertiesManagerCallback({ command: 'property_add', data: { id: 'a2', name: 'gone', value: '1', parentId: 'el-1' } });
+    propertiesManagerCallback({ command: 'property_add', data: { id: 'b1', name: 'hp', value: '7', parentId: 'el-2' } });
+    ActiveWebHelper.getAsync.mockResolvedValueOnce([
+      { id: 'a1', name: 'hp', value: '3', parentId: 'el-1' },
+      { id: 'b1', name: 'hp', value: '7', parentId: 'el-2' },
+    ]);
+
+    propertiesManagerCallback(reconnected);
+    await flush();
+
+    const path = ActiveWebHelper.getAsync.mock.calls[0][0];
+    expect(path).toMatch(/^properties\/QueryProperties\?parentIds=/);
+    expect(decodeURIComponent(path.split('=')[1]).split(',').sort()).toEqual(['el-1', 'el-2']);
+    expect(PropertiesManagerInstance._propertyCache.a1.value).toBe('3');
+    expect(PropertiesManagerInstance._propertyCache.a2).toBeUndefined();
+    expect(PropertiesManagerInstance._propertyCache.b1.value).toBe('7');
+  });
+
+  it('the shared cache asks nothing when it holds nothing', async () => {
+    for (const key of Object.keys(PropertiesManagerInstance._propertyCache)) delete PropertiesManagerInstance._propertyCache[key];
+
+    propertiesManagerCallback(reconnected);
+    await flush();
+
+    expect(ActiveWebHelper.getAsync).not.toHaveBeenCalled();
   });
 });

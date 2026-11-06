@@ -8,6 +8,7 @@ import { BasePanel } from '../../uiComponents/base/BasePanel';
 import DContainer from '../../uiComponents/base/Containers/DContainer';
 import DListItemButton from '../../uiComponents/base/List/ListItemDetails/DListItemButton';
 import { FaArrowLeft } from '@react-icons/all-files/fa/FaArrowLeft';
+import { FaChessPawn } from '@react-icons/all-files/fa/FaChessPawn';
 import { FaCode } from '@react-icons/all-files/fa/FaCode';
 import { FaDatabase } from '@react-icons/all-files/fa/FaDatabase';
 import { FaExchangeAlt } from '@react-icons/all-files/fa/FaExchangeAlt';
@@ -26,6 +27,7 @@ import DTreeList from '../../uiComponents/treeList/DTreeList';
 import CollectionSyncer from '../../uiComponents/base/CollectionSyncer';
 import InputModal from '../../uiComponents/base/Modals/InputModal';
 import { resourceEditFields, resourceEditDto, resourceUpdateData } from './resourceEdit';
+import { editTokenResource, isTokenResource } from '../tokenEditing';
 import { ActiveTransportManager as WebSocketManagerInstance } from '../../../helpers/transport';
 import RefreshInfo from '../../uiComponents/treeList/RefreshInfoCard';
 import DockableHelper from '../../../helpers/DockableHelper';
@@ -45,6 +47,7 @@ import uploadMaterials from '../../../helpers/uploadMaterials';
 import { takeDroppedExports } from '../../../helpers/droppedExports';
 import { askImportDropped, reportImported, reportImportFailed } from '../../uiComponents/ImportDropPrompt';
 import themeColors from "../../../helpers/themeColors";
+import { useResync } from "../../../helpers/resync";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
 
@@ -257,6 +260,8 @@ export const MaterialsPanel = ({ state }) => {
     }, []);
 
     React.useEffect(() => { loadData(); }, [loadData]);
+    // Back after a dropped connection: resources added or removed meanwhile never arrived.
+    useResync(loadData);
 
     const ctx = Dockable.useContentContext();
     ctx.setTitle("Materials");
@@ -451,6 +456,9 @@ export const MaterialsPanel = ({ state }) => {
                                 <DListItemButton icon={FaHashtag} label="Copy ID" onClick={() => copyId(item.id)} />
                                 <DListItemButton icon={FaLink} label="Copy link" onClick={() => copyLink(item.id)} />
                                 <DListItemButton icon={FaPen}  label="Edit"    onClick={() => { editingAudioRef.current = item.mimeType?.startsWith("audio"); onFolderRenameOpenRef.current(resourceEditDto(item)); }} />
+                                {canEditGame && isTokenResource(item) && (
+                                    <DListItemButton icon={FaChessPawn} label="Edit in token editor" onClick={() => editTokenResource({ id: item.id, name: item.name })} />
+                                )}
                                 {canEditGame && item.storage !== 1 && (
                                     <DListItemButton
                                         icon={FaExchangeAlt}

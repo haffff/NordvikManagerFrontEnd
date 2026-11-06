@@ -188,7 +188,7 @@ export const BackupSettingsTab = () => {
           A backup holds the database and the resource files uploaded to this server. Files linked from
           elsewhere on the disk are not included.
         </Text>
-        <HStack>
+        <HStack className="nm_wrapRow">
           <Input
             maxW="sm"
             placeholder="Optional label, e.g. before session 12"
@@ -223,6 +223,7 @@ export const BackupSettingsTab = () => {
         {status.backups.length === 0 ? (
           <Text color="fg.muted">No backups yet.</Text>
         ) : (
+          <Box className="nm_tableScroll">
           <Table.Root size="sm">
             <Table.Header>
               <Table.Row>
@@ -286,6 +287,7 @@ export const BackupSettingsTab = () => {
               ))}
             </Table.Body>
           </Table.Root>
+          </Box>
         )}
         {confirming?.action === "restore" && (
           <Text fontSize="sm" color="orange.300">

@@ -80,7 +80,7 @@ export const PlayerRegisterForm = ({ code, requiresCode, onBack, OnSuccess }) =>
     <form
       onKeyUp={(e) => { if (e.key === 'Enter') onSubmit(); }}
       onSubmit={(e) => e.preventDefault()}
-      style={{ width: '400px', margin: '0 auto', marginTop: '50px' }}
+      className="nm_authForm"
     >
       <Stack spacing={4}>
         {errors.length > 0 && (

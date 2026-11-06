@@ -12,6 +12,8 @@ import { LoadingScreen } from "../uiComponents/LoadingScreen";
 import WebSocketStatus from "../uiComponents/WebSocketStatus";
 import { useGameEventHandlers } from "./hooks/useGameEventHandlers";
 import { useGameInitialization } from "./hooks/useGameInitialization";
+import { useReconnectNotice } from "./hooks/useReconnectNotice";
+import { useResync } from "../../helpers/resync";
 import { useGameApi } from "./hooks/useGameApi";
 import { useGameState } from "./hooks/useGameState";
 import { useStableDockState } from "./hooks/useStableDockState";
@@ -30,7 +32,12 @@ import GameDock from "./GameDock";
 import { useDockModifier } from "../../helpers/dockSettings";
 import GameStylesheets from "./theme/GameStylesheets";
 import themeColors from "../../helpers/themeColors";
+import { getUiMode, setActiveUiMode } from "../../helpers/uiMode";
+// Loaded only in the mobile UI: its "+" dialog imports every panel up front.
+const MobileShell = React.lazy(() => import("./mobile/MobileShell"));
+import { resetTabs } from "./mobile/mobileTabs";
 import "../../stylesheets/dock.css";
+import { useDockFollowsItsBox } from "./hooks/useDockFollowsItsBox";
 
 export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
   // A player who joined via an invite link only ever learns the Central Server's
@@ -40,6 +47,23 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
   // uses `resolvedGameId`, corrected in place (no remount) once the WebRTC
   // channel confirms the real value — see the effect further down.
   const [resolvedGameId, setResolvedGameId] = React.useState(gameID);
+
+  // Desktop (the dock) or mobile (tabs) — picked once when the game opens and kept for the
+  // session: switching would unmount every panel. Set before any effect runs, since
+  // DockableHelper and the layout loading read it.
+  const [uiMode] = React.useState(() => {
+    const mode = getUiMode();
+    setActiveUiMode(mode);
+    return mode;
+  });
+  const mobile = uiMode === "mobile";
+  React.useEffect(() => {
+    setActiveUiMode(uiMode); // again, should the game be remounted (StrictMode)
+    return () => {
+      setActiveUiMode("desktop");
+      resetTabs();
+    };
+  }, [uiMode]);
 
   const gameState = useGameState(resolvedGameId, onExit);
   const {
@@ -116,13 +140,21 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
   // Register the Game ClientMediator API — re-runs when its inputs change
   useGameApi({ state: dockState, gameState, CreateLayoutElement });
 
+  // The dock's box: the dock is re-measured when it changes size (useDockFollowsItsBox).
+  const [dockBox, setDockBox] = React.useState(null);
+  useDockFollowsItsBox(dockBox);
   const [connectionError, setConnectionError] = React.useState(null);
   // GM backend speaks a protocol no deployed player client supports — retrying can't help.
   const [versionMismatch, setVersionMismatch] = React.useState(false);
+  // The connection drops and comes back by itself: once it's open again, an error shown
+  // meanwhile is out of date (a version mismatch never gets this far).
+  useReconnectNotice({ onChannelReady: () => setConnectionError(null) });
 
   // Initialize custom hooks
   const eventHandlers = useGameEventHandlers({ state: dockState, gameState, CreateLayoutElement });
-  const { loadGame, initError, clearInitError, resetInitialization, isInitialized, ready } = useGameInitialization({ state: dockState, gameState, CreateLayoutElement });
+  const { loadGame, refreshGame, initError, clearInitError, resetInitialization, isInitialized, ready } = useGameInitialization({ state: dockState, gameState, CreateLayoutElement });
+  // Back after a dropped connection: players, permissions and maps may have changed meanwhile.
+  useResync(() => { if (isInitialized()) return refreshGame(); });
 
   // Reset the module-level initialization flag on unmount so that re-entering the same
   // game (e.g. after being kicked and rejoining) triggers a fresh loadGame call.
@@ -188,10 +220,12 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
     <DragOptimizationProvider>
       <div
         ref={gameContainerRef}
+        className={mobile ? "nm_game nm_game--mobile" : "nm_game"}
         style={{
           display: "grid",
-          gridTemplateRows: "35px 1fr auto",
-          height: "100vh",
+          // On a phone, 100dvh keeps the tab bar above the browser's address bar.
+          gridTemplateRows: mobile ? "1fr auto" : "35px 1fr auto",
+          height: mobile ? "100dvh" : "100vh",
           overflow: "hidden"
         }}
         onKeyDown={(e) =>
@@ -224,17 +258,28 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
       <RequestInputManager />
       <TargetPickingManager />
       <PointRequestManager />
-      <PlayerTour ready={ready} isGM={isOwner} />
-      <LayoutAutoSaveManager state={state} battlemapsRef={battleMapContexts} />
-      <MainToolbar
-        key={resolvedGameId}
-        state={dockState}
-        gameDataManagerRef={gameDataManagerRef}
-        battlemapsRef={battleMapContexts}
-        forceRefreshGame={forceUpdate}
-      />      <Flex className="nm_dock" data-tour="dock" style={{ height: "100%", overflow: "hidden" }}>
-      <GameDock state={state} dockModifier={dockModifier} battleMaps={battleMapContexts} />
-      </Flex><QuickCommandDialog state={dockState} openRef={quickCommandDialogOpenRef} />
+      {mobile ? (
+        // No toolbar, dock, layouts or tour on a phone: its tabs never save a layout.
+        <React.Suspense fallback={<LoadingScreen />}>
+          <MobileShell state={dockState} gameDataManagerRef={gameDataManagerRef} />
+        </React.Suspense>
+      ) : (
+        <>
+          <PlayerTour ready={ready} isGM={isOwner} />
+          <LayoutAutoSaveManager state={state} battlemapsRef={battleMapContexts} />
+          <MainToolbar
+            key={resolvedGameId}
+            state={dockState}
+            gameDataManagerRef={gameDataManagerRef}
+            battlemapsRef={battleMapContexts}
+            forceRefreshGame={forceUpdate}
+          />
+          <Flex ref={setDockBox} className="nm_dock" data-tour="dock" style={{ height: "100%", overflow: "hidden" }}>
+            <GameDock state={state} dockModifier={dockModifier} battleMaps={battleMapContexts} />
+          </Flex>
+        </>
+      )}
+      <QuickCommandDialog state={dockState} openRef={quickCommandDialogOpenRef} />
       
       {portaledPanels}
       
@@ -245,14 +290,14 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
         backdropFilter="blur(12px)"
         borderTop="1px solid"
         borderColor={connectionError || initError ? "red.700" : themeColors.statusBarBorder}
-        px={4}
-        py={2}
+        px={mobile ? 2 : 4}
+        py={mobile ? 1 : 2}
         zIndex={9999}
         boxShadow="0 -2px 20px rgba(0, 0, 0, 0.3)"
       >
         <Flex justify="space-between" align="center" gap={2}>
           <WebSocketStatus showDetails={true} compact={true} />
-          {!(connectionError || initError) && <MinimizedWindowsBar state={state} />}
+          {!(connectionError || initError) && !mobile && <MinimizedWindowsBar state={state} />}
           {(connectionError || initError) && (
             <Flex align="center" gap={2} flex={1} justify="center">
               <Text fontSize="xs" color="red.200">
@@ -265,7 +310,8 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
                 onClick={() => {
                   resetInitialization();
                   setConnectionError(null);
-                  WebSocketManagerInstance.forceReconnect();
+                  // No catch-up notice: this reloads the game itself, below.
+                  WebSocketManagerInstance.forceReconnect({ resync: false });
                   // forceReconnect() flips WebSocketStarted false→true synchronously
                   // (Close() then Start() in the same tick), so React never observes
                   // an intermediate value and the init effect below (which depends on
@@ -279,9 +325,9 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
               </Button>}
             </Flex>
           )}
-          <Text fontSize="xs" color="gray.500">
+          {!mobile && <Text fontSize="xs" color="gray.500">
             Session ID: {centralSessionId}
-          </Text>
+          </Text>}
         </Flex>
       </Box>
     </div>

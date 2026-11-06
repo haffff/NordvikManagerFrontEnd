@@ -600,8 +600,10 @@ export const ToolsPanel = ({ battleMapId }) => {
       </For>
     );
   } else {
+    // A narrow column: the icons shrink to the panel's width (panel.css .nm_toolsIcons).
+    const column = height > 200;
     items = (
-      <Box display={"flex"} flexWrap={"wrap"} flexDir={"column"}>
+      <Box display={"flex"} flexWrap={"wrap"} flexDir={"column"} className={column ? "nm_toolsIcons" : undefined}>
         <For each={config}>
           {(item) => {
             if (item.type === "label") {
@@ -642,6 +644,8 @@ export const ToolsPanel = ({ battleMapId }) => {
       key={"Tools_" + _battleMapId}
       direction={height > 200 ? "column" : "row"}
       baseRef={panelRef}
+      // A tall panel only scrolls up and down; its icons shrink to its width.
+      style={height > 200 ? { overflowX: "hidden" } : undefined}
     >
       {items}
     </BasePanel>

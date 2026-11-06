@@ -104,7 +104,7 @@ function element(elementId, layer, object, { permission = ALL, properties = [] }
 function token(elementId, n, name, left, top, color, permission) {
   return element(elementId, 100, {
     ...fabricBase, type: 'image', left, top, width: 100, height: 100, scaleX: 0.5, scaleY: 0.5,
-    fill: 'rgb(0,0,0)', stroke: color, strokeWidth: 0, crossOrigin: null, filters: [], clipShape: 'circle',
+    fill: 'rgb(0,0,0)', stroke: color, strokeWidth: 0, crossOrigin: null, filters: [],
     name, isToken: true, tokenData: { editableProps: [], assignableIcons: [], propDeps: [] }, mapId: MOCK_IDS.map,
   }, { permission, properties: [nameProperty(n, elementId, name)] });
 }

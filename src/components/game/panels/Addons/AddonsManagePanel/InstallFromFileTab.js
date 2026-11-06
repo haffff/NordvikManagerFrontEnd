@@ -1,7 +1,6 @@
 import React, { useRef, useState } from "react";
-import { Box, Button, Flex, HStack, Input, Separator, Text } from "@chakra-ui/react";
+import { Box, Button, Flex, HStack, Text } from "@chakra-ui/react";
 import { FaFile } from "@react-icons/all-files/fa/FaFile";
-import { FaLink } from "@react-icons/all-files/fa/FaLink";
 import { FaUpload } from "@react-icons/all-files/fa/FaUpload";
 import { ActiveWebHelper as WebHelper } from "../../../../../helpers/transport";
 import { toaster } from "../../../../ui/toaster";
@@ -12,7 +11,6 @@ import themeColors from "../../../../../helpers/themeColors";
 
 export const InstallFromFileTab = ({ handleReload }) => {
   const [file, setFile] = useState(null);
-  const [url, setUrl] = useState("");
   const [isDragging, setIsDragging] = useState(false);
   const [installing, setInstalling] = useState(false);
   const inputFileRef = useRef(null);
@@ -46,25 +44,6 @@ export const InstallFromFileTab = ({ handleReload }) => {
         // Reload the addon list once the install finishes — the toast itself tracks progress.
         ProgressToastManager.track(body.operationId, { title: `Installing ${fileName}…` })
           .then(() => handleReload()).catch(() => {});
-      } else {
-        toaster.create({ title: "Installation failed", type: "error", duration: 6000 });
-      }
-    } catch (e) {
-      toaster.create({ title: "Installation failed", description: e.message, type: "error", duration: 6000 });
-    } finally {
-      setInstalling(false);
-    }
-  };
-
-  const installFromUrl = async () => {
-    if (!url.trim()) return;
-    setInstalling(true);
-    try {
-      const result = await WebHelper.postAsync("addon/installFromUrl", { url: url.trim() });
-      if (result?.status >= 200 && result?.status < 300) {
-        toaster.create({ title: "Addon installed", type: "success", duration: 4000 });
-        setUrl("");
-        await handleReload();
       } else {
         toaster.create({ title: "Installation failed", type: "error", duration: 6000 });
       }
@@ -135,30 +114,6 @@ export const InstallFromFileTab = ({ handleReload }) => {
             </Button>
           )}
         </HStack>
-      </Flex>
-
-      <Separator />
-
-      {/* URL install */}
-      <Flex direction="column" gap="8px">
-        <Text fontSize="sm" opacity={0.7}>Install from URL</Text>
-        <Input
-          placeholder="https://..."
-          size="sm"
-          value={url}
-          onChange={(e) => setUrl(e.target.value)}
-          onKeyDown={(e) => e.key === "Enter" && installFromUrl()}
-        />
-        <Box>
-          <Button
-            size="sm"
-            onClick={installFromUrl}
-            disabled={!url.trim() || installing}
-            loading={installing}
-          >
-            <FaLink /> Install from URL
-          </Button>
-        </Box>
       </Flex>
     </Flex>
   );

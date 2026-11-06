@@ -172,6 +172,45 @@ describe('TokenManager.UpdateTokenUIPositions', () => {
     expect(marker(t)?.isNotVisible() ?? true).toBe(true);
   });
 
+  // An icon set moved off the top-right corner (tokenData.stack): its icons, all at the
+  // same offset, still line up there instead of piling onto one spot.
+  const stackedAt = (anchor, count, offsetX = 0, offsetY = 0) => {
+    const t = withIcons(count);
+    t.additionalObjects.forEach((i) => { i.tokenData = { anchor, offsetX, offsetY, stack: true }; });
+    return t;
+  };
+
+  it('lines up stacked icons at any anchor, from their own offset', () => {
+    const t = stackedAt('left-bottom', 3, 4, 2);
+
+    manager(iconCanvas()).UpdateTokenUIPositions({ object: t });
+
+    expect(t.additionalObjects.map((i) => i.left)).toEqual([304, 322, 340]);
+    expect(t.additionalObjects.map((i) => i.top)).toEqual([252, 252, 252]);
+  });
+
+  it('collapses each anchor\'s stack on its own, "+N" right after it', () => {
+    const t = stackedAt('left-bottom', 5);
+    const rt = withIcons(2).additionalObjects;
+    t.additionalObjects.push(...rt);
+
+    iconManager(iconCanvas()).UpdateTokenUIPositions({ object: t });
+
+    expect(shown(t)).toHaveLength(5); // 3 bottom-left + both top-right
+    expect(marker(t).text).toBe('+2');
+    expect(marker(t).left).toBe(354);
+    expect(rt.map((i) => i.left)).toEqual([350, 368]);
+  });
+
+  it('leaves parts that don\'t stack at their own offsets', () => {
+    const t = stackedAt('left-bottom', 2);
+    t.additionalObjects.forEach((i) => { delete i.tokenData.stack; });
+
+    manager(iconCanvas()).UpdateTokenUIPositions({ object: t });
+
+    expect(t.additionalObjects.map((i) => i.left)).toEqual([300, 300]);
+  });
+
   it('lets the token template change how many fit', () => {
     const t = withIcons(5);
     t.tokenData = { maxStatusIcons: 4 };
@@ -180,5 +219,40 @@ describe('TokenManager.UpdateTokenUIPositions', () => {
 
     expect(shown(t)).toHaveLength(4);
     expect(marker(t).text).toBe('+1');
+  });
+});
+
+// A part with tokenData.fitToToken (e.g. a ring around the token) is as wide as the
+// token is shown, whatever its size on the map, and keeps its aspect.
+describe('TokenManager.UpdateTokenUIPositions: fitToToken', () => {
+  const ringed = (side, scale = 1) => {
+    const t = new fabric.Rect({ left: 100, top: 100, width: side, height: side, strokeWidth: 0, scaleX: scale, scaleY: scale });
+    const ring = new fabric.Circle({ radius: 25, strokeWidth: 0, originX: 'center', originY: 'center' });
+    ring.tokenData = { anchor: 'center', fitToToken: true };
+    t.additionalObjects = [ring];
+    return { t, ring };
+  };
+
+  it('scales the part to a 2×2 token', () => {
+    const { t, ring } = ringed(100);
+    manager({ requestRenderAll: vi.fn() }).UpdateTokenUIPositions({ object: t });
+    expect(ring.getScaledWidth()).toBeCloseTo(100);
+    expect(ring.scaleY).toBeCloseTo(ring.scaleX);
+    expect([ring.left, ring.top]).toEqual([150, 150]);
+  });
+
+  it('follows the token\'s own scale', () => {
+    const { t, ring } = ringed(200, 0.5);
+    manager({ requestRenderAll: vi.fn() }).UpdateTokenUIPositions({ object: t });
+    expect(ring.getScaledWidth()).toBeCloseTo(100);
+  });
+
+  it('leaves other parts at their own size', () => {
+    const { t } = ringed(100);
+    const bar = new fabric.Rect({ width: 40, height: 4, strokeWidth: 0 });
+    bar.tokenData = { anchor: 'bottom' };
+    t.additionalObjects.push(bar);
+    manager({ requestRenderAll: vi.fn() }).UpdateTokenUIPositions({ object: t });
+    expect(bar.scaleX).toBe(1);
   });
 });

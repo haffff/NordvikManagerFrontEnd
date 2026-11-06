@@ -21,6 +21,7 @@ import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import CommandFactory from "../../BattleMap/Factories/CommandFactory";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import Subscribable from "../../uiComponents/base/Subscribable";
+import { useResync } from "../../../helpers/resync";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
 import PlayerAvatar from "../../uiComponents/PlayerAvatar";
 import ClientMediator from "../../../ClientMediator";
@@ -464,6 +465,23 @@ export const ChatPanel = () => {
     return () => { cancelled = true; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filter, from]);
+
+  // ── Back after a dropped connection: messages sent meanwhile never arrived ──
+  // The newest page is loaded again (with the search in use); what's typed in the box stays.
+  useResync(async () => {
+    let path = "battlemap/getchat";
+    if (filterRef.current || fromRef.current) {
+      let args = "temporary=true";
+      if (filterRef.current) args += `&filter=${encodeURIComponent(filterRef.current)}`;
+      if (fromRef.current)   args += `&from=${encodeURIComponent(fromRef.current)}`;
+      path += `?${args}`;
+    }
+    const x = await WebHelper.getAsync(path);
+    if (cancelledRef.current || !x) return;
+    setReachedTop(false);
+    setLoadedPages(0);
+    setItems(stampKeys(x));
+  });
 
   // ── Reply: "/w Name " in the box, ready to type ────────────────────────────
   const startWhisper = React.useCallback((name) => {

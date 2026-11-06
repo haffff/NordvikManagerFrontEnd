@@ -71,6 +71,7 @@ vi.mock('./hooks/useGameState', () => ({
 }));
 
 vi.mock('./hooks/useGameApi', () => ({ useGameApi: vi.fn() }));
+vi.mock('./hooks/useReconnectNotice', () => ({ useReconnectNotice: vi.fn() }));
 vi.mock('./hooks/useGameEventHandlers', () => ({
   useGameEventHandlers: () => ({
     HandleShowLayout: vi.fn(),
@@ -114,6 +115,8 @@ describe('Game — Retry button', () => {
 
     expect(resetInitializationMock).toHaveBeenCalledTimes(1);
     expect(WebSocketManagerInstance.forceReconnect).toHaveBeenCalledTimes(1);
+    // Retry reloads the game itself, so no catch-up notice on top.
+    expect(WebSocketManagerInstance.forceReconnect).toHaveBeenCalledWith({ resync: false });
     expect(loadGameMock).toHaveBeenCalledTimes(1);
   });
 });

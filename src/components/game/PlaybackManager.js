@@ -8,7 +8,9 @@ import { applyVolume, fadeIn, fadeOut, onVolumeChange, refreshVolume, setGmVolum
 import PlaylistService from "./PlaylistService";
 import { playOrWait, forgetWaiting } from "../../helpers/audioUnlock";
 import AudioUnlockNotice from "./AudioUnlockNotice";
+import { streamUrl } from "../../helpers/mediaStream";
 import { playingSounds } from "../../helpers/playingSounds";
+import { useResync } from "../../helpers/resync";
 
 // Always-mounted singleton (see Game.js) that owns actual audio playback for the
 // soundboard and playlist player. It is not a panel — it keeps playing regardless of
@@ -59,6 +61,8 @@ export const PlaybackManager = () => {
     forgetWaiting(audio);
     audio.pause();
     if (audio.src) URL.revokeObjectURL(audio.src);
+    // a streamed track would otherwise go on buffering through the service worker
+    if (audio.src && !audio.src.startsWith("blob:")) { audio.removeAttribute?.("src"); audio.load?.(); }
   };
 
   // Stop, track change: fade out, then dispose. Flagged disposed at once, so a track
@@ -93,20 +97,36 @@ export const PlaybackManager = () => {
     // size-limited, least recently used dropped first), so a replayed track is only
     // checked with the server, not downloaded again. Each play gets its own object URL
     // below, released in disposeAudio().
-    WebHelper.getMaterialAsync(trackId)
+    const start = (src) => {
+      audio.src = src;
+      if (fadeInOnStart) fadeIn(audio);
+      // Music the autoplay policy refuses starts on the player's first click, where the
+      // others have got to by then. A sound effect is dropped: late, it's worse than none.
+      if (category !== "music") safePlay(audio);
+      else playOrWait(audio, () => {
+        if (seekFromUtc) seekToNow();
+        fadeIn(audio);
+      });
+    };
+    // resumeAt: where a failed stream had got to (synced music seeks by seekFromUtc instead)
+    const fromWholeFile = (resumeAt = 0) => WebHelper.getMaterialAsync(trackId)
       .then((blob) => {
         if (audio.__disposed || !(blob instanceof Blob)) return;
-        audio.src = URL.createObjectURL(blob);
-        if (fadeInOnStart) fadeIn(audio);
-        // Music the autoplay policy refuses starts on the player's first click, where the
-        // others have got to by then. A sound effect is dropped: late, it's worse than none.
-        if (category !== "music") safePlay(audio);
-        else playOrWait(audio, () => {
-          if (seekFromUtc) seekToNow();
-          fadeIn(audio);
-        });
+        if (resumeAt > 0 && !seekFromUtc)
+          audio.addEventListener("loadedmetadata", () => { audio.currentTime = resumeAt; }, { once: true });
+        start(URL.createObjectURL(blob));
       })
       .catch((e) => console.warn("[PlaybackManager] failed to fetch track blob:", e?.message ?? e));
+
+    // Streamed (helpers/mediaStream): plays after its first part, seeking fetches only what's
+    // needed. If the stream fails (an older server, the worker gone), the whole file instead.
+    const stream = streamUrl(trackId);
+    if (stream) {
+      audio.addEventListener("error", () => { if (!audio.__disposed && audio.src === stream) fromWholeFile(audio.currentTime || 0); }, { once: true });
+      start(stream);
+    } else {
+      fromWholeFile();
+    }
     return audio;
   };
 
@@ -321,6 +341,32 @@ export const PlaybackManager = () => {
       if (audio?.__volumeCategory === category) refreshVolume(audio);
     });
   }), []);
+
+  // Back after a dropped connection: the playlist pushes sent meanwhile never arrived, so
+  // playback follows what the server says now. A playlist still on the same track keeps
+  // playing as it is (no audible restart).
+  useResync(async () => {
+    const states = await WebHelper.getAsync("Playlist/GetCurrentPlayback");
+    if (!Array.isArray(states)) return;
+    const current = new Map(states.map((state) => [state.playlistId, state]));
+    Object.keys(playlistsRef.current).forEach((id) => {
+      if (!current.has(id)) teardownPlaylist(id);
+    });
+    current.forEach((state, id) => {
+      const entry = playlistsRef.current[id];
+      if (state.isPaused) {
+        if (entry) pausePlaylist(id);
+        return;
+      }
+      const sameTrack = entry && (state.mode === 1 /* Concurrent */ || entry.currentTrackIndex === (state.currentTrackIndex ?? 0));
+      if (!sameTrack) {
+        startPlaylist(state);
+        return;
+      }
+      resumePlaylist(id);
+      if (state.volume !== undefined) changePlaylistVolume(state);
+    });
+  });
 
   // Resync on mount — pick up any playlists already playing when this client (re)connects.
   React.useEffect(() => {

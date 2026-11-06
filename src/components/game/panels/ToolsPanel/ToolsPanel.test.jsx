@@ -9,7 +9,8 @@ vi.mock('@hlorenzi/react-dockable', () => ({
 }));
 vi.mock('../../../uiComponents/base/BasePanel', () => ({ BasePanel: ({ children }) => <div>{children}</div> }));
 vi.mock('../../../uiComponents/hooks/useBattleMapName', () => ({ default: () => 'Map' }));
-vi.mock('../../../uiComponents/hooks/useDimensions', () => ({ useDimensions: () => ({ width: 300, height: 800 }) }));
+let dims = { width: 300, height: 800 };
+vi.mock('../../../uiComponents/hooks/useDimensions', () => ({ useDimensions: () => dims }));
 vi.mock('../../../uiComponents/hooks/useCustomLayers', () => ({ useCustomLayers: () => ({ layers: [] }) }));
 const noTools = [];
 vi.mock('../../../BattleMap/mapToolsStore', () => ({ getMapTools: () => noTools, subscribeMapTools: () => () => {} }));
@@ -35,6 +36,7 @@ import { AddCircleOptions } from './AddCircleOptions';
 import { AddTextOptions } from './AddTextOptions';
 
 beforeEach(() => {
+  dims = { width: 300, height: 800 };
   sendCommand.mockReset();
   sendCommand.mockImplementation((panel, command) => {
     if (command === 'GetSelectedMap') return { id: 'map-1' };
@@ -74,5 +76,23 @@ describe('Circle / Text options — sized by dragging, no static size field', ()
   it('the text options have no font size field', () => {
     renderWithProviders(<AddTextOptions battleMapId="bm-1" />);
     expect(screen.queryByDisplayValue('40')).toBeNull();
+  });
+});
+
+// Icon buttons were a fixed 50px with 5px margins: a panel narrower than that scrolled
+// sideways and cut them off. In a narrow column they shrink to the panel's width.
+describe('ToolsPanel — narrow', () => {
+  it('a narrow, tall panel gets the icon column whose buttons shrink to fit', () => {
+    dims = { width: 48, height: 800 };
+    const { container } = renderWithProviders(<ToolsPanel battleMapId="bm-1" />);
+
+    expect(container.querySelector('.nm_toolsIcons')).not.toBeNull();
+  });
+
+  it('a short, wide panel keeps its row of fixed-size icons', () => {
+    dims = { width: 600, height: 120 };
+    const { container } = renderWithProviders(<ToolsPanel battleMapId="bm-1" />);
+
+    expect(container.querySelector('.nm_toolsIcons')).toBeNull();
   });
 });

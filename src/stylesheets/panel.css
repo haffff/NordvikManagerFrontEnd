@@ -93,3 +93,21 @@
     background-color: var(--nordvik-selection-color);
     padding: 15px;
 }
+/* Tools panel, icon column: the icons shrink (square) to a panel narrower than 60px
+   instead of making it scroll sideways. */
+.nm_toolsIcons
+{
+    width: 100%;
+    align-items: center;
+}
+
+.nm_toolsIcons .nm_dwrapitem,
+.nm_toolsIcons .nm_dwrapitem:hover,
+.nm_toolsIcons .nm_dwrapitem_selected
+{
+    padding: 0;
+    width: min(50px, calc(100% - 10px));
+    height: auto;
+    aspect-ratio: 1;
+    flex-shrink: 0;
+}

@@ -373,7 +373,7 @@ export const TreeView = ({
                 data-add-row={row.parentId ?? ""}
                 style={{ position: "absolute", left: 0, right: 0, top: offsets[i] }}
               >
-                <Flex align="center" pr="2px" style={{ minHeight: MIN_ROW_HEIGHT, paddingLeft: row.depth * INDENT_PX + 2 + (draggable ? 14 : 0) + 16 }}>
+                <Flex className="nm_treeRow" align="center" pr="2px" style={{ minHeight: MIN_ROW_HEIGHT, paddingLeft: row.depth * INDENT_PX + 2 + (draggable ? 14 : 0) + 16 }}>
                   {renderAddRow(row.parentId, { depth: row.depth })}
                 </Flex>
               </MeasuredRow>
@@ -409,7 +409,7 @@ export const TreeView = ({
                 ...(drop?.id === node.id ? dropStyle(drop.position) : null),
               }}
             >
-              <Flex align="center" pr="2px" style={{ minHeight: MIN_ROW_HEIGHT, paddingLeft: row.depth * INDENT_PX + 2 }}>
+              <Flex className="nm_treeRow" align="center" pr="2px" style={{ minHeight: MIN_ROW_HEIGHT, paddingLeft: row.depth * INDENT_PX + 2 }}>
                 {/* Rows are dragged by this grip only: a row can hold controls (a volume
                     slider, buttons) that a whole-row drag would take over. */}
                 {draggable && (

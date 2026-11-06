@@ -87,7 +87,7 @@ export const RegisterForm = ({ OnSuccess, code, requiresCode, onBack }) => {
         }
       }}
       onSubmit={() => {}}
-      style={{ width: "400px", margin: "0 auto", marginTop: "50px" }}
+      className="nm_authForm"
     >
       {errorMessage && (
         <Box margin={15} as="h6" size="xs" color="red.500">

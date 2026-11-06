@@ -62,6 +62,10 @@ const PanelError = ({ reset }) => (
 
 // ── Base panel ────────────────────────────────────────────────────────────────
 
+// True inside a BasePanel: a panel nested in another (Game Settings' tabs) shares the
+// outer one's dock panel, so it doesn't repeat that panel's help icon.
+const InsideBasePanel = React.createContext(false);
+
 const BasePanelComponent = (props) => {
     // title/helpText/docUrl are opt-in panel-level help — pulled out explicitly
     // so they never leak into `...rest` (title would otherwise collide with
@@ -79,7 +83,8 @@ const BasePanelComponent = (props) => {
     const panelKey = panelType ? LayoutHelper._resolvePanelKey(panelType) : undefined;
     // Without a title row, the help (its own, or the panel's page in the user guide,
     // helpers/panelHelp.js) is a small icon in the top-right corner.
-    const help = panelHelp(panelKey, { text: helpText, docUrl });
+    const nested = React.useContext(InsideBasePanel);
+    const help = panelHelp(nested ? undefined : panelKey, { text: helpText, docUrl });
 
     return (
         <Flex ref={baseRef} {...rest} className='nm_basePanel' data-panel={panelKey} position="relative">
@@ -95,7 +100,9 @@ const BasePanelComponent = (props) => {
                     </Flex>
                 )}
                 <ErrorBoundary name={panelKey ?? 'panel'} fallback={({ reset }) => <PanelError reset={reset} />}>
-                    {children}
+                    <InsideBasePanel.Provider value={true}>
+                        {children}
+                    </InsideBasePanel.Provider>
                 </ErrorBoundary>
             </DragOverlay>
         </Flex>
