@@ -429,6 +429,7 @@ describe('WebRTCWebHelper.uploadInPieces', () => {
     if (!hasRoutes && p.startsWith('materials/upload')) return { status: 404, body: null };
     if (p === 'materials/uploadstart') {
       if (body.Key === 'taken') return { status: 409, body: { error: 'taken' } };
+      if (body.Size > 100) return { status: 413, body: { error: 'over the upload limit' } };
       server.started = body;
       return { status: 200, body: { uploadId: 'u1' } };
     }
@@ -465,6 +466,17 @@ describe('WebRTCWebHelper.uploadInPieces', () => {
     expect(String.fromCharCode(...server.bytes)).toBe('abcdefghij');
     expect(paths()).toEqual(['materials/uploadstart', 'materials/uploadpart', 'materials/uploadpart', 'materials/uploadpart', 'materials/uploadfinish']);
     expect(progress.mock.calls.map(([f]) => f)).toEqual([0.4, 0.8, 1]);
+  });
+
+  // Over the server's upload limit: refused at the start, before any part travels, and the
+  // refusal (with its reason) comes back; never sent again in one piece instead.
+  it('an upload over the limit: the 413 and its reason, nothing sent', async () => {
+    const onerror = vi.fn();
+    WebRTCWebHelperInstance.postMaterial({ name: 'big.mp3', type: 'audio/mpeg', size: 200, slice: () => blob('x') }, vi.fn(), onerror, vi.fn());
+    await vi.waitFor(() => expect(onerror).toHaveBeenCalled());
+
+    expect(onerror.mock.calls[0][0]).toEqual({ status: 413, body: { error: 'over the upload limit' } });
+    expect(paths()).toEqual(['materials/uploadstart']);
   });
 
   it('a lost part: asks where the upload is and carries on from there', async () => {
