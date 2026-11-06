@@ -27,6 +27,7 @@ import { _entityPermissionSetter } from "../../contexts/PermissionsContext";
 import { ENTITY_TYPES, PERM } from "./Helpers/permissionBits";
 import UtilityHelper from "../../helpers/UtilityHelper";
 import { fitFloatingSize } from "../../helpers/floatingSize";
+import { useResync } from "../../helpers/resync";
 
 const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
   // Performance monitor: track renders for this component
@@ -188,6 +189,15 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
     [editor, battleMapModel]
   );
+
+  // Back after a dropped connection: elements moved, added or removed meanwhile (or the
+  // panel switched to another map) never arrived. Load what the panel shows now, as on open.
+  useResync(async () => {
+    const resp = await WebHelper.getAsync(`battlemap/getbattlemap?id=${withID}`);
+    if (!resp?.mapId) return;
+    await ApplyMapChange(resp.mapId);
+    setBattleMapModel(resp);
+  });
 
   // Legacy one-shot initialization effect moved below after ApplyMapChange definition
   React.useEffect(() => {

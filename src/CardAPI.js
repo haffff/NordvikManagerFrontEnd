@@ -209,8 +209,14 @@ class CardAPI {
   // ── WebSocket message router ────────────────────────────────────────────
 
   _handleWebSocketMessage(message) {
-    const { command, data } = message;    
-    
+    const { command, data } = message;
+
+    // Back after a dropped connection: changes made meanwhile never arrived as pushes.
+    if (command === "__channel_ready__") {
+      if (message.reconnected) this._resync();
+      return;
+    }
+
     if (command === "property_add" || command === "property_update") {
       // PropertyDTO.ParentID is explicitly tagged [JsonProperty("parentId")]
       // server-side (matches WebSocketCommandNames.DataKeyParentId, which
@@ -241,6 +247,31 @@ class CardAPI {
       } catch (err) {
         console.error(`CardAPI: subscriber error for "${propertyName}"`, err);
       }
+    }
+  }
+
+  // Loads the card's properties again and tells the card's code about each one that
+  // changed, appeared or went away while the connection was down.
+  async _resync() {
+    let props;
+    try {
+      props = await WebHelper.getAsync(`properties/QueryProperties?parentIds=${this._cardId}`);
+    } catch (err) {
+      console.warn("CardAPI: reloading properties after reconnect failed", err);
+      return;
+    }
+    if (this._destroyed || !Array.isArray(props)) return;
+    const fresh = new Map(props.filter((p) => p?.name).map((p) => [p.name, p]));
+    for (const [name, prop] of fresh) {
+      const old = this._propertyCache.get(name);
+      if (old && old.value === prop.value && old.id === prop.id) continue;
+      this._updateCache(prop);
+      this._notifySubscribers(name, prop);
+    }
+    for (const name of [...this._propertyCache.keys()]) {
+      if (fresh.has(name)) continue;
+      this._propertyCache.delete(name);
+      this._notifySubscribers(name, null);
     }
   }
 
@@ -1007,6 +1038,9 @@ class CardAPI {
  * Unlike CardAPI (per-card, sandboxed), PropertiesManager operates across any
  * parentId and maintains a shared cache for the entire session.
  */
+// How many parents one request asks for when the cache catches up after a reconnect.
+const RESYNC_PARENTS_PER_REQUEST = 100;
+
 class PropertiesManager {
   panel = "Properties";
   id = "PropertiesHelper";
@@ -1015,6 +1049,10 @@ class PropertiesManager {
 
   constructor() {
     WebSocketManagerInstance.Subscribe("PropertiesManager_subs", (command) => {
+      if (command.command === "__channel_ready__") {
+        if (command.reconnected) this._resync();
+        return;
+      }
       if (command.command === "property_update" || command.command === "property_add") {
         this._propertyCache[command.data.id] = command.data;
       }
@@ -1024,6 +1062,30 @@ class PropertiesManager {
         delete this._propertyCache[command.data.id];
       }
     });
+  }
+
+  // Back after a dropped connection: every parent with properties in the cache is loaded
+  // again (in batches), and properties removed meanwhile leave the cache.
+  async _resync() {
+    const parentIds = [...new Set(Object.values(this._propertyCache).map((x) => x.parentId).filter(Boolean))];
+    for (let i = 0; i < parentIds.length; i += RESYNC_PARENTS_PER_REQUEST) {
+      const batch = parentIds.slice(i, i + RESYNC_PARENTS_PER_REQUEST);
+      let fresh;
+      try {
+        fresh = await WebHelper.getAsync(
+          `properties/QueryProperties?parentIds=${batch.map(encodeURIComponent).join(",")}`
+        );
+      } catch (err) {
+        console.warn("PropertiesManager: reloading properties after reconnect failed", err);
+        continue;
+      }
+      if (!Array.isArray(fresh)) continue;
+      const inBatch = new Set(batch);
+      for (const [id, prop] of Object.entries(this._propertyCache)) {
+        if (inBatch.has(prop.parentId)) delete this._propertyCache[id];
+      }
+      fresh.forEach((x) => { this._propertyCache[x.id] = x; });
+    }
   }
 
   async Get({ parentId, isCommand }) {

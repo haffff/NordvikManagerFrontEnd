@@ -2,6 +2,7 @@ import * as React from "react";
 import { ActiveWebHelper as WebHelper, ActiveTransportManager } from "../../../../helpers/transport";
 import UtilityHelper from "../../../../helpers/UtilityHelper";
 import { buildTree } from "../../../uiComponents/tree/treeModel";
+import { useResync } from "../../../../helpers/resync";
 
 const ENTRY_TYPE = "MapModel";
 
@@ -19,6 +20,8 @@ export function useMapTree() {
       () => {},
     );
   }, []);
+  // Back after a dropped connection: folders and maps changed meanwhile never arrived.
+  useResync(load);
 
   React.useEffect(() => {
     load();

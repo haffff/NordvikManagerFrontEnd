@@ -35,6 +35,7 @@ import {
 } from "../../ui/select";
 import { createListCollection } from "@chakra-ui/react";
 import { PERM } from "../../BattleMap/Helpers/permissionBits";
+import { useResync } from "../../../helpers/resync";
 
 const EVERYONE = UtilityHelper.EmptyGuid;
 
@@ -74,6 +75,15 @@ export const LayoutsManagerPanel = ({ state, battlemapsRef }) => {
     );
     setShared(out);
   }, []);
+
+  // Back after a dropped connection: layouts added, changed or (un)shared meanwhile. The
+  // layout picked here stays picked.
+  useResync(() => {
+    WebHelper.get("Battlemap/GetLayouts", (list) => {
+      setServerLayouts(list);
+      refreshShareState(list);
+    });
+  });
 
   React.useEffect(() => {
     gameIdRef.current = ClientMediator.sendCommand("Game", "GetGameId");

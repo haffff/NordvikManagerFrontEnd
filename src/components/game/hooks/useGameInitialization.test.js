@@ -222,3 +222,63 @@ describe('useGameInitialization in the mobile UI', () => {
     expect(getTabsSnapshot().tabs.map((t) => t.panelKey)).toEqual(['ChatPanel']);
   });
 });
+
+// After a dropped connection the game's players, permissions and maps may have changed
+// meanwhile: they are fetched again, without touching the layout or re-running Load hooks.
+describe('useGameInitialization refreshGame', () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  const fullGame = (overrides = {}) => ({
+    id: 'g1', master: { id: 'p1' }, players: [{ id: 'p1' }, { id: 'p3' }], battleMaps: [{ id: 'm1' }],
+    permission: 3, isLocalAdmin: false, defaultLayout: { value: '{}' }, ...overrides,
+  });
+
+  it('reloads players, ownership, permission and maps, and asks who is connected', async () => {
+    const ClientMediator = (await import('../../../ClientMediator')).default;
+    const gameState = makeGameState();
+    gameState.currentPlayerRef.current = { id: 'p1' };
+    const { result } = renderHook(() =>
+      useGameInitialization({ state: {}, gameState, CreateLayoutElement: vi.fn() })
+    );
+    WebHelper.getAsync.mockImplementation(async (path) => (path === 'battlemap/getfullgame' ? fullGame() : null));
+
+    await act(async () => { await result.current.refreshGame(); });
+
+    expect(gameState.gameRef.current.id).toBe('g1');
+    expect(gameState.setPlayers).toHaveBeenCalledWith([{ id: 'p1' }, { id: 'p3' }]);
+    expect(gameState.setIsOwner).toHaveBeenCalledWith(true);
+    expect(gameState.setGamePermission).toHaveBeenCalledWith(3);
+    expect(ClientMediator.fireEvent).toHaveBeenCalledWith('BattleMapsChanged', [{ id: 'm1' }]);
+    expect(Transport.ActiveTransportManager.Send).toHaveBeenCalledWith({ command: 'player_list' });
+  });
+
+  it('leaves the layout alone and does not announce the client again', async () => {
+    const gameState = makeGameState();
+    gameState.currentPlayerRef.current = { id: 'p1' };
+    const { result } = renderHook(() =>
+      useGameInitialization({ state: {}, gameState, CreateLayoutElement: vi.fn() })
+    );
+    WebHelper.getAsync.mockImplementation(async (path) => (path === 'battlemap/getfullgame' ? fullGame() : null));
+
+    await act(async () => { await result.current.refreshGame(); });
+
+    expect(gameState.setLayout).not.toHaveBeenCalled();
+    const sent = Transport.ActiveTransportManager.Send.mock.calls.map(([m]) => m.command);
+    expect(sent).not.toContain('client_layout_ready'); // would run addons' Load hooks again
+    expect(sent).not.toContain('client_loaded');
+  });
+
+  it('keeps what it had when the game cannot be fetched', async () => {
+    const gameState = makeGameState();
+    gameState.gameRef.current = { id: 'old' };
+    const { result } = renderHook(() =>
+      useGameInitialization({ state: {}, gameState, CreateLayoutElement: vi.fn() })
+    );
+    WebHelper.getAsync.mockResolvedValue(null);
+
+    await act(async () => { await result.current.refreshGame(); });
+
+    expect(gameState.gameRef.current.id).toBe('old');
+    expect(gameState.setPlayers).not.toHaveBeenCalled();
+  });
+});

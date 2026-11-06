@@ -25,6 +25,7 @@ import ClientMediator from "../../../ClientMediator";
 import { usePermissions } from "../../../contexts/PermissionsContext";
 import { SplitPane, useSplitView } from "../../uiComponents/base/SplitPane";
 import themeColors from "../../../helpers/themeColors";
+import { useResync } from "../../../helpers/resync";
 
 // ── Module-level constants ────────────────────────────────────────────────────
 
@@ -244,6 +245,8 @@ export const SoundboardPanel = () => {
   React.useEffect(() => {
     loadBoards();
   }, [loadBoards]);
+  // Back after a dropped connection: changes made meanwhile never arrived.
+  useResync(reloadAll);
 
   // Reset two-step confirm and go back to the play view whenever selection changes.
   React.useEffect(() => {

@@ -183,8 +183,25 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
     }
   }, [state, CreateLayoutElement, setCurrentPlayerId, setPlayers, setLayout, setIsOwner, setIsLocalAdmin, setGamePermission, currentPlayerRef, gameRef, keyboardEventsManagerRef]);
 
+  // After a dropped connection: what the game told this client may have changed meanwhile
+  // (players, ownership, permissions, maps), so it is fetched again. The layout stays as the
+  // player has it, and client_layout_ready isn't sent again (it runs addons' Load hooks).
+  const refreshGame = useCallback(async () => {
+    const game = await WebHelper.getAsync('battlemap/getfullgame');
+    if (!game) return;
+    gameRef.current = game;
+    const playerId = currentPlayerRef.current?.id;
+    if (playerId) setIsOwner(game.master?.id === playerId);
+    setGamePermission(game.permission ?? PERM.NONE);
+    setIsLocalAdmin(!!game.isLocalAdmin);
+    setPlayers(game.players);
+    ClientMediator.fireEvent('BattleMapsChanged', game.battleMaps);
+    WebSocketManagerInstance.Send({ command: 'player_list' });
+  }, [gameRef, currentPlayerRef, setIsOwner, setGamePermission, setIsLocalAdmin, setPlayers]);
+
   return {
     loadGame,
+    refreshGame,
     initError,
     clearInitError: () => setInitError(null),
     resetInitialization: () => {

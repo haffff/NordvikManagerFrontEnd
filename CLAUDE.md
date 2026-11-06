@@ -67,7 +67,7 @@ Staying connected (`WebRTCManager`):
 - A lost connection (data channel closed, peer connection `failed` for 5 s, or an unanswered heartbeat, `GET /heartbeat` api-request every 5 s) is torn down and re-established by itself with backoff; only after the last attempt does the error (with Retry) show. Requests made meanwhile queue.
 - The GM backend's signaling socket leaving (PEER_LEFT) doesn't close an open channel — the channel runs peer to peer; the GM's new peer id is picked up on PEER_JOINED.
 - The access token is refreshed when it's missing *or* about to expire, on every (re)authentication.
-- The open after a drop broadcasts `__channel_ready__` with `reconnected: true`; `useReconnectNotice` then offers a reload (pushes in the gap are lost). A per-panel catch-up is the planned follow-up.
+- The open after a drop broadcasts `__channel_ready__` with `reconnected: true`. Pushes in the gap are lost, so views that load server data re-run their load then via `helpers/resync.js` (`useResync(load)`, `onResync(load)` outside React, or `useResyncKey()` in an effect's deps when the load lives with its subscriptions). **A new view that loads server data and follows pushes should register its load there.** Editors and forms (card definition, action editor, settings panels) deliberately don't, so unsaved edits are never overwritten. `useReconnectNotice` only shows a short "Reconnected" toast.
 
 ### Protocol version (player builds per backend protocol)
 

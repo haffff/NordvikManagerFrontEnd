@@ -72,4 +72,21 @@ describe('CardsPanel, live updates', () => {
 
     expect(await screen.findByText('Hobgoblin')).toBeInTheDocument();
   });
+
+  // Changes made while this client's connection was down never arrive as pushes: once it's
+  // back, the panel loads the cards and their folder tree again.
+  it('catches up on cards changed while the connection was down', async () => {
+    server.cards = [{ id: 'c1', name: 'Goblin' }];
+    server.tree = [entry('e1', 'c1')];
+    renderWithProviders(<CardsPanel state={{}} />);
+    await screen.findByText('Goblin');
+
+    server.cards = [{ id: 'c1', name: 'Hobgoblin' }, { id: 'c2', name: 'Orc' }];
+    server.tree = [entry('e1', 'c1'), entry('e2', 'c2')];
+    broadcast({ command: '__channel_ready__', reconnected: true });
+
+    expect(await screen.findByText('Hobgoblin')).toBeInTheDocument();
+    expect(await screen.findByText('Orc')).toBeInTheDocument();
+    expect(screen.queryByText('Goblin')).not.toBeInTheDocument();
+  });
 });

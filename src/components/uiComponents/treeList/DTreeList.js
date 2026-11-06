@@ -34,6 +34,7 @@ import themeColors from '../../../helpers/themeColors';
 import { TreeView } from '../tree/TreeView';
 import { buildTree, collectDescendants, computeMove, computeMoveMany, entryPath, splitMatch, treeOrder } from '../tree/treeModel';
 import { useRememberedOpenFolders } from '../tree/useRememberedOpenFolders';
+import { useResync } from '../../../helpers/resync';
 
 // Folder tree for a game's materials, cards, … backed by the server's tree entries.
 // Rows are drawn by TreeView; moves are sent to the server and the tree re-renders from
@@ -380,6 +381,9 @@ export const DTreeList = ({
         if (!entityType) return;
         fetchTree();
     }, [entityType, fetchTree]);
+
+    // Back after a dropped connection: folders and moves made meanwhile never arrived.
+    useResync(fetchTree);
 
     // ── server sync ────────────────────────────────────────────────────────────
     const handleMessage = React.useCallback((response) => {

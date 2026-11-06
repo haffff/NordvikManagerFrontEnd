@@ -4,19 +4,19 @@ import { toaster } from '../../ui/toaster';
 import useUUID from '../../uiComponents/hooks/useUUID';
 
 const TOAST_ID = 'nm-reconnected';
+const TOAST_MS = 4000;
 
 /**
- * Once the connection to the game is back after a drop, pushes sent in between never
- * arrived (other players' moves, chat, changes). Panels can't catch up on their own yet,
- * so the player is told and offered a reload, which re-enters the game (?game= stays in
- * the URL). One notice, however often it reconnects.
+ * Once the connection to the game is back after a drop, the game's views load what changed
+ * meanwhile on their own (helpers/resync.js), so the player is only told, briefly. One notice
+ * at a time, however often it reconnects.
  *
  * onChannelReady runs on every open, e.g. to clear a connection error shown earlier.
  */
-export function useReconnectNotice({ reload = () => window.location.reload(), onChannelReady } = {}) {
+export function useReconnectNotice({ onChannelReady } = {}) {
   const uuid = useUUID();
-  const latest = useRef({ reload, onChannelReady });
-  latest.current = { reload, onChannelReady };
+  const latest = useRef({ onChannelReady });
+  latest.current = { onChannelReady };
 
   useEffect(() => {
     const name = `useReconnectNotice-${uuid}`;
@@ -26,12 +26,10 @@ export function useReconnectNotice({ reload = () => window.location.reload(), on
       if (!message.reconnected || toaster.isVisible?.(TOAST_ID)) return;
       toaster.create({
         id: TOAST_ID,
-        type: 'warning',
+        type: 'info',
         title: 'Reconnected',
-        description: 'The connection to the game dropped for a moment. Changes made meanwhile may be missing.',
-        duration: Infinity,
-        meta: { closable: true },
-        action: { label: 'Reload game', onClick: () => latest.current.reload() },
+        description: 'The connection to the game dropped for a moment; the game has caught up.',
+        duration: TOAST_MS,
       });
     });
     return () => ActiveTransportManager.Unsubscribe(name);
