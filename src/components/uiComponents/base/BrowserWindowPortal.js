@@ -3,6 +3,7 @@ import * as ReactDOM from 'react-dom';
 import * as Dockable from '@hlorenzi/react-dockable';
 import { CacheProvider } from '@emotion/react';
 import createCache from '@emotion/cache';
+import { EnvironmentProvider } from '@chakra-ui/react';
 import { mirrorGameCss } from '../../../helpers/popoutGameCss';
 import { makePanelContentContext } from '../../../helpers/panelContentContext';
 
@@ -203,14 +204,20 @@ export const BrowserWindowPortal = ({ children, title = 'Panel', contentId, onCl
         }
     }, [title, windowRef]);
 
+    // The document Chakra's menus and dialogs mount on, and listen to; it's the main
+    // page's unless told otherwise. Stable, so they don't re-render with every resize.
+    const getPopoutDocument = React.useCallback(() => windowRef?.document, [windowRef]);
+
     if (!mountNode) return null;
 
     return ReactDOM.createPortal(
         React.createElement(CacheProvider, { value: styleCache },
-            React.createElement(Dockable.ContentContext.Provider, { value: makeContentContext(winSize.w, winSize.h, contentId, windowRef) },
-                React.createElement('div', {
-                    style: { width: '100vw', height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }
-                }, children)
+            React.createElement(EnvironmentProvider, { value: getPopoutDocument },
+                React.createElement(Dockable.ContentContext.Provider, { value: makeContentContext(winSize.w, winSize.h, contentId, windowRef) },
+                    React.createElement('div', {
+                        style: { width: '100vw', height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }
+                    }, children)
+                )
             )
         ),
         mountNode

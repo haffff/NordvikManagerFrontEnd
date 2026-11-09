@@ -9,6 +9,7 @@ import { syncControlsVisibility } from "../Helpers/TokenControlsHelper";
 import { fabric } from "fabric";
 import { RESERVED_LAYERS, compareLayers } from "../Constants/layers";
 import { installLayerTargeting } from "../Helpers/LayerTargeting";
+import "../Helpers/CanvasWindow";
 
 // Factory that creates a LoadCanvas async function bound to provided dependencies
 export default function createLoadCanvas(deps) {
