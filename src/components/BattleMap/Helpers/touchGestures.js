@@ -155,13 +155,15 @@ export function installTouchGestures(canvas, { onLongPress } = {}) {
   el.addEventListener("pointermove", onMove);
   el.addEventListener("pointerup", onUp);
   el.addEventListener("pointercancel", onUp);
-  window.addEventListener("touchmove", holdTouchMove, { capture: true, passive: false });
+  // The canvas's own window: a popped-out map isn't in the main one.
+  const win = el.ownerDocument.defaultView;
+  win.addEventListener("touchmove", holdTouchMove, { capture: true, passive: false });
   return () => {
     el.removeEventListener("pointerdown", onDown);
     el.removeEventListener("pointermove", onMove);
     el.removeEventListener("pointerup", onUp);
     el.removeEventListener("pointercancel", onUp);
-    window.removeEventListener("touchmove", holdTouchMove, { capture: true });
+    win.removeEventListener("touchmove", holdTouchMove, { capture: true });
   };
 }
 

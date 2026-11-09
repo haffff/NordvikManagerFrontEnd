@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { useEnvironmentContext } from "@chakra-ui/react";
 import ClientMediator from "../../../ClientMediator";
 
 export const PopupBMOverlay = ({ battleMapId, canvas }) => {
   const [show, setShow] = useState(false);
   const [content, setPopupContent] = useState(undefined);
   const popupRef = useRef(undefined);
+  const { getDocument } = useEnvironmentContext();
 
   useEffect(() => {
     if (!battleMapId) {
@@ -44,18 +46,19 @@ export const PopupBMOverlay = ({ battleMapId, canvas }) => {
       }
     };
 
+    const doc = getDocument();
     if (show) {
       popupRef.current.style.display = "block";
-      document.addEventListener("mousemove", updatePos);
+      doc.addEventListener("mousemove", updatePos);
     } else {
       popupRef.current.style.display = "none";
-      document.removeEventListener("mousemove", updatePos);
+      doc.removeEventListener("mousemove", updatePos);
     }
 
     return () => {
-      document.removeEventListener("mousemove", updatePos);
+      doc.removeEventListener("mousemove", updatePos);
     };
-  }, [show]);
+  }, [show, getDocument]);
 
   return (
     <div ref={popupRef} className="nm_bm_popup">
