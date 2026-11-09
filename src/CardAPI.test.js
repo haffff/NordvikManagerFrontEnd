@@ -1,4 +1,4 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 // Regression coverage for the parentId casing bug this session — CardAPI.js used to
 // read data.parentID (capital ID) in one round and both CardAPI.js + PropertiesManager
@@ -27,7 +27,65 @@ vi.mock('./helpers/ResourceCache', () => ({
 
 import { ActiveTransportManager, ActiveWebHelper } from './helpers/transport';
 import ResourceCache from './helpers/ResourceCache';
-import CardAPIFactory, { PropertiesManagerInstance } from './CardAPI';
+import CardAPIFactory, { ACTION_CLIENT_COMMANDS, PropertiesManagerInstance, runActionClientCommand } from './CardAPI';
+import ClientMediator from './ClientMediator';
+import BMService from './components/BattleMap/Managers/BMService';
+import TokenManager from './components/BattleMap/Managers/TokenManager';
+
+// What an action's RunClientCommand step may run in a player's browser.
+describe('runActionClientCommand', () => {
+  let send;
+  beforeEach(() => {
+    send = vi.spyOn(ClientMediator, 'sendCommand').mockImplementation(() => undefined);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('runs a supported command with its parsed data', () => {
+    runActionClientCommand({ panel: 'BattleMap_token', command: 'CreateToken', data: '{"cardId":"c1"}' });
+
+    expect(send).toHaveBeenCalledWith('BattleMap_token', 'CreateToken', { cardId: 'c1' });
+  });
+
+  it("doesn't mind the panel's casing, as the mediator doesn't", () => {
+    runActionClientCommand({ panel: 'battlemap_token', command: 'CreateToken' });
+
+    expect(send).toHaveBeenCalledWith('battlemap_token', 'CreateToken', undefined);
+  });
+
+  it("runs a card's own panel", () => {
+    runActionClientCommand({ panel: 'addon_card-1_poll', command: 'Reply', data: '{"ok":true}' });
+
+    expect(send).toHaveBeenCalledWith('addon_card-1_poll', 'Reply', { ok: true });
+  });
+
+  it.each([
+    ['BattleMap', 'ApplyMapChange'],
+    ['Game', 'GetGame'],
+    ['Properties', 'Remove'],
+    ['addon_card-1_poll', 'onEvent'],
+    ['constructor', 'prototype'],
+    [undefined, 'CreateToken'],
+  ])('refuses %s.%s', (panel, command) => {
+    runActionClientCommand({ panel, command });
+
+    expect(send).not.toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalled();
+  });
+
+  it('only lists map commands the app describes', () => {
+    const described = {
+      battlemap: new BMService().$meta,
+      battlemap_token: new TokenManager().$meta,
+    };
+
+    for (const key of Object.keys(ACTION_CLIENT_COMMANDS)) {
+      const [panel, command] = key.split('.');
+      if (described[panel]) expect(described[panel][command], key).toBeDefined();
+    }
+  });
+});
+
 
 function subscribedCallback(prefix) {
   const call = ActiveTransportManager.Subscribe.mock.calls.find(([key]) => key.startsWith(prefix));

@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import BMQueryService from './BMQueryService';
+import ClientMediator from '../../../ClientMediator';
 
 // A minimal fake canvas that mimics fabric.Canvas's on/off event semantics
 // closely enough to reproduce the actual bug: off(eventName) with NO handler
@@ -9,6 +10,7 @@ function makeFakeCanvas() {
   const listeners = new Map(); // eventName -> Set<handler>
 
   return {
+    getActiveObjects: () => [],
     on(eventName, handler) {
       if (!listeners.has(eventName)) listeners.set(eventName, new Set());
       listeners.get(eventName).add(handler);
@@ -39,6 +41,84 @@ function makeFakeCanvas() {
 // BMQueryService.Load() remove ONLY its own handler reference, so it can be
 // called a second time (after LoadBMSubscriptions's sweep, in LoadCanvas.js)
 // without orphaning itself or anyone else's listener on the same event.
+describe('selection subscribers', () => {
+  const service = (canvas) => {
+    const s = new BMQueryService();
+    s._canvas = canvas;
+    s._battleMapModel = { id: 'bm-1' };
+    s._map = { id: 'map-1' };
+    s.Load();
+    return s;
+  };
+
+  // Every load of a map makes a new service for the same canvas, and clears its listeners.
+  const reload = (canvas) => {
+    ['selection:created', 'selection:updated', 'selection:cleared'].forEach((e) => canvas.off(e));
+    return service(canvas);
+  };
+
+  it('stay subscribed when the map reloads', () => {
+    const canvas = makeFakeCanvas();
+    const method = vi.fn();
+    service(canvas).SubscribeSelectionChanged({ name: 'overlay', method });
+
+    reload(canvas);
+    canvas.fire('selection:created', {});
+
+    expect(method).toHaveBeenCalledTimes(1);
+  });
+
+  it('are called once however often the same name subscribes', () => {
+    const canvas = makeFakeCanvas();
+    const method = vi.fn();
+    const s = service(canvas);
+
+    s.SubscribeSelectionChanged({ name: 'overlay', method });
+    s.SubscribeSelectionChanged({ name: 'overlay', method });
+    canvas.fire('selection:created', {});
+
+    expect(method).toHaveBeenCalledTimes(1);
+  });
+
+  it('answer the subscription, so a waiting caller is done', () => {
+    expect(service(makeFakeCanvas()).SubscribeSelectionChanged({ name: 'x', method: vi.fn() })).toBe(true);
+  });
+
+  it('stop on unsubscribe', () => {
+    const canvas = makeFakeCanvas();
+    const method = vi.fn();
+    const s = service(canvas);
+    s.SubscribeSelectionChanged({ name: 'overlay', method });
+
+    s.UnSubscribeSelectionChanged({ name: 'overlay' });
+    canvas.fire('selection:created', {});
+
+    expect(method).not.toHaveBeenCalled();
+  });
+
+  it("announces the selection with only what a card may see", () => {
+    const canvas = makeFakeCanvas();
+    const fire = vi.spyOn(ClientMediator, 'fireEvent').mockImplementation(() => {});
+    canvas.getActiveObjects = () => [
+      { id: 'el-1', name: 'Goblin', tokenData: { cardId: 'card-1', secret: 'x' }, left: 5 },
+      { id: 'el-2', name: 'Wall' },
+    ];
+    service(canvas);
+
+    canvas.fire('selection:created', {});
+
+    expect(fire).toHaveBeenCalledWith('BattleMap:SelectionChanged', {
+      battleMapId: 'bm-1',
+      mapId: 'map-1',
+      selected: [
+        { id: 'el-1', name: 'Goblin', isToken: true, cardId: 'card-1' },
+        { id: 'el-2', name: 'Wall', isToken: false, cardId: null },
+      ],
+    });
+    fire.mockRestore();
+  });
+});
+
 describe('BMQueryService.Load — selection listener lifecycle', () => {
   let canvas;
   let service;

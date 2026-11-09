@@ -7,6 +7,7 @@ import { findOpenPanel } from '../../../helpers/showToPlayers';
 import { isMobileUi } from '../../../helpers/uiMode';
 import addonOpLog from '../../../helpers/addonOpLog';
 import ClientMediator from '../../../ClientMediator';
+import { runActionClientCommand } from '../../../CardAPI';
 import { toaster } from '../../ui/toaster';
 import { DropDownItem } from '../../uiComponents/base/DDItems/DropDownItem';
 import { addMenuItem, addSubMenu, getMenuContext } from "../../uiComponents/base/DDItems/menuItemsStore";
@@ -253,8 +254,7 @@ export const useGameEventHandlers = ({ state, gameState, CreateLayoutElement }) 
    * Payload: { panel: string, command: string, data?: string (JSON) }
    */
   const HandleRunClientCommand = useCallback((resp) => {
-    const { panel, command, data } = resp.data;
-    ClientMediator.sendCommand(panel, command, data ? JSON.parse(data) : undefined);
+    runActionClientCommand(resp.data);
   }, []);
 
   /**
