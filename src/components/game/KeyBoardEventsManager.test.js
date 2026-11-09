@@ -20,6 +20,70 @@ import KeyboardEventsManager, {
 
 beforeEach(() => vi.clearAllMocks());
 
+describe("Ctrl+A", () => {
+  const key = (target, extra = {}) => ({
+    key: "a", ctrlKey: true, shiftKey: false, altKey: false, target, preventDefault: vi.fn(), ...extra,
+  });
+  const inside = (className) => {
+    const parent = document.createElement("div");
+    parent.className = className;
+    const child = document.createElement("div");
+    parent.appendChild(child);
+    return child;
+  };
+  const fired = () => ClientMediator.sendCommandAsync.mock.calls.filter(([, command]) => command === "SelectAll");
+  const settle = () => new Promise((resolve) => setTimeout(resolve));
+
+  beforeEach(() => ClientMediator.sendCommandWaitForRegisterAsync.mockResolvedValue("map-1"));
+
+  it("selects all on the map at key down, and not again at key up", async () => {
+    const mgr = new KeyboardEventsManager();
+    const down = key(inside("nm_battleMap"));
+
+    mgr.HandleKeyboardEventDown(down);
+    mgr.HandleKeyboardEventUp(key(inside("nm_battleMap")));
+    await settle();
+
+    expect(down.preventDefault).toHaveBeenCalled();
+    expect(fired()).toEqual([["battlemap", "SelectAll", { contextId: "map-1" }]]);
+  });
+
+  it("selects once while the key is held down", async () => {
+    const mgr = new KeyboardEventsManager();
+
+    mgr.HandleKeyboardEventDown(key(inside("nm_battleMap")));
+    mgr.HandleKeyboardEventDown(key(inside("nm_battleMap"), { repeat: true }));
+    await settle();
+
+    expect(fired()).toHaveLength(1);
+  });
+
+  it("stays the browser's in any other panel", async () => {
+    const mgr = new KeyboardEventsManager();
+    const down = key(inside("nm_chat"));
+
+    mgr.HandleKeyboardEventDown(down);
+    mgr.HandleKeyboardEventUp(key(inside("nm_chat")));
+    await settle();
+
+    expect(down.preventDefault).not.toHaveBeenCalled();
+    expect(fired()).toEqual([]);
+  });
+
+  it("stays the browser's in a text box on the map", async () => {
+    const mgr = new KeyboardEventsManager();
+    const box = document.createElement("input");
+    inside("nm_battleMap").appendChild(box);
+    const down = key(box);
+
+    mgr.HandleKeyboardEventDown(down);
+    await settle();
+
+    expect(down.preventDefault).not.toHaveBeenCalled();
+    expect(fired()).toEqual([]);
+  });
+});
+
 describe("isValidBindingValue", () => {
   it("accepts a bare panel.command", () => {
     expect(isValidBindingValue("battlemap.CopyElements")).toBe(true);
