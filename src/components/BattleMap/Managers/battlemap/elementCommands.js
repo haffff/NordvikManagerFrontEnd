@@ -1,6 +1,7 @@
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../../helpers/transport";
 import CommandFactory from "../../Factories/CommandFactory";
 import { fabric } from "fabric";
+import { selectAll } from "../../Helpers/MapSelection";
 import DTOConverter from "../../DTOConverter";
 import { toaster } from "../../../ui/toaster";
 
@@ -110,6 +111,10 @@ export const elementCommands = {
         mapId: group.mapId,
       }));
       WebSocketManagerInstance.Send(CommandFactory.CreateUngroupCommand(group.id, children));
+    },
+
+    SelectAll() {
+      selectAll(this._canvas);
     },
 
     RemoveSelected() {

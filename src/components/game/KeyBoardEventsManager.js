@@ -24,6 +24,7 @@ export const DefaultShortCuts = {
   "Shift+U": { panel: "battlemap", command: "UngroupSelected", label: "Ungroup Selected" },
   "Ctrl+C": { panel: "battlemap", command: "CopyElements", label: "Copy Selected" },
   "Ctrl+V": { panel: "battlemap", command: "PasteElements", label: "Paste Elements" },
+  "Ctrl+A": { panel: "battlemap", command: "SelectAll", label: "Select All" },
   "DELETE": { panel: "battlemap", command: "RemoveSelected", label: "Delete Selected" },
 };
 
@@ -47,6 +48,12 @@ const COMMAND_REGEX = /^[A-Za-z_][\w-]*\.[A-Za-z_][\w-]*(\s+\S.*)?$/;
 export const MAX_BINDING_VALUE_LENGTH = 256;
 export const isValidBindingValue = (value) =>
   value === "" || (value.length <= MAX_BINDING_VALUE_LENGTH && COMMAND_REGEX.test(value));
+
+// Select All belongs to the map only while the keyboard is on the map: anywhere else
+// Ctrl+A stays the browser's, for the text there. It acts on key down, because that is
+// when the browser would select the page.
+const selectsAllOnMap = (entry) => entry?.panel?.toLowerCase() === "battlemap" && entry.command === "SelectAll";
+const keyboardIsOnMap = (ev) => !!ev.target.closest?.(".nm_battleMap");
 
 // While a KeyComboRecorder is actively capturing a combo, the game container's
 // onKeyUp still bubbles here (the recorder lives inside that div and the manager
@@ -102,13 +109,19 @@ class KeyboardEventsManager {
     if (comboRecordingActive) return;
     if (ev.target.matches("input") || ev.target.matches("textarea")) return;
     this.KeyboardMap[ev.key] = true;
+    const actionName = CreateActionName(ev);
+    if (selectsAllOnMap(this.ShortCuts[actionName]) && keyboardIsOnMap(ev)) {
+      ev.preventDefault();
+      if (!ev.repeat) this.FireKeyboardEvent(actionName);
+    }
   }
 
   HandleKeyboardEventUp(ev) {
     if (comboRecordingActive) return;
     if (ev.target.matches("input") || ev.target.matches("textarea")) return;
     let actionName = CreateActionName(ev);
-    if (this.ShortCuts[actionName] !== undefined) {
+    const entry = this.ShortCuts[actionName];
+    if (entry !== undefined && !selectsAllOnMap(entry)) {
       ev.preventDefault();
       this.FireKeyboardEvent(actionName);
     }
