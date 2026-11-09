@@ -18,8 +18,7 @@ const enlivenFabric = (object) =>
  * @param enliven (object) => Promise<fabric object>; tests swap in a stand-in for the picture
  */
 export function createPreviewSession({ canvas, enliven = enlivenFabric }) {
-  const manager = new TokenManager();
-  manager._getCanvas = () => canvas;
+  const manager = new TokenManager({ getCanvas: () => canvas });
   let token = null;
   let selected = false;
   // Each place takes a ticket; one overtaken by a newer place (or by dispose) while it

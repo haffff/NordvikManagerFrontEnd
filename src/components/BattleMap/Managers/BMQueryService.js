@@ -1,13 +1,19 @@
 import ClientMediator from "../../../ClientMediator";
 
 class BMQueryService {
-  _canvas = undefined;
   _game = undefined;
-  _map = undefined;
-  _battleMapModel = undefined;
   _popupRef = undefined;
   _operationModeRef = undefined;
   _destructionSubscriptions = [];
+
+  constructor({ canvas, battleMapModel, map } = {}) {
+    this._canvas = canvas;
+    this._battleMapModel = battleMapModel;
+    this._map = map;
+    this.panel = "battlemap";
+    this.contextId = battleMapModel?.id;
+    this.id = "BMQueryService" + battleMapModel?.id;
+  }
 
   Load() {
     // Targeted removal (own handler reference only) — NOT a bare
@@ -27,9 +33,6 @@ class BMQueryService {
     this._canvas.on("selection:updated", this._onSelChanged);
     this._canvas.on("selection:cleared", this._onSelChanged);
 
-    this.panel = "battlemap";
-    this.contextId = this._battleMapModel.id;
-    this.id = "BMQueryService" + this._battleMapModel.id;
   }
 
   // ── $meta ──────────────────────────────────────────────────────────────────

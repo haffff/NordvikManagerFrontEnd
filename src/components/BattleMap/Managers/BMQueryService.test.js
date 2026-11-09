@@ -43,10 +43,7 @@ function makeFakeCanvas() {
 // without orphaning itself or anyone else's listener on the same event.
 describe('selection subscribers', () => {
   const service = (canvas) => {
-    const s = new BMQueryService();
-    s._canvas = canvas;
-    s._battleMapModel = { id: 'bm-1' };
-    s._map = { id: 'map-1' };
+    const s = new BMQueryService({ canvas, battleMapModel: { id: 'bm-1' }, map: { id: 'map-1' } });
     s.Load();
     return s;
   };
@@ -125,9 +122,7 @@ describe('BMQueryService.Load — selection listener lifecycle', () => {
 
   beforeEach(() => {
     canvas = makeFakeCanvas();
-    service = new BMQueryService();
-    service._canvas = canvas;
-    service._battleMapModel = { id: 'bm-1' };
+    service = new BMQueryService({ canvas, battleMapModel: { id: 'bm-1' } });
   });
 
   it('registers a selection:created/updated/cleared handler', () => {
