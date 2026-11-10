@@ -1,5 +1,5 @@
 import * as React from "react";
-import { Button, HStack, Stack, Text } from "@chakra-ui/react";
+import { Button, HStack, Stack, Text, useEnvironmentContext } from "@chakra-ui/react";
 import ClientMediator from "../../../ClientMediator";
 
 // Shown in the map's overlay while the player points at a place for an action
@@ -7,6 +7,7 @@ import ClientMediator from "../../../ClientMediator";
 // (or Escape).
 export const PickPointOverlay = ({ battleMapId, pointing }) => {
   const [state, setState] = React.useState(pointing.state);
+  const { getWindow } = useEnvironmentContext();
   React.useEffect(() => {
     pointing.listeners.add(setState);
     return () => pointing.listeners.delete(setState);
@@ -18,9 +19,10 @@ export const PickPointOverlay = ({ battleMapId, pointing }) => {
   );
   React.useEffect(() => {
     const onKey = (e) => e.key === "Escape" && cancel();
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [cancel]);
+    const win = getWindow();
+    win.addEventListener("keydown", onKey);
+    return () => win.removeEventListener("keydown", onKey);
+  }, [cancel, getWindow]);
 
   const outOfRange = state.position && !state.allowed;
 
