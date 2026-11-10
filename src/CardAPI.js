@@ -79,6 +79,28 @@ export const ALLOWED_WS_RECEIVE_PREFIXES = Object.freeze([
 
 const ADDON_PANEL_PREFIX = "addon_";
 
+/**
+ * What an action's RunClientCommand step may run in a player's browser, with the panel in
+ * lower case as the mediator keeps it: these, and panels cards registered (addon_*).
+ * The addon guide lists them, so a change here is a change to the addon API.
+ */
+export const ACTION_CLIENT_COMMANDS = Object.freeze({
+  "battlemap_token.CreateToken": true,
+  "battlemap.FocusElement": true,
+  "game.CreateNewPanel": true,
+});
+
+/** Runs a RunClientCommand step that reached this browser, if it's one actions may run. */
+export function runActionClientCommand({ panel, command, data }) {
+  const key = String(panel).toLowerCase();
+  const ownPanel = key.startsWith(ADDON_PANEL_PREFIX) && !RESERVED_COMMANDS.includes(command);
+  if (!ownPanel && !ACTION_CLIENT_COMMANDS[`${key}.${command}`]) {
+    console.error(`RunClientCommand: "${panel}.${command}" is not available to actions`);
+    return;
+  }
+  ClientMediator.sendCommand(panel, command, data ? JSON.parse(data) : undefined);
+}
+
 // ─── Resource data helpers ────────────────────────────────────────────────────
 
 /** Encode any supported data type to a base64 string. */

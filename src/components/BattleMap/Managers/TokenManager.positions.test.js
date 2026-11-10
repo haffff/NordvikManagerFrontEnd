@@ -24,8 +24,7 @@ const token = (left, top) => {
 };
 
 const manager = (canvas) => {
-  const tm = new TokenManager();
-  tm._getCanvas = () => canvas;
+  const tm = new TokenManager({ getCanvas: () => canvas });
   tm._getSelectedMap = () => ({ id: 'map-1', gridSize: GRID });
   return tm;
 };

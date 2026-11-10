@@ -4,6 +4,7 @@ import useUUID from "../../uiComponents/hooks/useUUID";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
 import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
+import ClientMediator from "../../../ClientMediator";
 import { sandboxBridgeScript, withCardCsp } from "./cardSandbox";
 import { loadSandboxOrigins } from "../../../helpers/sandboxOrigins";
 import CardAPIFactory, { ALLOWED_WS_RECEIVE_PREFIXES } from "../../../CardAPI";
@@ -37,6 +38,7 @@ const RESOURCE_KEEPALIVE_MS = 60000;
  *   CMD_RESULT      { reqId, result, error? }
  *   PROPERTY_EVENT  { eventType, name, propData, global?, parentId? }
  *   WS_EVENT        { command, data }
+ *   MAP_SELECTION   { selection }
  *   APP_STYLES      { base, theme }
  *   MEDIATOR_CALL   { reqId, name, command, data }   (a call to a panel the card registered)
  *
@@ -131,6 +133,11 @@ function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, 
     // Everything else (chat, custom, action) forwarded as a generic WS_EVENT
     post({ type: "WS_EVENT", command, data });
   });
+
+  // ── parent → iframe: what's selected on the map ─────────────────────────
+  const selectionListener = ClientMediator.on("BattleMap:SelectionChanged", (selection) =>
+    post({ type: "MAP_SELECTION", selection })
+  );
 
   // ── iframe → parent: handle RPC and WS send requests ───────────────────
   const onMessage = async (event) => {
@@ -371,6 +378,7 @@ function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, 
   const cleanup = () => {
     hostWindow.removeEventListener("message", onMessage);
     WebSocketManagerInstance.Unsubscribe(wsSubKey);
+    ClientMediator.off(selectionListener);
     for (const call of mediatorCalls.values()) {
       clearTimeout(call.timer);
       call.reject(new Error("CardAPI: the card closed"));

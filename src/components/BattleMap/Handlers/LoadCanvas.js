@@ -1,5 +1,5 @@
-import InteractionsManger from "../Managers/BMQueryService";
-import BattleMapBMService from "../Managers/BMService";
+import BMQueryService from "../Managers/BMQueryService";
+import BMService from "../Managers/BMService";
 import TokenManager from "../Managers/TokenManager";
 import ClientMediator from "../../../ClientMediator";
 import LoadBMSubscriptions from "../Loaders/LoadBMSubscriptions";
@@ -18,7 +18,6 @@ export default function createLoadCanvas(deps) {
     editor,
     mapRef,
     battleMapModel,
-    forceUpdate,
     keyboardEventsManagerRef,
     battleMapObjectRef,
     battleMapContainerRef,
@@ -34,21 +33,18 @@ export default function createLoadCanvas(deps) {
   return async function LoadCanvas() {
     const map = mapRef.current;
 
+    const queryService = new BMQueryService({ canvas: editor.canvas, battleMapModel, map });
     const BattleMapServices = {
-      BMQueryService: new InteractionsManger(),
-      BMService: new BattleMapBMService(),
+      BMQueryService: queryService,
+      BMService: new BMService({
+        canvas: editor.canvas,
+        battleMapModel,
+        queryService,
+        reload: reloadBattleMap,
+        changeMap,
+      }),
+      TokenManager: new TokenManager({ getCanvas: () => editor.canvas, battleMapModel }),
     };
-
-    // Wire optional commands so BMService.ReloadBattleMapComponent will invoke the component-provided reload
-    if (typeof reloadBattleMap === 'function') {
-      BattleMapServices.BMService._reloadCommand = reloadBattleMap;
-    }
-    if (typeof changeMap === 'function') {
-      BattleMapServices.BMService._changeMapCommand = changeMap;
-    }
-
-    BattleMapServices.BMService._BMQueryService =
-      BattleMapServices.BMQueryService;
 
     let oldEditGridMode = editor.canvas.editGridMode;
     let oldSelectedLayer = editor.canvas.selectedLayer;
@@ -64,27 +60,6 @@ export default function createLoadCanvas(deps) {
     installMapSelection(editor.canvas);
     editor.canvas.defaultCursor = "default";
     editor.canvas.hoverCursor = "default";
-
-    // Assign battlemap instance when necessary
-    BattleMapServices.BMQueryService._canvas = editor.canvas;
-    BattleMapServices.BMQueryService._battleMapModel = battleMapModel;
-    // Load() here (before ClientMediator.register() below) sets .panel/.id/.contextId,
-    // which register() requires to already be set. It's called again after
-    // LoadBMSubscriptions() further down — see the comment there for why.
-    BattleMapServices.BMQueryService.Load();
-    BattleMapServices.BMService._canvas = editor.canvas;
-    BattleMapServices.BMService._refreshCommand = forceUpdate;
-    BattleMapServices.BMService._battleMapModel = battleMapModel;
-    BattleMapServices.BMService.Load();
-
-    BattleMapServices.TokenManager = new TokenManager();
-    BattleMapServices.TokenManager._canvas = editor.canvas;
-    BattleMapServices.TokenManager._battleMapModel = battleMapModel;
-    BattleMapServices.TokenManager._refreshCommand = forceUpdate;
-    BattleMapServices.TokenManager.Load(() => editor.canvas);
-
-    // Assign Selected map instance when necessary
-    BattleMapServices.BMQueryService._map = map;
 
     ClientMediator.register(BattleMapServices.BMQueryService);
     ClientMediator.register(BattleMapServices.BMService);
@@ -110,15 +85,7 @@ export default function createLoadCanvas(deps) {
 
     LoadBMSubscriptions(editor.canvas, references);
 
-    // Re-run BMQueryService.Load() here, after LoadBMSubscriptions(). LoadBMSubscriptions
-    // does canvas.off(key) for every key it manages — including
-    // "selection:created/updated/cleared" — and fabric's off(eventName) with no handler
-    // argument clears ALL listeners for that event, not just the caller's own. The
-    // earlier BMQueryService.Load() call above (needed before ClientMediator.register()
-    // so .panel/.id are set) was getting its selection handlers wiped out immediately
-    // after being set up, silently breaking SubscribeSelectionChanged for the canvas's
-    // entire lifetime. Load() is idempotent (off-then-on for its own 3 events each
-    // time), so calling it again here is safe and just re-establishes what got wiped.
+    // After LoadBMSubscriptions: its canvas.off(key) clears every listener for those events.
     BattleMapServices.BMQueryService.Load();
 
     // extend toObject for serialization

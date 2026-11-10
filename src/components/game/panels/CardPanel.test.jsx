@@ -55,6 +55,7 @@ beforeEachTest(() => {
   });
 });
 import DockableHelper from '../../../helpers/DockableHelper';
+import ClientMediator from '../../../ClientMediator';
 import { setAppliedGameCss } from '../../../helpers/cardAppStyles';
 
 const decode = (href) => new TextDecoder().decode(Uint8Array.from(atob(href.split(',')[1]), (c) => c.charCodeAt(0)));
@@ -62,7 +63,7 @@ const linkHref = (html, id) => html.match(new RegExp(`id="${id}" href="([^"]+)"`
 
 // Renders a card and waits until its iframe points at the sandbox page.
 async function openCard(name = 'Note') {
-  const { container } = render(<CardPanel id="card-1" name={name} />);
+  const { container, unmount } = render(<CardPanel id="card-1" name={name} />);
   const frame = container.querySelector('iframe');
   await waitFor(() => expect(frame.getAttribute('src')).toBeTruthy());
   const posted = vi.spyOn(frame.contentWindow, 'postMessage');
@@ -72,8 +73,27 @@ async function openCard(name = 'Note') {
     fromFrame({ type: 'SANDBOX_HOST_READY' });
     return posted.mock.calls.filter(([m]) => m.type === 'SANDBOX_LOAD').at(-1)?.[0].html;
   };
-  return { frame, posted, fromFrame, hostReady };
+  return { frame, posted, fromFrame, hostReady, unmount };
 }
+
+describe('CardPanel, map selection', () => {
+  const selection = { battleMapId: 'bm-1', mapId: 'map-1', selected: [{ id: 'el-1', name: 'Goblin', isToken: true, cardId: 'c1' }] };
+  const delivered = (posted) => posted.mock.calls.filter(([m]) => m.type === 'MAP_SELECTION');
+
+  it('tells the card what is selected on the map, until it closes', async () => {
+    const before = ClientMediator._eventListeners.length;
+    const { posted, fromFrame, unmount } = await openCard();
+    fromFrame({ type: 'SANDBOX_READY' });
+
+    ClientMediator.fireEvent('BattleMap:SelectionChanged', selection);
+
+    await waitFor(() => expect(delivered(posted)).toHaveLength(1));
+    expect(delivered(posted)[0][0].selection).toEqual(selection);
+
+    unmount();
+    expect(ClientMediator._eventListeners).toHaveLength(before);
+  });
+});
 
 // A view opened by an action (ShowView, view_show) gets only the card's id and data: the
 // window is titled with the card's own name instead of the dock's "Content N".

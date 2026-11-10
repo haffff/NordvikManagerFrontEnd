@@ -1,21 +1,18 @@
-import { wait } from "@testing-library/user-event/dist/cjs/utils/index.js";
-
 export const ClientMediator = {
   /*
     ClientHashset structure
     {
         Panel1: {
-            client1id: { command1 :       this._clientsHashSet[panelKey][clientId] = client;
-      this._clientPanelIndex[clientId] = panelKey;
-      // Apply any methods that were patched before this client registered
-      if (this._pendingPatches?.[clientId]) {
-        Object.assign(this._clientsHashSet[panelKey][clientId], this._pendingPatches[clientId]);
-        delete this._pendingPatches[clientId];
-      }
-      console.log(`ClientMediator: registered '${client.id}' for panel '${client.panel}'`);ction, command2 : function },
+            client1id: { command1 : function, command2 : function },
             client2id: { command1 : function, command2 : function }
         }
     }
+
+    What a command answers: the value when one client answers, an array when several do,
+    undefined when none does. Pass contextId to reach one battle map's clients.
+
+    The wait-for-register methods read undefined as "not ready yet" and ask again at each
+    later registration, so a command sent through them has to answer something once it's done.
     */
   _clientsHashSet: {},
   // Maps clientId -> panelKey for O(1) unregister
@@ -39,6 +36,15 @@ export const ClientMediator = {
     return all;
   },
 
+  /** Whether a registered client has this command. */
+  _canRun: function (panel, command, data) {
+    return (this._resolveClients(panel, data) ?? []).some((x) => typeof x[command] === "function");
+  },
+
+  _commandNotFound: function (panel, command) {
+    return new Error(`Command not found: ${command} for panel: ${panel}`);
+  },
+
   // ─── Command dispatch ────────────────────────────────────────────────────────
 
   sendCommand: function (panel, command, data) {
@@ -46,11 +52,8 @@ export const ClientMediator = {
     if (!clients || clients.length === 0) return undefined;
 
     if (clients.length === 1) {
-      try {
-        return clients[0][command](data);
-      } catch (e) {
-        throw new Error(`Command not found: ${command} for panel: ${panel} with data: ${JSON.stringify(data)}`);
-      }
+      if (typeof clients[0][command] !== "function") throw this._commandNotFound(panel, command);
+      return clients[0][command](data);
     }
 
     const results = clients.reduce((acc, client) => {
@@ -69,11 +72,8 @@ export const ClientMediator = {
     if (!clients || clients.length === 0) return undefined;
 
     if (clients.length === 1) {
-      try {
-        return await clients[0][command](data);
-      } catch (e) {
-        throw new Error(`Command not found: ${command} for panel: ${panel} with data: ${JSON.stringify(data)}`);
-      }
+      if (typeof clients[0][command] !== "function") throw this._commandNotFound(panel, command);
+      return await clients[0][command](data);
     }
 
     const settled = await Promise.all(
@@ -85,7 +85,7 @@ export const ClientMediator = {
 
   /** Synchronous send — queues the request if the panel isn't registered yet. */
   sendCommandWaitForRegister: function (panel, command, data, waitUntilAvailable = false) {
-    const result = this.sendCommand(panel, command, data);
+    const result = this._canRun(panel, command, data) ? this.sendCommand(panel, command, data) : undefined;
     if (result !== undefined) return Promise.resolve(result);
 
     if (!waitUntilAvailable) return Promise.reject("Client not found.");
@@ -97,7 +97,7 @@ export const ClientMediator = {
 
   /** Async send — queues the request if the panel isn't registered yet. */
   sendCommandWaitForRegisterAsync: async function (panel, command, data, waitUntilAvailable = false) {
-    const result = await this.sendCommandAsync(panel, command, data);
+    const result = this._canRun(panel, command, data) ? await this.sendCommandAsync(panel, command, data) : undefined;
     if (result !== undefined) return result;
 
     if (!waitUntilAvailable) {
@@ -174,19 +174,20 @@ export const ClientMediator = {
   _checkAwaitingAndExecute: async function () {
     if (this._awaitingRequests.length === 0) return;
 
-    // Snapshot then clear; resolved items won't be re-processed
-    const pending = this._awaitingRequests.slice();
-    const stillPending = [];
+    // Taken out while they run, so a registration meanwhile can't run them twice. The rest
+    // stay queued for the next one.
+    const runnable = this._awaitingRequests.filter((x) => this._canRun(x.panel, x.command, x.data));
+    this._awaitingRequests = this._awaitingRequests.filter((x) => !runnable.includes(x));
 
     await Promise.all(
-      pending.map(async (request) => {
+      runnable.map(async (request) => {
         try {
           const result = await this.sendCommandAsync(request.panel, request.command, request.data);
           if (result !== undefined) {
             console.log(`ClientMediator: resolved awaiting '${request.command}' -> '${request.panel}'`);
             request.resolve(result);
           } else {
-            stillPending.push(request);
+            this._awaitingRequests.push(request);
           }
         } catch (e) {
           console.error(`ClientMediator: awaiting request failed '${request.command}' -> '${request.panel}'`, e);
@@ -194,8 +195,6 @@ export const ClientMediator = {
         }
       })
     );
-
-    this._awaitingRequests = stillPending;
   },
 
   // ─── Events ──────────────────────────────────────────────────────────────────

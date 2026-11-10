@@ -37,6 +37,20 @@ describe('public/sandbox.html', () => {
 });
 
 describe('CardAPI bridge', () => {
+  it('tells a card about the map selection until it unsubscribes', () => {
+    const frame = runScript(sandboxBridgeScript('n-3'), { hash: '' });
+    const seen = vi.fn();
+    const selection = { battleMapId: 'bm-1', mapId: 'map-1', selected: [] };
+
+    frame.win.CardAPI.BattleMap.SubscribeSelection(seen);
+    frame.send({ type: 'MAP_SELECTION', selection, nonce: 'n-3' });
+    frame.win.CardAPI.BattleMap.UnsubscribeSelection(seen);
+    frame.send({ type: 'MAP_SELECTION', selection, nonce: 'n-3' });
+
+    expect(seen).toHaveBeenCalledTimes(1);
+    expect(seen).toHaveBeenCalledWith(selection);
+  });
+
   it('ignores messages without its nonce, even when they arrive first', () => {
     const frame = runScript(sandboxBridgeScript('n-2'), { hash: '' });
 

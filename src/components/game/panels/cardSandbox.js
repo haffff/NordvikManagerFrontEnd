@@ -28,6 +28,7 @@
  *   { type: "CMD_RESULT",     reqId, result, error? }
  *   { type: "PROPERTY_EVENT", eventType, name, propData, global?, parentId? }
  *   { type: "WS_EVENT",       command, data }
+ *   { type: "MAP_SELECTION",  selection }
  *   { type: "APP_STYLES",     base, theme }
  *   { type: "MEDIATOR_CALL",  reqId, name, command, data }  (a call to a panel the card registered)
  *
@@ -99,6 +100,7 @@ const BRIDGE_TEMPLATE = `<script>
   const _propSubscriptions = {};        // name → callback[]
   const _globalPropSubscriptions = {};  // "parentId:name" → callback[]
   const _wsSubscriptions   = [];        // callback[]
+  const _selectionSubscriptions = [];   // callback[]
   const _registrations     = {};        // addon panel name → { command: handler }
 
   // Mutable identity fields — written once on INIT
@@ -340,6 +342,15 @@ const BRIDGE_TEMPLATE = `<script>
       Finish: (payload)  => _rpc('Rolls', 'Finish', payload),
     },
 
+    // What the player has selected on a map: { battleMapId, mapId, selected: [...] }.
+    BattleMap: {
+      SubscribeSelection: (cb) => { _selectionSubscriptions.push(cb); },
+      UnsubscribeSelection: (cb) => {
+        const i = _selectionSubscriptions.indexOf(cb);
+        if (i !== -1) _selectionSubscriptions.splice(i, 1);
+      },
+    },
+
     SubscribeWebSocket: (cb) => { _wsSubscriptions.push(cb); },
     UnsubscribeWebSocket: (cb) => {
       const i = _wsSubscriptions.indexOf(cb);
@@ -350,6 +361,7 @@ const BRIDGE_TEMPLATE = `<script>
   Object.freeze(CardAPI.Properties);
   Object.freeze(CardAPI.Resources);
   Object.freeze(CardAPI.Rolls);
+  Object.freeze(CardAPI.BattleMap);
   Object.freeze(CardAPI.ClientMediator);
   Object.freeze(CardAPI);
 
@@ -435,6 +447,13 @@ const BRIDGE_TEMPLATE = `<script>
         if (pending && pending.progress) pending.progress(msg.fraction);
         break;
       }
+
+      case 'MAP_SELECTION':
+        for (const cb of [..._selectionSubscriptions]) {
+          try { cb(msg.selection); }
+          catch (e) { console.error('CardAPI selection subscriber error', e); }
+        }
+        break;
 
       case 'WS_EVENT':
         for (const cb of _wsSubscriptions) {
