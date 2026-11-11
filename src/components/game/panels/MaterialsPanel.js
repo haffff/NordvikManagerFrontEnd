@@ -46,6 +46,7 @@ import ProgressToastManager from '../../../helpers/ProgressToastManager';
 import uploadMaterials from '../../../helpers/uploadMaterials';
 import { takeDroppedExports } from '../../../helpers/droppedExports';
 import { askImportDropped, reportImported, reportImportFailed } from '../../uiComponents/ImportDropPrompt';
+import { askImportCode } from '../../uiComponents/ImportCodePrompt';
 import themeColors from "../../../helpers/themeColors";
 import { useResync } from "../../../helpers/resync";
 
@@ -271,7 +272,7 @@ export const MaterialsPanel = ({ state }) => {
     // An Export JSON file among them is offered for import instead.
     const handleFiles = React.useCallback(async (dropped, parentFolder = null) => {
         if (!dropped.length) return;
-        const files = await takeDroppedExports(dropped, { ask: askImportDropped, onImported: reportImported, onError: reportImportFailed });
+        const files = await takeDroppedExports(dropped, { ask: askImportDropped, onImported: reportImported, onError: reportImportFailed, confirmCode: askImportCode });
         if (!files.length) return;
         setIgnoreRefresh(true);
 

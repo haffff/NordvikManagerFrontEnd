@@ -23,11 +23,41 @@ export async function exportEntity(kind, id, { includeFiles = false, includeCard
   return exported;
 }
 
-/** Imports into `parentId` (a folder, null for the top level) or right after the entry `afterId`. */
-export async function importEntity(exported, { kind, name = null, parentId = null, afterId = null } = {}) {
-  const response = await WebHelper.postAsync("transfer/Import", {
-    export: exported, kind, name, treeParentId: parentId, afterTreeEntryId: afterId,
-  });
+const fileNameFor = (exported, kind) =>
+  exportFileName({ kind: exported?.kind ?? kind ?? "export", name: exported?.name });
+
+/**
+ * Imports an export (the file's text, or the parsed file) into `parentId` (a folder, null
+ * for the top level) or right after the entry `afterId`. The file goes up in parts first
+ * and waits on the server; a file from another server that brings card code is imported
+ * only if confirmCode(inspection) says yes (a card's page runs with the rights of whoever
+ * opens it), otherwise it's dropped and this resolves to null. Text is sent as it is: the
+ * server checks its signature over it.
+ */
+export async function importEntity(exported, { kind, name = null, parentId = null, afterId = null, confirmCode = async () => false } = {}) {
+  const text = typeof exported === "string" ? exported : JSON.stringify(exported);
+  let parsed = exported;
+  if (typeof exported === "string") {
+    try { parsed = JSON.parse(exported); } catch { parsed = null; }
+  }
+
+  const upload = await WebHelper.uploadInPieces(
+    new Blob([text], { type: "application/json" }),
+    { name: fileNameFor(parsed, kind), mimeType: "application/json", forImport: true },
+  );
+  if (upload === null) throw new Error("This server can't take imports this way yet: update it.");
+  const uploadId = upload?.body?.uploadId;
+  if (upload?.status !== 200 || !uploadId) throw new Error(upload?.body?.error ?? "Couldn't send the file.");
+
+  const request = { uploadId, kind, name, treeParentId: parentId, afterTreeEntryId: afterId };
+  let response = await WebHelper.postAsync("transfer/Import", request);
+  if (response?.status === 409 && response.body?.inspection) {
+    if (!(await confirmCode(response.body.inspection))) {
+      await WebHelper.postAsync("transfer/CancelImport", { uploadId });
+      return null;
+    }
+    response = await WebHelper.postAsync("transfer/Import", { ...request, acceptCode: true });
+  }
   if (response?.status >= 200 && response.status < 300)
     return { id: response.body?.id, missing: response.body?.missing ?? [] };
   throw new Error(response?.body?.error ?? "Couldn't import it.");

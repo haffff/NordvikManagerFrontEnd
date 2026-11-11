@@ -479,6 +479,17 @@ describe('WebRTCWebHelper.uploadInPieces', () => {
     expect(paths()).toEqual(['materials/uploadstart']);
   });
 
+  // An export to import: the server keeps it (never a resource) until Transfer/Import.
+  it('an import upload: sent in parts, not finished; answers its id', async () => {
+    const result = await WebRTCWebHelperInstance.uploadInPieces(blob('{"a":1}', 'application/json'), { name: 'hero.card.json', mimeType: 'application/json', forImport: true });
+
+    expect(result).toEqual({ status: 200, body: { uploadId: 'u1' } });
+    expect(server.started).toMatchObject({ Name: 'hero.card.json', ForImport: true, Size: 7 });
+    expect(String.fromCharCode(...server.bytes)).toBe('{"a":1}');
+    expect(server.finished).toBe(false);
+    expect(paths()).not.toContain('materials/uploadfinish');
+  });
+
   it('a lost part: asks where the upload is and carries on from there', async () => {
     lose.add(4);
     const result = await WebRTCWebHelperInstance.uploadInPieces(blob('abcdefghij'), { name: 'a.pdf' });

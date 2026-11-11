@@ -553,8 +553,8 @@ export const DTreeList = ({
 
         for (const entry of targets) {
             try {
-                const { missing } = await duplicateEntity(transferRef.current.kind, entry.targetId, entry.id ? entry : null);
-                reportMissing(missing);
+                const result = await duplicateEntity(transferRef.current.kind, entry.targetId, entry.id ? entry : null);
+                if (result) reportMissing(result.missing);
             } catch (e) {
                 toaster.create({ title: "Couldn't duplicate", description: e.message, type: "error" });
             }

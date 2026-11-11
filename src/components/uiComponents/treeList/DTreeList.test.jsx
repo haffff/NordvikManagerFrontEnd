@@ -24,6 +24,7 @@ import { ActiveWebHelper as WebHelper, ActiveTransportManager } from '../../../h
 import { duplicateEntity, exportEntity, importEntity, downloadJson } from '../../../helpers/entityTransfer';
 import { toaster } from '../../ui/toaster';
 import { DTreeList } from './DTreeList';
+import { askImportCode } from '../ImportCodePrompt';
 
 // Root: Maps(folder) → Goblin → Orc ; Maps: Dungeon
 const tree = [
@@ -152,7 +153,8 @@ describe('DTreeList Duplicate / Export JSON / Import JSON', () => {
     fireEvent.change(await screen.findByLabelText('Exported JSON'), { target: { value: JSON.stringify(json) } });
     fireEvent.click(screen.getByRole('button', { name: 'Import' }));
 
-    await vi.waitFor(() => expect(importEntity).toHaveBeenCalledWith(json, { kind: 'card', parentId: 'maps' }));
+    // The pasted text as it is, with the GM's say on code from another server.
+    await vi.waitFor(() => expect(importEntity).toHaveBeenCalledWith(JSON.stringify(json), { kind: 'card', parentId: 'maps', confirmCode: askImportCode }));
     await vi.waitFor(() => expect(toaster.create).toHaveBeenCalledWith(expect.objectContaining({ description: expect.stringContaining('portrait.png') })));
   });
 
