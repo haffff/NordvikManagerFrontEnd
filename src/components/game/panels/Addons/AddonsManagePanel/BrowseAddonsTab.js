@@ -14,7 +14,7 @@ import DListItemButton from "../../../../uiComponents/base/List/ListItemDetails/
 import DListItemsButtonContainer from "../../../../uiComponents/base/List/DListItemsButtonContainer";
 import DLabel from "../../../../uiComponents/base/Text/DLabel";
 import { safeExternalUrl } from "../../../../../helpers/safeUrl";
-import { browseAddons, categoryName, usedCategories } from "./addonsBrowse";
+import { alsoInstalls, browseAddons, categoryName, usedCategories } from "./addonsBrowse";
 import AddonReadme from "./AddonReadme";
 
 // What the registry offers: search, category filter and sort above a list; the selected
@@ -183,6 +183,7 @@ export const BrowseAddonsTab = ({ repository, categories = [], repositoryError, 
           <AddonDetails
             addon={selected}
             categories={categories}
+            alsoInstalled={alsoInstalls(selected, repository, addons)}
             status={statusOf(selected)}
             onInstall={() => install(selected)}
             onUpdate={() => update(selected)}
@@ -201,7 +202,7 @@ const Field = ({ label, children }) => (
 );
 
 // The selected addon: what it is, where it comes from, Install/Update, and its readme.
-const AddonDetails = ({ addon, categories, status, onInstall, onUpdate }) => {
+const AddonDetails = ({ addon, categories, alsoInstalled = [], status, onInstall, onUpdate }) => {
   const repositoryUrl = safeExternalUrl(addon.repositoryUrl);
   const releaseUrl = safeExternalUrl(addon.releaseUrl);
   return (
@@ -228,6 +229,17 @@ const AddonDetails = ({ addon, categories, status, onInstall, onUpdate }) => {
           <Field label="Categories">
             <Flex gap="4px" flexWrap="wrap">
               {addon.categories.map((c) => <Badge key={c} size="sm" variant="subtle" colorPalette="teal">{categoryName(c, categories)}</Badge>)}
+            </Flex>
+          </Field>
+        )}
+        {alsoInstalled.length > 0 && (
+          <Field label="Also installs">
+            <Flex gap="4px" flexWrap="wrap">
+              {alsoInstalled.map((d) => (
+                <Badge key={d.key} size="sm" variant="subtle" colorPalette={d.update ? "yellow" : "gray"}>
+                  {d.update ? `${d.name} (update)` : d.name}
+                </Badge>
+              ))}
             </Flex>
           </Field>
         )}

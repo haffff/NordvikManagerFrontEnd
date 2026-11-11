@@ -101,4 +101,22 @@ describe('BrowseAddonsTab', () => {
     expect(screen.queryByLabelText('Category')).not.toBeInTheDocument();
     expect(listedNames()).toHaveLength(3);
   });
+
+  // Installing pulls in the addon's dependencies, so the GM sees them first.
+  it('says what else installing the selected addon adds', async () => {
+    const user = userEvent.setup();
+    renderTab({
+      repository: [
+        { key: 'sheets', name: 'Sheets', version: '1.0', dependencies: [{ key: 'dnd5e', version: '0.0.7' }] },
+        ...repository,
+      ],
+      addons: [{ key: 'dnd5e', version: '0.0.5' }],
+    });
+
+    await user.click(screen.getByText('Sheets'));
+
+    const details = screen.getByTestId('addon-details');
+    expect(within(details).getByText('Also installs')).toBeInTheDocument();
+    expect(within(details).getByText('5E Edition (update)')).toBeInTheDocument();
+  });
 });
