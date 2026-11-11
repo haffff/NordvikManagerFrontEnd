@@ -4,6 +4,7 @@ import { PlayerApp } from "./components/PlayerApp";
 import { Provider } from "./components/ui/provider";
 import { Toaster } from "./components/ui/toaster";
 import ImportDropPrompt from "./components/uiComponents/ImportDropPrompt";
+import ImportCodePrompt from "./components/uiComponents/ImportCodePrompt";
 
 const IS_PLAYER_MODE = process.env.REACT_APP_MODE === 'player';
 
@@ -22,6 +23,7 @@ function App() {
         : IS_PLAYER_MODE ? <PlayerApp /> : <GMApp />}
       <Toaster />
       <ImportDropPrompt />
+      <ImportCodePrompt />
     </Provider>
   );
 }

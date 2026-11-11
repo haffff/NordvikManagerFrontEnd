@@ -6,6 +6,7 @@ import { ActiveTransportManager as WebSocketManagerInstance } from '../../../hel
 import ClientMediator from '../../../ClientMediator';
 import { takeDroppedExports } from '../../../helpers/droppedExports';
 import { askImportDropped, reportImported, reportImportFailed } from '../../uiComponents/ImportDropPrompt';
+import { askImportCode } from '../../uiComponents/ImportCodePrompt';
 
 // Factory that returns a drop handler bound to provided refs/instances
 export default function createHandleDrop({ editor, mapRef, battleMapObjectRef, battleMapModel }) {
@@ -82,7 +83,7 @@ export default function createHandleDrop({ editor, mapRef, battleMapObjectRef, b
         }
       };
       // Each upload lands as an image at the drop point, offset a little per file.
-      takeDroppedExports(files, { ask: askImportDropped, onImported, onError: reportImportFailed }).then((rest) => uploadMaterials(rest, {
+      takeDroppedExports(files, { ask: askImportDropped, onImported, onError: reportImportFailed, confirmCode: askImportCode }).then((rest) => uploadMaterials(rest, {
         onUploaded: (result, file) => {
           const i = rest.indexOf(file);
           fabric.Image.fromURL(WebHelper.getResourceString(result.id), (img) => {

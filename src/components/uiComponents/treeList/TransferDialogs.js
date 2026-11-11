@@ -6,6 +6,7 @@ import {
 } from '../../ui/dialog';
 import { Checkbox } from '../../ui/checkbox';
 import { downloadJson, exportEntity, exportFileName, importEntity, parseExport } from '../../../helpers/entityTransfer';
+import { askImportCode } from '../ImportCodePrompt';
 
 // Export JSON and Import JSON for a folder tree (maps, cards, playlists…). See
 // helpers/entityTransfer.js; the server finds the files a file uses, or takes them from it.
@@ -82,17 +83,18 @@ export const ImportJsonDialog = ({ open, kind, parentId, onClose, onImported }) 
 
     const runImport = async () => {
         setError(null);
-        let exported;
         try {
-            exported = parseExport(text);
+            parseExport(text);
         } catch (e) {
             setError(e.message);
             return;
         }
         setBusy(true);
         try {
-            const result = await importEntity(exported, { kind, parentId: parentId ?? null });
-            onImported?.(result);
+            // The text as it is: the server checks its signature over it. Card code from
+            // another server is imported only if the GM says so (null when they don't).
+            const result = await importEntity(text, { kind, parentId: parentId ?? null, confirmCode: askImportCode });
+            if (result) onImported?.(result);
             onClose();
         } catch (e) {
             setError(e.message);

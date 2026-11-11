@@ -17,39 +17,48 @@ const readText = (file) => typeof file.text === "function"
     reader.readAsText(file);
   });
 
-/** The export in `file`, or null if it isn't one. */
-export async function readExport(file) {
+/** The export in `file` and its text, or null if it isn't one. */
+async function readExportFile(file) {
   if (!file || file.size > MAX_EXPORT_SIZE) return null;
   if (!/\.json$/i.test(file.name ?? "") && file.type !== "application/json") return null;
   try {
-    return parseExport(await readText(file));
+    const text = await readText(file);
+    return { exported: parseExport(text), text };
   } catch {
     return null;
   }
 }
 
+/** The export in `file`, or null if it isn't one. */
+export async function readExport(file) {
+  return (await readExportFile(file))?.exported ?? null;
+}
+
 /**
  * Imports the export files the GM chooses to, calling onImported(result, exported) for
  * each, and resolves with the files left to upload. Only for whoever can edit the game
- * (the server refuses the rest anyway): otherwise every file is uploaded.
+ * (the server refuses the rest anyway): otherwise every file is uploaded. confirmCode
+ * (see importEntity) decides on card code from another server; one declined is dropped.
  */
-export async function takeDroppedExports(files, { ask, onImported, onError }) {
+export async function takeDroppedExports(files, { ask, onImported, onError, confirmCode }) {
   if (!ClientMediator.sendCommand("Game", "GetCanEditGame")) return files;
 
   const rest = [];
   for (const file of files) {
-    const exported = await readExport(file);
-    if (!exported) {
+    const read = await readExportFile(file);
+    if (!read) {
       rest.push(file);
       continue;
     }
+    const { exported, text } = read;
     const answer = await ask(exported, file);
     if (answer === "material") {
       rest.push(file);
     } else if (answer === "import") {
       try {
-        const result = await importEntity(exported, { kind: exported.kind });
-        onImported?.(result, exported);
+        // The file's own text: the server checks its signature over it.
+        const result = await importEntity(text, { kind: exported.kind, confirmCode });
+        if (result) onImported?.(result, exported);
       } catch (e) {
         onError?.(e, exported);
       }
