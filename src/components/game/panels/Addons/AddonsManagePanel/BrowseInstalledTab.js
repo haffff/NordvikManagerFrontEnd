@@ -26,6 +26,20 @@ import { DUIBox } from "../../../../uiComponents/base/List/DUIBox";
 import { safeExternalUrl } from "../../../../../helpers/safeUrl";
 import AddonReadme from "./AddonReadme";
 
+const asList = (addons) => (Array.isArray(addons) ? addons : []);
+
+/** The installed addons that list `addon` as a dependency. */
+const dependentsOf = (addons, addon) =>
+  addon?.key ? asList(addons).filter((x) => x !== addon && (x.dependencies ?? []).some((d) => d?.key === addon.key)) : [];
+
+/** A dependency by its installed name (its key when it isn't installed), with the lowest version that works. */
+const dependencyLabel = (addons, dependency) => {
+  const name = asList(addons).find((x) => x.key === dependency.key)?.name ?? dependency.key;
+  return dependency.version ? `${name} ≥ ${dependency.version}` : name;
+};
+
+const quotedNames = (addons) => addons.map((x) => `"${x.name ?? x.key}"`).join(", ");
+
 export const BrowseInstalledTab = ({ handleReload, addons, loading, repository }) => {
   const [search, setSearch] = useState("");
   const [selectedKey, setSelectedKey] = useState(null);
@@ -45,6 +59,8 @@ export const BrowseInstalledTab = ({ handleReload, addons, loading, repository }
     [addons, selectedKey]
   );
 
+  const neededBy = useMemo(() => dependentsOf(addons, currentSelected), [addons, currentSelected]);
+
   // The registry's entry for it, for its readme (installed addons don't carry one).
   const registryEntry = useMemo(
     () => (currentSelected?.key ? (Array.isArray(repository) ? repository : []).find((x) => x.key === currentSelected.key) ?? null : null),
@@ -63,7 +79,8 @@ export const BrowseInstalledTab = ({ handleReload, addons, loading, repository }
         ProgressToastManager.track(opId, { title: `Uninstalling "${addon.name}"…` })
           .then(() => { setSelectedKey(null); return handleReload(); }).catch(() => {});
       } else {
-        toaster.create({ title: "Uninstall failed", type: "error", duration: 6000 });
+        // e.g. 409 when other addons still need it; the server says which.
+        toaster.create({ title: "Uninstall failed", description: body?.error, type: "error", duration: 8000 });
       }
     } catch (e) {
       addonOpLog(`uninstall "${addonKey}" request failed: ${e.message}`);
@@ -75,6 +92,16 @@ export const BrowseInstalledTab = ({ handleReload, addons, loading, repository }
 
   const toggleEnabled = async (addon, enabled) => {
     await WebHelper.postAsync("addon/setEnabled", { addonId: addon.id ?? addon.key, enabled });
+    // Allowed, but the addons that need it may stop working.
+    const needing = dependentsOf(addons, addon);
+    if (!enabled && needing.length > 0) {
+      toaster.create({
+        title: `"${addon.name ?? addon.key}" is off`,
+        description: `${quotedNames(needing)} ${needing.length === 1 ? "needs" : "need"} it and may not work until it's back on.`,
+        type: "warning",
+        duration: 8000,
+      });
+    }
     await handleReload();
   };
 
@@ -175,7 +202,17 @@ export const BrowseInstalledTab = ({ handleReload, addons, loading, repository }
                   <Text opacity={0.5} minWidth="90px">Dependencies</Text>
                   <Flex gap="4px" flexWrap="wrap">
                     {currentSelected.dependencies.map((dep) => (
-                      <Badge key={dep} size="sm" variant="subtle">{dep}</Badge>
+                      <Badge key={dep.key} size="sm" variant="subtle">{dependencyLabel(addons, dep)}</Badge>
+                    ))}
+                  </Flex>
+                </Flex>
+              )}
+              {neededBy.length > 0 && (
+                <Flex gap="8px" align="flex-start">
+                  <Text opacity={0.5} minWidth="90px">Needed by</Text>
+                  <Flex gap="4px" flexWrap="wrap">
+                    {neededBy.map((x) => (
+                      <Badge key={x.key ?? x.id} size="sm" variant="subtle">{x.name ?? x.key}</Badge>
                     ))}
                   </Flex>
                 </Flex>

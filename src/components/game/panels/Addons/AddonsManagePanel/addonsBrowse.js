@@ -35,3 +35,52 @@ export function browseAddons(repository, { search = "", category = "all", sort =
       : byText((a) => a.name);
   return [...list].sort(compare);
 }
+
+const versionParts = (version) => {
+  const parts = String(version).trim().split(/[-+]/)[0].split(".");
+  return parts.every((p) => /^\d+$/.test(p)) ? parts.map(Number) : null;
+};
+
+/**
+ * Whether `installed` is `required` or newer, as the server checks a dependency's version
+ * (the lowest that works): part by part as numbers, ignoring a "-beta" suffix. No required
+ * version accepts anything; versions that aren't numbers match only exactly.
+ */
+export function versionAtLeast(installed, required) {
+  if (required == null || String(required).trim() === "") return true;
+  if (installed == null || String(installed).trim() === "") return false;
+  const have = versionParts(installed);
+  const need = versionParts(required);
+  if (!have || !need) return String(installed).trim() === String(required).trim();
+  for (let i = 0; i < Math.max(have.length, need.length); i++) {
+    const a = have[i] ?? 0;
+    const b = need[i] ?? 0;
+    if (a !== b) return a > b;
+  }
+  return true;
+}
+
+/**
+ * The addons installing `addon` also installs, as the server works them out: each
+ * dependency (and theirs) the game lacks or has too old, deepest first, once each.
+ * `update` marks one the game has in an older version. A circle stops the walk (the
+ * server refuses to install it).
+ */
+export function alsoInstalls(addon, repository, installed) {
+  const registry = Array.isArray(repository) ? repository : [];
+  const inGame = Array.isArray(installed) ? installed : [];
+  const result = [];
+  const walk = (current, chain) => {
+    for (const dependency of current?.dependencies ?? []) {
+      const key = dependency?.key;
+      if (!key || chain.includes(key) || result.some((r) => r.key === key)) continue;
+      const have = inGame.find((x) => x.key === key);
+      if (have && versionAtLeast(have.version, dependency.version)) continue;
+      const entry = registry.find((x) => x.key === key);
+      walk(entry, [...chain, key]);
+      result.push({ key, name: entry?.name ?? key, update: !!have });
+    }
+  };
+  walk(addon, [addon?.key]);
+  return result;
+}
