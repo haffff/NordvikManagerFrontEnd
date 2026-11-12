@@ -9,9 +9,13 @@ import { FaExclamationTriangle } from '@react-icons/all-files/fa/FaExclamationTr
 import { FaRegWindowRestore } from '@react-icons/all-files/fa/FaRegWindowRestore';
 import { FaHdd } from '@react-icons/all-files/fa/FaHdd';
 import { FaClone } from '@react-icons/all-files/fa/FaClone';
-import { FaSignInAlt } from '@react-icons/all-files/fa/FaSignInAlt';
 import { FaImage } from '@react-icons/all-files/fa/FaImage';
-import { FaPuzzlePiece } from '@react-icons/all-files/fa/FaPuzzlePiece';
+import { FaPlug } from '@react-icons/all-files/fa/FaPlug';
+import { FaWeightHanging } from '@react-icons/all-files/fa/FaWeightHanging';
+import { FaSave } from '@react-icons/all-files/fa/FaSave';
+import { FaFolderOpen } from '@react-icons/all-files/fa/FaFolderOpen';
+import { FaSlidersH } from '@react-icons/all-files/fa/FaSlidersH';
+import { FaSyncAlt } from '@react-icons/all-files/fa/FaSyncAlt';
 import { FaInfoCircle } from '@react-icons/all-files/fa/FaInfoCircle';
 import { FaDownload } from '@react-icons/all-files/fa/FaDownload';
 import {
@@ -28,18 +32,46 @@ import { setHostUi, useHostUi } from './hostUi';
 export const INTRO_DISMISSED = 'nordvik-host-intro-dismissed';
 
 /** The limitations shown as cards (HostDescription ids), in this order; the rest go below. */
-export const CARD_IDS = ['tab-open', 'browser-storage', 'one-tab', 'login-after-reload', 'no-thumbnails', 'addon-registry'];
+export const CARD_IDS = ['tab-open', 'browser-storage', 'outside-connections', 'upload-limits', 'no-thumbnails', 'one-tab'];
+/** Limitations a GM needn't read before playing (the drawer and the docs still have them). */
+const LEFT_OUT = ['login-after-reload', 'addon-registry'];
 const ICONS = {
   'tab-open': FaRegWindowRestore,
   'browser-storage': FaHdd,
-  'one-tab': FaClone,
-  'login-after-reload': FaSignInAlt,
+  'outside-connections': FaPlug,
+  'upload-limits': FaWeightHanging,
   'no-thumbnails': FaImage,
-  'addon-registry': FaPuzzlePiece,
+  'one-tab': FaClone,
 };
+
+/**
+ * What the local server has that the browser host doesn't, as features: each is listed when any of
+ * its routes is in the host's "unavailable" list (the routes themselves mean nothing to a GM).
+ */
+export const LOCAL_SERVER_FEATURES = [
+  { id: 'backups', icon: FaSave, title: 'Backups', detail: 'Back up the whole server, games and files, on a schedule, and restore it.', paths: ['api/Backup'] },
+  {
+    id: 'disk-files', icon: FaFolderOpen, title: 'Files from your computer',
+    detail: 'Link files and whole folders on your disk (music, map packs) into a game without uploading them.',
+    paths: ['api/Materials/LinkResource', 'api/Materials/LinkDirectory', 'api/Materials/BrowseLocalDirectory', 'api/Materials/TransferResourceStorage'],
+  },
+  { id: 'settings', icon: FaSlidersH, title: 'Your own settings', detail: 'Upload limits, the addon registry, and which outside sites cards and addons may use.', paths: ['api/ServerSettings'] },
+  { id: 'updates', icon: FaSyncAlt, title: 'Updates', detail: 'The program updates itself when a new version is out.', paths: ['api/Update'] },
+];
+
+const lacks = (info, paths) => paths.some((p) => info.unavailable?.some((u) => u.path.toLowerCase() === p.toLowerCase()));
 
 const dismissed = () => {
   try { return localStorage.getItem(INTRO_DISMISSED) === '1'; } catch { return false; }
+};
+
+// The storage card says where the browser stands now.
+const StorageStatus = () => {
+  const { persisted } = useHostUi();
+  if (persisted === undefined) return null;
+  return persisted
+    ? <Text fontSize="xs" color="fg.success" marginTop={2}>Persistent storage is on: the browser won't clear them to free space.</Text>
+    : <Text fontSize="xs" color="fg.warning" fontWeight="semibold" marginTop={2}>Persistent storage is off: see the banner to turn it on.</Text>;
 };
 
 const Card = ({ limitation }) => (
@@ -58,6 +90,7 @@ const Card = ({ limitation }) => (
       <Text fontWeight="semibold" fontSize="sm">{limitation.title}</Text>
     </Flex>
     <Text fontSize="xs" color="fg.muted">{limitation.detail}</Text>
+    {limitation.id === 'browser-storage' && <StorageStatus />}
   </Box>
 );
 
@@ -94,7 +127,8 @@ export const HostIntroDialog = ({ info, central }) => {
 
   const limitations = info.limitations;
   const cards = CARD_IDS.map((id) => limitations.find((l) => l.id === id)).filter(Boolean);
-  const rest = limitations.filter((l) => !CARD_IDS.includes(l.id));
+  const rest = limitations.filter((l) => !CARD_IDS.includes(l.id) && !LEFT_OUT.includes(l.id));
+  const features = LOCAL_SERVER_FEATURES.filter((f) => lacks(info, f.paths));
 
   return (
     <DialogRoot open={autoOpen || introOpen} onOpenChange={(e) => { if (!e.open) close(); }} size="xl" scrollBehavior="inside" placement="center">
@@ -122,7 +156,7 @@ export const HostIntroDialog = ({ info, central }) => {
             {cards.map((l) => <Card key={l.id} limitation={l} />)}
           </Flex>
 
-          {(rest.length > 0 || info.unavailable?.length > 0) && (
+          {(rest.length > 0 || features.length > 0) && (
             <Stack gap={4} marginTop={6}>
               {rest.length > 0 && (
                 <Stack gap={2}>
@@ -130,10 +164,18 @@ export const HostIntroDialog = ({ info, central }) => {
                   {rest.map((l) => <Detail key={l.id} title={l.title}>{l.detail}</Detail>)}
                 </Stack>
               )}
-              {info.unavailable?.length > 0 && (
+              {features.length > 0 && (
                 <Stack gap={2}>
-                  <Heading size="sm">Only on the local server</Heading>
-                  {info.unavailable.map((u) => <Detail key={u.path}>{u.reason}</Detail>)}
+                  <Heading size="sm">Features of the local server</Heading>
+                  {features.map((f) => (
+                    <Flex key={f.id} data-testid="local-server-feature" data-id={f.id} gap={3} alignItems="flex-start">
+                      <Icon as={f.icon} boxSize={4} color="green.400" marginTop="3px" flexShrink={0} />
+                      <Box>
+                        <Text fontWeight="semibold" fontSize="sm">{f.title}</Text>
+                        <Text fontSize="sm" color="fg.muted">{f.detail}</Text>
+                      </Box>
+                    </Flex>
+                  ))}
                 </Stack>
               )}
             </Stack>
