@@ -1,8 +1,7 @@
-import { ActiveTransportManager as WebSocketManagerInstance } from "../../../../helpers/transport";
+import { ActiveTransportManager as WebSocketManagerInstance, ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
 import CommandFactory from "../../Factories/CommandFactory";
 import { fabric } from "fabric";
 import { selectAll } from "../../Helpers/MapSelection";
-import DTOConverter from "../../DTOConverter";
 import { toaster } from "../../../ui/toaster";
 
 // What's done to the selected elements: group, remove, copy and paste.
@@ -21,6 +20,23 @@ export function ungroupedParts(group) {
     };
   });
 }
+
+// The map's own fields on its objects (see LoadCanvas's toObject): kept in a copy.
+const COPIED_FIELDS = [
+  'id', 'name', 'text', 'radius', 'tokenUiElements', 'tokenData', 'isTokenUI', 'isToken', 'cardId', 'parentId',
+  'originalLeft', 'originalTop', 'fontSize', 'previewId', 'playerId', 'resourceId', 'resourceKey',
+];
+
+// A picture is saved by its resource, not its loaded src (a blob: URL of this page), at any depth.
+function withoutLoadedSources(object) {
+  if (object.resourceId || object.resourceKey || object.isToken) delete object.src;
+  object.objects?.forEach(withoutLoadedSources);
+}
+
+// The original's properties as new ones (the server gives them the new element).
+const newProperties = (properties) => (Array.isArray(properties) ? properties : [])
+  // eslint-disable-next-line no-unused-vars
+  .map(({ id, parentID, parentId, entityName, ...property }) => property);
 
 export const elementCommands = {
   meta: {
@@ -127,15 +143,21 @@ export const elementCommands = {
       }
     },
 
+    // A snapshot of each element as it's saved: fabric's own serialization with the map's
+    // own fields (a token's picture, bars and card, a group's parts included), taken now so a
+    // later change to the original isn't pasted; and its properties, which live on the server
+    // (a Basics token's bars, a card's values), fetched now.
     CopyElements() {
-      let objects = this._BMQueryService.GetSelectedObjects();
+      const objects = this._BMQueryService.GetSelectedObjects();
+      // Out of the selection first: inside one, positions are relative to it.
       this._canvas.discardActiveObject();
-      let mapped = objects.map((element) => {
-        let cloned = fabric.util.object.clone(element);
-        return cloned;
-      });
-
-      this._clipboard = mapped;
+      const copies = objects.map((element) => ({
+        object: JSON.parse(JSON.stringify(element.toObject(COPIED_FIELDS))),
+        properties: element.id
+          ? Promise.resolve(WebHelper.getAsync(`properties/QueryProperties?parentIds=${encodeURIComponent(element.id)}`)).catch(() => [])
+          : Promise.resolve([]),
+      }));
+      this._clipboard = { copies, pasted: 0 };
 
       var sel = new fabric.ActiveSelection(objects, {
         canvas: this._canvas,
@@ -146,7 +168,9 @@ export const elementCommands = {
       toaster.create({ title: "Copied", description: "Copied " + objects.length + " elements.", type: "success", duration: 5000 });
     },
 
-    PasteElements({ coords, isCommand, x, y }) {
+    // Each copy becomes a new element (with its properties as new ones) on the selected layer
+    // and map: where it's told to, or next to the original, each paste a little further on.
+    async PasteElements({ coords, isCommand, x, y }) {
       if (isCommand && !x && !y) {
         return "x and y are required.";
       }
@@ -154,30 +178,36 @@ export const elementCommands = {
         coords = { x, y };
       }
 
-      if (this._clipboard !== undefined) {
-        // Resolve layer and mapId once — not per element
-        const layer = this._BMQueryService.GetSelectedLayer();
-        const mapId = this._BMQueryService.GetSelectedMapID();
+      const clipboard = this._clipboard;
+      if (!clipboard?.copies?.length) return undefined;
+      clipboard.pasted += 1;
+      const offset = 10 * clipboard.pasted;
 
-        this._clipboard.forEach((element) => {
-          if (coords) {
-            element.left = coords.x;
-            element.top = coords.y;
-          } else {
-            element.left += 10;
-            element.top += 10;
-          }
+      // Resolve layer and mapId once — not per element
+      const layer = this._BMQueryService.GetSelectedLayer();
+      const mapId = this._BMQueryService.GetSelectedMapID();
+      const properties = await Promise.all(clipboard.copies.map((copy) => copy.properties));
 
-          const dto = DTOConverter.ConvertToDTO(element);
-          const cmd = CommandFactory.CreateAddCommand(
-            { ...dto, layer, mapId },
-            true
-          );
-          WebSocketManagerInstance.Send(cmd);
-        });
+      clipboard.copies.forEach((copy, i) => {
+        const object = JSON.parse(JSON.stringify(copy.object));
+        delete object.id;
+        withoutLoadedSources(object);
+        if (coords) {
+          object.left = coords.x;
+          object.top = coords.y;
+        } else {
+          object.left += offset;
+          object.top += offset;
+        }
+        const cmd = CommandFactory.CreateAddCommand(
+          { object: JSON.stringify(object), layer, mapId, properties: newProperties(properties[i]) },
+          true
+        );
+        WebSocketManagerInstance.Send(cmd);
+      });
 
-        toaster.create({ title: "Pasted", description: "Pasted " + this._clipboard.length + " elements.", type: "success", duration: 5000 });
-      }
+      toaster.create({ title: "Pasted", description: "Pasted " + clipboard.copies.length + " elements.", type: "success", duration: 5000 });
+      return undefined;
     },
   },
 };
