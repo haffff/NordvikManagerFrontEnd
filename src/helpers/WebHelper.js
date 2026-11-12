@@ -42,13 +42,16 @@ async function safeParseJsonOrUndefined(response) {
   }
 }
 
+// The host build's backend is in the tab: its API address is answered by src/host/hostFetch.js.
+const HOST_BUILD_API = process.env.REACT_APP_MODE === 'host' ? '/__nordvik-host__/api' : null;
+
 export const WebHelper = {
-  ApiAddress: process.env.REACT_APP_BASE_URL
+  ApiAddress: HOST_BUILD_API ?? (process.env.REACT_APP_BASE_URL
     ? (process.env.REACT_APP_PROTOCOL || "") + process.env.REACT_APP_BASE_URL + "/api"
-    : "/api",
-  ImageAddress: process.env.REACT_APP_BASE_URL
+    : "/api"),
+  ImageAddress: HOST_BUILD_API ? HOST_BUILD_API + "/Materials/Resource?id=" : (process.env.REACT_APP_BASE_URL
     ? (process.env.REACT_APP_PROTOCOL || "") + process.env.REACT_APP_BASE_URL + "/api/Materials/Resource?id="
-    : "/api/Materials/Resource?id=",
+    : "/api/Materials/Resource?id="),
   GameId: undefined,
 
   addGameId: (addr, customGameId = undefined) => {

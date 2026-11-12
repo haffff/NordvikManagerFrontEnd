@@ -25,6 +25,8 @@ import { FaUnlock } from "@react-icons/all-files/fa/FaUnlock";
 import { FaUsers } from "@react-icons/all-files/fa/FaUsers";
 
 import WebHelper from "../../helpers/WebHelper";
+import { useResourceUrl } from "../../host/useResourceUrl";
+import { isHostMode } from "../../helpers/appMode";
 import React from "react";
 import {
   DialogBackdrop,
@@ -37,14 +39,16 @@ import {
 } from "../ui/dialog";
 import { toaster } from "../ui/toaster";
 
+// The host build is served by Central itself: with no Central URL built in, it's this origin.
 const PLAYER_FRONTEND_URL = (
   process.env.REACT_APP_PLAYER_FRONTEND_URL ||
-  (process.env.REACT_APP_CENTRAL_URL + '/client')
+  ((process.env.REACT_APP_CENTRAL_URL || (isHostMode() ? window.location.origin : '')) + '/client')
 ).replace(/\/$/, '');
 
 // ─── Settings Dialog ──────────────────────────────────────────────────────────
 
 const GameSettingsDialog = ({ game, open, onClose, onDeleted, onSaved }) => {
+  const coverUrl = useResourceUrl(game?.image ? WebHelper.getResourceString(game.image, undefined, game.id) : null);
   const [name, setName]               = React.useState(game?.name ?? "");
   const [description, setDescription] = React.useState(game?.shortDescription ?? "");
   const [saving, setSaving]           = React.useState(false);
@@ -114,7 +118,7 @@ const GameSettingsDialog = ({ game, open, onClose, onDeleted, onSaved }) => {
             {game?.image && (
               <Box borderRadius="md" overflow="hidden" height="100px" position="relative">
                 <Image
-                  src={WebHelper.getResourceString(game.image, undefined, game.id)}
+                  src={coverUrl}
                   alt={game.name}
                   width="100%"
                   height="100%"
@@ -239,6 +243,7 @@ const GameSettingsDialog = ({ game, open, onClose, onDeleted, onSaved }) => {
 // ─── Card ─────────────────────────────────────────────────────────────────────
 
 const GameListItem = ({ game, onClick, reload }) => {
+  const coverUrl = useResourceUrl(game?.image ? WebHelper.getResourceString(game.image, undefined, game.id) : null);
   const [settingsOpen, setSettingsOpen] = React.useState(false);
 
   const hasImage = Boolean(game.image);
@@ -276,7 +281,7 @@ const GameListItem = ({ game, onClick, reload }) => {
         {hasImage ? (
           <Box position="absolute" inset={0} zIndex={0}>
             <Image
-              src={WebHelper.getResourceString(game.image, undefined, game.id)}
+              src={coverUrl}
               alt={game.name}
               width="100%"
               height="100%"

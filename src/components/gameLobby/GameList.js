@@ -25,6 +25,8 @@ import { AppSettingsDialog } from "./AppSettingsDialog";
 import { UpdateNoticeDialog } from "./UpdateNoticeDialog";
 import CentralSettings from "../CentralSettings";
 import { AboutDialog } from "../AboutDialog";
+import { isAvailable, useHostInfo } from "../../host/hostInfo";
+import { isHostMode } from "../../helpers/appMode";
 
 const PUBLIC_GAMES_PAGE_SIZE = 10;
 
@@ -37,6 +39,12 @@ export const GameList = ({ OnSuccess, OnLogout }) => {
   const [publicPage, setPublicPage] = React.useState(1);
   const [publicTotal, setPublicTotal] = React.useState(0);
   const [publicLoading, setPublicLoading] = React.useState(false);
+
+  // A browser host (the host build) has no backups, server settings or updates: hidden there.
+  // Until its info arrives the host build shows none of them; a GM server shows them at once.
+  const hostInfo = useHostInfo();
+  const has = (path) => (isHostMode() && !hostInfo ? false : isAvailable(hostInfo, path));
+  const hasAppSettings = has("api/Backup") || has("api/ServerSettings");
 
   const openAppSettingsRef = React.useRef();
   const openUserManagementRef = React.useRef();
@@ -80,9 +88,9 @@ export const GameList = ({ OnSuccess, OnLogout }) => {
   return (
     <>
       <UserManagementDialog openRef={openUserManagementRef} />
-      <AppSettingsDialog openRef={openAppSettingsRef} />
+      <AppSettingsDialog openRef={openAppSettingsRef} backups={has("api/Backup")} server={has("api/ServerSettings")} />
       <AboutDialog openRef={openAboutRef} />
-      <UpdateNoticeDialog enabled={!!userData?.localAdmin} onOpenSettings={() => openAppSettingsRef.current("server")} />
+      <UpdateNoticeDialog enabled={!!userData?.localAdmin && has("api/Update")} onOpenSettings={() => openAppSettingsRef.current("server")} />
       <JoinDialog OnSuccess={(r) => OnSuccess(r)} />
       <Stack className="nm_lobby">
         <Heading padding={4} size={"md"}>
@@ -90,7 +98,7 @@ export const GameList = ({ OnSuccess, OnLogout }) => {
         </Heading>
 
         <HStack className="nm_lobbyToolbar" margin={"25px"} marginBottom={"50px"} gap={2}>
-          {userData?.localAdmin && (
+          {userData?.localAdmin && hasAppSettings && (
             <Button variant="outline" onClick={() => openAppSettingsRef.current()}>
               <Icon as={FaCog} /> Application Settings
             </Button>
