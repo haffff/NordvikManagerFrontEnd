@@ -72,6 +72,14 @@ describe('HostIntroDialog', () => {
     open.mockRestore();
   });
 
+  it('links to the user guide page about the browser version', async () => {
+    show(<HostIntroDialog info={info} central="https://central.example/" />);
+
+    const link = await screen.findByRole('link', { name: /read more/i });
+    expect(link.getAttribute('href')).toBe('https://central.example/user-guide/getting-started-gm/browser-version/');
+    expect(link.getAttribute('target')).toBe('_blank');
+  });
+
   it('opens again from the drawer even after "Don\'t remind me again"', async () => {
     localStorage.setItem(INTRO_DISMISSED, '1');
     show(<HostIntroDialog info={info} central="https://central.example" />);

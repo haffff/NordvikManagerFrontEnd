@@ -108,7 +108,11 @@ export const HostIntroDialog = ({ info, central }) => {
               <Text fontSize="sm" color="fg.muted">
                 This is the browser version of the game host: your games run in this tab and are kept in this browser.
                 It's good for trying things out and short sessions. For regular play, the local server (a small program
-                on your computer) is more dependable.
+                on your computer) is more dependable.{' '}
+                <a href={`${(central ?? '').replace(/\/+$/, '')}/user-guide/getting-started-gm/browser-version/`}
+                  target="_blank" rel="noopener noreferrer" style={{ textDecoration: 'underline' }}>
+                  Read more
+                </a>
               </Text>
             </Stack>
           </Flex>
