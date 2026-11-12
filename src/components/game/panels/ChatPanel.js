@@ -403,12 +403,13 @@ export const ChatPanel = () => {
 
     const run = async () => {
       try {
-        const [chatItems, allPlayers, currentPlayer] = await Promise.all([
-          WebHelper.getAsync("battlemap/getchat"),
-          Promise.resolve(ClientMediator.sendCommand("Game", "GetPlayers", {})),
-          Promise.resolve(ClientMediator.sendCommand("Game", "GetCurrentPlayer", {})),
-        ]);
+        const chatItems = await WebHelper.getAsync("battlemap/getchat");
         if (cancelledRef.current) return;
+        // The game's players as they are now, not when the history was asked for: the chat
+        // can open before the game has loaded them (on a phone), and the list that arrived
+        // meanwhile ("PlayersChanged") mustn't be replaced by an empty one.
+        const allPlayers = ClientMediator.sendCommand("Game", "GetPlayers", {});
+        const currentPlayer = ClientMediator.sendCommand("Game", "GetCurrentPlayer", {});
         setItems(stampKeys(chatItems));
         setPlayers(allPlayers ?? []);
         setCurrentPlayerId(currentPlayer?.id);
