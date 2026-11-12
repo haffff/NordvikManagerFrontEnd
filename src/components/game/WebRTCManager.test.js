@@ -63,10 +63,10 @@ vi.mock('../../helpers/WebRTCWebHelper', () => ({
 }));
 
 const { appModeMock, gmRefreshMock } = vi.hoisted(() => ({
-  appModeMock: { player: true },
+  appModeMock: { player: true, host: false },
   gmRefreshMock: vi.fn(),
 }));
-vi.mock('../../helpers/appMode', () => ({ isPlayerMode: () => appModeMock.player }));
+vi.mock('../../helpers/appMode', () => ({ isPlayerMode: () => appModeMock.player, isHostMode: () => appModeMock.host }));
 vi.mock('../../helpers/gmCentralToken', () => ({ refreshCentralTokenViaBackend: gmRefreshMock }));
 
 const { protocolMock } = vi.hoisted(() => ({
@@ -234,6 +234,22 @@ describe('WebRTCManager', () => {
       expect(onError).toHaveBeenCalledWith(expect.objectContaining({ isVersionMismatch: true }));
       expect(onError.mock.calls.at(-1)[0].message).toMatch(/wrong player client/);
       protocolMock.isServedFrom.mockReturnValue(false);
+    });
+
+    // The host build's backend is its own tab: switching pages would stop the game.
+    it('never leaves the page in the host build, and says to reload', async () => {
+      appModeMock.host = true;
+      protocolMock.clientExistsForProtocol.mockResolvedValue(true);
+      const onError = WebRTCManagerInstance._onErrorCallback;
+
+      sessionInfo({ gmPeerId: 'gm-1', gmProtocol: 2 });
+      await flush();
+      appModeMock.host = false;
+
+      expect(protocolMock.navigateTo).not.toHaveBeenCalled();
+      expect(startPeer).not.toHaveBeenCalled();
+      expect(onError).toHaveBeenCalledWith(expect.objectContaining({ isVersionMismatch: true }));
+      expect(onError.mock.calls.at(-1)[0].message).toMatch(/Reload/);
     });
 
     it('reports a version mismatch when no client build exists for the GM protocol', async () => {

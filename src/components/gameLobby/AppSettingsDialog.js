@@ -12,9 +12,11 @@ import {
 import { BackupSettingsTab } from "./appSettings/BackupSettingsTab";
 import { ServerSettingsTab } from "./appSettings/ServerSettingsTab";
 
-export const AppSettingsDialog = ({ openRef }) => {
+// backups / server: whether the backend has them (a browser host has neither).
+export const AppSettingsDialog = ({ openRef, backups = true, server = true }) => {
   const [open, setOpen] = React.useState(false);
   const [tab, setTab] = React.useState("backups");
+  const shownTab = !backups ? "server" : !server ? "backups" : tab;
 
   // openRef.current("server") opens on that tab (the lobby's update notice).
   openRef.current = (startTab) => {
@@ -34,17 +36,21 @@ export const AppSettingsDialog = ({ openRef }) => {
         <DialogCloseTrigger />
         <DialogHeader>Application Settings</DialogHeader>
         <DialogBody>
-          <Tabs.Root value={tab} onValueChange={(e) => setTab(e.value)} lazyMount size="md" variant="enclosed">
+          <Tabs.Root value={shownTab} onValueChange={(e) => setTab(e.value)} lazyMount size="md" variant="enclosed">
             <Tabs.List>
-              <Tabs.Trigger value="backups">Backups</Tabs.Trigger>
-              <Tabs.Trigger value="server">Server</Tabs.Trigger>
+              {backups && <Tabs.Trigger value="backups">Backups</Tabs.Trigger>}
+              {server && <Tabs.Trigger value="server">Server</Tabs.Trigger>}
             </Tabs.List>
-            <Tabs.Content value="backups">
-              <BackupSettingsTab />
-            </Tabs.Content>
-            <Tabs.Content value="server">
-              <ServerSettingsTab />
-            </Tabs.Content>
+            {backups && (
+              <Tabs.Content value="backups">
+                <BackupSettingsTab />
+              </Tabs.Content>
+            )}
+            {server && (
+              <Tabs.Content value="server">
+                <ServerSettingsTab />
+              </Tabs.Content>
+            )}
           </Tabs.Root>
         </DialogBody>
         <DialogFooter>

@@ -12,12 +12,16 @@ const IS_PLAYER_MODE = process.env.REACT_APP_MODE === 'player';
 const DemoApp = process.env.REACT_APP_MODE === 'demo' ? React.lazy(() => import("./demo/DemoApp")) : null;
 // Only the token editor's build includes it (/client/tokens/, no game).
 const TokenToolApp = process.env.REACT_APP_MODE === 'tokens' ? React.lazy(() => import("./tokenTool/TokenToolApp")) : null;
+// Only the host build includes the browser host's shell (the GM app with its backend in this tab).
+const HostApp = process.env.REACT_APP_MODE === 'host' ? React.lazy(() => import("./host/HostApp")) : null;
 
 function App() {
   return (
     <Provider cssVarsRoot={"#NordvikManagerMain"}>
       {TokenToolApp
         ? <React.Suspense fallback={null}><TokenToolApp /></React.Suspense>
+        : HostApp
+        ? <React.Suspense fallback={null}><HostApp /></React.Suspense>
         : DemoApp
         ? <React.Suspense fallback={null}><DemoApp /></React.Suspense>
         : IS_PLAYER_MODE ? <PlayerApp /> : <GMApp />}
