@@ -221,6 +221,16 @@ describe('useGameInitialization in the mobile UI', () => {
     await load({ defaultLayout: null });
     expect(getTabsSnapshot().tabs.map((t) => t.panelKey)).toEqual(['ChatPanel']);
   });
+
+  // The phone's tabs mount from their own store as the layout is applied, so a chat can read
+  // the player list before React has set it ("[Unknown]" for every sender until someone joined):
+  // the loaded players are announced once the layout is up.
+  it('tells the panels it opened who the players are, once they are loaded', async () => {
+    const ClientMediator = (await import('../../../ClientMediator')).default;
+    await load({ defaultLayout: { id: 'l1', value: JSON.stringify(layout) }, players: [{ id: 'p1', name: 'Game Master' }] });
+
+    expect(ClientMediator.fireEvent).toHaveBeenCalledWith('PlayersChanged', { all: [{ id: 'p1', name: 'Game Master' }], connected: [] });
+  });
 });
 
 // After a dropped connection the game's players, permissions and maps may have changed
@@ -249,6 +259,7 @@ describe('useGameInitialization refreshGame', () => {
     expect(gameState.setIsOwner).toHaveBeenCalledWith(true);
     expect(gameState.setGamePermission).toHaveBeenCalledWith(3);
     expect(ClientMediator.fireEvent).toHaveBeenCalledWith('BattleMapsChanged', [{ id: 'm1' }]);
+    expect(ClientMediator.fireEvent).toHaveBeenCalledWith('PlayersChanged', { all: [{ id: 'p1' }, { id: 'p3' }], connected: [] });
     expect(Transport.ActiveTransportManager.Send).toHaveBeenCalledWith({ command: 'player_list' });
   });
 

@@ -45,7 +45,16 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
     currentPlayerRef,
     gameRef,
     keyboardEventsManagerRef,
+    connectedPlayersRef,
   } = gameState;
+
+  // Panels already open (chat, players) keep their own copy of the player list and follow
+  // "PlayersChanged": a list loaded here is announced, or they'd keep the empty one they
+  // started with (on a phone the layout's tabs can mount before React has set the players,
+  // and every chat sender showed "[Unknown]" until someone joined or left).
+  const announcePlayers = useCallback((players) => {
+    ClientMediator.fireEvent('PlayersChanged', { all: players ?? [], connected: connectedPlayersRef?.current ?? [] });
+  }, [connectedPlayersRef]);
 
   const loadGame = useCallback(async () => {
     if (gameInitializationInProgress || gameInitialized) {
@@ -160,6 +169,8 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
 
       if (myGeneration === gameInitGeneration) {
         gameInitialized = true;
+        // The layout's panels are open now: they get the loaded players.
+        announcePlayers(game.players);
         setReady(true);
         console.log('Game initialization completed successfully');
       } else {
@@ -181,7 +192,7 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
         gameInitializationInProgress = false;
       }
     }
-  }, [state, CreateLayoutElement, setCurrentPlayerId, setPlayers, setLayout, setIsOwner, setIsLocalAdmin, setGamePermission, currentPlayerRef, gameRef, keyboardEventsManagerRef]);
+  }, [state, CreateLayoutElement, setCurrentPlayerId, setPlayers, setLayout, setIsOwner, setIsLocalAdmin, setGamePermission, currentPlayerRef, gameRef, keyboardEventsManagerRef, announcePlayers]);
 
   // After a dropped connection: what the game told this client may have changed meanwhile
   // (players, ownership, permissions, maps), so it is fetched again. The layout stays as the
@@ -195,9 +206,10 @@ export const useGameInitialization = ({ state, gameState, CreateLayoutElement })
     setGamePermission(game.permission ?? PERM.NONE);
     setIsLocalAdmin(!!game.isLocalAdmin);
     setPlayers(game.players);
+    announcePlayers(game.players);
     ClientMediator.fireEvent('BattleMapsChanged', game.battleMaps);
     WebSocketManagerInstance.Send({ command: 'player_list' });
-  }, [gameRef, currentPlayerRef, setIsOwner, setGamePermission, setIsLocalAdmin, setPlayers]);
+  }, [gameRef, currentPlayerRef, setIsOwner, setGamePermission, setIsLocalAdmin, setPlayers, announcePlayers]);
 
   return {
     loadGame,
