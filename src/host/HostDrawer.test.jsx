@@ -1,8 +1,9 @@
-import { describe, it, expect } from 'vitest';
-import { render, screen, fireEvent } from '@testing-library/react';
+import { describe, it, expect, beforeEach } from 'vitest';
+import { render, screen, fireEvent, act } from '@testing-library/react';
 import { Provider } from '../components/ui/provider';
 import { HostDrawer } from './HostDrawer';
 import { keepTabWhileRunning } from './HostApp';
+import { getHostUi, resetHostUi, setHostUi } from './hostUi';
 
 const info = {
   kind: 'browser',
@@ -12,18 +13,54 @@ const info = {
   limitations: [{ id: 'tab-open', title: 'Keep this tab open', detail: 'The game runs in this tab.' }],
 };
 
+const fakeLog = () => {
+  let lines = [];
+  const listeners = new Set();
+  return {
+    lines: () => lines.slice(),
+    subscribe: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },
+    clear: () => { lines = []; },
+    push(line) { lines.push(line); listeners.forEach((fn) => fn(line)); },
+  };
+};
+
+const show = (ui) => render(<Provider>{ui}</Provider>);
+
 describe('HostDrawer', () => {
-  it('shows what the browser host is, what to expect, and what it does not do', async () => {
-    render(<Provider><HostDrawer info={info} sessions={1} persisted={false} /></Provider>);
+  beforeEach(() => resetHostUi());
 
-    fireEvent.click(screen.getByRole('button', { name: /game host/i }));
+  it('shows what runs and the browser storage, opened by the host button', async () => {
+    show(<HostDrawer info={info} logs={fakeLog()} />);
+    act(() => setHostUi({ drawerOpen: true, sessions: 1, persisted: false }));
 
-    expect(await screen.findByText('Keep this tab open')).toBeTruthy();
-    expect(screen.getByText('The game runs in this tab.')).toBeTruthy();
-    expect(screen.getByText('Backs up and restores the whole GM server.')).toBeTruthy();
-    expect(screen.getByText(/1 game running/i)).toBeTruthy();
-    expect(screen.getByText(/may clear/i)).toBeTruthy();
+    expect(await screen.findByText(/1 game running/i)).toBeTruthy();
     expect(screen.getByText(/0\.0\.3/)).toBeTruthy();
+    expect(screen.getByText(/may clear/i)).toBeTruthy();
+  });
+
+  it('opens the startup dialog again (what the browser version can\'t do)', async () => {
+    show(<HostDrawer info={info} logs={fakeLog()} />);
+    act(() => setHostUi({ drawerOpen: true }));
+
+    fireEvent.click(await screen.findByRole('button', { name: /what the browser version can't do/i }));
+    expect(getHostUi().introOpen).toBe(true);
+    expect(getHostUi().drawerOpen).toBe(false);
+  });
+
+  it('counts errors logged while the Logs tab is not being read, and clears them when it is', async () => {
+    const logs = fakeLog();
+    show(<HostDrawer info={info} logs={logs} />);
+
+    act(() => {
+      logs.push({ id: 1, at: 0, level: 'info', text: 'fine' });
+      logs.push({ id: 2, at: 0, level: 'error', text: 'boom' });
+      logs.push({ id: 3, at: 0, level: 'error', text: 'boom again' });
+    });
+    expect(getHostUi().unread).toBe(2);
+
+    act(() => setHostUi({ drawerOpen: true, drawerTab: 'logs' }));
+    expect(await screen.findByText('boom again')).toBeTruthy();
+    expect(getHostUi().unread).toBe(0);
   });
 });
 

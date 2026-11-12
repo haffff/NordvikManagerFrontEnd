@@ -3,6 +3,7 @@
 // and its limitations. The GM app hides what isn't there, and the host drawer shows the list.
 import { useEffect, useState } from 'react';
 import WebHelper from '../helpers/WebHelper';
+import { ActiveWebHelper } from '../helpers/transport';
 
 let pending = null;
 
@@ -38,4 +39,29 @@ export function useHostInfo() {
     return () => { live = false; };
   }, []);
   return info;
+}
+
+/** Whether the backend lists the limitation `id` (e.g. "no-thumbnails"); false while unknown. */
+export function hasLimitation(info, id) {
+  return !!info?.limitations?.some((l) => l.id === id);
+}
+
+// In a game: the game's backend, asked over the game's own connection (players too: a game
+// hosted in a browser has no thumbnails for anyone). Once per game.
+const inGame = new Map();
+
+/** False when the game's backend makes no thumbnails (images would come at full size). */
+export function useHasThumbnails() {
+  const gameId = ActiveWebHelper.GameId;
+  const [has, setHas] = useState(true);
+  useEffect(() => {
+    if (!gameId) return undefined;
+    let live = true;
+    if (!inGame.has(gameId)) {
+      inGame.set(gameId, Promise.resolve(ActiveWebHelper.getAsync('host/info')).then((info) => info ?? null, () => null));
+    }
+    inGame.get(gameId).then((info) => { if (live) setHas(!hasLimitation(info, 'no-thumbnails')); });
+    return () => { live = false; };
+  }, [gameId]);
+  return has;
 }
