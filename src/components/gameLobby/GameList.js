@@ -27,6 +27,7 @@ import CentralSettings from "../CentralSettings";
 import { AboutDialog } from "../AboutDialog";
 import { isAvailable, useHostInfo } from "../../host/hostInfo";
 import { isHostMode } from "../../helpers/appMode";
+import { HostButton } from "../../host/HostButton";
 
 const PUBLIC_GAMES_PAGE_SIZE = 10;
 
@@ -114,6 +115,7 @@ export const GameList = ({ OnSuccess, OnLogout }) => {
           <Button variant="outline" onClick={OnLogout}>
             <Icon as={IoMdLogOut} /> Logout
           </Button>
+          {isHostMode() && <HostButton marginLeft="auto" />}
         </HStack>
 
         <Box width={"100%"}>

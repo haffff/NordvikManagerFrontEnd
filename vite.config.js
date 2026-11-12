@@ -49,6 +49,12 @@ const hostBundle = (bundle) => {
     },
     closeBundle() {
       fs.cpSync(folder, path.join(outDir, 'wasm'), { recursive: true })
+      // Installed as an app, it's the game host (its own name, a window rather than full screen).
+      const manifest = path.join(outDir, 'manifest.json')
+      if (fs.existsSync(manifest)) {
+        const app = JSON.parse(fs.readFileSync(manifest, 'utf8'))
+        fs.writeFileSync(manifest, JSON.stringify({ ...app, name: 'NordvikManager game host', short_name: 'Nordvik host', display: 'standalone' }, null, 2))
+      }
     },
   }
 }

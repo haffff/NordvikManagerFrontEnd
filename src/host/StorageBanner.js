@@ -3,6 +3,7 @@
 // host icon keeps its warning sign either way.
 import React, { useState } from 'react';
 import { Box, Button, HStack, Text } from '@chakra-ui/react';
+import { useInstallPrompt } from './installPrompt';
 
 const DISMISSED = 'nordvik-host-storage-banner-dismissed';
 
@@ -18,12 +19,18 @@ export const StorageBanner = ({ persisted, onPersisted }) => {
   const [dismissed, setDismissed] = useState(wasDismissed);
   const [asking, setAsking] = useState(false);
   const [refused, setRefused] = useState(false);
+  const { canInstall, install } = useInstallPrompt();
 
   if (persisted !== false || dismissed) return null;
 
   const dismiss = () => {
     try { sessionStorage.setItem(DISMISSED, '1'); } catch { /* this render only */ }
     setDismissed(true);
+  };
+
+  // An installed app is what makes Chrome likeliest to say yes: install, then ask.
+  const installThenAsk = async () => {
+    if (await install()) await askAgain();
   };
 
   const askAgain = async () => {
@@ -59,11 +66,12 @@ export const StorageBanner = ({ persisted, onPersisted }) => {
       <Text fontSize="sm" fontWeight="semibold">Your games aren't safe from cleanup yet</Text>
       <Text fontSize="sm" marginTop={1}>
         This browser hasn't granted this site persistent storage, so it may delete your games when the disk is nearly full.
-        Bookmarking this page or installing it as an app usually makes the browser agree; then ask again.
+        Installing it as an app (or bookmarking this page) usually makes the browser agree; then ask again.
         {refused && ' The browser still says no.'}
       </Text>
       <HStack marginTop={2} gap={2}>
-        <Button size="xs" colorPalette="orange" loading={asking} onClick={askAgain}>Ask again</Button>
+        {canInstall && <Button size="xs" colorPalette="orange" onClick={installThenAsk}>Install as app</Button>}
+        <Button size="xs" colorPalette="orange" variant={canInstall ? 'outline' : 'solid'} loading={asking} onClick={askAgain}>Ask again</Button>
         <Button size="xs" variant="ghost" color="orange.100" onClick={dismiss}>Dismiss</Button>
       </HStack>
     </Box>

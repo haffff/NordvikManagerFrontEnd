@@ -9,6 +9,10 @@ import { GMApp } from '../components/GMApp';
 import { HostDrawer } from './HostDrawer';
 import { HostLogs } from './HostLogs';
 import { StorageBanner } from './StorageBanner';
+import { askOnFirstClick } from './storageHelp';
+import { HostButton } from './HostButton';
+import { HostIntroDialog } from './HostIntroDialog';
+import { setHostUi, useHostUi } from './hostUi';
 import { hostFetch } from './hostFetch';
 import { loadHostInfo, resetHostInfo } from './hostInfo';
 
@@ -53,6 +57,11 @@ export const HostApp = () => {
   const [sessions, setSessions] = useState(0);
   const [logs, setLogs] = useState(null);
   const [persisted, setPersisted] = useState(undefined);
+  const [central, setCentral] = useState(null);
+  const { buttons } = useHostUi();
+
+  // What the host button shows, wherever it is.
+  useEffect(() => { setHostUi({ persisted, sessions }); }, [persisted, sessions]);
 
   const refreshInfo = useCallback(() => {
     resetHostInfo();
@@ -64,14 +73,15 @@ export const HostApp = () => {
     const fail = (err) => {
       if (live) setState({ phase: err?.name === 'locked' ? 'locked' : 'failed', message: err?.message ?? String(err) });
     };
-    startOnce().then(({ ready, logs: hostLogs, central, onFailed }) => {
+    startOnce().then(({ ready, logs: hostLogs, central: centralUrl, onFailed }) => {
       if (!live) return;
       setLogs(hostLogs);
+      setCentral(centralUrl);
       onFailed(({ message }) => setState({ phase: 'failed', message }));
       ready.then(({ host, persisted: granted }) => {
         if (!live) return;
         window.fetch = hostFetch(host, window.fetch.bind(window), {
-          central,
+          central: centralUrl,
           onSessions: (running) => setSessions(running.size),
           onLogin: refreshInfo,
         });
@@ -81,6 +91,12 @@ export const HostApp = () => {
     }, fail);
     return () => { live = false; };
   }, [refreshInfo]);
+
+  // Not granted at start: ask again on the GM's first click (Firefox prompts only then).
+  useEffect(() => {
+    if (persisted !== false) return undefined;
+    return askOnFirstClick(document, () => navigator.storage.persist(), (granted) => { if (granted) setPersisted(true); });
+  }, [persisted]);
 
   useEffect(() => {
     const handler = keepTabWhileRunning(() => sessions);
@@ -119,8 +135,11 @@ export const HostApp = () => {
   return (
     <>
       <GMApp />
+      {/* The lobby's and the game's toolbars have their own; elsewhere (login) a floating one. */}
+      {buttons === 0 && <HostButton position="fixed" top="5px" right="8px" zIndex={1400} floating />}
       <StorageBanner persisted={persisted} onPersisted={setPersisted} />
-      <HostDrawer info={info} sessions={sessions} persisted={persisted} logs={logs} />
+      <HostDrawer info={info} logs={logs} />
+      <HostIntroDialog info={info} central={central} />
     </>
   );
 };

@@ -49,3 +49,15 @@ describe('loadHostInfo', () => {
     expect(get).toHaveBeenCalledTimes(2);
   });
 });
+
+describe('hasLimitation', () => {
+  it('finds a limitation by id; none on a GM server or while unknown', async () => {
+    const { hasLimitation } = await import('./hostInfo');
+    const info = { kind: 'browser', limitations: [{ id: 'no-thumbnails', title: 'No thumbnails' }] };
+
+    expect(hasLimitation(info, 'no-thumbnails')).toBe(true);
+    expect(hasLimitation(info, 'tab-open')).toBe(false);
+    expect(hasLimitation({ kind: 'server', limitations: [] }, 'no-thumbnails')).toBe(false);
+    expect(hasLimitation(null, 'no-thumbnails')).toBe(false);
+  });
+});
