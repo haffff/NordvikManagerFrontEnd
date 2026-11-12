@@ -1,9 +1,8 @@
-// The host build's info button and drawer: this tab is the game's server (the browser host), and
-// what that means for the GM. Shown over the lobby and the game alike. The lists are the
-// backend's own (GET api/Host/Info): its limitations, and what only a GM server does.
-import React, { useState } from 'react';
-import { Badge, Box, Heading, IconButton, Stack, Text } from '@chakra-ui/react';
-import { FaServer } from '@react-icons/all-files/fa/FaServer';
+// The host build's drawer, opened by the host button (HostButton): this tab is the game's server
+// (the browser host). The Host tab: what runs, the browser's storage, and the startup dialog again
+// (what the browser version can't do); the Logs tab: the host's log (host.js keeps it in the page).
+import React, { useEffect } from 'react';
+import { Badge, Button, Stack, Tabs, Text } from '@chakra-ui/react';
 import {
   DrawerBackdrop,
   DrawerBody,
@@ -13,58 +12,51 @@ import {
   DrawerRoot,
   DrawerTitle,
 } from '../components/ui/drawer';
+import { HostLogs } from './HostLogs';
+import { formatBytes, useStorageEstimate } from './storageHelp';
+import { setHostUi, useHostUi } from './hostUi';
 
-const Section = ({ title, children }) => (
-  <Stack gap={2}>
-    <Heading size="sm">{title}</Heading>
-    {children}
-  </Stack>
-);
-
-const Item = ({ title, children }) => (
-  <Box borderLeft="2px solid" borderColor="border.emphasized" paddingLeft={3}>
-    {title && <Text fontWeight="semibold" fontSize="sm">{title}</Text>}
-    <Text fontSize="sm" color="fg.muted">{children}</Text>
-  </Box>
-);
+/** Counts errors logged while the Logs tab isn't being read (the host button shows the count). */
+function useUnreadErrors(logs, reading) {
+  useEffect(() => {
+    if (!logs || reading) {
+      setHostUi({ unread: 0 });
+      return undefined;
+    }
+    return logs.subscribe((line) => {
+      if (line.level === 'error') setHostUi((s) => ({ unread: s.unread + 1 }));
+    });
+  }, [logs, reading]);
+}
 
 /**
- * @param info       the backend's api/Host/Info (null until it's known)
- * @param sessions   how many game sessions this tab is running
- * @param persisted  whether the browser keeps this site's storage when the disk is nearly full
+ * @param info  the backend's api/Host/Info (null until it's known)
+ * @param logs  host.js's log (lines, subscribe, clear)
  */
-export const HostDrawer = ({ info, sessions = 0, persisted }) => {
-  const [open, setOpen] = useState(false);
+export const HostDrawer = ({ info, logs }) => {
+  const { drawerOpen, drawerTab, sessions, persisted } = useHostUi();
+  useUnreadErrors(logs, drawerOpen && drawerTab === 'logs');
+  const storage = useStorageEstimate(drawerOpen);
+  const { unread } = useHostUi();
 
   return (
-    <>
-      <IconButton
-        aria-label="Game host: this tab"
-        title="Game host: this tab"
-        size="xs"
-        variant="surface"
-        position="fixed"
-        top="5px"
-        right="8px"
-        zIndex={1400}
-        borderRadius="full"
-        colorPalette={sessions > 0 ? 'green' : 'gray'}
-        onClick={() => setOpen(true)}
-      >
-        <FaServer />
-      </IconButton>
-      <DrawerRoot open={open} onOpenChange={(e) => setOpen(e.open)} placement="end" size="md">
-        <DrawerBackdrop />
-        <DrawerContent>
-          <DrawerHeader>
-            <DrawerTitle>Game host: this tab</DrawerTitle>
-          </DrawerHeader>
-          <DrawerCloseTrigger />
-          <DrawerBody>
-            <Stack gap={6}>
-              <Stack gap={1}>
+    <DrawerRoot open={drawerOpen} onOpenChange={(e) => setHostUi({ drawerOpen: e.open })} placement="end" size="md">
+      <DrawerBackdrop />
+      <DrawerContent>
+        <DrawerHeader>
+          <DrawerTitle>Game host: this tab</DrawerTitle>
+        </DrawerHeader>
+        <DrawerCloseTrigger />
+        <DrawerBody>
+          <Tabs.Root value={drawerTab} onValueChange={(e) => setHostUi({ drawerTab: e.value })} size="sm" variant="line" lazyMount>
+            <Tabs.List marginBottom={4}>
+              <Tabs.Trigger value="host">Host</Tabs.Trigger>
+              <Tabs.Trigger value="logs">Logs{unread > 0 ? ` (${unread})` : ''}</Tabs.Trigger>
+            </Tabs.List>
+            <Tabs.Content value="host">
+              <Stack gap={4}>
                 <Text fontSize="sm">
-                  Your games run in this browser tab and are kept in this browser, not on a GM server.
+                  Your games run in this browser tab and are kept in this browser, not on a local server.
                 </Text>
                 <Stack direction="row" gap={2} wrap="wrap">
                   <Badge colorPalette={sessions > 0 ? 'green' : 'gray'}>
@@ -73,29 +65,31 @@ export const HostDrawer = ({ info, sessions = 0, persisted }) => {
                   {info?.version && <Badge>Version {info.version}</Badge>}
                   {info?.protocol != null && <Badge>Protocol {info.protocol}</Badge>}
                 </Stack>
+                {storage && (
+                  <Text fontSize="xs" color="fg.muted">
+                    Storage: {formatBytes(storage.usage)} used of {formatBytes(storage.quota)} the browser allows this site.
+                  </Text>
+                )}
                 {persisted === false && (
                   <Text fontSize="xs" color="fg.warning">
                     The browser hasn't granted this site persistent storage: it may clear your games when the disk is nearly full.
                   </Text>
                 )}
+                {info?.limitations && (
+                  <Button size="sm" variant="outline" alignSelf="flex-start"
+                    onClick={() => setHostUi({ drawerOpen: false, introOpen: true })}>
+                    What the browser version can't do
+                  </Button>
+                )}
               </Stack>
-
-              <Section title="What to expect">
-                {info?.limitations?.length
-                  ? info.limitations.map((l) => <Item key={l.id} title={l.title}>{l.detail}</Item>)
-                  : <Text fontSize="sm" color="fg.muted">Loading…</Text>}
-              </Section>
-
-              {info?.unavailable?.length > 0 && (
-                <Section title="Only on a GM server">
-                  {info.unavailable.map((u) => <Item key={u.path}>{u.reason}</Item>)}
-                </Section>
-              )}
-            </Stack>
-          </DrawerBody>
-        </DrawerContent>
-      </DrawerRoot>
-    </>
+            </Tabs.Content>
+            <Tabs.Content value="logs">
+              <HostLogs logs={logs} />
+            </Tabs.Content>
+          </Tabs.Root>
+        </DrawerBody>
+      </DrawerContent>
+    </DrawerRoot>
   );
 };
 
