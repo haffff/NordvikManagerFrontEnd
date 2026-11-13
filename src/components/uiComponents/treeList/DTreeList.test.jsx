@@ -142,7 +142,9 @@ describe('DTreeList Duplicate / Export JSON / Import JSON', () => {
     expect(exportEntity).toHaveBeenCalledWith('card', 'orc', { includeFiles: true });
   });
 
-  it('imports pasted JSON into the selected folder and says what was not found', async () => {
+  // The dialog closes as the import starts; importEntity's own toast follows it (and names
+  // the files it left out).
+  it('imports pasted JSON into the selected folder, closing the dialog', async () => {
     importEntity.mockResolvedValue({ id: 'new', missing: ['portrait.png'] });
     renderTree();
     await screen.findByText('Orc');
@@ -154,8 +156,21 @@ describe('DTreeList Duplicate / Export JSON / Import JSON', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Import' }));
 
     // The pasted text as it is, with the GM's say on code from another server.
-    await vi.waitFor(() => expect(importEntity).toHaveBeenCalledWith(JSON.stringify(json), { kind: 'card', parentId: 'maps', confirmCode: askImportCode }));
-    await vi.waitFor(() => expect(toaster.create).toHaveBeenCalledWith(expect.objectContaining({ description: expect.stringContaining('portrait.png') })));
+    await vi.waitFor(() => expect(importEntity).toHaveBeenCalledWith(JSON.stringify(json), { kind: 'card', parsed: json, parentId: 'maps', confirmCode: askImportCode }));
+    await vi.waitFor(() => expect(screen.queryByLabelText('Exported JSON')).toBeNull());
+  });
+
+  it('a failed import says why in a toast', async () => {
+    importEntity.mockRejectedValue(new Error('This file holds a map, not a card.'));
+    renderTree();
+    await screen.findByText('Orc');
+
+    fireEvent.click(await screen.findByRole('button', { name: 'Import JSON' }));
+    const json = { format: 'nordvik-entity', version: 1, kind: 'card', name: 'Hero', data: { name: 'Hero' } };
+    fireEvent.change(await screen.findByLabelText('Exported JSON'), { target: { value: JSON.stringify(json) } });
+    fireEvent.click(screen.getByRole('button', { name: 'Import' }));
+
+    await vi.waitFor(() => expect(toaster.create).toHaveBeenCalledWith(expect.objectContaining({ description: 'This file holds a map, not a card.', type: 'error' })));
   });
 
   it('shows why an import failed', async () => {

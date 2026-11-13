@@ -1,6 +1,7 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
 vi.mock('../ClientMediator', () => ({ default: { sendCommand: vi.fn() } }));
+vi.mock('./ProgressToastManager', () => ({ default: {} }));
 vi.mock('./entityTransfer', async (importOriginal) => ({
   ...(await importOriginal()),
   importEntity: vi.fn(),
@@ -38,7 +39,7 @@ describe('droppedExports', () => {
 
     expect(rest).toEqual([img, json]);
     expect(ask).toHaveBeenCalledTimes(1);
-    expect(importEntity).toHaveBeenCalledWith(JSON.stringify(exported), { kind: 'map', confirmCode: undefined });
+    expect(importEntity).toHaveBeenCalledWith(JSON.stringify(exported), { kind: 'map', parsed: exported, confirmCode: undefined });
     expect(onImported).toHaveBeenCalledWith({ id: 'new', missing: [] }, exported);
   });
 
@@ -49,7 +50,7 @@ describe('droppedExports', () => {
 
     await takeDroppedExports([exportFile()], { ask: async () => 'import', onImported, confirmCode });
 
-    expect(importEntity).toHaveBeenCalledWith(JSON.stringify(exported), { kind: 'map', confirmCode });
+    expect(importEntity).toHaveBeenCalledWith(JSON.stringify(exported), { kind: 'map', parsed: exported, confirmCode });
     expect(onImported).not.toHaveBeenCalled();
   });
 

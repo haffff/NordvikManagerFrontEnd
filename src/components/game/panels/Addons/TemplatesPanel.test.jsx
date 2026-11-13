@@ -25,6 +25,7 @@ vi.mock('../../../../ClientMediator', () => ({
   default: {
     sendCommand: vi.fn((panel, cmd) => (cmd === 'GetGameId' ? 'game-1' : undefined)),
     sendCommandAsync: vi.fn(async (panel, cmd) => (cmd === 'GetGameId' ? 'game-1' : undefined)),
+    on: vi.fn(),
   },
 }));
 
@@ -104,6 +105,15 @@ describe('TemplatesPanel folder tree', () => {
     await screen.findByTestId('settings');
 
     expect(editorProps.editableKeyLabelDict).toContainEqual(expect.objectContaining({ key: 'isHidden', type: 'boolean' }));
+  });
+
+  // Cards made from a template find it again by its key (an addon update, another game).
+  it('the template editor starts with its Key', async () => {
+    renderWithProviders(<TemplatesPanel />);
+    fireEvent.click(await screen.findByText('Loot table'));
+    await screen.findByTestId('settings');
+
+    expect(editorProps.editableKeyLabelDict[0]).toEqual(expect.objectContaining({ key: 'key', type: 'string' }));
   });
 
   it("the template's default token can be opened in the token editor", async () => {

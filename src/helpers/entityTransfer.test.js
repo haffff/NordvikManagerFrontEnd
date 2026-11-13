@@ -3,8 +3,12 @@ import { vi, describe, it, expect, beforeEach } from 'vitest';
 vi.mock('./transport', () => ({
   ActiveWebHelper: { getAsync: vi.fn(), postAsync: vi.fn(), uploadInPieces: vi.fn() },
 }));
+vi.mock('./ProgressToastManager', () => ({
+  default: { start: vi.fn(), update: vi.fn(), complete: vi.fn(), fail: vi.fn(), dismiss: vi.fn() },
+}));
 
 import { ActiveWebHelper as WebHelper } from './transport';
+import ProgressToastManager from './ProgressToastManager';
 import { duplicateEntity, exportEntity, exportFileName, importEntity, parseExport } from './entityTransfer';
 
 const exported = { format: 'nordvik-entity', version: 1, kind: 'card', name: 'Hero', data: { name: 'Hero' } };
@@ -40,7 +44,7 @@ describe('entityTransfer', () => {
     WebHelper.postAsync.mockResolvedValue({ status: 200, body: { id: 'new', missing: ['portrait.png'] } });
 
     expect(await importEntity(exported, { kind: 'card', parentId: 'folder' })).toEqual({ id: 'new', missing: ['portrait.png'] });
-    expect(WebHelper.uploadInPieces).toHaveBeenCalledWith(expect.any(Blob), { name: 'Hero.card.json', mimeType: 'application/json', forImport: true });
+    expect(WebHelper.uploadInPieces).toHaveBeenCalledWith(expect.any(Blob), { name: 'Hero.card.json', mimeType: 'application/json', forImport: true }, { onProgress: expect.any(Function) });
     expect(JSON.parse(await sentText())).toEqual(exported);
     expect(WebHelper.postAsync).toHaveBeenCalledWith('transfer/Import', {
       uploadId: 'up1', kind: 'card', name: null, treeParentId: 'folder', afterTreeEntryId: null,
@@ -113,6 +117,62 @@ describe('entityTransfer', () => {
     expect(WebHelper.postAsync).toHaveBeenCalledWith('transfer/Import', {
       uploadId: 'up1', kind: 'card', name: 'Hero (copy)', treeParentId: null, afterTreeEntryId: 'entry-1',
     });
+  });
+
+  // Like a Materials upload: a toast follows the import from the queue to the outcome.
+  it('shows the import in a progress toast: the bytes sent, then the server, then what it made', async () => {
+    WebHelper.uploadInPieces.mockImplementation(async (_blob, _meta, { onProgress }) => {
+      onProgress(0.5);
+      return { status: 200, body: { uploadId: 'up1' } };
+    });
+    WebHelper.postAsync.mockResolvedValue({ status: 200, body: { id: 'new', missing: [] } });
+
+    await importEntity(exported, { kind: 'card' });
+
+    const id = ProgressToastManager.start.mock.calls[0][0];
+    expect(ProgressToastManager.start).toHaveBeenCalledWith(id, expect.objectContaining({ title: 'Importing "Hero"…' }));
+    expect(ProgressToastManager.update).toHaveBeenCalledWith(id, expect.objectContaining({ message: expect.stringMatching(/50%/) }));
+    expect(ProgressToastManager.update).toHaveBeenLastCalledWith(id, expect.objectContaining({ message: expect.stringMatching(/setting it up/i) }));
+    expect(ProgressToastManager.complete).toHaveBeenCalledWith(id, expect.objectContaining({ title: 'Imported "Hero"', type: 'success' }));
+  });
+
+  it('the files it left out turn the finished toast into a warning naming them', async () => {
+    uploaded();
+    WebHelper.postAsync.mockResolvedValue({ status: 200, body: { id: 'new', missing: ['portrait.png'] } });
+
+    await importEntity(exported, { kind: 'card' });
+
+    expect(ProgressToastManager.complete).toHaveBeenCalledWith(expect.any(String), expect.objectContaining({
+      type: 'warning', description: expect.stringContaining('portrait.png'),
+    }));
+  });
+
+  // Cards and templates find each other by the template's key.
+  it('says which template an imported card was linked to, and how many cards a template linked', async () => {
+    uploaded();
+    WebHelper.postAsync.mockResolvedValue({ status: 200, body: { id: 'new', missing: [], linkedTemplate: 'Monster' } });
+    expect(await importEntity(exported, { kind: 'card' })).toEqual(expect.objectContaining({ linkedTemplate: 'Monster' }));
+    expect(ProgressToastManager.complete).toHaveBeenLastCalledWith(expect.any(String), expect.objectContaining({
+      description: expect.stringContaining('Linked to the template "Monster"'),
+    }));
+
+    WebHelper.postAsync.mockResolvedValue({ status: 200, body: { id: 'new', missing: [], linkedCards: 3 } });
+    await importEntity(exported, { kind: 'template' });
+    expect(ProgressToastManager.complete).toHaveBeenLastCalledWith(expect.any(String), expect.objectContaining({
+      description: expect.stringContaining('3 cards made from a template with its key now use it'),
+    }));
+  });
+
+  it('a failed or declined import closes its toast (the caller says why)', async () => {
+    uploaded();
+    WebHelper.postAsync.mockResolvedValue({ status: 400, body: { error: 'nope' } });
+    await expect(importEntity(exported, { kind: 'card' })).rejects.toThrow('nope');
+    expect(ProgressToastManager.dismiss).toHaveBeenCalledTimes(1);
+
+    WebHelper.postAsync.mockReset().mockResolvedValueOnce({ status: 409, body: { inspection } }).mockResolvedValue({ status: 204 });
+    expect(await importEntity(exported, { kind: 'card' })).toBeNull();
+    expect(ProgressToastManager.dismiss).toHaveBeenCalledTimes(2);
+    expect(ProgressToastManager.complete).not.toHaveBeenCalled();
   });
 
   it('reads an exported file and refuses anything else', () => {
