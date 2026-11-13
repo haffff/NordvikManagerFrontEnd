@@ -57,7 +57,7 @@ export async function takeDroppedExports(files, { ask, onImported, onError, conf
     } else if (answer === "import") {
       try {
         // The file's own text: the server checks its signature over it.
-        const result = await importEntity(text, { kind: exported.kind, confirmCode });
+        const result = await importEntity(text, { kind: exported.kind, parsed: exported, confirmCode });
         if (result) onImported?.(result, exported);
       } catch (e) {
         onError?.(e, exported);

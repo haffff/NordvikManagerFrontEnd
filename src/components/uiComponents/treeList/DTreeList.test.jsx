@@ -156,7 +156,7 @@ describe('DTreeList Duplicate / Export JSON / Import JSON', () => {
     fireEvent.click(screen.getByRole('button', { name: 'Import' }));
 
     // The pasted text as it is, with the GM's say on code from another server.
-    await vi.waitFor(() => expect(importEntity).toHaveBeenCalledWith(JSON.stringify(json), { kind: 'card', parentId: 'maps', confirmCode: askImportCode }));
+    await vi.waitFor(() => expect(importEntity).toHaveBeenCalledWith(JSON.stringify(json), { kind: 'card', parsed: json, parentId: 'maps', confirmCode: askImportCode }));
     await vi.waitFor(() => expect(screen.queryByLabelText('Exported JSON')).toBeNull());
   });
 

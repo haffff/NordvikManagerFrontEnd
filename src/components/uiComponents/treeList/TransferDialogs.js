@@ -97,8 +97,9 @@ export const ImportJsonDialog = ({ open, kind, parentId, onClose, onImported }) 
 
     const runImport = () => {
         setError(null);
+        let parsed;
         try {
-            parseExport(source);
+            parsed = parseExport(source);
         } catch (e) {
             setError(e.message);
             return;
@@ -106,7 +107,7 @@ export const ImportJsonDialog = ({ open, kind, parentId, onClose, onImported }) 
         onClose();
         // The text as it is: the server checks its signature over it. Card code from
         // another server is imported only if the GM says so (null when they don't).
-        importEntity(source, { kind, parentId: parentId ?? null, confirmCode: askImportCode })
+        importEntity(source, { kind, parsed, parentId: parentId ?? null, confirmCode: askImportCode })
             .then((result) => { if (result) onImported?.(result); })
             .catch((e) => toaster.create({ title: "Couldn't import it", description: e.message, type: "error" }));
     };

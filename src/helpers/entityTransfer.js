@@ -36,17 +36,19 @@ const fileNameFor = (exported, kind) =>
  * opens it), otherwise it's dropped and this resolves to null. Text is sent as it is: the
  * server checks its signature over it.
  */
+// parsed: the export already read from the text (a big one is slow to parse again).
 export async function importEntity(exported, options = {}) {
-  let parsed = exported;
-  if (typeof exported === "string") {
-    try { parsed = JSON.parse(exported); } catch { parsed = null; }
-  }
   // A progress toast, as for a Materials upload: waiting its turn behind other uploads,
   // the bytes sent, then the server setting it up. Success says what it made; a failure
   // or a decline closes it (the caller says why).
-  const label = options.name ?? parsed?.name ?? options.kind ?? "it";
   const opId = UtilityHelper.GenerateUUID();
-  ProgressToastManager.start(opId, { title: `Importing "${label}"…`, description: "Waiting to send…", total: 1 });
+  const known = options.parsed ?? (typeof exported === "string" ? null : exported);
+  ProgressToastManager.start(opId, { title: `Importing "${options.name ?? known?.name ?? options.kind ?? "it"}"…`, description: "Waiting to send…", total: 1 });
+  let parsed = options.parsed ?? exported;
+  if (typeof parsed === "string") {
+    try { parsed = JSON.parse(parsed); } catch { parsed = null; }
+  }
+  const label = options.name ?? parsed?.name ?? options.kind ?? "it";
   const step = (current, message) => ProgressToastManager.update(opId, { current, total: 1, message });
   let result;
   try {
