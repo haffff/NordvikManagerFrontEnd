@@ -27,6 +27,7 @@ vi.mock('../../../ClientMediator', () => ({
   default: {
     sendCommand: vi.fn((panel, cmd) => (cmd === 'GetGameId' ? 'game-1' : undefined)),
     sendCommandAsync: vi.fn(),
+    on: vi.fn(),
   },
 }));
 vi.mock('../../../helpers/transport', () => ({

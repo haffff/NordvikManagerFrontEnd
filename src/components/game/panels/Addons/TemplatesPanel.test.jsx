@@ -25,6 +25,7 @@ vi.mock('../../../../ClientMediator', () => ({
   default: {
     sendCommand: vi.fn((panel, cmd) => (cmd === 'GetGameId' ? 'game-1' : undefined)),
     sendCommandAsync: vi.fn(async (panel, cmd) => (cmd === 'GetGameId' ? 'game-1' : undefined)),
+    on: vi.fn(),
   },
 }));
 
