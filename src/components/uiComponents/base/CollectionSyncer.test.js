@@ -101,6 +101,13 @@ describe('CollectionSyncer', () => {
     expect(setSelectedItem).toHaveBeenCalledWith({ id: '1', name: 'Forest' });
   });
 
+  it('calls onAnyChange on select, also without onSelectedChanged', () => {
+    const onAnyChange = vi.fn();
+    render(<Host initialItems={forest()} selectItemCommand="item_pick" onAnyChange={onAnyChange} />);
+    fire({ command: 'item_pick', data: { id: '1' } });
+    expect(onAnyChange).toHaveBeenCalledTimes(1);
+  });
+
   it('does not call onAnyChange for unrecognised commands', () => {
     const onAnyChange = vi.fn();
     render(<Host onAnyChange={onAnyChange} />);
