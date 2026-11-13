@@ -118,35 +118,26 @@ describe('TurnOrderManager, your-turn sound', () => {
     events.length = 0;
   });
 
-  it("plays when the turn passes to the player's token", async () => {
-    WebHelper.getAsync.mockResolvedValue(turn('e2'));
-    render(<TurnOrderManager />);
-    await waitFor(() => expect(getTurnOrderState()?.currentEntryId).toBe('e2'));
+  // From one turn to the next, as the player (or the GM) sees them.
+  it.each([
+    ["plays when the turn passes to the player's token", false, turn('e2'), turn('e1', { mine: true }), true],
+    ["plays again on the player's next turn, also when they're the only one (new round)", false, turn('e1', { mine: true }), turn('e1', { round: 2, mine: true }), true],
+    ["is quiet on someone else's turn", false, turn('e1', { mine: true }), turn('e2'), false],
+    ['is quiet when the same turn is just refetched', false, turn('e1', { mine: true }), turn('e1', { mine: true }), false],
+    ['is quiet for the GM, who can end every turn', true, turn('e2', { mine: true }), turn('e1', { mine: true }), false],
+  ])('%s', async (_name, isGM, from, to, plays) => {
+    WebHelper.getAsync.mockResolvedValue(from);
+    render(<TurnOrderManager isGM={isGM} />);
+    await waitFor(() => expect(getTurnOrderState()?.currentEntryId).toBe(from.currentEntryId));
 
-    await advanceTo(turn('e1', { mine: true }));
+    await advanceTo(to);
 
-    expect(playSystemSound).toHaveBeenCalledTimes(1);
-    expect(playSystemSound).toHaveBeenCalledWith('turnSound');
-  });
-
-  it("plays again on the player's next turn, also when they're the only one (new round)", async () => {
-    WebHelper.getAsync.mockResolvedValue(turn('e1', { mine: true }));
-    render(<TurnOrderManager />);
-    await waitFor(() => expect(getTurnOrderState()?.currentEntryId).toBe('e1'));
-
-    await advanceTo(turn('e1', { round: 2, mine: true }));
-
-    expect(playSystemSound).toHaveBeenCalledTimes(1);
-  });
-
-  it("is quiet on someone else's turn", async () => {
-    WebHelper.getAsync.mockResolvedValue(turn('e1', { mine: true }));
-    render(<TurnOrderManager />);
-    await waitFor(() => expect(getTurnOrderState()?.currentEntryId).toBe('e1'));
-
-    await advanceTo(turn('e2'));
-
-    expect(playSystemSound).not.toHaveBeenCalled();
+    if (plays) {
+      expect(playSystemSound).toHaveBeenCalledTimes(1);
+      expect(playSystemSound).toHaveBeenCalledWith('turnSound');
+    } else {
+      expect(playSystemSound).not.toHaveBeenCalled();
+    }
   });
 
   it('is quiet when the game loads, or the player switches maps, in the middle of their turn', async () => {
@@ -161,23 +152,4 @@ describe('TurnOrderManager, your-turn sound', () => {
     expect(playSystemSound).not.toHaveBeenCalled();
   });
 
-  it('is quiet when the same turn is just refetched', async () => {
-    WebHelper.getAsync.mockResolvedValue(turn('e1', { mine: true }));
-    render(<TurnOrderManager />);
-    await waitFor(() => expect(getTurnOrderState()?.currentEntryId).toBe('e1'));
-
-    await advanceTo(turn('e1', { mine: true }));
-
-    expect(playSystemSound).not.toHaveBeenCalled();
-  });
-
-  it('is quiet for the GM, who can end every turn', async () => {
-    WebHelper.getAsync.mockResolvedValue(turn('e2', { mine: true }));
-    render(<TurnOrderManager isGM />);
-    await waitFor(() => expect(getTurnOrderState()?.currentEntryId).toBe('e2'));
-
-    await advanceTo(turn('e1', { mine: true }));
-
-    expect(playSystemSound).not.toHaveBeenCalled();
-  });
 });

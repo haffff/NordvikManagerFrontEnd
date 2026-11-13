@@ -26,14 +26,11 @@ describe('ChatPanel stampKey/stampKeys', () => {
     expect(stamped.foo).toBe('bar');
   });
 
-  it('uses item.id as the stable key when present (history-loaded messages)', () => {
-    const stamped = stampKey({ id: 'abc-123' });
-    expect(stamped._reactKey).toBe('abc-123');
-  });
-
-  it('falls back to item.Id when lowercase id is absent (REST/WS casing not guaranteed)', () => {
-    const stamped = stampKey({ Id: 'xyz-789' });
-    expect(stamped._reactKey).toBe('xyz-789');
+  it.each([
+    ['item.id when present (history-loaded messages)', { id: 'abc-123' }, 'abc-123'],
+    ['item.Id when lowercase id is absent (REST/WS casing not guaranteed)', { Id: 'xyz-789' }, 'xyz-789'],
+  ])('uses %s as the stable key', (_name, item, key) => {
+    expect(stampKey(item)._reactKey).toBe(key);
   });
 
   it('generates a key when neither id nor Id is present (live chat_push messages)', () => {
