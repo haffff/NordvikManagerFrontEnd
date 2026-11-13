@@ -1,6 +1,7 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
 vi.mock('../ClientMediator', () => ({ default: { sendCommand: vi.fn() } }));
+vi.mock('./ProgressToastManager', () => ({ default: {} }));
 vi.mock('./entityTransfer', async (importOriginal) => ({
   ...(await importOriginal()),
   importEntity: vi.fn(),

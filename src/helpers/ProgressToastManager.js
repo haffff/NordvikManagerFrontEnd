@@ -60,19 +60,26 @@ const ProgressToastManager = {
     });
   },
 
-  complete(id, { title, description, duration = 4000 } = {}) {
+  // type: 'warning' for an outcome that worked with something to note.
+  complete(id, { title, description, duration = 4000, type = 'success' } = {}) {
     remember(id, false, { id, title, description });
     if (!toaster.isVisible(id)) {
-      toaster.create({ id, title, description, type: 'success', duration });
+      toaster.create({ id, title, description, type, duration });
       return;
     }
     toaster.update(id, {
       title,
       description,
-      type: 'success',
+      type,
       duration,
       meta: { progress: undefined },
     });
+  },
+
+  /** Closes the toast without an outcome of its own (the caller reports it). */
+  dismiss(id) {
+    remember(id, true, { id });
+    toaster.dismiss(id);
   },
 
   fail(id, { title, description, duration = 6000 } = {}) {

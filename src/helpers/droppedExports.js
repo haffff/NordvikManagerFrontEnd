@@ -8,7 +8,7 @@ import { importEntity, parseExport } from "./entityTransfer";
 const MAX_EXPORT_SIZE = 256 * 1024 * 1024;
 
 // File.text() where there is one (browsers), FileReader otherwise.
-const readText = (file) => typeof file.text === "function"
+export const readText = (file) => typeof file.text === "function"
   ? file.text()
   : new Promise((resolve, reject) => {
     const reader = new FileReader();

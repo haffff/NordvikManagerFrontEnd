@@ -82,4 +82,18 @@ describe('NewActionForm', () => {
 
     expect(onCreate.mock.calls.map((c) => c.slice(0, 2))).toEqual([['me', 'a'], ['me', 'b']]);
   });
+
+  // An action saved with the editor's Export JSON (or any action file) can be opened as a file too.
+  it('creates from an opened action file', async () => {
+    const onCreate = vi.fn();
+    renderWithProviders(<NewActionForm onCreate={onCreate} onCancel={vi.fn()} stepTypes={['SendChat']} startWith="json" />);
+
+    const text = '{ "name": "greet", "hook": 0, "content": [{ "Type": "SendChat", "Data": {} }] }';
+    const file = new File([text], 'greet.json', { type: 'application/json' });
+    fireEvent.change(screen.getByLabelText('Action file'), { target: { files: [file] } });
+    expect(await screen.findByDisplayValue(text)).toBeTruthy();
+    fireEvent.click(screen.getByRole('button', { name: 'Create' }));
+
+    expect(onCreate).toHaveBeenCalledWith('', 'greet', expect.objectContaining({ hook: 0, content: [{ Type: 'SendChat', Data: {} }] }));
+  });
 });

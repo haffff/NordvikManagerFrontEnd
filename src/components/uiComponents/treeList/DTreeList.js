@@ -529,16 +529,6 @@ export const DTreeList = ({
     const handleSelectionChange = React.useCallback((next) => setSelection(next), []);
 
     // ── duplicate / export / import ────────────────────────────────────────────
-    const reportMissing = (missing) => {
-        if (!missing?.length) return;
-        toaster.create({
-            title: "Some files weren't found",
-            description: `Not in this game, left out: ${missing.join(", ")}`,
-            type: "warning",
-            duration: 10000,
-        });
-    };
-
     // The item, or every selected one (in tree order, folders left out) when it's part of
     // a multi-selection; each copy goes right after its original.
     const handleDuplicate = React.useCallback(async (entity) => {
@@ -553,8 +543,8 @@ export const DTreeList = ({
 
         for (const entry of targets) {
             try {
-                const result = await duplicateEntity(transferRef.current.kind, entry.targetId, entry.id ? entry : null);
-                if (result) reportMissing(result.missing);
+                // Its progress toast says how it went, and which files it left out.
+                await duplicateEntity(transferRef.current.kind, entry.targetId, entry.id ? entry : null);
             } catch (e) {
                 toaster.create({ title: "Couldn't duplicate", description: e.message, type: "error" });
             }
@@ -745,7 +735,6 @@ export const DTreeList = ({
                     kind={transferKind}
                     parentId={importParentId}
                     onClose={() => setImportOpen(false)}
-                    onImported={({ missing }) => reportMissing(missing)}
                 />
             </>}
         </Flex>
