@@ -62,9 +62,14 @@ export async function importEntity(exported, options = {}) {
     return result;
   }
   const missing = result.missing ?? [];
+  const notes = [
+    result.linkedTemplate ? `Linked to the template "${result.linkedTemplate}".` : null,
+    result.linkedCards ? `${result.linkedCards} card${result.linkedCards === 1 ? "" : "s"} made from a template with its key now use it.` : null,
+    missing.length ? `Not in this game, left out: ${missing.join(", ")}` : null,
+  ].filter(Boolean);
   ProgressToastManager.complete(opId, {
     title: `Imported "${label}"`,
-    description: missing.length ? `Not in this game, left out: ${missing.join(", ")}` : undefined,
+    description: notes.length ? notes.join(" ") : undefined,
     type: missing.length ? "warning" : "success",
     duration: missing.length ? 10000 : 4000,
   });
@@ -102,8 +107,10 @@ async function runImport(exported, parsed, { kind, name = null, parentId = null,
     step(0.95, "Sent; setting it up in the game…");
     response = await WebHelper.postAsync("transfer/Import", { ...request, acceptCode: true });
   }
-  if (response?.status >= 200 && response.status < 300)
-    return { id: response.body?.id, missing: response.body?.missing ?? [] };
+  if (response?.status >= 200 && response.status < 300) {
+    const { id, missing = [], linkedTemplate, linkedCards } = response.body ?? {};
+    return { id, missing, ...(linkedTemplate ? { linkedTemplate } : {}), ...(linkedCards ? { linkedCards } : {}) };
+  }
   throw new Error(response?.body?.error ?? "Couldn't import it.");
 }
 

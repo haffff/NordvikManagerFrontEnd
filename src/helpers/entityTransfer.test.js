@@ -147,6 +147,22 @@ describe('entityTransfer', () => {
     }));
   });
 
+  // Cards and templates find each other by the template's key.
+  it('says which template an imported card was linked to, and how many cards a template linked', async () => {
+    uploaded();
+    WebHelper.postAsync.mockResolvedValue({ status: 200, body: { id: 'new', missing: [], linkedTemplate: 'Monster' } });
+    expect(await importEntity(exported, { kind: 'card' })).toEqual(expect.objectContaining({ linkedTemplate: 'Monster' }));
+    expect(ProgressToastManager.complete).toHaveBeenLastCalledWith(expect.any(String), expect.objectContaining({
+      description: expect.stringContaining('Linked to the template "Monster"'),
+    }));
+
+    WebHelper.postAsync.mockResolvedValue({ status: 200, body: { id: 'new', missing: [], linkedCards: 3 } });
+    await importEntity(exported, { kind: 'template' });
+    expect(ProgressToastManager.complete).toHaveBeenLastCalledWith(expect.any(String), expect.objectContaining({
+      description: expect.stringContaining('3 cards made from a template with its key now use it'),
+    }));
+  });
+
   it('a failed or declined import closes its toast (the caller says why)', async () => {
     uploaded();
     WebHelper.postAsync.mockResolvedValue({ status: 400, body: { error: 'nope' } });

@@ -33,6 +33,12 @@ import { useResyncKey } from "../../../../helpers/resync";
 // ── Module-level constants ────────────────────────────────────────────────────
 
 const EDITABLE_DICT = [
+  {
+    key: "key",
+    label: "Key",
+    type: "string",
+    toolTip: "Short name, unique in this game, by which cards made from this template find it again: after an addon update, or when the cards or the template are imported into another game. Leave blank and its cards link only while this template exists.",
+  },
   { key: "name", label: "UI Name", type: "string" },
   { key: "description", label: "Description", type: "textarea" },
   {
