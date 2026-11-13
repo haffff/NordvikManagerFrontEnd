@@ -89,26 +89,17 @@ describe('simple create — circle sized by dragging from its center', () => {
 describe('simple create — text sized by the drag height', () => {
   beforeEach(() => sendMock.mockClear());
 
-  it('font size follows the dragged height', () => {
+  it.each([
+    ['font size follows the dragged height', { x: 10, y: 20 }, { x: 60, y: 78 }, { left: 10, top: 20, fontSize: 50 }],
+    ['dragging upward puts the text at the top of the box', { x: 10, y: 100 }, { x: 60, y: 42 }, { left: 10, top: 42, fontSize: 50 }],
+    ['a click without dragging still places the text at its default size', { x: 10, y: 20 }, { x: 11, y: 22 }, { left: 10, top: 20, fontSize: 40 }],
+  ])('%s', (_name, from, to, expected) => {
     const canvas = makeCanvas('fontSize', { type: 'i-text', text: 'Text', fontSize: 40, lineHeight: 1.16 });
-    const { sent } = drag(canvas, { x: 10, y: 20 }, { x: 60, y: 78 });
+    const { sent } = drag(canvas, from, to);
 
-    expect(sent).toMatchObject({ left: 10, top: 20, fontSize: 50 });
+    expect(sent).toMatchObject(expected);
   });
 
-  it('dragging upward puts the text at the top of the box', () => {
-    const canvas = makeCanvas('fontSize', { type: 'i-text', text: 'Text', fontSize: 40, lineHeight: 1.16 });
-    const { sent } = drag(canvas, { x: 10, y: 100 }, { x: 60, y: 42 });
-
-    expect(sent).toMatchObject({ left: 10, top: 42, fontSize: 50 });
-  });
-
-  it('a click without dragging still places the text at its default size', () => {
-    const canvas = makeCanvas('fontSize', { type: 'i-text', text: 'Text', fontSize: 40, lineHeight: 1.16 });
-    const { sent } = drag(canvas, { x: 10, y: 20 }, { x: 11, y: 22 });
-
-    expect(sent).toMatchObject({ left: 10, top: 20, fontSize: 40 });
-  });
 });
 
 describe('simple create — rectangle box sizing is unchanged', () => {

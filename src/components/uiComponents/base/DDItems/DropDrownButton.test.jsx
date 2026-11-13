@@ -15,18 +15,13 @@ const renderAs = (gamePermission, isOwner = false) =>
 
 // Menus that change the game follow the game's Edit permission, not who owns it.
 describe('DropDownButton requiresEdit', () => {
-  it('is shown to a player with Edit on the game', () => {
-    renderAs(PERM.SEE | PERM.EDIT);
-    expect(screen.queryByText('Addons')).not.toBeNull();
+  it.each([
+    ['shown to a player with Edit on the game', PERM.SEE | PERM.EDIT, false, true],
+    ['hidden from a player who can only see the game', PERM.SEE, false, false],
+    ['shown to the owner', PERM.NONE, true, true],
+  ])('is %s', (_name, gamePermission, isOwner, shown) => {
+    renderAs(gamePermission, isOwner);
+    expect(screen.queryByText('Addons') !== null).toBe(shown);
   });
 
-  it('is hidden from a player who can only see the game', () => {
-    renderAs(PERM.SEE);
-    expect(screen.queryByText('Addons')).toBeNull();
-  });
-
-  it('is shown to the owner', () => {
-    renderAs(PERM.NONE, true);
-    expect(screen.queryByText('Addons')).not.toBeNull();
-  });
 });
