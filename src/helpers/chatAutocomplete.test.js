@@ -17,39 +17,30 @@ describe('getChatSuggestions', () => {
     expect(suggest('/')[0].description).toBeTruthy();
   });
 
-  it('narrows the commands as you type', () => {
-    expect(labels('/g')).toEqual(['/gr', '/gm']);
-    expect(labels('/W')).toEqual(['/w']);
+  it.each([
+    ['narrows the commands as you type', '/g', ['/gr', '/gm']],
+    ['narrows the commands as you type, any case', '/W', ['/w']],
+    ['suggests players after "/w ", not yourself', '/w ', ['Bob', 'Old Bob', 'Dungeon Master']],
+    ['filters players by the start of their name', '/w b', ['Bob']],
+    ['filters players by the start of their name, any case', '/w old', ['Old Bob']],
+    ['stops suggesting once the name is written out', '/w Bob hello', []],
+    ['stops suggesting once the name is written out, with a space after', '/w Old Bob ', []],
+    ['suggests nothing for plain text', 'hello', []],
+    ['suggests nothing for a written-out command', '/gr 1d20', []],
+  ])('%s: "%s"', (_name, text, expected) => {
+    expect(labels(text)).toEqual(expected);
   });
 
   it('inserts the command and a space', () => {
     expect(suggest('/gr')[0].insert).toBe('/gr ');
   });
 
-  it('suggests players after "/w ", not yourself', () => {
-    expect(labels('/w ')).toEqual(['Bob', 'Old Bob', 'Dungeon Master']);
-  });
-
-  it('filters players by the start of their name, any case', () => {
-    expect(labels('/w b')).toEqual(['Bob']);
-    expect(labels('/w old')).toEqual(['Old Bob']);
-  });
-
   it('inserts the whisper with the name and a space', () => {
     expect(suggest('/w ol')[0].insert).toBe('/w Old Bob ');
-  });
-
-  it('stops suggesting once the name is written out', () => {
-    expect(suggest('/w Bob hello')).toEqual([]);
-    expect(suggest('/w Old Bob ')).toEqual([]);
   });
 
   it('leaves "/c " to the client command list', () => {
     expect(suggest('/c Game.')).toBeNull();
   });
 
-  it('suggests nothing for plain text or a written-out command', () => {
-    expect(suggest('hello')).toEqual([]);
-    expect(suggest('/gr 1d20')).toEqual([]);
-  });
 });

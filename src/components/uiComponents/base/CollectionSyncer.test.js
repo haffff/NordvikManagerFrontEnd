@@ -50,173 +50,55 @@ describe('CollectionSyncer', () => {
     capturedOnMessage = undefined;
   });
 
-  // ── add ─────────────────────────────────────────────────────────────────────
-
-  it('appends a new item on {prefix}_add', () => {
-    render(<Host />);
-    fire({ command: 'item_add', data: { id: '1', name: 'Forest' } });
-    expect(screen.getByTestId('item-1')).toHaveTextContent('Forest');
+  // What the list shows: "id:name", plus ":extra" when the item has one.
+  const shown = () => screen.queryAllByRole('listitem').map((li) => {
+    const id = li.dataset.testid.slice('item-'.length);
+    const extra = screen.queryByTestId(`extra-${id}`);
+    return [id, screen.getByTestId(`name-${id}`).textContent, ...(extra ? [extra.textContent] : [])].join(':');
   });
 
-  it('calls onAdd and onAnyChange on {prefix}_add', () => {
-    const onAdd = vi.fn();
+  // A new list each time: the syncer changes the collection it's given in place.
+  const forest = () => [{ id: '1', name: 'Forest' }];
+
+  it.each([
+    ['appends a new item on {prefix}_add', {}, [], { command: 'item_add', data: { id: '1', name: 'Forest' } }, ['1:Forest']],
+    ['appends a new item via custom addCommand', { addCommand: 'custom_add' }, [], { command: 'custom_add', data: { id: '2', name: 'Castle' } }, ['2:Castle']],
+    ['replaces an item on {prefix}_update', {}, [{ id: '1', name: 'Old Name' }], { command: 'item_update', data: { id: '1', name: 'New Name' } }, ['1:New Name']],
+    // incrementalUpdate merges, so the extra field is kept
+    ['merges fields when incrementalUpdate=true', { incrementalUpdate: true }, [{ id: '1', name: 'Forest', extra: 'keep me' }], { command: 'item_update', data: { id: '1', name: 'Updated' } }, ['1:Updated:keep me']],
+    ['removes extra fields on update without incrementalUpdate', {}, [{ id: '1', name: 'Forest', extra: 'lose me' }], { command: 'item_update', data: { id: '1', name: 'Updated' } }, ['1:Updated']],
+    ['does not modify collection when the updated id is not found', {}, forest(), { command: 'item_update', data: { id: 'ghost', name: 'X' } }, ['1:Forest']],
+    ['removes an item on {prefix}_delete', {}, [...forest(), { id: '2', name: 'Cave' }], { command: 'item_delete', data: '1' }, ['2:Cave']],
+    ['removes an item on {prefix}_remove alias', {}, forest(), { command: 'item_remove', data: '1' }, []],
+    ['removes an item via custom deleteCommand', { deleteCommand: 'custom_delete' }, forest(), { command: 'custom_delete', data: '1' }, []],
+    ['ignores all events when paused=true', { paused: true }, [], { command: 'item_add', data: { id: '1', name: 'Ghost' } }, []],
+    ['ignores events with a non-Ok error result', {}, [], { command: 'item_add', data: { id: '1', name: 'Ghost' }, result: 'NoPermission' }, []],
+  ])('%s', (_name, props, initialItems, event, expected) => {
+    render(<Host initialItems={initialItems} {...props} />);
+    fire(event);
+    expect(shown()).toEqual(expected);
+  });
+
+  // Each change calls its own callback with what it got, and onAnyChange once.
+  it.each([
+    ['onAdd on {prefix}_add', 'onAdd', {}, [], { command: 'item_add', data: { id: '1', name: 'Forest' } }, { id: '1', name: 'Forest' }],
+    ['onUpdate on {prefix}_update', 'onUpdate', {}, forest(), { command: 'item_update', data: { id: '1', name: 'New' } }, { id: '1', name: 'New' }],
+    ['onDelete on {prefix}_delete', 'onDelete', {}, forest(), { command: 'item_delete', data: '1' }, '1'],
+    ['onSelectedChanged on selectItemCommand', 'onSelectedChanged', { selectItemCommand: 'item_pick' }, forest(), { command: 'item_pick', data: { id: '1' } }, { id: '1' }],
+  ])('calls %s, and onAnyChange', (_name, callback, props, initialItems, event, expected) => {
+    const handler = vi.fn();
     const onAnyChange = vi.fn();
-    render(<Host onAdd={onAdd} onAnyChange={onAnyChange} />);
-    fire({ command: 'item_add', data: { id: '1', name: 'Forest' } });
-    expect(onAdd).toHaveBeenCalledWith({ id: '1', name: 'Forest' }, expect.any(Object));
+    render(<Host initialItems={initialItems} {...props} {...{ [callback]: handler }} onAnyChange={onAnyChange} />);
+    fire(event);
+    expect(handler).toHaveBeenCalledWith(expected, expect.any(Object));
     expect(onAnyChange).toHaveBeenCalledTimes(1);
-  });
-
-  it('appends a new item via custom addCommand', () => {
-    render(<Host addCommand="custom_add" />);
-    fire({ command: 'custom_add', data: { id: '2', name: 'Castle' } });
-    expect(screen.getByTestId('item-2')).toBeInTheDocument();
-  });
-
-  // ── update ───────────────────────────────────────────────────────────────────
-
-  it('replaces an item on {prefix}_update', () => {
-    render(<Host initialItems={[{ id: '1', name: 'Old Name' }]} />);
-    fire({ command: 'item_update', data: { id: '1', name: 'New Name' } });
-    expect(screen.getByTestId('name-1')).toHaveTextContent('New Name');
-  });
-
-  it('merges fields when incrementalUpdate=true', () => {
-    render(
-      <Host
-        initialItems={[{ id: '1', name: 'Forest', extra: 'keep me' }]}
-        incrementalUpdate
-      />
-    );
-    fire({ command: 'item_update', data: { id: '1', name: 'Updated' } });
-    expect(screen.getByTestId('name-1')).toHaveTextContent('Updated');
-    // extra field must be preserved because incrementalUpdate merges
-    expect(screen.getByTestId('extra-1')).toHaveTextContent('keep me');
-  });
-
-  it('removes extra fields on update without incrementalUpdate', () => {
-    render(<Host initialItems={[{ id: '1', name: 'Forest', extra: 'lose me' }]} />);
-    fire({ command: 'item_update', data: { id: '1', name: 'Updated' } });
-    expect(screen.queryByTestId('extra-1')).not.toBeInTheDocument();
-  });
-
-  it('calls onUpdate and onAnyChange on {prefix}_update', () => {
-    const onUpdate = vi.fn();
-    const onAnyChange = vi.fn();
-    render(
-      <Host
-        initialItems={[{ id: '1', name: 'Forest' }]}
-        onUpdate={onUpdate}
-        onAnyChange={onAnyChange}
-      />
-    );
-    fire({ command: 'item_update', data: { id: '1', name: 'New' } });
-    expect(onUpdate).toHaveBeenCalledWith({ id: '1', name: 'New' }, expect.any(Object));
-    expect(onAnyChange).toHaveBeenCalledTimes(1);
-  });
-
-  it('does not modify collection when the updated id is not found', () => {
-    render(<Host initialItems={[{ id: '1', name: 'Forest' }]} />);
-    fire({ command: 'item_update', data: { id: 'ghost', name: 'X' } });
-    expect(screen.getByTestId('name-1')).toHaveTextContent('Forest');
-  });
-
-  // ── delete / remove ──────────────────────────────────────────────────────────
-
-  it('removes an item on {prefix}_delete', () => {
-    render(
-      <Host
-        initialItems={[
-          { id: '1', name: 'Forest' },
-          { id: '2', name: 'Cave' },
-        ]}
-      />
-    );
-    fire({ command: 'item_delete', data: '1' });
-    expect(screen.queryByTestId('item-1')).not.toBeInTheDocument();
-    expect(screen.getByTestId('item-2')).toBeInTheDocument();
-  });
-
-  it('removes an item on {prefix}_remove alias', () => {
-    render(<Host initialItems={[{ id: '1', name: 'Forest' }]} />);
-    fire({ command: 'item_remove', data: '1' });
-    expect(screen.queryByTestId('item-1')).not.toBeInTheDocument();
-  });
-
-  it('removes an item via custom deleteCommand', () => {
-    render(<Host initialItems={[{ id: '1', name: 'Forest' }]} deleteCommand="custom_delete" />);
-    fire({ command: 'custom_delete', data: '1' });
-    expect(screen.queryByTestId('item-1')).not.toBeInTheDocument();
-  });
-
-  it('calls onDelete and onAnyChange on {prefix}_delete', () => {
-    const onDelete = vi.fn();
-    const onAnyChange = vi.fn();
-    render(
-      <Host
-        initialItems={[{ id: '1', name: 'Forest' }]}
-        onDelete={onDelete}
-        onAnyChange={onAnyChange}
-      />
-    );
-    fire({ command: 'item_delete', data: '1' });
-    expect(onDelete).toHaveBeenCalledWith('1', expect.any(Object));
-    expect(onAnyChange).toHaveBeenCalledTimes(1);
-  });
-
-  // ── select ───────────────────────────────────────────────────────────────────
-
-  it('calls onSelectedChanged on selectItemCommand', () => {
-    const onSelectedChanged = vi.fn();
-    render(
-      <Host
-        initialItems={[{ id: '1', name: 'Forest' }]}
-        selectItemCommand="item_pick"
-        onSelectedChanged={onSelectedChanged}
-      />
-    );
-    fire({ command: 'item_pick', data: { id: '1' } });
-    expect(onSelectedChanged).toHaveBeenCalledWith({ id: '1' }, expect.any(Object));
   });
 
   it('calls setSelectedItem with the matching collection item', () => {
     const setSelectedItem = vi.fn();
-    render(
-      <Host
-        initialItems={[{ id: '1', name: 'Forest' }]}
-        selectItemCommand="item_pick"
-        setSelectedItem={setSelectedItem}
-      />
-    );
+    render(<Host initialItems={forest()} selectItemCommand="item_pick" setSelectedItem={setSelectedItem} />);
     fire({ command: 'item_pick', data: { id: '1' } });
     expect(setSelectedItem).toHaveBeenCalledWith({ id: '1', name: 'Forest' });
-  });
-
-  it('calls onAnyChange on select', () => {
-    const onAnyChange = vi.fn();
-    render(
-      <Host
-        initialItems={[{ id: '1', name: 'Forest' }]}
-        selectItemCommand="item_pick"
-        onAnyChange={onAnyChange}
-      />
-    );
-    fire({ command: 'item_pick', data: { id: '1' } });
-    expect(onAnyChange).toHaveBeenCalledTimes(1);
-  });
-
-  // ── edge cases ───────────────────────────────────────────────────────────────
-
-  it('ignores all events when paused=true', () => {
-    render(<Host paused />);
-    fire({ command: 'item_add', data: { id: '1', name: 'Ghost' } });
-    expect(screen.queryByTestId('item-1')).not.toBeInTheDocument();
-  });
-
-  it('ignores events with a non-Ok error result', () => {
-    render(<Host />);
-    fire({ command: 'item_add', data: { id: '1', name: 'Ghost' }, result: 'NoPermission' });
-    expect(screen.queryByTestId('item-1')).not.toBeInTheDocument();
   });
 
   it('does not call onAnyChange for unrecognised commands', () => {
