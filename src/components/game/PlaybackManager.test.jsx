@@ -440,13 +440,27 @@ describe("PlaybackManager — the GM's volumes", () => {
   afterEach(() => vi.useRealTimers());
   const play = (extra) => subscriptions.playlist({ command: 'playlist_play', data: { playlistId: 'p1', mode: 0, trackOrder: ['t1'], currentTrackIndex: 0, repeat: false, ...extra } });
 
-  it("plays a track at the playlist's volume times the file's own", async () => {
+  // channel and message: what the server sends; volume: what the audio starts at.
+  it.each([
+    {
+      name: "plays a track at the playlist's volume times the file's own",
+      channel: 'playlist',
+      message: { command: 'playlist_play', data: { playlistId: 'p1', mode: 0, trackOrder: ['t1'], currentTrackIndex: 0, repeat: false, volume: 0.8, trackVolumes: { t1: 0.5 } } },
+      volume: 0.4,
+    },
+    {
+      name: 'plays a sound at the volume the server sent',
+      channel: 'sound',
+      message: { command: 'sound_play', data: { resourceId: 'r1', volume: 0.3 } },
+      volume: 0.3,
+    },
+  ])('$name', async ({ channel, message, volume }) => {
     await mount();
 
-    play({ volume: 0.8, trackVolumes: { t1: 0.5 } });
+    subscriptions[channel](message);
     await settle();
 
-    expect(FakeAudio.instances[0].volume).toBeCloseTo(0.4);
+    expect(FakeAudio.instances[0].volume).toBeCloseTo(volume);
   });
 
   it('follows the GM changing the playlist volume while it plays, and the player their own', async () => {
@@ -472,15 +486,6 @@ describe("PlaybackManager — the GM's volumes", () => {
     await settle();
 
     expect(FakeAudio.instances[1].volume).toBeCloseTo(0.2);
-  });
-
-  it("plays a sound at the volume the server sent", async () => {
-    await mount();
-
-    subscriptions.sound({ command: 'sound_play', data: { resourceId: 'r1', volume: 0.3 } });
-    await settle();
-
-    expect(FakeAudio.instances[0].volume).toBeCloseTo(0.3);
   });
 });
 
