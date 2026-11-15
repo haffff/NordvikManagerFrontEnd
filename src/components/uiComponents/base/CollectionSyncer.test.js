@@ -226,3 +226,51 @@ describe('CollectionSyncer', () => {
     expect(onAnyChange).not.toHaveBeenCalled();
   });
 });
+
+// The syncer replaces the list in React state; it never edits the one it was given. Events
+// that arrive before React re-renders all apply, each on top of the one before.
+describe('CollectionSyncer, list given', () => {
+  beforeEach(() => {
+    capturedOnMessage = undefined;
+  });
+
+  it.each([
+    ['an update', {}, { command: 'item_update', data: { id: '1', name: 'New' } }],
+    ['an incremental update', { incrementalUpdate: true }, { command: 'item_update', data: { id: '1', name: 'New' } }],
+    ['a delete', {}, { command: 'item_delete', data: '1' }],
+  ])('stays as it was after %s', (_name, props, event) => {
+    const forest = { id: '1', name: 'Forest' };
+    const given = [forest];
+    render(<Host initialItems={given} {...props} />);
+
+    fire(event);
+
+    expect(given).toHaveLength(1);
+    expect(given[0]).toBe(forest);
+    expect(forest).toEqual({ id: '1', name: 'Forest' });
+  });
+
+  const both = (...events) => act(() => { events.forEach((e) => capturedOnMessage(e)); });
+
+  it('keeps both of two adds sent before a re-render', () => {
+    render(<Host />);
+    both({ command: 'item_add', data: { id: '1', name: 'Forest' } }, { command: 'item_add', data: { id: '2', name: 'Cave' } });
+    expect(screen.getByTestId('name-1')).toHaveTextContent('Forest');
+    expect(screen.getByTestId('name-2')).toHaveTextContent('Cave');
+  });
+
+  it('keeps both of two deletes sent before a re-render', () => {
+    render(<Host initialItems={[{ id: '1', name: 'Forest' }, { id: '2', name: 'Cave' }, { id: '3', name: 'Town' }]} />);
+    both({ command: 'item_delete', data: '1' }, { command: 'item_delete', data: '2' });
+    expect(screen.queryByTestId('item-1')).not.toBeInTheDocument();
+    expect(screen.queryByTestId('item-2')).not.toBeInTheDocument();
+    expect(screen.getByTestId('item-3')).toBeInTheDocument();
+  });
+
+  it('applies an update and then an add sent before a re-render', () => {
+    render(<Host initialItems={[{ id: '1', name: 'Forest' }]} />);
+    both({ command: 'item_update', data: { id: '1', name: 'Dark Forest' } }, { command: 'item_add', data: { id: '2', name: 'Cave' } });
+    expect(screen.getByTestId('name-1')).toHaveTextContent('Dark Forest');
+    expect(screen.getByTestId('name-2')).toHaveTextContent('Cave');
+  });
+});

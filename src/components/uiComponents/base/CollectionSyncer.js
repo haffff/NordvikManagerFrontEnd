@@ -22,6 +22,12 @@ export const CollectionSyncer = ({
 
   collectionRef.current = collection;
 
+  // Changes go through setCollection(previous => next): they never edit the list in React
+  // state, and events that arrive before a re-render each apply on top of the one before.
+  // A list that isn't loaded yet (null/undefined) is left alone.
+  const change = (next) =>
+    setCollection((previous) => (Array.isArray(previous) ? next(previous) : previous));
+
   const HandleMessage = (response) => {
     if (paused) return;
     const collection = collectionRef.current;
@@ -34,7 +40,7 @@ export const CollectionSyncer = ({
     switch (response.command) {
       case `${commandPrefix}_add`:
       case `${addCommand}`:
-        setCollection([...collection, response.data]);
+        change((list) => [...list, response.data]);
         if (onAdd) {
           onAdd(response.data, response);
         }
@@ -44,21 +50,17 @@ export const CollectionSyncer = ({
         break;
       case `${commandPrefix}_update`:
       case `${updateCommand}`:
-        let updateIndex = collection.findIndex(
-          (x) => x.id === response.data.id
+        change((list) =>
+          list.some((x) => x.id === response.data.id)
+            ? list.map((x) =>
+                x.id === response.data.id
+                  ? incrementalUpdate
+                    ? { ...x, ...response.data }
+                    : response.data
+                  : x
+              )
+            : list
         );
-        if (updateIndex !== -1) {
-          if (incrementalUpdate) {
-            collection[updateIndex] = {
-              ...collection[updateIndex],
-              ...response.data,
-            };
-          } else {
-            collection[updateIndex] = response.data;
-          }
-
-          setCollection([...collection]);
-        }
         if (onUpdate) {
           onUpdate(response.data, response);
         }
@@ -69,11 +71,11 @@ export const CollectionSyncer = ({
       case `${commandPrefix}_delete`:
       case `${commandPrefix}_remove`:
       case `${deleteCommand}`:
-        let removeIndex = collection.findIndex((x) => x.id === response.data);
-        if (removeIndex !== -1) {
-          collection.splice(removeIndex, 1);
-          setCollection([...collection]);
-        }
+        change((list) =>
+          list.some((x) => x.id === response.data)
+            ? list.filter((x) => x.id !== response.data)
+            : list
+        );
         if (onDelete) {
           onDelete(response.data, response);
         }
