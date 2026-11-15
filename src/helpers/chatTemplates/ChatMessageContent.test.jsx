@@ -15,25 +15,16 @@ describe('ChatMessageContent', () => {
   beforeEach(() => { consoleError = vi.spyOn(console, 'error').mockImplementation(() => {}); });
   afterEach(() => consoleError.mockRestore());
 
-  it('shows typed JSON as plain text — a player cannot post a roll card', () => {
-    renderWithProviders(<ChatMessageContent item={{ data: fakeRoll }} />);
-    expect(screen.getByText(fakeRoll)).toBeInTheDocument();
-    expect(screen.queryByText('Attack')).not.toBeInTheDocument();
-  });
-
-  it('shows object data from a player as its JSON text', () => {
-    renderWithProviders(<ChatMessageContent item={{ data: { type: 'Generic', title: 'hi' } }} />);
-    expect(screen.getByText('{"type":"Generic","title":"hi"}')).toBeInTheDocument();
-  });
-
-  it('renders a template when the server marked the message as one', () => {
-    renderWithProviders(<ChatMessageContent item={{ data: fakeRoll, isTemplate: true }} />);
-    expect(screen.getByText('Attack')).toBeInTheDocument();
-  });
-
-  it('falls back to the text for a template it cannot parse', () => {
-    renderWithProviders(<ChatMessageContent item={{ data: 'not json', isTemplate: true }} />);
-    expect(screen.getByText('not json')).toBeInTheDocument();
+  // shown: text that must be on screen; hidden: text that must not be.
+  it.each([
+    { name: 'shows typed JSON as plain text — a player cannot post a roll card', item: { data: fakeRoll }, shown: fakeRoll, hidden: 'Attack' },
+    { name: 'shows object data from a player as its JSON text', item: { data: { type: 'Generic', title: 'hi' } }, shown: '{"type":"Generic","title":"hi"}' },
+    { name: 'renders a template when the server marked the message as one', item: { data: fakeRoll, isTemplate: true }, shown: 'Attack' },
+    { name: 'falls back to the text for a template it cannot parse', item: { data: 'not json', isTemplate: true }, shown: 'not json' },
+  ])('$name', ({ item, shown, hidden }) => {
+    renderWithProviders(<ChatMessageContent item={item} />);
+    expect(screen.getByText(shown)).toBeInTheDocument();
+    if (hidden) expect(screen.queryByText(hidden)).not.toBeInTheDocument();
   });
 
   it('contains a template that fails to render to its own line', () => {

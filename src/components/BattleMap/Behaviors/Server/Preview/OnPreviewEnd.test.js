@@ -22,42 +22,35 @@ const end = (canvas, playerId, data) =>
   new OnPreviewEndBehavior().Handle({ battleMapId: 'bm-1', playerId, data }, canvas, 'bm-1');
 
 describe('preview_end removes the listed previews', () => {
-  it('removes only the listed previews of the sender, not their others', async () => {
-    const a = { previewId: 'a', playerId: 'p1', preview: true };
-    const b = { previewId: 'b', playerId: 'p1', preview: true };
-    const canvas = makeCanvas([a, b]);
+  const p = (previewId, playerId, kind = 'preview') => ({ previewId, playerId, [kind]: true });
 
-    await end(canvas, 'p1', [{ previewId: 'a', playerId: 'p1' }]);
+  // objects: what is on the canvas; remaining: the keys of those still there afterwards.
+  it.each([
+    {
+      name: 'removes only the listed previews of the sender, not their others',
+      objects: { a: p('a', 'p1'), b: p('b', 'p1') }, sender: 'p1',
+      data: [{ previewId: 'a', playerId: 'p1' }], remaining: ['b'],
+    },
+    {
+      name: 'a player cannot remove someone else\'s preview',
+      objects: { theirs: p('x', 'p2') }, sender: 'p1',
+      data: [{ previewId: 'x', playerId: 'p2' }], remaining: ['theirs'],
+    },
+    {
+      name: 'the GM can clear anyone\'s, including this player\'s own sketches',
+      objects: { mine: p('m', 'me', 'sketch'), theirs: p('x', 'p2') }, sender: 'gm',
+      data: [{ previewId: 'm', playerId: 'me' }, { previewId: 'x', playerId: 'p2' }], remaining: [],
+    },
+    {
+      name: 'without ids it still removes all of the sender\'s previews',
+      objects: { a: p('a', 'p1'), other: p('o', 'p2') }, sender: 'p1',
+      data: [], remaining: ['other'],
+    },
+  ])('$name', async ({ objects, sender, data, remaining }) => {
+    const canvas = makeCanvas(Object.values(objects));
 
-    expect(canvas.objects).toEqual([b]);
-  });
+    await end(canvas, sender, data);
 
-  it('a player cannot remove someone else\'s preview', async () => {
-    const theirs = { previewId: 'x', playerId: 'p2', preview: true };
-    const canvas = makeCanvas([theirs]);
-
-    await end(canvas, 'p1', [{ previewId: 'x', playerId: 'p2' }]);
-
-    expect(canvas.objects).toEqual([theirs]);
-  });
-
-  it('the GM can clear anyone\'s, including this player\'s own sketches', async () => {
-    const mine = { previewId: 'm', playerId: 'me', sketch: true };
-    const theirs = { previewId: 'x', playerId: 'p2', preview: true };
-    const canvas = makeCanvas([mine, theirs]);
-
-    await end(canvas, 'gm', [{ previewId: 'm', playerId: 'me' }, { previewId: 'x', playerId: 'p2' }]);
-
-    expect(canvas.objects).toEqual([]);
-  });
-
-  it('without ids it still removes all of the sender\'s previews', async () => {
-    const a = { previewId: 'a', playerId: 'p1', preview: true };
-    const other = { previewId: 'o', playerId: 'p2', preview: true };
-    const canvas = makeCanvas([a, other]);
-
-    await end(canvas, 'p1', []);
-
-    expect(canvas.objects).toEqual([other]);
+    expect(canvas.objects).toEqual(remaining.map((key) => objects[key]));
   });
 });
