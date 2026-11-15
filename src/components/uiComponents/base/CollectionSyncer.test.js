@@ -57,7 +57,7 @@ describe('CollectionSyncer', () => {
     return [id, screen.getByTestId(`name-${id}`).textContent, ...(extra ? [extra.textContent] : [])].join(':');
   });
 
-  // A new list each time: the syncer changes the collection it's given in place.
+  // A new list each time, so no test can see another's.
   const forest = () => [{ id: '1', name: 'Forest' }];
 
   it.each([
