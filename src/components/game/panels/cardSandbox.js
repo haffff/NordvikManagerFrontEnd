@@ -62,7 +62,10 @@ export function withCardCsp(html, origins) {
   meta.setAttribute(
     "content",
     `connect-src 'self'${allow}; img-src 'self' data: blob:${allow}; ` +
-      `style-src 'self' 'unsafe-inline' data:${allow}; font-src 'self' data:${allow}`
+      `style-src 'self' 'unsafe-inline' data:${allow}; font-src 'self' data:${allow}; ` +
+      // No frames: one would be a fresh window. Framing the sandbox page itself would run
+      // code without this policy, and any frame would get back what the card's window lacks.
+      `frame-src 'none'`
   );
   doc.head.prepend(meta);
   // Without a doctype the card renders in quirks mode, as it would on its own.

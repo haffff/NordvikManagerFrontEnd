@@ -22,6 +22,14 @@ describe('withCardCsp', () => {
     expect(csp).not.toMatch(/githubusercontent/);
   });
 
+  // A frame inside a card would be a fresh window: framing the sandbox page itself runs it
+  // without this policy (the Central Server's header allows any https: host), and any frame
+  // gets back what the card's window had taken away.
+  it('lets the card create no frames', () => {
+    const csp = meta(withCardCsp('<head></head><iframe src="sandbox.html#x"></iframe>', ['https://cdn.example.com']))[1];
+    expect(csp).toMatch(/(^|; )frame-src 'none'(;|$)/);
+  });
+
   it('adds a <head> for it when the card has none', () => {
     for (const card of ['<html><body>x</body></html>', '<!DOCTYPE html><p>x</p>', '<p>x</p>']) {
       expect(isPolicyFirst(withCardCsp(card, []))).toBe(true);
