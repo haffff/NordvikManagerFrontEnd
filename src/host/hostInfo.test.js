@@ -61,3 +61,35 @@ describe('hasLimitation', () => {
     expect(hasLimitation(null, 'no-thumbnails')).toBe(false);
   });
 });
+
+// In a game the game's own backend answers, over the game's connection (players too).
+describe('loadGameHostInfo', () => {
+  it('asks once per game, each game its own backend', async () => {
+    const { loadGameHostInfo } = await import('./hostInfo');
+    const server = { kind: 'server', unavailable: [], limitations: [] };
+    const get = vi.fn(async () => browser);
+
+    expect(await loadGameHostInfo('g-1', get)).toBe(browser);
+    expect(await loadGameHostInfo('g-1', get)).toBe(browser);
+    expect(await loadGameHostInfo('g-2', vi.fn(async () => server))).toBe(server);
+    expect(get).toHaveBeenCalledTimes(1);
+    expect(get).toHaveBeenCalledWith('host/info');
+  });
+
+  it('is null when the backend can\'t say or the call fails, and asks again later', async () => {
+    const { loadGameHostInfo } = await import('./hostInfo');
+    const get = vi.fn().mockResolvedValueOnce(undefined).mockRejectedValueOnce(new Error('x')).mockResolvedValue(browser);
+
+    expect(await loadGameHostInfo('g-3', get)).toBeNull();
+    expect(await loadGameHostInfo('g-3', get)).toBeNull();
+    expect(await loadGameHostInfo('g-3', get)).toBe(browser);
+  });
+
+  it('is null outside a game', async () => {
+    const { loadGameHostInfo } = await import('./hostInfo');
+    const get = vi.fn();
+
+    expect(await loadGameHostInfo(null, get)).toBeNull();
+    expect(get).not.toHaveBeenCalled();
+  });
+});

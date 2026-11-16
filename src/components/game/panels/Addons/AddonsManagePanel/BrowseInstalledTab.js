@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Badge,
   Box,
@@ -25,6 +25,53 @@ import DLabel from "../../../../uiComponents/base/Text/DLabel";
 import { DUIBox } from "../../../../uiComponents/base/List/DUIBox";
 import { safeExternalUrl } from "../../../../../helpers/safeUrl";
 import AddonReadme from "./AddonReadme";
+import { NetworkField } from "./BrowseAddonsTab";
+import { mayNeedLocalServer } from "./addonsBrowse";
+import { getBlocked, subscribeBlocked } from "../../../../../helpers/addonNetworkLog";
+
+const hostOf = (origin) => {
+  try {
+    return new URL(origin).host || origin;
+  } catch {
+    return String(origin ?? "?");
+  }
+};
+
+// What this addon was blocked from reaching while the game runs (helpers/addonNetworkLog.js),
+// one line per host: who tried (or how many), the full list in the tooltip.
+export function blockedByHost(entries) {
+  const hosts = new Map();
+  for (const e of entries) {
+    const host = hostOf(e.origin);
+    const who = e.action ?? e.card ?? "a card";
+    const names = hosts.get(host) ?? new Set();
+    names.add(who);
+    hosts.set(host, names);
+  }
+  return [...hosts].map(([host, names]) => {
+    const list = [...names];
+    return { host, all: list.join(", "), text: `${host} — ${list.length > 2 ? `${list.length} actions` : list.join(", ")}` };
+  });
+}
+
+const BlockedList = ({ addonKey }) => {
+  const [entries, setEntries] = useState(() => getBlocked(addonKey));
+  useEffect(() => {
+    setEntries(getBlocked(addonKey));
+    return subscribeBlocked(() => setEntries(getBlocked(addonKey)));
+  }, [addonKey]);
+  if (!entries.length) return null;
+  return (
+    <Flex gap="8px" align="flex-start">
+      <Text opacity={0.5} minWidth="90px">Blocked</Text>
+      <Flex direction="column" gap="2px" minWidth={0}>
+        {blockedByHost(entries).map((b) => (
+          <Text key={b.host} fontSize="xs" title={b.all} truncate>{b.text}</Text>
+        ))}
+      </Flex>
+    </Flex>
+  );
+};
 
 const asList = (addons) => (Array.isArray(addons) ? addons : []);
 
@@ -40,7 +87,7 @@ const dependencyLabel = (addons, dependency) => {
 
 const quotedNames = (addons) => addons.map((x) => `"${x.name ?? x.key}"`).join(", ");
 
-export const BrowseInstalledTab = ({ handleReload, addons, loading, repository }) => {
+export const BrowseInstalledTab = ({ handleReload, addons, loading, repository, hostInfo = null }) => {
   const [search, setSearch] = useState("");
   const [selectedKey, setSelectedKey] = useState(null);
   const [uninstalling, setUninstalling] = useState(null);
@@ -147,7 +194,11 @@ export const BrowseInstalledTab = ({ handleReload, addons, loading, repository }
               >
                 <Flex direction="column" gap="2px" flex={1}>
                   <DLabel>{addon.name}</DLabel>
-                  {addon.version && (
+                  {mayNeedLocalServer(addon, hostInfo) ? (
+                    <Text fontSize="xs" color="orange.300" truncate title="The browser version reaches only https sites that allow requests from a browser; programs on your computer or network, like Trilium or Obsidian, need the local server.">
+                      {addon.version ? `v${addon.version} · ` : ""}may need local server
+                    </Text>
+                  ) : addon.version && (
                     <Text fontSize="xs" opacity={0.5}>v{addon.version}</Text>
                   )}
                 </Flex>
@@ -197,6 +248,8 @@ export const BrowseInstalledTab = ({ handleReload, addons, loading, repository }
                   </a>
                 </Flex>
               )}
+              <NetworkField addon={currentSelected} hostInfo={hostInfo} />
+              {currentSelected.key && <BlockedList addonKey={currentSelected.key} />}
               {currentSelected.dependencies?.length > 0 && (
                 <Flex gap="8px" align="flex-start">
                   <Text opacity={0.5} minWidth="90px">Dependencies</Text>

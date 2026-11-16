@@ -21,6 +21,7 @@ import DockableHelper from "../../helpers/DockableHelper";
 import { DragOptimizationProvider } from "../uiComponents/base/DragOptimizationContext";
 import { PermissionsProvider } from "../../contexts/PermissionsContext";
 import PlaybackManager from "./PlaybackManager";
+import BlockedNoticesManager from "./BlockedNoticesManager";
 import TurnOrderManager from "./turnOrder/TurnOrderManager";
 import RequestInputManager from "./RequestInputManager";
 import TargetPickingManager from "./TargetPickingManager";
@@ -254,6 +255,7 @@ export const Game = ({ gameID, onExit, centralSessionId, onAuthFailure }) => {
       <Subscribable onMessage={eventHandlers.HandleOperationProgress} commandPrefix={"operation_"} />
       <GameStylesheets gameId={resolvedGameId} />
       <PlaybackManager />
+      <BlockedNoticesManager gameId={resolvedGameId} />
       <TurnOrderManager isGM={isOwner} />
       <RequestInputManager />
       <TargetPickingManager />

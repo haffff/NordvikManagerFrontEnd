@@ -2,6 +2,7 @@ import ClientMediator from "./ClientMediator";
 import { ActiveTransportManager as WebSocketManagerInstance, ActiveWebHelper as WebHelper } from "./helpers/transport";
 import UtilityHelper from "./helpers/UtilityHelper";
 import { readRange, forgetVersion } from "./helpers/rangeRead";
+import { loadGameHostInfo, hasLimitation, isAvailable } from "./host/hostInfo";
 
 // ─── Security: allowlists ─────────────────────────────────────────────────────
 
@@ -46,7 +47,7 @@ const INTERNAL_COMMANDS = Object.freeze({
 });
 
 // Panels with their own CardAPI group; mediator calls to them are pointed there.
-const API_GROUPS = Object.freeze({ properties: "Properties", resources: "Resources", rolls: "Rolls" });
+const API_GROUPS = Object.freeze({ properties: "Properties", resources: "Resources", rolls: "Rolls", host: "Host" });
 
 // Command names a registered addon panel can't use (ClientMediator's own fields).
 const RESERVED_COMMANDS = Object.freeze(["id", "panel", "contextId", "onEvent"]);
@@ -990,6 +991,24 @@ class CardAPI {
   SendChatMessage(message) {
     this._sendWsCommand("chat_push", message);
   }
+
+  // ── Host ────────────────────────────────────────────────────────────────
+  // Which GM host the game runs on: the game's backend's GET api/Host/Info, asked over
+  // the game's connection once per game. kind "server" (the GM server a GM runs) or
+  // "browser" (the browser version: no outside connections, no thumbnails, ...);
+  // unavailable lists the server-only routes, limitations what else a GM should know.
+  // null from an older GM server that can't say: treat it as a server with everything.
+
+  Host = {
+    /** @returns {Promise<{ kind: string, version: ?string, protocol: number, unavailable: { path: string, reason: string }[], limitations: { id: string, title: string, detail: string }[] } | null>} */
+    GetInfo: () => loadGameHostInfo(WebHelper.GameId),
+    /** True on the browser version of the GM host. */
+    IsBrowser: async () => (await this.Host.GetInfo())?.kind === "browser",
+    /** Whether the host lists this limitation (e.g. "outside-connections"). */
+    HasLimitation: async (id) => hasLimitation(await this.Host.GetInfo(), id),
+    /** Whether the host serves this route (e.g. "api/Backup"); true when it can't say. */
+    IsAvailable: async (path) => isAvailable(await this.Host.GetInfo(), String(path ?? "")),
+  };
 
   // ── Rolls ───────────────────────────────────────────────────────────────
   // "Roll now, post later" (backend RollsController). Start evaluates a batch

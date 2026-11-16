@@ -51,6 +51,33 @@ describe('BrowseAddonsTab', () => {
     expect(listedNames()).toEqual(['5E Edition']);
   });
 
+  // Where each addon connects (info.json "network"): in its details; and on the browser
+  // version, which can't connect outside its site, a badge on those that need the local server.
+  it("shows where an addon connects, and on the browser version which ones may need the local server", async () => {
+    const user = userEvent.setup();
+    const withNetwork = [
+      { ...repository[0], network: { hosts: [] } },
+      { ...repository[1], network: { userHosts: 'Your Obsidian Local REST API address' } },
+      repository[2],
+    ];
+    renderTab({ repository: withNetwork, hostInfo: { kind: 'browser' } });
+
+    const rows = screen.getAllByTestId('addon-row');
+    expect(within(rows[1]).getByText('May need the local server')).toBeInTheDocument(); // Obsidian
+    expect(within(rows[2]).queryByText('May need the local server')).toBeNull(); // Poll: nowhere
+    expect(within(rows[0]).queryByText('May need the local server')).toBeNull(); // 5E: doesn't say
+
+    await user.click(within(rows[1]).getByTestId('addon-name'));
+    expect(within(screen.getByTestId('addon-details')).getByText('Your Obsidian Local REST API address')).toBeInTheDocument();
+    await user.click(within(rows[0]).getByTestId('addon-name'));
+    expect(within(screen.getByTestId('addon-details')).getByText("Doesn't say what it connects to")).toBeInTheDocument();
+  });
+
+  it('a GM server shows no local-server badges', () => {
+    renderTab({ repository: [{ ...repository[1], network: { userHosts: 'x' } }], hostInfo: { kind: 'server' } });
+    expect(screen.queryByText('May need the local server')).toBeNull();
+  });
+
   it('sorts by category', async () => {
     const user = userEvent.setup();
     renderTab();

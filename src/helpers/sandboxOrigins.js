@@ -25,6 +25,28 @@ export function validOrigins(list) {
     .filter((o) => ORIGIN.test(o));
 }
 
+// Whether a GM entry (https://host or https://*.host, optional port) covers an origin, as
+// CSP matches it: a wildcard covers subdomains, not the bare domain; ports must agree.
+const covers = (entry, origin) => {
+  if (entry === origin) return true;
+  const wild = /^https:\/\/\*\.(.+)$/i.exec(entry);
+  if (!wild) return false;
+  const m = /^https:\/\/([^/:]+)(:\d+)?$/i.exec(origin);
+  const [suffix, port = ''] = wild[1].split(/(?=:\d+$)/);
+  return !!m && (m[2] ?? '') === port && m[1].toLowerCase().endsWith('.' + suffix.toLowerCase());
+};
+
+/**
+ * The hosts a card may reach. A card runs its addon's code (GetCard's addonKey, addonNetwork):
+ * when that addon declares its hosts, only those the GM's list allows; when it doesn't say,
+ * lets the user pick the address (userHosts), or the card is no addon's, the GM's list.
+ */
+export function cardOrigins(gmOrigins, card) {
+  const network = card?.addonKey ? card.addonNetwork : null;
+  if (!network || network.userHosts) return gmOrigins;
+  return validOrigins(network.hosts ?? []).filter((host) => gmOrigins.some((entry) => covers(entry, host)));
+}
+
 let pending = null;
 
 /** The GM's list, fetched once per game; the defaults if the backend has no answer. */

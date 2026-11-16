@@ -813,3 +813,51 @@ describe('resync after a dropped connection', () => {
     expect(ActiveWebHelper.getAsync).not.toHaveBeenCalled();
   });
 });
+
+// Which GM host the game runs on (GET api/Host/Info over the game's connection): a GM
+// server ("server") or the browser version ("browser"), with what it doesn't provide.
+describe('CardAPI — Host', () => {
+  const browserInfo = {
+    kind: 'browser', version: '0.0.3', protocol: 2,
+    unavailable: [{ path: 'api/Backup', reason: 'Backs up the whole GM server.' }],
+    limitations: [{ id: 'outside-connections', title: 'No connections to other services', detail: '...' }],
+  };
+  beforeEach(() => {
+    ActiveTransportManager.Subscribe.mockClear();
+    ActiveWebHelper.getAsync.mockReset().mockImplementation(async (path) => (path === 'host/info' ? browserInfo : []));
+    ActiveWebHelper.GameId = 'game-host-1';
+  });
+
+  it('GetInfo answers what the game\'s backend says, as it says it', async () => {
+    const api = await CardAPIFactory('card-host');
+
+    await expect(api.Host.GetInfo()).resolves.toEqual(browserInfo);
+  });
+
+  it('IsBrowser, HasLimitation and IsAvailable read that answer', async () => {
+    const api = await CardAPIFactory('card-host');
+
+    await expect(api.Host.IsBrowser()).resolves.toBe(true);
+    await expect(api.Host.HasLimitation('outside-connections')).resolves.toBe(true);
+    await expect(api.Host.HasLimitation('tab-open')).resolves.toBe(false);
+    await expect(api.Host.IsAvailable('api/Backup/Create')).resolves.toBe(false);
+    await expect(api.Host.IsAvailable('api/Materials')).resolves.toBe(true);
+  });
+
+  it('an older GM server that can\'t say: null info, a server with everything', async () => {
+    ActiveWebHelper.GameId = 'game-host-old';
+    ActiveWebHelper.getAsync.mockImplementation(async () => undefined);
+    const api = await CardAPIFactory('card-host');
+
+    await expect(api.Host.GetInfo()).resolves.toBeNull();
+    await expect(api.Host.IsBrowser()).resolves.toBe(false);
+    await expect(api.Host.HasLimitation('outside-connections')).resolves.toBe(false);
+    await expect(api.Host.IsAvailable('api/Backup')).resolves.toBe(true);
+  });
+
+  it('is its own group: not reachable as a ClientMediator panel', async () => {
+    const api = await CardAPIFactory('card-host');
+
+    await expect(api.ClientMediator.sendCommandAsync('Host', 'GetInfo')).rejects.toThrow('use CardAPI.Host instead');
+  });
+});

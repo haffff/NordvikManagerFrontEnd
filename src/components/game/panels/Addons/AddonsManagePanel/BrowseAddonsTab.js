@@ -14,12 +14,12 @@ import DListItemButton from "../../../../uiComponents/base/List/ListItemDetails/
 import DListItemsButtonContainer from "../../../../uiComponents/base/List/DListItemsButtonContainer";
 import DLabel from "../../../../uiComponents/base/Text/DLabel";
 import { safeExternalUrl } from "../../../../../helpers/safeUrl";
-import { alsoInstalls, browseAddons, categoryName, usedCategories } from "./addonsBrowse";
+import { alsoInstalls, browseAddons, categoryName, usedCategories, networkSummary, mayNeedLocalServer } from "./addonsBrowse";
 import AddonReadme from "./AddonReadme";
 
 // What the registry offers: search, category filter and sort above a list; the selected
 // addon's details (and readme) beside it, below it when the panel is narrow.
-export const BrowseAddonsTab = ({ repository, categories = [], repositoryError, addons, handleReload, loading }) => {
+export const BrowseAddonsTab = ({ repository, categories = [], repositoryError, addons, handleReload, loading, hostInfo = null }) => {
   const [search, setSearch] = useState("");
   const [category, setCategory] = useState("all");
   const [sort, setSort] = useState("name");
@@ -158,6 +158,7 @@ export const BrowseAddonsTab = ({ repository, categories = [], repositoryError, 
                         {addon.version && <Badge size="sm" variant="outline" colorPalette="gray">v{addon.version}</Badge>}
                         {isUpdate && <Badge size="sm" colorPalette="yellow">Update available</Badge>}
                         {isInstalled && !isUpdate && <Badge size="sm" colorPalette="green">Installed</Badge>}
+                        {mayNeedLocalServer(addon, hostInfo) && <LocalServerBadge />}
                         {(addon.categories ?? []).map((c) => (
                           <Badge key={c} size="sm" variant="subtle" colorPalette="teal">{categoryName(c, categories)}</Badge>
                         ))}
@@ -185,6 +186,7 @@ export const BrowseAddonsTab = ({ repository, categories = [], repositoryError, 
             categories={categories}
             alsoInstalled={alsoInstalls(selected, repository, addons)}
             status={statusOf(selected)}
+            hostInfo={hostInfo}
             onInstall={() => install(selected)}
             onUpdate={() => update(selected)}
           />
@@ -202,7 +204,27 @@ const Field = ({ label, children }) => (
 );
 
 // The selected addon: what it is, where it comes from, Install/Update, and its readme.
-const AddonDetails = ({ addon, categories, alsoInstalled = [], status, onInstall, onUpdate }) => {
+// On the browser version, an addon whose code connects outside may need the local server.
+export const LocalServerBadge = ({ size = "sm" }) => (
+  <Badge size={size} colorPalette="orange" title="The browser version reaches only https sites that allow requests from a browser; programs on your computer or network, like Trilium or Obsidian, need the local server.">
+    May need the local server
+  </Badge>
+);
+
+// Where the addon's code connects outside NordvikManager (info.json "network").
+export const NetworkField = ({ addon, hostInfo }) => {
+  const summary = networkSummary(addon);
+  return (
+    <Field label="Connects to">
+      <Flex gap="8px" align="center" flexWrap="wrap">
+        <Text opacity={summary.declared ? 1 : 0.6}>{summary.text}</Text>
+        {mayNeedLocalServer(addon, hostInfo) && <LocalServerBadge />}
+      </Flex>
+    </Field>
+  );
+};
+
+const AddonDetails = ({ addon, categories, alsoInstalled = [], status, hostInfo, onInstall, onUpdate }) => {
   const repositoryUrl = safeExternalUrl(addon.repositoryUrl);
   const releaseUrl = safeExternalUrl(addon.releaseUrl);
   return (
@@ -225,6 +247,7 @@ const AddonDetails = ({ addon, categories, alsoInstalled = [], status, onInstall
         {addon.version && <Field label="Version">{addon.version}</Field>}
         {addon.author && <Field label="Author">{addon.author}</Field>}
         {addon.license && <Field label="License">{addon.license}</Field>}
+        <NetworkField addon={addon} hostInfo={hostInfo} />
         {(addon.categories ?? []).length > 0 && (
           <Field label="Categories">
             <Flex gap="4px" flexWrap="wrap">

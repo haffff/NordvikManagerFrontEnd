@@ -6,12 +6,15 @@ import { BasePanel } from "../../../uiComponents/base/BasePanel";
 import { InstallFromFileTab } from "./AddonsManagePanel/InstallFromFileTab";
 import { BrowseInstalledTab } from "./AddonsManagePanel/BrowseInstalledTab";
 import { BrowseAddonsTab } from "./AddonsManagePanel/BrowseAddonsTab";
+import { useGameHostInfo } from "../../../../host/hostInfo";
 
 export const AddonsManagePanel = ({ state }) => {
   const [addons, setAddons] = React.useState([]);
   const [repository, setRepository] = React.useState([]);
   const [categories, setCategories] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
+  // The game's GM host: on the browser version, addons that connect outside need the local server.
+  const hostInfo = useGameHostInfo();
   const [repositoryError, setRepositoryError] = React.useState(false);
 
   const ctx = Dockable.useContentContext();
@@ -60,10 +63,11 @@ export const AddonsManagePanel = ({ state }) => {
               repositoryError={repositoryError}
               addons={addons}
               loading={loading}
+              hostInfo={hostInfo}
             />
           </Tabs.Content>
           <Tabs.Content value="installed" flex={1} overflow="hidden" padding={0}>
-            <BrowseInstalledTab handleReload={handleReload} addons={addons} loading={loading} repository={repository} />
+            <BrowseInstalledTab handleReload={handleReload} addons={addons} loading={loading} repository={repository} hostInfo={hostInfo} />
           </Tabs.Content>
           <Tabs.Content value="install" flex={1} overflow="hidden" padding={0}>
             <InstallFromFileTab handleReload={handleReload} />
