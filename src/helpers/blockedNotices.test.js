@@ -27,6 +27,7 @@ describe('describeBlocked', () => {
 
   it.each([
     ['no-outside-connections', /browser version can't reach.*local server/],
+    ['browser-refused', /refuses requests from a browser, or didn't answer.*local server/],
     ['undeclared-host', /doesn't list/],
     ['blocked-host', /private or local address/],
     ['network-error', /couldn't reach/],

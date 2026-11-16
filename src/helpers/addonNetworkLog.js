@@ -7,7 +7,7 @@
 //   origin     where to (origin only: never a path or query)
 //   directive  the CSP directive that blocked a card ("connect-src", "img-src", ...)
 //   reason     why the backend refused an action ("blocked-host", "undeclared-host",
-//              "no-outside-connections", "network-error")
+//              "no-outside-connections", "browser-refused", "network-error")
 //   count, firstSeen, lastSeen
 
 const entries = new Map();

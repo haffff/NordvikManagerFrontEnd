@@ -131,13 +131,13 @@ describe('BrowseInstalledTab — outside connections', () => {
 
     renderWithProviders(<BrowseInstalledTab addons={addons} loading={false} handleReload={vi.fn()} hostInfo={{ kind: 'browser' }} />);
     // In the list: a short note on the version line, not a badge beside the name.
-    expect(screen.getByText('v0.1.5 · needs local server')).toBeInTheDocument();
+    expect(screen.getByText('v0.1.5 · may need local server')).toBeInTheDocument();
 
     await user.click(screen.getByText('Trilium'));
     expect(screen.getByText("Your Trilium server's address")).toBeInTheDocument();
 
     const block = (action, origin = 'https://notes.example.com') =>
-      recordBlocked({ source: 'action', addon: 'trilium', action, origin, reason: 'no-outside-connections' });
+      recordBlocked({ source: 'action', addon: 'trilium', action, origin, reason: 'browser-refused' });
     act(() => { block('Import'); });
     expect(await screen.findByText('notes.example.com — Import')).toBeInTheDocument();
 

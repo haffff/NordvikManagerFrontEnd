@@ -26,7 +26,7 @@ import { DUIBox } from "../../../../uiComponents/base/List/DUIBox";
 import { safeExternalUrl } from "../../../../../helpers/safeUrl";
 import AddonReadme from "./AddonReadme";
 import { NetworkField } from "./BrowseAddonsTab";
-import { needsLocalServer } from "./addonsBrowse";
+import { mayNeedLocalServer } from "./addonsBrowse";
 import { getBlocked, subscribeBlocked } from "../../../../../helpers/addonNetworkLog";
 
 const hostOf = (origin) => {
@@ -194,9 +194,9 @@ export const BrowseInstalledTab = ({ handleReload, addons, loading, repository, 
               >
                 <Flex direction="column" gap="2px" flex={1}>
                   <DLabel>{addon.name}</DLabel>
-                  {needsLocalServer(addon, hostInfo) ? (
-                    <Text fontSize="xs" color="orange.300" truncate title="The browser version can't connect to other services; this addon works on the local server.">
-                      {addon.version ? `v${addon.version} · ` : ""}needs local server
+                  {mayNeedLocalServer(addon, hostInfo) ? (
+                    <Text fontSize="xs" color="orange.300" truncate title="The browser version reaches only https sites that allow requests from a browser; programs on your computer or network, like Trilium or Obsidian, need the local server.">
+                      {addon.version ? `v${addon.version} · ` : ""}may need local server
                     </Text>
                   ) : addon.version && (
                     <Text fontSize="xs" opacity={0.5}>v{addon.version}</Text>

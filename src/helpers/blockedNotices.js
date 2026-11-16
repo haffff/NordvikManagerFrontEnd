@@ -16,6 +16,8 @@ const hostOf = (origin) => {
 const ACTION_REASONS = {
   'no-outside-connections': (host) =>
     `It needs ${host}, which the browser version can't reach. Use the local server for this addon.`,
+  'browser-refused': (host) =>
+    `${host} refuses requests from a browser, or didn't answer. The local server can reach it.`,
   'undeclared-host': (host) =>
     `It tried to reach ${host}, which the addon doesn't list among the hosts it connects to.`,
   'blocked-host': (host) =>
