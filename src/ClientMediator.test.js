@@ -8,6 +8,7 @@ beforeEach(() => {
   ClientMediator._clientsHashSet = {};
   ClientMediator._clientPanelIndex = {};
   ClientMediator._awaitingRequests = [];
+  ClientMediator._pendingPatches = {};
   vi.spyOn(console, 'log').mockImplementation(() => {});
   vi.spyOn(console, 'warn').mockImplementation(() => {});
 });
@@ -31,6 +32,26 @@ describe('errors', () => {
     circular.self = circular;
 
     expect(() => ClientMediator.sendCommand('P', 'Nope', circular)).toThrow('Command not found: Nope for panel: P');
+  });
+});
+
+describe('patching a client', () => {
+  it('applies a patch made before the client registered, once it does', () => {
+    ClientMediator.patchClient('a', { Extra: () => 'patched' });
+    ClientMediator.register(client('a', { Own: () => 'own' }));
+
+    expect(ClientMediator.sendCommand('P', 'Extra')).toBe('patched');
+    expect(ClientMediator.sendCommand('P', 'Own')).toBe('own');
+  });
+
+  it('applies a deferred patch only once', () => {
+    ClientMediator.patchClient('a', { Extra: () => 'patched' });
+    ClientMediator.register(client('a', {}));
+    ClientMediator.unregister('a');
+
+    ClientMediator.register(client('a', {}));
+
+    expect(() => ClientMediator.sendCommand('P', 'Extra')).toThrow('Command not found');
   });
 });
 

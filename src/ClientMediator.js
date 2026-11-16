@@ -127,6 +127,13 @@ export const ClientMediator = {
     const panelKey = client.panel.toLowerCase();
     const clientId = client.id;
 
+    // Patches made before it registered (patchClient), applied once.
+    const pending = this._pendingPatches?.[clientId];
+    if (pending) {
+      Object.assign(client, pending);
+      delete this._pendingPatches[clientId];
+    }
+
     if (!this._clientsHashSet[panelKey]) {
       this._clientsHashSet[panelKey] = {};
     }
