@@ -46,6 +46,17 @@
 import { validOrigins } from "../../../helpers/sandboxOrigins";
 import { ALLOWED_WS_COMMANDS } from "../../../CardAPI";
 
+// Runs right after the card's CSP, before anything of the card's: tells the app what the
+// policy blocked (CardPanel logs it, helpers/addonNetworkLog.js), as the directive and the
+// origin only — never the path or query, which can carry the card's data — each pair once.
+// Inline code, eval and data: aren't outside addresses and aren't reported.
+export const CARD_GUARD_SCRIPT =
+  "(function(){var seen={};document.addEventListener('securitypolicyviolation',function(e){" +
+  "var origin;try{var u=new URL(e.blockedURI);if(!/^(https?|wss?):$/.test(u.protocol))return;origin=u.origin;}catch(_){return;}" +
+  "var directive=e.effectiveDirective||e.violatedDirective||'';var key=directive+' '+origin;" +
+  "if(seen[key])return;seen[key]=1;" +
+  "parent.postMessage({type:'CARD_BLOCKED',directive:directive,origin:origin},'*');});})();";
+
 // The card's own CSP, from the GM's host list (helpers/sandboxOrigins.js). It goes first
 // in <head>, before the card's styles and scripts, and only tightens the sandbox page's
 // header policy: on a player's client that header comes from the Central Server and
@@ -67,7 +78,9 @@ export function withCardCsp(html, origins) {
       // code without this policy, and any frame would get back what the card's window lacks.
       `frame-src 'none'`
   );
-  doc.head.prepend(meta);
+  const guard = doc.createElement("script");
+  guard.textContent = CARD_GUARD_SCRIPT;
+  doc.head.prepend(meta, guard);
   // Without a doctype the card renders in quirks mode, as it would on its own.
   return (doc.doctype ? "<!DOCTYPE html>" : "") + doc.documentElement.outerHTML;
 }

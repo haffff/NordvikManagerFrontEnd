@@ -263,6 +263,25 @@ describe('CardPanel, closing from the card', () => {
   });
 });
 
+describe('CardPanel, blocked addresses', () => {
+  // The card's guard script reports what its policy blocked; the panel logs it with the
+  // card's name (the panel's, as in its title) — only messages from its own frame.
+  it("logs what the card's frame reports as blocked", async () => {
+    const { getBlocked, resetBlocked } = await import('../../../helpers/addonNetworkLog');
+    resetBlocked();
+    const card = await openCard();
+    card.hostReady();
+
+    const blocked = { type: 'CARD_BLOCKED', directive: 'connect-src', origin: 'https://evil.example.com' };
+    act(() => window.dispatchEvent(new MessageEvent('message', { data: blocked, source: {} })));
+    act(() => window.dispatchEvent(new MessageEvent('message', { data: blocked, source: card.frame.contentWindow })));
+
+    await waitFor(() => expect(getBlocked()).toEqual([
+      expect.objectContaining({ source: 'card', cardId: 'card-1', card: 'Note', directive: 'connect-src', origin: 'https://evil.example.com', count: 1 }),
+    ]));
+  });
+});
+
 describe('CardPanel, card HTML', () => {
   // The main resource is UTF-8; decoding it as Latin-1 turned non-ASCII text to mojibake.
   it('decodes the card page as UTF-8', async () => {

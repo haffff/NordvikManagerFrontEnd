@@ -7,6 +7,7 @@ import { ActiveTransportManager as WebSocketManagerInstance } from "../../../hel
 import ClientMediator from "../../../ClientMediator";
 import { sandboxBridgeScript, withCardCsp } from "./cardSandbox";
 import { loadSandboxOrigins } from "../../../helpers/sandboxOrigins";
+import { recordBlocked } from "../../../helpers/addonNetworkLog";
 import CardAPIFactory, { ALLOWED_WS_RECEIVE_PREFIXES } from "../../../CardAPI";
 import DockableHelper from "../../../helpers/DockableHelper";
 import { isMobileUi } from "../../../helpers/uiMode";
@@ -52,7 +53,7 @@ const RESOURCE_KEEPALIVE_MS = 60000;
  *   WS_SEND         { command, data }
  *   CLOSE_PANEL     {}
  */
-function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, onClosePanel) {
+function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, onClosePanel, cardName) {
   let ready = false;
   const queue = [];
 
@@ -167,6 +168,14 @@ function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, 
       clearTimeout(call.timer);
       if (event.data.error) call.reject(new Error(event.data.error));
       else call.resolve(event.data.result);
+      return;
+    }
+
+    // ── The card's CSP blocked an address (its guard script, cardSandbox.js) ──
+    if (type === "CARD_BLOCKED") {
+      const { directive, origin } = event.data;
+      if (typeof origin !== "string" || typeof directive !== "string") return;
+      recordBlocked({ source: "card", cardId, card: cardName ?? null, directive, origin });
       return;
     }
 
@@ -578,7 +587,7 @@ export const CardPanel = ({ id, name, data }) => {
         Dockable.coallesceEmptyPanels(globalState.ref.current);
         globalState.commit();
       };
-      const bridge = mountBridge(iframe, iframeHtml, nonce, cardApi, id, additionalArguments, closePanel);
+      const bridge = mountBridge(iframe, iframeHtml, nonce, cardApi, id, additionalArguments, closePanel, name || response?.name);
       // The theme (or its colours) changed while the card is open: restyle it in place.
       const stopStyles = appStyles
         ? onGameCssChange((theme) => bridge.post({ type: "APP_STYLES", base: baseCardCss(), theme }))
