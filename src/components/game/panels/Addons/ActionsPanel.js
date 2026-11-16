@@ -7,6 +7,7 @@ import { FaChevronDown } from "@react-icons/all-files/fa/FaChevronDown";
 import { FaChevronRight } from "@react-icons/all-files/fa/FaChevronRight";
 import { FaPlay } from "@react-icons/all-files/fa/FaPlay";
 import { FaPlus } from "@react-icons/all-files/fa/FaPlus";
+import { FaFileImport } from "@react-icons/all-files/fa/FaFileImport";
 import { FaSearch } from "@react-icons/all-files/fa/FaSearch";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../../helpers/transport";
 import { ActiveWebHelper as WebHelper } from "../../../../helpers/transport";
@@ -52,7 +53,7 @@ const ActionRow = ({ action, hookName, selected, onClick }) => (
 const Sidebar = ({ actions, hooks, stepTypes, loading, selectedId, onSelect, onSelectGroup, onCreate }) => {
   const [search, setSearch] = React.useState("");
   const [closed, setClosed] = React.useState({});
-  const [creating, setCreating] = React.useState(false);
+  const [creating, setCreating] = React.useState(false); // false, or what the form starts as
   const hookName = (h) => hooks.find((x) => Number(x.value) === Number(h))?.name;
 
   const groups = React.useMemo(() => {
@@ -70,10 +71,11 @@ const Sidebar = ({ actions, hooks, stepTypes, loading, selectedId, onSelect, onS
       <HStack px={3} py={2} gap={2} flexShrink={0} borderBottomWidth="1px" borderColor={T.border}>
         <Text fontSize="xs" fontWeight="semibold" color="gray.400" textTransform="uppercase" letterSpacing="wider" flex={1}>Actions</Text>
         {!loading && <Badge variant="subtle" colorPalette="gray" fontSize="2xs">{actions.length}</Badge>}
-        <DListItemButton label="New action" icon={FaPlus} onClick={() => setCreating(true)} />
+        <DListItemButton label="Import action JSON" icon={FaFileImport} onClick={() => setCreating("json")} />
+        <DListItemButton label="New action" icon={FaPlus} onClick={() => setCreating("")} />
       </HStack>
-      {creating && (
-        <NewActionForm stepTypes={stepTypes} onCancel={() => setCreating(false)} onCreate={(p, n, t) => { onCreate(p, n, t); setCreating(false); }} />
+      {creating !== false && (
+        <NewActionForm key={creating} startWith={creating} stepTypes={stepTypes} onCancel={() => setCreating(false)} onCreate={(p, n, t) => { onCreate(p, n, t); setCreating(false); }} />
       )}
       <Box px={2} pt={2} pb={1} flexShrink={0}><SearchInput value={search} onChange={setSearch} /></Box>
       <Box flex={1} overflowY="auto" px={1} pb={2}>

@@ -22,16 +22,6 @@ export function askImportDropped(exported) {
   });
 }
 
-/** The toast after an import: what it made, and the files it didn't find. */
-export function reportImported({ missing } = {}, exported) {
-  toaster.create({
-    title: `Imported "${exported?.name ?? ""}"`,
-    description: missing?.length ? `Not in this game, left out: ${missing.join(", ")}` : undefined,
-    type: missing?.length ? "warning" : "success",
-    duration: missing?.length ? 10000 : 4000,
-  });
-}
-
 export function reportImportFailed(error) {
   toaster.create({ title: "Couldn't import it", description: error?.message, type: "error" });
 }

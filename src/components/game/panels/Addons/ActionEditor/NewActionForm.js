@@ -3,15 +3,16 @@ import { Box, Button, HStack, Input, NativeSelect, Text, Textarea } from "@chakr
 import { T } from "./editorTheme";
 import { ACTION_TEMPLATES } from "./actionTemplates";
 import { parseActionJson } from "./importAction";
+import { readText } from "../../../../../helpers/droppedExports";
 
 // Prefix, name, and what the new action starts as: empty, one of the templates, or pasted
-// JSON (an exported action, an addon action file, or what an AI assistant wrote: one action or
-// several). Pasted JSON gives the prefix and name too unless they are typed. stepTypes: the server's step types,
-// to catch made-up ones.
-export const NewActionForm = ({ onCreate, onCancel, stepTypes }) => {
+// or opened JSON (an exported action, an addon action file, or what an AI assistant wrote: one
+// action or several). The JSON gives the prefix and name too unless they are typed. stepTypes:
+// the server's step types, to catch made-up ones. startWith: "json" opens on the JSON choice.
+export const NewActionForm = ({ onCreate, onCancel, stepTypes, startWith = "" }) => {
   const [prefix, setPrefix] = React.useState("");
   const [name, setName] = React.useState("");
-  const [templateKey, setTemplateKey] = React.useState("");
+  const [templateKey, setTemplateKey] = React.useState(startWith);
   const [json, setJson] = React.useState("");
   const [error, setError] = React.useState(null);
   const pasting = templateKey === "json";
@@ -27,6 +28,13 @@ export const NewActionForm = ({ onCreate, onCancel, stepTypes }) => {
     named.forEach((a) => onCreate(prefix.trim() || a.prefix.trim(), a.name,
       { hook: a.hook, hookFilter: a.hookFilter, description: a.description, content: a.content }));
   };
+  const openFile = async (e) => {
+    const file = e.target.files?.[0];
+    e.target.value = ""; // the same file can be opened again
+    if (!file) return;
+    setJson(await readText(file));
+    setError(null);
+  };
   const count = pasting ? (parseActionJson(json).actions?.length ?? 1) : 1;
 
   return (
@@ -40,19 +48,20 @@ export const NewActionForm = ({ onCreate, onCancel, stepTypes }) => {
         <NativeSelect.Field aria-label="Start from" value={templateKey} onChange={(e) => { setTemplateKey(e.target.value); setError(null); }}>
           <option value="">Empty action</option>
           {ACTION_TEMPLATES.map((t) => <option key={t.key} value={t.key}>{t.label}</option>)}
-          <option value="json">Paste JSON…</option>
+          <option value="json">Paste or open JSON…</option>
         </NativeSelect.Field>
         <NativeSelect.Indicator />
       </NativeSelect.Root>
       {template && <Text fontSize="2xs" color={T.muted} mt={1}>{template.description}</Text>}
       {pasting && (
         <>
+          <Input type="file" accept=".json,application/json" size="xs" mt={1} p="1" aria-label="Action file" onChange={openFile} />
           <Textarea size="xs" mt={1} rows={6} fontFamily="mono" aria-label="Action JSON"
             placeholder={'{ "name": "…", "hook": 0, "content": [ { "Type": "…", "Data": { } } ] }'}
             value={json} onChange={(e) => { setJson(e.target.value); setError(null); }} />
           {error
             ? <Text fontSize="2xs" color="red.300" mt={1}>{error}</Text>
-            : <Text fontSize="2xs" color={T.muted} mt={1}>An exported action, an addon action file, or one an AI assistant wrote.</Text>}
+            : <Text fontSize="2xs" color={T.muted} mt={1}>Open or paste an exported action, an addon action file, or one an AI assistant wrote.</Text>}
         </>
       )}
       <HStack mt={1} justify="flex-end" gap={1}>

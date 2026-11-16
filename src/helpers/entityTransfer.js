@@ -1,4 +1,6 @@
 import { ActiveWebHelper as WebHelper } from "./transport";
+import ProgressToastManager from "./ProgressToastManager";
+import UtilityHelper from "./UtilityHelper";
 
 // Export JSON / Import JSON / Duplicate for maps, cards (templates, custom views) and
 // playlists (soundboards), through the backend's Transfer endpoints. A duplicate is an
@@ -34,32 +36,81 @@ const fileNameFor = (exported, kind) =>
  * opens it), otherwise it's dropped and this resolves to null. Text is sent as it is: the
  * server checks its signature over it.
  */
-export async function importEntity(exported, { kind, name = null, parentId = null, afterId = null, confirmCode = async () => false } = {}) {
-  const text = typeof exported === "string" ? exported : JSON.stringify(exported);
-  let parsed = exported;
-  if (typeof exported === "string") {
-    try { parsed = JSON.parse(exported); } catch { parsed = null; }
+// parsed: the export already read from the text (a big one is slow to parse again).
+export async function importEntity(exported, options = {}) {
+  // A progress toast, as for a Materials upload: waiting its turn behind other uploads,
+  // the bytes sent, then the server setting it up. Success says what it made; a failure
+  // or a decline closes it (the caller says why).
+  const opId = UtilityHelper.GenerateUUID();
+  const known = options.parsed ?? (typeof exported === "string" ? null : exported);
+  ProgressToastManager.start(opId, { title: `Importing "${options.name ?? known?.name ?? options.kind ?? "it"}"…`, description: "Waiting to send…", total: 1 });
+  let parsed = options.parsed ?? exported;
+  if (typeof parsed === "string") {
+    try { parsed = JSON.parse(parsed); } catch { parsed = null; }
   }
+  const label = options.name ?? parsed?.name ?? options.kind ?? "it";
+  const step = (current, message) => ProgressToastManager.update(opId, { current, total: 1, message });
+  let result;
+  try {
+    result = await runImport(exported, parsed, options, step);
+  } catch (e) {
+    ProgressToastManager.dismiss(opId);
+    throw e;
+  }
+  if (!result) {
+    ProgressToastManager.dismiss(opId);
+    return result;
+  }
+  const missing = result.missing ?? [];
+  const notes = [
+    result.linkedTemplate ? `Linked to the template "${result.linkedTemplate}".` : null,
+    result.linkedCards ? `${result.linkedCards} card${result.linkedCards === 1 ? "" : "s"} made from a template with its key now use it.` : null,
+    missing.length ? `Not in this game, left out: ${missing.join(", ")}` : null,
+  ].filter(Boolean);
+  ProgressToastManager.complete(opId, {
+    title: `Imported "${label}"`,
+    description: notes.length ? notes.join(" ") : undefined,
+    type: missing.length ? "warning" : "success",
+    duration: missing.length ? 10000 : 4000,
+  });
+  return result;
+}
 
+async function runImport(exported, parsed, { kind, name = null, parentId = null, afterId = null, confirmCode = async () => false }, step) {
+  const text = typeof exported === "string" ? exported : JSON.stringify(exported);
+  let lastPercent = -1;
   const upload = await WebHelper.uploadInPieces(
     new Blob([text], { type: "application/json" }),
     { name: fileNameFor(parsed, kind), mimeType: "application/json", forImport: true },
+    {
+      onProgress: (fraction) => {
+        const percent = Math.floor(fraction * 100);
+        if (percent === lastPercent) return;
+        lastPercent = percent;
+        step(Math.min(fraction, 1) * 0.9, `Sending — ${percent}%`);
+      },
+    },
   );
   if (upload === null) throw new Error("This server can't take imports this way yet: update it.");
   const uploadId = upload?.body?.uploadId;
   if (upload?.status !== 200 || !uploadId) throw new Error(upload?.body?.error ?? "Couldn't send the file.");
 
+  step(0.95, "Sent; setting it up in the game…");
   const request = { uploadId, kind, name, treeParentId: parentId, afterTreeEntryId: afterId };
   let response = await WebHelper.postAsync("transfer/Import", request);
   if (response?.status === 409 && response.body?.inspection) {
+    step(0.95, "Waiting for you to allow its card code…");
     if (!(await confirmCode(response.body.inspection))) {
       await WebHelper.postAsync("transfer/CancelImport", { uploadId });
       return null;
     }
+    step(0.95, "Sent; setting it up in the game…");
     response = await WebHelper.postAsync("transfer/Import", { ...request, acceptCode: true });
   }
-  if (response?.status >= 200 && response.status < 300)
-    return { id: response.body?.id, missing: response.body?.missing ?? [] };
+  if (response?.status >= 200 && response.status < 300) {
+    const { id, missing = [], linkedTemplate, linkedCards } = response.body ?? {};
+    return { id, missing, ...(linkedTemplate ? { linkedTemplate } : {}), ...(linkedCards ? { linkedCards } : {}) };
+  }
   throw new Error(response?.body?.error ?? "Couldn't import it.");
 }
 

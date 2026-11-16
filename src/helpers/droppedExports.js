@@ -8,7 +8,7 @@ import { importEntity, parseExport } from "./entityTransfer";
 const MAX_EXPORT_SIZE = 256 * 1024 * 1024;
 
 // File.text() where there is one (browsers), FileReader otherwise.
-const readText = (file) => typeof file.text === "function"
+export const readText = (file) => typeof file.text === "function"
   ? file.text()
   : new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -57,7 +57,7 @@ export async function takeDroppedExports(files, { ask, onImported, onError, conf
     } else if (answer === "import") {
       try {
         // The file's own text: the server checks its signature over it.
-        const result = await importEntity(text, { kind: exported.kind, confirmCode });
+        const result = await importEntity(text, { kind: exported.kind, parsed: exported, confirmCode });
         if (result) onImported?.(result, exported);
       } catch (e) {
         onError?.(e, exported);
