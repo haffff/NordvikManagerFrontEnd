@@ -99,6 +99,17 @@ describe('copy and paste on the map', () => {
     expect(sent[0].data).toMatchObject({ layer: 'tokens', mapId: 'map-1' });
   });
 
+  // Bring forward / send backward: the copy stacks where the original did.
+  it('keeps its place in the layer', async () => {
+    const original = token();
+    original.insideLayerIndex = 3;
+    const bm = service([original]);
+    bm.CopyElements();
+    await bm.PasteElements({});
+
+    expect(sent[0].data.insideLayerIndex).toBe(3);
+  });
+
   it('pastes where it is told to', async () => {
     const bm = service([token()]);
     bm.CopyElements();

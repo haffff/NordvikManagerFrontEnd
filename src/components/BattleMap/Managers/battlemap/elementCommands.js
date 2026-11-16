@@ -153,6 +153,8 @@ export const elementCommands = {
       this._canvas.discardActiveObject();
       const copies = objects.map((element) => ({
         object: JSON.parse(JSON.stringify(element.toObject(COPIED_FIELDS))),
+        // Its place in the layer rides beside the object, as in DTOConverter.
+        insideLayerIndex: element.insideLayerIndex,
         properties: element.id
           ? Promise.resolve(WebHelper.getAsync(`properties/QueryProperties?parentIds=${encodeURIComponent(element.id)}`)).catch(() => [])
           : Promise.resolve([]),
@@ -200,7 +202,7 @@ export const elementCommands = {
           object.top += offset;
         }
         const cmd = CommandFactory.CreateAddCommand(
-          { object: JSON.stringify(object), layer, mapId, properties: newProperties(properties[i]) },
+          { object: JSON.stringify(object), layer, mapId, insideLayerIndex: copy.insideLayerIndex, properties: newProperties(properties[i]) },
           true
         );
         WebSocketManagerInstance.Send(cmd);
