@@ -14,7 +14,7 @@ import DListItemButton from "../../../../uiComponents/base/List/ListItemDetails/
 import DListItemsButtonContainer from "../../../../uiComponents/base/List/DListItemsButtonContainer";
 import DLabel from "../../../../uiComponents/base/Text/DLabel";
 import { safeExternalUrl } from "../../../../../helpers/safeUrl";
-import { alsoInstalls, browseAddons, categoryName, usedCategories, networkSummary, needsLocalServer } from "./addonsBrowse";
+import { alsoInstalls, browseAddons, categoryName, usedCategories, networkSummary, mayNeedLocalServer } from "./addonsBrowse";
 import AddonReadme from "./AddonReadme";
 
 // What the registry offers: search, category filter and sort above a list; the selected
@@ -158,7 +158,7 @@ export const BrowseAddonsTab = ({ repository, categories = [], repositoryError, 
                         {addon.version && <Badge size="sm" variant="outline" colorPalette="gray">v{addon.version}</Badge>}
                         {isUpdate && <Badge size="sm" colorPalette="yellow">Update available</Badge>}
                         {isInstalled && !isUpdate && <Badge size="sm" colorPalette="green">Installed</Badge>}
-                        {needsLocalServer(addon, hostInfo) && <LocalServerBadge />}
+                        {mayNeedLocalServer(addon, hostInfo) && <LocalServerBadge />}
                         {(addon.categories ?? []).map((c) => (
                           <Badge key={c} size="sm" variant="subtle" colorPalette="teal">{categoryName(c, categories)}</Badge>
                         ))}
@@ -204,10 +204,10 @@ const Field = ({ label, children }) => (
 );
 
 // The selected addon: what it is, where it comes from, Install/Update, and its readme.
-// On the browser version, an addon whose code connects outside its site doesn't work there.
+// On the browser version, an addon whose code connects outside may need the local server.
 export const LocalServerBadge = ({ size = "sm" }) => (
-  <Badge size={size} colorPalette="orange" title="The browser version can't connect to other services; this addon works on the local server.">
-    Needs the local server
+  <Badge size={size} colorPalette="orange" title="The browser version reaches only https sites that allow requests from a browser; programs on your computer or network, like Trilium or Obsidian, need the local server.">
+    May need the local server
   </Badge>
 );
 
@@ -218,7 +218,7 @@ export const NetworkField = ({ addon, hostInfo }) => {
     <Field label="Connects to">
       <Flex gap="8px" align="center" flexWrap="wrap">
         <Text opacity={summary.declared ? 1 : 0.6}>{summary.text}</Text>
-        {needsLocalServer(addon, hostInfo) && <LocalServerBadge />}
+        {mayNeedLocalServer(addon, hostInfo) && <LocalServerBadge />}
       </Flex>
     </Field>
   );

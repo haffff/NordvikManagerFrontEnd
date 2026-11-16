@@ -129,18 +129,19 @@ describe('networkSummary', () => {
   });
 });
 
-// The browser version can't connect outside its own site: such an addon needs the local server.
-describe('needsLocalServer', () => {
+// The browser version reaches only https sites that allow browser requests: an addon that
+// connects outside may need the local server (a local service, or a site that refuses).
+describe('mayNeedLocalServer', () => {
   it('only on the browser version, for an addon that declares outside hosts or whose actions go outside', async () => {
-    const { needsLocalServer } = await import('./addonsBrowse');
+    const { mayNeedLocalServer } = await import('./addonsBrowse');
     const browser = { kind: 'browser' };
 
-    expect(needsLocalServer({ network: { userHosts: 'Your server' } }, browser)).toBe(true);
-    expect(needsLocalServer({ network: { hosts: ['https://api.example.com'] } }, browser)).toBe(true);
-    expect(needsLocalServer({ usesOutsideConnections: true }, browser)).toBe(true);
-    expect(needsLocalServer({ network: {} }, browser)).toBe(false);
-    expect(needsLocalServer({}, browser)).toBe(false);
-    expect(needsLocalServer({ network: { userHosts: 'Your server' } }, { kind: 'server' })).toBe(false);
-    expect(needsLocalServer({ network: { userHosts: 'Your server' } }, null)).toBe(false);
+    expect(mayNeedLocalServer({ network: { userHosts: 'Your server' } }, browser)).toBe(true);
+    expect(mayNeedLocalServer({ network: { hosts: ['https://api.example.com'] } }, browser)).toBe(true);
+    expect(mayNeedLocalServer({ usesOutsideConnections: true }, browser)).toBe(true);
+    expect(mayNeedLocalServer({ network: {} }, browser)).toBe(false);
+    expect(mayNeedLocalServer({}, browser)).toBe(false);
+    expect(mayNeedLocalServer({ network: { userHosts: 'Your server' } }, { kind: 'server' })).toBe(false);
+    expect(mayNeedLocalServer({ network: { userHosts: 'Your server' } }, null)).toBe(false);
   });
 });

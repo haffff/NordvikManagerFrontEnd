@@ -110,9 +110,10 @@ export function networkSummary(addon) {
 /**
  * True on the browser version (api/Host/Info kind "browser") for an addon whose code connects
  * outside (declared hosts, an address the user enters, or actions that send requests): the
- * browser version can't, so it needs the local server.
+ * browser version reaches only https sites that allow browser requests, so it may need the
+ * local server (a program on the GM's computer, or a site that refuses).
  */
-export function needsLocalServer(addon, hostInfo) {
+export function mayNeedLocalServer(addon, hostInfo) {
   if (hostInfo?.kind !== 'browser') return false;
   return !!addon?.usesOutsideConnections || networkSummary(addon).outside === true;
 }
