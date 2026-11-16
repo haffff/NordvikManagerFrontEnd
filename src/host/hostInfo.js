@@ -64,6 +64,18 @@ export function loadGameHostInfo(gameId, get = (path) => ActiveWebHelper.getAsyn
   return inGame.get(gameId);
 }
 
+/** The game's backend's host info, once loaded (null until then, or when it can't say). */
+export function useGameHostInfo() {
+  const gameId = ActiveWebHelper.GameId;
+  const [info, setInfo] = useState(null);
+  useEffect(() => {
+    let live = true;
+    loadGameHostInfo(gameId).then((loaded) => { if (live) setInfo(loaded); });
+    return () => { live = false; };
+  }, [gameId]);
+  return info;
+}
+
 /** False when the game's backend makes no thumbnails (images would come at full size). */
 export function useHasThumbnails() {
   const gameId = ActiveWebHelper.GameId;

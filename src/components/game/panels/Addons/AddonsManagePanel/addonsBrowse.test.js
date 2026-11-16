@@ -113,3 +113,34 @@ describe('alsoInstalls', () => {
     expect(alsoInstalls(circle[0], circle, [])).toEqual([{ key: 'q', name: 'Q', update: false }]);
   });
 });
+
+// Where an addon's code connects outside NordvikManager (its info.json "network"), in words.
+describe('networkSummary', () => {
+  it('says where it connects, or that it does not say', async () => {
+    const { networkSummary } = await import('./addonsBrowse');
+
+    expect(networkSummary({})).toEqual({ declared: false, outside: null, text: "Doesn't say what it connects to" });
+    expect(networkSummary({ network: { hosts: [] } })).toEqual({ declared: true, outside: false, text: 'No outside connections' });
+    expect(networkSummary({ network: { hosts: ['https://api.example.com', 'wss://live.example.com:8443'] } }))
+      .toEqual({ declared: true, outside: true, text: 'api.example.com, live.example.com:8443' });
+    expect(networkSummary({ network: { hosts: ['https://api.github.com'], userHosts: 'GitHub file links you enter' } }))
+      .toEqual({ declared: true, outside: true, text: 'api.github.com, and GitHub file links you enter' });
+    expect(networkSummary({ network: { userHosts: "Your Trilium server's address" } }).text).toBe("Your Trilium server's address");
+  });
+});
+
+// The browser version can't connect outside its own site: such an addon needs the local server.
+describe('needsLocalServer', () => {
+  it('only on the browser version, for an addon that declares outside hosts or whose actions go outside', async () => {
+    const { needsLocalServer } = await import('./addonsBrowse');
+    const browser = { kind: 'browser' };
+
+    expect(needsLocalServer({ network: { userHosts: 'Your server' } }, browser)).toBe(true);
+    expect(needsLocalServer({ network: { hosts: ['https://api.example.com'] } }, browser)).toBe(true);
+    expect(needsLocalServer({ usesOutsideConnections: true }, browser)).toBe(true);
+    expect(needsLocalServer({ network: {} }, browser)).toBe(false);
+    expect(needsLocalServer({}, browser)).toBe(false);
+    expect(needsLocalServer({ network: { userHosts: 'Your server' } }, { kind: 'server' })).toBe(false);
+    expect(needsLocalServer({ network: { userHosts: 'Your server' } }, null)).toBe(false);
+  });
+});

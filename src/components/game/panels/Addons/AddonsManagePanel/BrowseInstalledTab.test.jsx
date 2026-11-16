@@ -1,5 +1,5 @@
 import { vi, describe, it, expect } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../../../../setupTests';
 
@@ -117,5 +117,25 @@ describe('BrowseInstalledTab — readme', () => {
     await user.click(screen.getByText('Poll'));
 
     expect(await screen.findByRole('heading', { name: 'How to vote' })).toBeInTheDocument();
+  });
+});
+
+// Where an installed addon connects, whether the browser version can run it, and what it
+// was blocked from reaching while this game runs.
+describe('BrowseInstalledTab — outside connections', () => {
+  it('shows where it connects, the local-server badge on the browser version, and what was blocked', async () => {
+    const { recordBlocked, resetBlocked } = await import('../../../../../helpers/addonNetworkLog');
+    resetBlocked();
+    const user = userEvent.setup();
+    const addons = [{ key: 'trilium', id: 't-1', name: 'Trilium', network: { userHosts: "Your Trilium server's address" }, usesOutsideConnections: true }];
+
+    renderWithProviders(<BrowseInstalledTab addons={addons} loading={false} handleReload={vi.fn()} hostInfo={{ kind: 'browser' }} />);
+    expect(screen.getByText('Needs the local server')).toBeInTheDocument();
+
+    await user.click(screen.getByText('Trilium'));
+    expect(screen.getByText("Your Trilium server's address")).toBeInTheDocument();
+
+    act(() => { recordBlocked({ source: 'action', addon: 'trilium', action: 'Import', origin: 'https://notes.example.com', reason: 'no-outside-connections' }); });
+    expect(await screen.findByText(/Import → notes\.example\.com/)).toBeInTheDocument();
   });
 });

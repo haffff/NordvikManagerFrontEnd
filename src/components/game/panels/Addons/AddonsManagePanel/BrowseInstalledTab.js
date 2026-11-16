@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useEffect, useMemo, useState } from "react";
 import {
   Badge,
   Box,
@@ -25,6 +25,39 @@ import DLabel from "../../../../uiComponents/base/Text/DLabel";
 import { DUIBox } from "../../../../uiComponents/base/List/DUIBox";
 import { safeExternalUrl } from "../../../../../helpers/safeUrl";
 import AddonReadme from "./AddonReadme";
+import { LocalServerBadge, NetworkField } from "./BrowseAddonsTab";
+import { needsLocalServer } from "./addonsBrowse";
+import { getBlocked, subscribeBlocked } from "../../../../../helpers/addonNetworkLog";
+
+const hostOf = (origin) => {
+  try {
+    return new URL(origin).host || origin;
+  } catch {
+    return String(origin ?? "?");
+  }
+};
+
+// What this addon was blocked from reaching while the game runs (helpers/addonNetworkLog.js).
+const BlockedList = ({ addonKey }) => {
+  const [entries, setEntries] = useState(() => getBlocked(addonKey));
+  useEffect(() => {
+    setEntries(getBlocked(addonKey));
+    return subscribeBlocked(() => setEntries(getBlocked(addonKey)));
+  }, [addonKey]);
+  if (!entries.length) return null;
+  return (
+    <Flex gap="8px" align="flex-start">
+      <Text opacity={0.5} minWidth="90px">Blocked</Text>
+      <Flex direction="column" gap="2px">
+        {entries.map((e) => (
+          <Text key={`${e.source}|${e.cardId ?? e.card ?? e.action}|${e.origin}|${e.directive ?? e.reason}`} fontSize="xs">
+            {(e.action ?? e.card ?? "A card")} → {hostOf(e.origin)}{e.count > 1 ? ` (${e.count}×)` : ""}
+          </Text>
+        ))}
+      </Flex>
+    </Flex>
+  );
+};
 
 const asList = (addons) => (Array.isArray(addons) ? addons : []);
 
@@ -40,7 +73,7 @@ const dependencyLabel = (addons, dependency) => {
 
 const quotedNames = (addons) => addons.map((x) => `"${x.name ?? x.key}"`).join(", ");
 
-export const BrowseInstalledTab = ({ handleReload, addons, loading, repository }) => {
+export const BrowseInstalledTab = ({ handleReload, addons, loading, repository, hostInfo = null }) => {
   const [search, setSearch] = useState("");
   const [selectedKey, setSelectedKey] = useState(null);
   const [uninstalling, setUninstalling] = useState(null);
@@ -151,6 +184,7 @@ export const BrowseInstalledTab = ({ handleReload, addons, loading, repository }
                     <Text fontSize="xs" opacity={0.5}>v{addon.version}</Text>
                   )}
                 </Flex>
+                {needsLocalServer(addon, hostInfo) && <LocalServerBadge />}
                 {addon.isEnabled === false && (
                   <Badge size="sm" colorPalette="gray" variant="subtle">Off</Badge>
                 )}
@@ -197,6 +231,8 @@ export const BrowseInstalledTab = ({ handleReload, addons, loading, repository }
                   </a>
                 </Flex>
               )}
+              <NetworkField addon={currentSelected} hostInfo={hostInfo} />
+              {currentSelected.key && <BlockedList addonKey={currentSelected.key} />}
               {currentSelected.dependencies?.length > 0 && (
                 <Flex gap="8px" align="flex-start">
                   <Text opacity={0.5} minWidth="90px">Dependencies</Text>

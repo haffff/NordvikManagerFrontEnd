@@ -84,3 +84,35 @@ export function alsoInstalls(addon, repository, installed) {
   walk(addon, [addon?.key]);
   return result;
 }
+
+const hostLabel = (origin) => {
+  try {
+    return new URL(origin).host || origin;
+  } catch {
+    return String(origin);
+  }
+};
+
+/**
+ * Where an addon's code connects outside NordvikManager (info.json "network"), in words:
+ * { declared, outside (null when it doesn't say), text }.
+ */
+export function networkSummary(addon) {
+  const network = addon?.network;
+  if (!network) return { declared: false, outside: null, text: "Doesn't say what it connects to" };
+  const hosts = (network.hosts ?? []).map(hostLabel);
+  const user = network.userHosts || null;
+  if (!hosts.length && !user) return { declared: true, outside: false, text: 'No outside connections' };
+  const text = hosts.length && user ? `${hosts.join(', ')}, and ${user}` : hosts.length ? hosts.join(', ') : user;
+  return { declared: true, outside: true, text };
+}
+
+/**
+ * True on the browser version (api/Host/Info kind "browser") for an addon whose code connects
+ * outside (declared hosts, an address the user enters, or actions that send requests): the
+ * browser version can't, so it needs the local server.
+ */
+export function needsLocalServer(addon, hostInfo) {
+  if (hostInfo?.kind !== 'browser') return false;
+  return !!addon?.usesOutsideConnections || networkSummary(addon).outside === true;
+}
