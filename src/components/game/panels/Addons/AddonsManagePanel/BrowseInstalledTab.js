@@ -25,7 +25,7 @@ import DLabel from "../../../../uiComponents/base/Text/DLabel";
 import { DUIBox } from "../../../../uiComponents/base/List/DUIBox";
 import { safeExternalUrl } from "../../../../../helpers/safeUrl";
 import AddonReadme from "./AddonReadme";
-import { LocalServerBadge, NetworkField } from "./BrowseAddonsTab";
+import { NetworkField } from "./BrowseAddonsTab";
 import { needsLocalServer } from "./addonsBrowse";
 import { getBlocked, subscribeBlocked } from "../../../../../helpers/addonNetworkLog";
 
@@ -37,7 +37,23 @@ const hostOf = (origin) => {
   }
 };
 
-// What this addon was blocked from reaching while the game runs (helpers/addonNetworkLog.js).
+// What this addon was blocked from reaching while the game runs (helpers/addonNetworkLog.js),
+// one line per host: who tried (or how many), the full list in the tooltip.
+export function blockedByHost(entries) {
+  const hosts = new Map();
+  for (const e of entries) {
+    const host = hostOf(e.origin);
+    const who = e.action ?? e.card ?? "a card";
+    const names = hosts.get(host) ?? new Set();
+    names.add(who);
+    hosts.set(host, names);
+  }
+  return [...hosts].map(([host, names]) => {
+    const list = [...names];
+    return { host, all: list.join(", "), text: `${host} — ${list.length > 2 ? `${list.length} actions` : list.join(", ")}` };
+  });
+}
+
 const BlockedList = ({ addonKey }) => {
   const [entries, setEntries] = useState(() => getBlocked(addonKey));
   useEffect(() => {
@@ -48,11 +64,9 @@ const BlockedList = ({ addonKey }) => {
   return (
     <Flex gap="8px" align="flex-start">
       <Text opacity={0.5} minWidth="90px">Blocked</Text>
-      <Flex direction="column" gap="2px">
-        {entries.map((e) => (
-          <Text key={`${e.source}|${e.cardId ?? e.card ?? e.action}|${e.origin}|${e.directive ?? e.reason}`} fontSize="xs">
-            {(e.action ?? e.card ?? "A card")} → {hostOf(e.origin)}{e.count > 1 ? ` (${e.count}×)` : ""}
-          </Text>
+      <Flex direction="column" gap="2px" minWidth={0}>
+        {blockedByHost(entries).map((b) => (
+          <Text key={b.host} fontSize="xs" title={b.all} truncate>{b.text}</Text>
         ))}
       </Flex>
     </Flex>
@@ -180,11 +194,14 @@ export const BrowseInstalledTab = ({ handleReload, addons, loading, repository, 
               >
                 <Flex direction="column" gap="2px" flex={1}>
                   <DLabel>{addon.name}</DLabel>
-                  {addon.version && (
+                  {needsLocalServer(addon, hostInfo) ? (
+                    <Text fontSize="xs" color="orange.300" truncate title="The browser version can't connect to other services; this addon works on the local server.">
+                      {addon.version ? `v${addon.version} · ` : ""}needs local server
+                    </Text>
+                  ) : addon.version && (
                     <Text fontSize="xs" opacity={0.5}>v{addon.version}</Text>
                   )}
                 </Flex>
-                {needsLocalServer(addon, hostInfo) && <LocalServerBadge />}
                 {addon.isEnabled === false && (
                   <Badge size="sm" colorPalette="gray" variant="subtle">Off</Badge>
                 )}

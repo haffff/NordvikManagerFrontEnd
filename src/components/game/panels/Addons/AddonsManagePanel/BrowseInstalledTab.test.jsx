@@ -121,21 +121,28 @@ describe('BrowseInstalledTab — readme', () => {
 });
 
 // Where an installed addon connects, whether the browser version can run it, and what it
-// was blocked from reaching while this game runs.
+// was blocked from reaching while this game runs: compact, the list is narrow.
 describe('BrowseInstalledTab — outside connections', () => {
-  it('shows where it connects, the local-server badge on the browser version, and what was blocked', async () => {
+  it('marks it in the list, says where it connects, and groups what was blocked by host', async () => {
     const { recordBlocked, resetBlocked } = await import('../../../../../helpers/addonNetworkLog');
     resetBlocked();
     const user = userEvent.setup();
-    const addons = [{ key: 'trilium', id: 't-1', name: 'Trilium', network: { userHosts: "Your Trilium server's address" }, usesOutsideConnections: true }];
+    const addons = [{ key: 'trilium', id: 't-1', name: 'Trilium', version: '0.1.5', network: { userHosts: "Your Trilium server's address" }, usesOutsideConnections: true }];
 
     renderWithProviders(<BrowseInstalledTab addons={addons} loading={false} handleReload={vi.fn()} hostInfo={{ kind: 'browser' }} />);
-    expect(screen.getByText('Needs the local server')).toBeInTheDocument();
+    // In the list: a short note on the version line, not a badge beside the name.
+    expect(screen.getByText('v0.1.5 · needs local server')).toBeInTheDocument();
 
     await user.click(screen.getByText('Trilium'));
     expect(screen.getByText("Your Trilium server's address")).toBeInTheDocument();
 
-    act(() => { recordBlocked({ source: 'action', addon: 'trilium', action: 'Import', origin: 'https://notes.example.com', reason: 'no-outside-connections' }); });
-    expect(await screen.findByText(/Import → notes\.example\.com/)).toBeInTheDocument();
+    const block = (action, origin = 'https://notes.example.com') =>
+      recordBlocked({ source: 'action', addon: 'trilium', action, origin, reason: 'no-outside-connections' });
+    act(() => { block('Import'); });
+    expect(await screen.findByText('notes.example.com — Import')).toBeInTheDocument();
+
+    // Many actions to one host: one line with a count.
+    act(() => { block('Search'); block('Pin'); block('Test'); });
+    expect(await screen.findByText('notes.example.com — 4 actions')).toBeInTheDocument();
   });
 });

@@ -216,11 +216,9 @@ export const NetworkField = ({ addon, hostInfo }) => {
   const summary = networkSummary(addon);
   return (
     <Field label="Connects to">
-      <Flex direction="column" gap="2px">
+      <Flex gap="8px" align="center" flexWrap="wrap">
         <Text opacity={summary.declared ? 1 : 0.6}>{summary.text}</Text>
-        {needsLocalServer(addon, hostInfo) && (
-          <Text fontSize="xs" color="orange.300">The browser version can't make these connections: use the local server for this addon.</Text>
-        )}
+        {needsLocalServer(addon, hostInfo) && <LocalServerBadge />}
       </Flex>
     </Field>
   );
@@ -245,7 +243,6 @@ const AddonDetails = ({ addon, categories, alsoInstalled = [], status, hostInfo,
           <Heading size="md">{addon.name}</Heading>
           {status.isUpdate && <Badge colorPalette="yellow">Update available</Badge>}
           {status.isInstalled && !status.isUpdate && <Badge colorPalette="green">Installed</Badge>}
-          {needsLocalServer(addon, hostInfo) && <LocalServerBadge size="md" />}
         </Flex>
         {addon.version && <Field label="Version">{addon.version}</Field>}
         {addon.author && <Field label="Author">{addon.author}</Field>}
