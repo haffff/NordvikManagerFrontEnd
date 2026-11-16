@@ -72,6 +72,7 @@ const serveTree = (otherwise) => (url, cb) =>
 
 // The dock state: DockableHelper.NewFloating commits it after spawning a panel.
 const mockState = { commit: vi.fn() };
+const renderSelector = () => renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
 
 describe('MapSelector', () => {
   beforeEach(() => {
@@ -90,12 +91,12 @@ describe('MapSelector', () => {
   it('shows a loading spinner while maps are fetching', () => {
     // Hang the fetch so the component stays in loading state
     ActiveWebHelper.getAsync.mockReturnValue(new Promise(() => {}));
-    renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
+    renderSelector();
     expect(screen.getByText(/loading maps/i)).toBeInTheDocument();
   });
 
   it('renders map names after data loads', async () => {
-    renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
+    renderSelector();
     await waitFor(() => {
       expect(screen.getByText('Forest')).toBeInTheDocument();
       expect(screen.getByText('Cave')).toBeInTheDocument();
@@ -104,7 +105,7 @@ describe('MapSelector', () => {
 
   it('shows the empty state when there are no maps', async () => {
     ActiveWebHelper.getAsync.mockResolvedValue([]);
-    renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
+    renderSelector();
     await waitFor(() => {
       expect(screen.getByText(/no items/i)).toBeInTheDocument();
     });
@@ -112,18 +113,10 @@ describe('MapSelector', () => {
 
   // ── active map indicator ───────────────────────────────────────────────────
 
-  it('shows the "Active" badge for the currently selected map', async () => {
+  it('shows the "Active" badge only on the currently selected map', async () => {
     // The component resolves the selected map from ClientMediator
     ClientMediator.sendCommandWaitForRegister.mockResolvedValue('map-1');
-    renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
-    await waitFor(() => {
-      expect(screen.getByText('Active')).toBeInTheDocument();
-    });
-  });
-
-  it('shows "Active" only on the selected map, not on others', async () => {
-    ClientMediator.sendCommandWaitForRegister.mockResolvedValue('map-1');
-    renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
+    renderSelector();
     await waitFor(() => {
       // Only one "Active" label should exist
       expect(screen.getAllByText('Active')).toHaveLength(1);
@@ -134,7 +127,7 @@ describe('MapSelector', () => {
 
   it('sends a map_change command when a map row is clicked', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
+    renderSelector();
     await waitFor(() => expect(screen.getByText('Forest')).toBeInTheDocument());
 
     await user.click(screen.getByText('Forest'));
@@ -149,7 +142,7 @@ describe('MapSelector', () => {
 
   it('sends a map_add command when the add button is clicked', async () => {
     const user = userEvent.setup();
-    renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
+    renderSelector();
     await waitFor(() => expect(screen.getByText('Forest')).toBeInTheDocument());
 
     await user.click(screen.getByRole('button', { name: /add item/i }));
@@ -163,7 +156,7 @@ describe('MapSelector', () => {
   it('removes the selected map from the toolbar', async () => {
     const user = userEvent.setup();
     ClientMediator.sendCommandWaitForRegister.mockResolvedValue('map-1');
-    renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
+    renderSelector();
     await waitFor(() => expect(screen.getByText('Cave')).toBeInTheDocument());
 
     await user.click(screen.getByText('Cave'));
@@ -177,7 +170,7 @@ describe('MapSelector', () => {
   it('offers no Remove for the map on show', async () => {
     const user = userEvent.setup();
     ClientMediator.sendCommandWaitForRegister.mockResolvedValue('map-1');
-    renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
+    renderSelector();
     await waitFor(() => expect(screen.getByText('Active')).toBeInTheDocument());
 
     await user.click(screen.getByText('Forest'));
@@ -189,7 +182,7 @@ describe('MapSelector', () => {
   it('shows no actions to whoever cannot edit the game', async () => {
     const user = userEvent.setup();
     canEditGame = false;
-    renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
+    renderSelector();
     await waitFor(() => expect(screen.getByText('Cave')).toBeInTheDocument());
 
     await user.click(screen.getByText('Cave'));
@@ -201,7 +194,7 @@ describe('MapSelector', () => {
   it('calls getAsync and spawnFloating when the Settings button is clicked', async () => {
     const user = userEvent.setup();
     ActiveWebHelper.get.mockImplementation(serveTree((_url, cb) => cb({ id: 'map-1', name: 'Forest' })));
-    renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
+    renderSelector();
     await waitFor(() => expect(screen.getByText('Forest')).toBeInTheDocument());
 
     await user.click(screen.getByText('Forest'));
@@ -223,7 +216,7 @@ describe('MapSelector', () => {
       { id: 'e-2', targetId: 'map-2', parentId: 'f-dungeons', head: true },
       { id: 'e-1', targetId: 'map-1' },
     ];
-    renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
+    renderSelector();
     await waitFor(() => expect(screen.getByText('Dungeons')).toBeInTheDocument());
     expect(screen.getByText('Forest')).toBeInTheDocument();
 
@@ -240,7 +233,7 @@ describe('MapSelector', () => {
       { id: 'e-2', targetId: 'map-2', parentId: 'f-dungeons', head: true },
       { id: 'e-1', targetId: 'map-1' },
     ];
-    renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
+    renderSelector();
     await waitFor(() => expect(screen.getByText('Dungeons')).toBeInTheDocument());
     expect(screen.queryByText('Empty folder')).not.toBeInTheDocument();
   });
@@ -250,12 +243,12 @@ describe('MapSelector', () => {
       { id: 'f-empty', isFolder: true, name: 'Empty folder', head: true, next: 'e-1' },
       { id: 'e-1', targetId: 'map-1' },
     ];
-    renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
+    renderSelector();
     await waitFor(() => expect(screen.getByText('Empty folder')).toBeInTheDocument());
   });
 
   it('offers folders to whoever can edit the game', async () => {
-    renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
+    renderSelector();
     await waitFor(() => expect(screen.getByText('Forest')).toBeInTheDocument());
     expect(screen.getByRole('button', { name: /add folder/i })).toBeInTheDocument();
   });
@@ -268,7 +261,7 @@ describe('MapSelector', () => {
       { id: 'e-1', targetId: 'map-1', parentId: 'f-all', head: true, next: 'e-2' },
       { id: 'e-2', targetId: 'map-2', parentId: 'f-all' },
     ];
-    renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
+    renderSelector();
     await waitFor(() => expect(screen.getByText('Everything')).toBeInTheDocument());
     await waitFor(() => expect(ClientMediator.sendCommandWaitForRegister).toHaveBeenCalled());
 
@@ -284,7 +277,7 @@ describe('MapSelector', () => {
   // ── settings_map refresh (regression) ─────────────────────────────────────
 
   it('reloads the map list when a settings_map event arrives (name stays current)', async () => {
-    renderWithProviders(<MapSelector battleMapId="bm-1" state={mockState} />);
+    renderSelector();
     await waitFor(() => expect(screen.getByText('Forest')).toBeInTheDocument());
 
     // Server broadcasts a name change — next fetch returns the updated name

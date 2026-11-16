@@ -146,9 +146,13 @@ describe("dragging an area", () => {
     expect(selected()).toHaveLength(2);
   });
 
-  it("with Shift adds what's in it to the selection", () => {
+  // before: the clicks that made the selection the Shift area adds to.
+  it.each([
+    { name: "with Shift adds what's in it to the selection", before: [[20, 20]] },
+    { name: "with Shift adds to a multi-selection, each once", before: [[20, 20], [70, 20, { ctrlKey: true }]] },
+  ])("$name", ({ before }) => {
     const [a, b, c] = [rect(10), rect(60), rect(110)];
-    click(20, 20);
+    before.forEach(([x, y, keys]) => click(x, y, keys));
 
     drag([55, 5], [135, 35], { shiftKey: true });
 
@@ -164,16 +168,6 @@ describe("dragging an area", () => {
     mouse("mouseup", 85, 35);
 
     expect(selected()).toEqual([a, b]);
-  });
-
-  it("with Shift adds to a multi-selection, each once", () => {
-    const [a, b, c] = [rect(10), rect(60), rect(110)];
-    click(20, 20);
-    click(70, 20, { ctrlKey: true });
-
-    drag([55, 5], [135, 35], { shiftKey: true });
-
-    expect(selected()).toEqual([a, b, c]);
   });
 
   it("with Shift doesn't take in what can't be selected", () => {
@@ -200,12 +194,17 @@ describe("dragging an area", () => {
 });
 
 describe("selectAll", () => {
-  it("selects everything that can be selected", () => {
-    const [a, b] = [rect(10), rect(60)];
+  // rects: where the elements are; before: the clicks that made a selection first.
+  it.each([
+    { name: "selects everything that can be selected", rects: [10, 60], before: [] },
+    { name: "works with a selection already there", rects: [10, 60, 110], before: [[20, 20], [70, 20, { ctrlKey: true }]] },
+  ])("$name", ({ rects, before }) => {
+    const all = rects.map((left) => rect(left));
+    before.forEach(([x, y, keys]) => click(x, y, keys));
 
     selectAll(canvas);
 
-    expect(selected()).toEqual([a, b]);
+    expect(selected()).toEqual(all);
   });
 
   it("leaves out what can't be selected or isn't drawn", () => {
@@ -227,16 +226,6 @@ describe("selectAll", () => {
     selectAll(canvas);
 
     expect(selected()).toEqual([a]);
-  });
-
-  it("works with a selection already there", () => {
-    const [a, b, c] = [rect(10), rect(60), rect(110)];
-    click(20, 20);
-    click(70, 20, { ctrlKey: true });
-
-    selectAll(canvas);
-
-    expect(selected()).toEqual([a, b, c]);
   });
 
   it("does nothing on an empty map, or while a tool has selecting switched off", () => {

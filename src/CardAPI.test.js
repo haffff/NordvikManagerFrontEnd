@@ -112,48 +112,31 @@ describe('CardAPI — _handleWebSocketMessage property routing', () => {
     return { api, onMessage: subscribedCallback('CardAPI_') };
   }
 
-  it('updates the cache and notifies subscribers when parentId matches this card', async () => {
+  // owner: the field naming the card the property belongs to. The parentID row guards against
+  // regressing back to the old capital-ID casing bug: a payload that only has parentID (not
+  // parentId) must be treated as not belonging to this card, since the real server contract
+  // is exclusively lowercase "parentId" now.
+  it.each([
+    { name: 'updates the cache and notifies subscribers when parentId matches this card', owner: { parentId: CARD_ID }, delivered: true },
+    { name: 'ignores property_update when parentId belongs to a different card', owner: { parentId: 'some-other-card' }, delivered: false },
+    { name: 'does not match on a stray parentID (capital ID) field', owner: { parentID: CARD_ID }, delivered: false },
+  ])('$name', async ({ owner, delivered }) => {
     const { api, onMessage } = await makeApi();
     const received = vi.fn();
     api.Properties.Subscribe('strength_attribute', received);
 
     onMessage({
       command: 'property_update',
-      data: { id: 'p1', name: 'strength_attribute', value: '18', parentId: CARD_ID },
+      data: { id: 'p1', name: 'strength_attribute', value: '18', ...owner },
     });
 
-    expect(received).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'strength_attribute', value: '18' })
-    );
-  });
-
-  it('ignores property_update when parentId belongs to a different card', async () => {
-    const { api, onMessage } = await makeApi();
-    const received = vi.fn();
-    api.Properties.Subscribe('strength_attribute', received);
-
-    onMessage({
-      command: 'property_update',
-      data: { id: 'p1', name: 'strength_attribute', value: '18', parentId: 'some-other-card' },
-    });
-
-    expect(received).not.toHaveBeenCalled();
-  });
-
-  it('does not match on a stray parentID (capital ID) field', async () => {
-    // Guards against regressing back to the old capital-ID casing bug: a payload that
-    // only has parentID (not parentId) must be treated as not belonging to this card,
-    // since the real server contract is exclusively lowercase "parentId" now.
-    const { api, onMessage } = await makeApi();
-    const received = vi.fn();
-    api.Properties.Subscribe('strength_attribute', received);
-
-    onMessage({
-      command: 'property_update',
-      data: { id: 'p1', name: 'strength_attribute', value: '18', parentID: CARD_ID },
-    });
-
-    expect(received).not.toHaveBeenCalled();
+    if (delivered) {
+      expect(received).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'strength_attribute', value: '18' })
+      );
+    } else {
+      expect(received).not.toHaveBeenCalled();
+    }
   });
 
   it('removes the cached property and notifies with null on property_remove', async () => {

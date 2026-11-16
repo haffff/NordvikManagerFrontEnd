@@ -85,31 +85,19 @@ describe("Ctrl+A", () => {
 });
 
 describe("isValidBindingValue", () => {
-  it("accepts a bare panel.command", () => {
-    expect(isValidBindingValue("battlemap.CopyElements")).toBe(true);
+  // A panel.command, optionally with a --flag=value tail; "" is the tombstone for a removed default.
+  it.each([
+    ["a bare panel.command", "battlemap.CopyElements", true],
+    ["a command with a --flag=value argument tail", "Playlist.PlaySound --resourceId=abc-123", true],
+    ["the empty-string tombstone", "", true],
+    ["a value with no dot", "save", false],
+    ["a dangling dot (end)", "game.", false],
+    ["a dangling dot (start)", ".save", false],
+    ["a value longer than the server limit", "game.Do --value=" + "x".repeat(MAX_BINDING_VALUE_LENGTH), false],
+  ])("%s → %s", (_name, value, valid) => {
+    expect(isValidBindingValue(value)).toBe(valid);
   });
 
-  it("accepts a command with a --flag=value argument tail", () => {
-    expect(isValidBindingValue("Playlist.PlaySound --resourceId=abc-123")).toBe(true);
-  });
-
-  it("accepts the empty-string tombstone", () => {
-    expect(isValidBindingValue("")).toBe(true);
-  });
-
-  it("rejects a value with no dot", () => {
-    expect(isValidBindingValue("save")).toBe(false);
-  });
-
-  it("rejects a dangling dot", () => {
-    expect(isValidBindingValue("game.")).toBe(false);
-    expect(isValidBindingValue(".save")).toBe(false);
-  });
-
-  it("rejects a value longer than the server limit", () => {
-    const tooLong = "game.Do --value=" + "x".repeat(MAX_BINDING_VALUE_LENGTH);
-    expect(isValidBindingValue(tooLong)).toBe(false);
-  });
 });
 
 describe("mergeShortcuts", () => {

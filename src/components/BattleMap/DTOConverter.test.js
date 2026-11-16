@@ -11,16 +11,26 @@ import DTOConverter from './DTOConverter';
 // field (like `layer`), not inside the JSON.stringify(object) blob — neither is
 // in fabric's toObject() whitelist.
 describe('DTOConverter — insideLayerIndex round-trip', () => {
-  it('ConvertToDTO carries insideLayerIndex through to the top-level dto field', () => {
-    const object = { id: 'obj-1', layer: 100, insideLayerIndex: 42, mapId: 'map-1' };
-    const dto = DTOConverter.ConvertToDTO(object);
-    expect(dto.insideLayerIndex).toBe(42);
+  // The two ways out: the full conversion, and the minified one used for drag/scale/rotate.
+  const paths = [
+    {
+      path: 'ConvertToDTO',
+      toDto: (object) => DTOConverter.ConvertToDTO(object),
+      object: () => ({ id: 'obj-1', layer: 100, insideLayerIndex: 42, mapId: 'map-1' }),
+    },
+    {
+      path: 'ConvertToDTOMinified (used for drag/scale/rotate)',
+      toDto: (object) => DTOConverter.ConvertToDTOMinified(object, ['left', 'top']),
+      object: () => ({ id: 'obj-1', layer: 100, insideLayerIndex: 42, left: 10, top: 20 }),
+    },
+  ];
+
+  it.each(paths)('$path carries insideLayerIndex through to the top-level dto field', ({ toDto, object }) => {
+    expect(toDto(object()).insideLayerIndex).toBe(42);
   });
 
-  it('ConvertToDTOMinified (used for drag/scale/rotate) also carries insideLayerIndex through', () => {
-    const object = { id: 'obj-1', layer: 100, insideLayerIndex: 42, left: 10, top: 20 };
-    const dto = DTOConverter.ConvertToDTOMinified(object, ['left', 'top']);
-    expect(dto.insideLayerIndex).toBe(42);
+  it.each(paths)('round-trips insideLayerIndex through $path → ConvertFromDTO unchanged', ({ toDto, object }) => {
+    expect(DTOConverter.ConvertFromDTO(toDto(object())).insideLayerIndex).toBe(42);
   });
 
   it('ConvertFromDTO applies the dto-level insideLayerIndex back onto the object', () => {
@@ -32,20 +42,6 @@ describe('DTOConverter — insideLayerIndex round-trip', () => {
     };
     const object = DTOConverter.ConvertFromDTO(dto);
     expect(object.insideLayerIndex).toBe(42);
-  });
-
-  it('round-trips insideLayerIndex through ConvertToDTO → ConvertFromDTO unchanged', () => {
-    const original = { id: 'obj-1', layer: 100, insideLayerIndex: 42, mapId: 'map-1' };
-    const dto = DTOConverter.ConvertToDTO(original);
-    const restored = DTOConverter.ConvertFromDTO(dto);
-    expect(restored.insideLayerIndex).toBe(42);
-  });
-
-  it('round-trips insideLayerIndex through the minified drag path unchanged', () => {
-    const original = { id: 'obj-1', layer: 100, insideLayerIndex: 42, left: 10, top: 20 };
-    const dto = DTOConverter.ConvertToDTOMinified(original, ['left', 'top']);
-    const restored = DTOConverter.ConvertFromDTO(dto);
-    expect(restored.insideLayerIndex).toBe(42);
   });
 
   it('leaves insideLayerIndex undefined (not dropped/crashed) for an object that never had one', () => {

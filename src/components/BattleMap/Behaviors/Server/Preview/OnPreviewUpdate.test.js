@@ -49,14 +49,21 @@ describe('preview_update with a glow', () => {
     expect(far.shadow).toBe('own');
   });
 
-  it('puts them back when the area stops covering them', async () => {
+  // After a red glow on a token, the next event: glowing says whether it still glows.
+  it.each([
+    { name: 'puts them back when the area stops covering them', next: 'update', data: [{ previewId: 'area', glow: null }], glowing: false },
+    { name: 'an update without a glow leaves the tokens as they are', next: 'update', data: [{ previewId: 'area', left: 7 }], glowing: true },
+    { name: 'the glow goes when the sender\'s preview ends', next: 'end', data: [{ previewId: 'area' }], glowing: false },
+  ])('$name', async ({ next, data, glowing }) => {
     const near = token('near', 120);
     const canvas = makeCanvas([areaPreview(), near]);
-
     await update(canvas, [{ previewId: 'area', glow: { area: circle, color: 'red' } }]);
-    await update(canvas, [{ previewId: 'area', glow: null }]);
 
-    expect(near.shadow).toBe('own');
+    if (next === 'update') await update(canvas, data);
+    else await new OnPreviewEndBehavior().Handle({ battleMapId: 'bm-1', playerId: 'p1', data }, canvas, 'bm-1');
+
+    if (glowing) expect(near.shadow.color).toBe('red');
+    else expect(near.shadow).toBe('own');
   });
 
   it('leaves out the token the area starts from', async () => {
@@ -78,31 +85,11 @@ describe('preview_update with a glow', () => {
     expect(preview.glow).toBeUndefined();
   });
 
-  it('an update without a glow leaves the tokens as they are', async () => {
-    const near = token('near', 120);
-    const canvas = makeCanvas([areaPreview(), near]);
-
-    await update(canvas, [{ previewId: 'area', glow: { area: circle, color: 'red' } }]);
-    await update(canvas, [{ previewId: 'area', left: 7 }]);
-
-    expect(near.shadow.color).toBe('red');
-  });
-
   it('ignores this player\'s own updates', async () => {
     const near = token('near', 120);
     const canvas = makeCanvas([areaPreview(), near]);
 
     await update(canvas, [{ previewId: 'area', glow: { area: circle, color: 'red' } }], 'me');
-
-    expect(near.shadow).toBe('own');
-  });
-
-  it('the glow goes when the sender\'s preview ends', async () => {
-    const near = token('near', 120);
-    const canvas = makeCanvas([areaPreview(), near]);
-    await update(canvas, [{ previewId: 'area', glow: { area: circle, color: 'red' } }]);
-
-    await new OnPreviewEndBehavior().Handle({ battleMapId: 'bm-1', playerId: 'p1', data: [{ previewId: 'area' }] }, canvas, 'bm-1');
 
     expect(near.shadow).toBe('own');
   });

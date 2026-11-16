@@ -87,29 +87,20 @@ describe('MaterialsPanel', () => {
     expect(screen.getByLabelText('Preview hero.png')).toBeTruthy();
   });
 
-  it('an editor who is not the local admin sees all resources but cannot link files', async () => {
-    perms.canEditGame = true;
+  it.each([
+    { name: 'an editor who is not the local admin sees all resources but cannot link files', canEditGame: true, isLocalAdmin: false, allResources: true, link: false },
+    { name: 'the local admin can link files', canEditGame: true, isLocalAdmin: true, allResources: true, link: true },
+    { name: 'a player sees only their own materials and no link button', canEditGame: false, isLocalAdmin: false, allResources: false, link: false },
+  ])('$name', async ({ canEditGame, isLocalAdmin, allResources, link }) => {
+    perms.canEditGame = canEditGame;
+    perms.isLocalAdmin = isLocalAdmin;
 
     renderWithProviders(<MaterialsPanel state={{}} />);
 
-    await waitFor(() => expect(screen.queryByText('All Resources')).not.toBeNull());
-    expect(screen.queryByText(LINK)).toBeNull();
-  });
-
-  it('the local admin can link files', async () => {
-    perms.canEditGame = true;
-    perms.isLocalAdmin = true;
-
-    renderWithProviders(<MaterialsPanel state={{}} />);
-
-    await waitFor(() => expect(screen.queryAllByText(LINK).length).toBeGreaterThan(0));
-  });
-
-  it('a player sees only their own materials and no link button', async () => {
-    renderWithProviders(<MaterialsPanel state={{}} />);
-
-    await waitFor(() => expect(screen.queryByText('All Resources')).toBeNull());
-    expect(screen.queryByText(LINK)).toBeNull();
+    await waitFor(() => {
+      expect(screen.queryByText('All Resources') !== null).toBe(allResources);
+      expect(screen.queryAllByText(LINK).length > 0).toBe(link);
+    });
   });
 });
 
