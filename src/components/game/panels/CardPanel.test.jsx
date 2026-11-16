@@ -27,7 +27,7 @@ vi.mock('../../../helpers/transport', () => ({
   ActiveWebHelper: {
     ApiAddress: 'https://gm.example/api',
     getAsync: vi.fn(async (path) => {
-      if (path.startsWith('materials/getcard')) return { name: server.cardName, mainResource: 'main', additionalResources: ['css1'] };
+      if (path.startsWith('materials/getcard')) return { name: server.cardName, mainResource: 'main', additionalResources: ['css1'], ...server.addon };
       if (path.startsWith('properties/QueryProperties')) {
         return server.appStyles === undefined ? [] : [{ name: 'app_styles', value: server.appStyles }];
       }
@@ -279,6 +279,26 @@ describe('CardPanel, blocked addresses', () => {
     await waitFor(() => expect(getBlocked()).toEqual([
       expect.objectContaining({ source: 'card', cardId: 'card-1', card: 'Note', directive: 'connect-src', origin: 'https://evil.example.com', count: 1 }),
     ]));
+  });
+});
+
+describe("CardPanel, the addon's hosts", () => {
+  afterEach(() => { server.addon = undefined; });
+
+  // The card runs its addon's code: an addon that says where it connects may reach only those
+  // of its hosts that the GM allows (here https://cdn.example.com), and its blocks name it.
+  it("holds the card to its addon's declared hosts, and names the addon when something is blocked", async () => {
+    const { getBlocked, resetBlocked } = await import('../../../helpers/addonNetworkLog');
+    resetBlocked();
+    server.addon = { addonKey: 'notes', addonNetwork: { hosts: ['https://cdn.example.com', 'https://evil.example.com'] } };
+    const card = await openCard();
+
+    const csp = card.hostReady().match(/http-equiv="Content-Security-Policy" content="([^"]*)"/)[1];
+    expect(csp).toContain("connect-src 'self' https://cdn.example.com;");
+    expect(csp).not.toContain('evil.example.com');
+
+    card.fromFrame({ type: 'CARD_BLOCKED', directive: 'connect-src', origin: 'https://evil.example.com' });
+    await waitFor(() => expect(getBlocked()).toEqual([expect.objectContaining({ addon: 'notes', origin: 'https://evil.example.com' })]));
   });
 });
 

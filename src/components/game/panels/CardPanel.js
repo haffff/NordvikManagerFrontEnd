@@ -6,7 +6,7 @@ import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
 import ClientMediator from "../../../ClientMediator";
 import { sandboxBridgeScript, withCardCsp } from "./cardSandbox";
-import { loadSandboxOrigins } from "../../../helpers/sandboxOrigins";
+import { loadSandboxOrigins, cardOrigins } from "../../../helpers/sandboxOrigins";
 import { recordBlocked } from "../../../helpers/addonNetworkLog";
 import CardAPIFactory, { ALLOWED_WS_RECEIVE_PREFIXES } from "../../../CardAPI";
 import DockableHelper from "../../../helpers/DockableHelper";
@@ -53,7 +53,7 @@ const RESOURCE_KEEPALIVE_MS = 60000;
  *   WS_SEND         { command, data }
  *   CLOSE_PANEL     {}
  */
-function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, onClosePanel, cardName) {
+function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, onClosePanel, cardName, addonKey) {
   let ready = false;
   const queue = [];
 
@@ -175,7 +175,7 @@ function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, 
     if (type === "CARD_BLOCKED") {
       const { directive, origin } = event.data;
       if (typeof origin !== "string" || typeof directive !== "string") return;
-      recordBlocked({ source: "card", cardId, card: cardName ?? null, directive, origin });
+      recordBlocked({ source: "card", addon: addonKey ?? null, cardId, card: cardName ?? null, directive, origin });
       return;
     }
 
@@ -553,8 +553,9 @@ export const CardPanel = ({ id, name, data }) => {
         ? iframeHtml.replace("</body>", bodyInjection + "\n</body>")
         : iframeHtml + bodyInjection;
 
-      // Hold the card to the GM's allowed hosts (see withCardCsp).
-      const origins = await loadSandboxOrigins();
+      // Hold the card to the GM's allowed hosts (see withCardCsp), and to its addon's own
+      // hosts when the addon says where it connects (cardOrigins).
+      const origins = cardOrigins(await loadSandboxOrigins(), response);
       if (cancelled) { cardApi.destroy(); return; }
       iframeHtml = withCardCsp(iframeHtml, origins);
 
@@ -587,7 +588,7 @@ export const CardPanel = ({ id, name, data }) => {
         Dockable.coallesceEmptyPanels(globalState.ref.current);
         globalState.commit();
       };
-      const bridge = mountBridge(iframe, iframeHtml, nonce, cardApi, id, additionalArguments, closePanel, name || response?.name);
+      const bridge = mountBridge(iframe, iframeHtml, nonce, cardApi, id, additionalArguments, closePanel, name || response?.name, response?.addonKey);
       // The theme (or its colours) changed while the card is open: restyle it in place.
       const stopStyles = appStyles
         ? onGameCssChange((theme) => bridge.post({ type: "APP_STYLES", base: baseCardCss(), theme }))
