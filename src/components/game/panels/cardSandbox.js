@@ -50,8 +50,11 @@ import { ALLOWED_WS_COMMANDS } from "../../../CardAPI";
 // policy blocked (CardPanel logs it, helpers/addonNetworkLog.js), as the directive and the
 // origin only — never the path or query, which can carry the card's data — each pair once.
 // Inline code, eval and data: aren't outside addresses and aren't reported.
-// It also takes WebRTC away for good: CSP can't stop a peer connection reaching any STUN/TURN
-// server, and with frame-src 'none' there's no fresh window to get it back from.
+// It also takes WebRTC away from the card's window, read only: CSP can't stop a peer
+// connection reaching any STUN/TURN server. Best effort: frame-src 'none' blocks frames that
+// load something, but an about:blank or srcdoc frame loads nothing and has a fresh window of
+// its own, so code set on it can still get one. It keeps honest code off WebRTC; installing an
+// addon still means trusting it.
 export const CARD_GUARD_SCRIPT =
   "(function(){" +
   "['RTCPeerConnection','webkitRTCPeerConnection','RTCDataChannel','RTCSessionDescription','RTCIceCandidate'].forEach(function(n){" +

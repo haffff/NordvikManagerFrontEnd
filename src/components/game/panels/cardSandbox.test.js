@@ -118,9 +118,9 @@ describe('the card guard script', () => {
     expect(parent.postMessage).not.toHaveBeenCalled();
   });
 
-  // CSP can't stop WebRTC: a peer connection reaches any STUN/TURN server. The card's window
-  // has none, for good (frame-src 'none' leaves no fresh window to get one from).
-  it('takes WebRTC away from the card for good', () => {
+  // CSP can't stop WebRTC: a peer connection reaches any STUN/TURN server. The card's own
+  // window has none, read only (best effort: see CARD_GUARD_SCRIPT).
+  it("takes WebRTC away from the card's window", () => {
     const window = { RTCPeerConnection: class {}, webkitRTCPeerConnection: class {}, RTCDataChannel: class {}, RTCSessionDescription: class {}, RTCIceCandidate: class {}, fetch: () => {} };
     runGuard(window);
 
