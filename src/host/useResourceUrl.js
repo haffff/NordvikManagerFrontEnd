@@ -21,7 +21,11 @@ export function useResourceUrl(url) {
       .catch(() => {});
     return () => {
       live = false;
-      if (made) URL.revokeObjectURL(made);
+      // Revoked, it shows nothing: not kept until the next one is in (or for good if that fails).
+      if (made) {
+        URL.revokeObjectURL(made);
+        setBlobUrl(null);
+      }
     };
   }, [host, url]);
   return host ? blobUrl : url;
