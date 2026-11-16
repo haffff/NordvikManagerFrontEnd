@@ -8,7 +8,8 @@ import { isLayerHidden } from "./LayerTargeting";
 // - The same keys + drag from the empty map adds the area to the selection.
 //
 // A press on an element's handle stays a resize, so Shift (keep the proportions) and the
-// snap keys work as before.
+// snap keys work as before. A drag on an element with one of the keys held stays a move (the
+// key may be the move snap key): only a press and release without moving adds or takes out.
 const SELECTION_KEYS = ["ctrlKey", "metaKey", "shiftKey"];
 
 function select(canvas, objects, e) {
@@ -31,6 +32,31 @@ export function installMapSelection(canvas) {
   if (!canvas || canvas.__mapSelection) return;
 
   canvas.selectionKey = SELECTION_KEYS;
+
+  // Fabric adds or takes out at the press, and then doesn't move anything. Here the press
+  // moves as without the key (the element, or the whole selection when pressed inside it),
+  // and the release adds or takes out if nothing moved.
+  const shouldGroup = canvas._shouldGroup;
+  canvas._shouldGroup = function (e, target) {
+    this.__pendingToggle = null;
+    if (!shouldGroup.call(this, e, target)) return false;
+    const active = this._activeObject;
+    // On a handle Fabric groups nothing either (_handleGrouping): its way.
+    if (active.__corner) return true;
+    const toggled = target === active ? this.findTarget(e, true) : target;
+    if (!toggled || !toggled.selectable) return true;
+    this.__pendingToggle = { target: toggled, before: this.getActiveObjects() };
+    return false;
+  };
+  canvas.on("mouse:up", (opt) => {
+    const pending = canvas.__pendingToggle;
+    canvas.__pendingToggle = null;
+    if (!pending || opt.transform?.actionPerformed) return;
+    const { target, before } = pending;
+    const objects = before.includes(target) ? before.filter((obj) => obj !== target) : [...before, target];
+    select(canvas, inStackOrder(canvas, objects), opt.e);
+    canvas.requestRenderAll();
+  });
 
   const shouldClearSelection = canvas._shouldClearSelection;
   canvas._shouldClearSelection = function (e, target) {

@@ -134,6 +134,33 @@ describe("resizing with Ctrl held (the default key for snapping a resize)", () =
   });
 });
 
+// Ctrl, Cmd or Shift can be the move snap key (mapSnapSettings): with one held, a drag on an
+// element still moves, and only a press and release without moving changes the selection.
+describe("dragging an element with a modifier held", () => {
+  it.each([["ctrlKey"], ["shiftKey"]])("%s moves an element that isn't selected, without adding it", (key) => {
+    const [a, b] = [rect(10), rect(60)];
+    click(20, 20);
+
+    drag([70, 20], [120, 40], { [key]: true });
+
+    expect(b.left).toBe(110);
+    expect(selected()).toEqual([b]);
+    expect(a.left).toBe(10);
+  });
+
+  it("moves the whole selection when pressed on one of its elements", () => {
+    const [a, b] = [rect(10), rect(60)];
+    click(20, 20);
+    click(70, 20, { ctrlKey: true });
+
+    drag([70, 20], [120, 40], { ctrlKey: true });
+    canvas.discardActiveObject();
+
+    expect(a.left).toBe(60);
+    expect(b.left).toBe(110);
+  });
+});
+
 describe("dragging an area", () => {
   it("without a modifier selects what's in it, instead of what was selected", () => {
     rect(10);
