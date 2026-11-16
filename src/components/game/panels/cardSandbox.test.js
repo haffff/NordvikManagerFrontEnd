@@ -76,11 +76,11 @@ describe('withCardCsp', () => {
 // policy blocks: the directive and the origin only (never the path or query, which can
 // carry the card's data), each pair once.
 describe('the card guard script', () => {
-  const runGuard = () => {
+  const runGuard = (window = {}) => {
     const listeners = {};
     const document = { addEventListener: (type, fn) => { listeners[type] = fn; } };
     const parent = { postMessage: vi.fn() };
-    new Function('document', 'parent', 'URL', CARD_GUARD_SCRIPT)(document, parent, URL);
+    new Function('window', 'document', 'parent', 'URL', CARD_GUARD_SCRIPT)(window, document, parent, URL);
     const violate = (blockedURI, effectiveDirective = 'connect-src') =>
       listeners.securitypolicyviolation?.({ blockedURI, effectiveDirective });
     return { parent, violate };
@@ -116,5 +116,20 @@ describe('the card guard script', () => {
     violate('');
 
     expect(parent.postMessage).not.toHaveBeenCalled();
+  });
+
+  // CSP can't stop WebRTC: a peer connection reaches any STUN/TURN server. The card's window
+  // has none, for good (frame-src 'none' leaves no fresh window to get one from).
+  it('takes WebRTC away from the card for good', () => {
+    const window = { RTCPeerConnection: class {}, webkitRTCPeerConnection: class {}, RTCDataChannel: class {}, RTCSessionDescription: class {}, RTCIceCandidate: class {}, fetch: () => {} };
+    runGuard(window);
+
+    for (const name of ['RTCPeerConnection', 'webkitRTCPeerConnection', 'RTCDataChannel', 'RTCSessionDescription', 'RTCIceCandidate']) {
+      expect(window[name], name).toBeUndefined();
+      // Putting it back is refused (throws in strict code, ignored otherwise).
+      try { window[name] = class {}; } catch { /* read only */ }
+      expect(window[name], name + ' again').toBeUndefined();
+    }
+    expect(typeof window.fetch).toBe('function');
   });
 });

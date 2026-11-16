@@ -50,8 +50,13 @@ import { ALLOWED_WS_COMMANDS } from "../../../CardAPI";
 // policy blocked (CardPanel logs it, helpers/addonNetworkLog.js), as the directive and the
 // origin only — never the path or query, which can carry the card's data — each pair once.
 // Inline code, eval and data: aren't outside addresses and aren't reported.
+// It also takes WebRTC away for good: CSP can't stop a peer connection reaching any STUN/TURN
+// server, and with frame-src 'none' there's no fresh window to get it back from.
 export const CARD_GUARD_SCRIPT =
-  "(function(){var seen={};document.addEventListener('securitypolicyviolation',function(e){" +
+  "(function(){" +
+  "['RTCPeerConnection','webkitRTCPeerConnection','RTCDataChannel','RTCSessionDescription','RTCIceCandidate'].forEach(function(n){" +
+  "try{Object.defineProperty(window,n,{value:undefined,writable:false,configurable:false});}catch(_){}});" +
+  "var seen={};document.addEventListener('securitypolicyviolation',function(e){" +
   "var origin;try{var u=new URL(e.blockedURI);if(!/^(https?|wss?):$/.test(u.protocol))return;origin=u.origin;}catch(_){return;}" +
   "var directive=e.effectiveDirective||e.violatedDirective||'';var key=directive+' '+origin;" +
   "if(seen[key])return;seen[key]=1;" +
