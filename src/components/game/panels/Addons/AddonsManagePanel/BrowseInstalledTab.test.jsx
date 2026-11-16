@@ -8,7 +8,7 @@ vi.mock('../../../../../helpers/transport', () => ({
 }));
 vi.mock('../../../../ui/toaster', () => ({ toaster: { create: vi.fn() } }));
 
-import { BrowseInstalledTab } from './BrowseInstalledTab';
+import { BrowseInstalledTab, blockedByHost } from './BrowseInstalledTab';
 
 // Regression coverage: selectedKey is set via `addon.key ?? addon.id`, but
 // currentSelected was looked up via `x.key` only — for an addon that has an id
@@ -122,6 +122,19 @@ describe('BrowseInstalledTab — readme', () => {
 
 // Where an installed addon connects, whether the browser version can run it, and what it
 // was blocked from reaching while this game runs: compact, the list is narrow.
+// A count names what tried: actions, cards, or both.
+describe('blockedByHost', () => {
+  const at = (source, name) => ({ source, origin: 'https://h.example.com', ...(source === 'card' ? { card: name } : { action: name }) });
+
+  it.each([
+    [[at('card', 'A'), at('card', 'B'), at('card', 'C')], 'h.example.com — 3 cards'],
+    [[at('action', 'A'), at('action', 'B'), at('card', 'C')], 'h.example.com — 2 actions, 1 card'],
+    [[at('card', 'A'), at('action', 'B')], 'h.example.com — A, B'],
+  ])('%#', (entries, text) => {
+    expect(blockedByHost(entries)[0].text).toBe(text);
+  });
+});
+
 describe('BrowseInstalledTab — outside connections', () => {
   it('marks it in the list, says where it connects, and groups what was blocked by host', async () => {
     const { recordBlocked, resetBlocked } = await import('../../../../../helpers/addonNetworkLog');
