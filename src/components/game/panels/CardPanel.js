@@ -53,7 +53,18 @@ const RESOURCE_KEEPALIVE_MS = 60000;
  *   WS_SEND         { command, data }
  *   CLOSE_PANEL     {}
  */
+// What a CARD_BLOCKED report may say. It comes from the card's frame, so the card's own code
+// can send one: only an origin and a CSP directive are taken (never text of the card's own in
+// front of the GM), and only so many per card.
+const BLOCKED_ORIGIN = /^(https?|wss?):\/\/[a-z0-9.-]+(:\d{1,5})?$/i;
+const BLOCKED_DIRECTIVES = new Set([
+  "connect-src", "img-src", "style-src", "style-src-elem", "style-src-attr", "font-src", "media-src",
+  "frame-src", "child-src", "worker-src", "script-src", "script-src-elem", "default-src", "form-action",
+]);
+const MAX_BLOCKED_PER_CARD = 20;
+
 function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, onClosePanel, cardName, addonKey) {
+  let blockedReports = 0;
   let ready = false;
   const queue = [];
 
@@ -174,7 +185,10 @@ function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, 
     // ── The card's CSP blocked an address (its guard script, cardSandbox.js) ──
     if (type === "CARD_BLOCKED") {
       const { directive, origin } = event.data;
-      if (typeof origin !== "string" || typeof directive !== "string") return;
+      if (typeof origin !== "string" || !BLOCKED_ORIGIN.test(origin)) return;
+      if (typeof directive !== "string" || !BLOCKED_DIRECTIVES.has(directive)) return;
+      if (blockedReports >= MAX_BLOCKED_PER_CARD) return;
+      blockedReports += 1;
       recordBlocked({ source: "card", addon: addonKey ?? null, cardId, card: cardName ?? null, directive, origin });
       return;
     }

@@ -282,6 +282,36 @@ describe('CardPanel, blocked addresses', () => {
   });
 });
 
+// The report comes from the card's frame, so the card's own code can send one too: only a
+// real origin and a CSP directive are taken, and only so many per card, so a card can't put
+// its own text in front of the GM or flood them.
+describe('CardPanel, blocked reports the card could fake', () => {
+  it('takes only an origin and a known directive', async () => {
+    const { getBlocked, resetBlocked } = await import('../../../helpers/addonNetworkLog');
+    resetBlocked();
+    const card = await openCard();
+    card.hostReady();
+
+    for (const origin of ['Click here to log in again: evil.example.com', 'https://evil.example.com/path', 'javascript:alert(1)', 'https://ok.example.com'])
+      card.fromFrame({ type: 'CARD_BLOCKED', directive: 'connect-src', origin });
+    card.fromFrame({ type: 'CARD_BLOCKED', directive: 'Your session expired', origin: 'https://other.example.com' });
+
+    await waitFor(() => expect(getBlocked().map((e) => e.origin)).toEqual(['https://ok.example.com']));
+  });
+
+  it('takes at most 20 from one card', async () => {
+    const { getBlocked, resetBlocked } = await import('../../../helpers/addonNetworkLog');
+    resetBlocked();
+    const card = await openCard();
+    card.hostReady();
+
+    for (let i = 0; i < 50; i++)
+      card.fromFrame({ type: 'CARD_BLOCKED', directive: 'img-src', origin: `https://h${i}.example.com` });
+
+    await waitFor(() => expect(getBlocked()).toHaveLength(20));
+  });
+});
+
 describe("CardPanel, the addon's hosts", () => {
   afterEach(() => { server.addon = undefined; });
 
