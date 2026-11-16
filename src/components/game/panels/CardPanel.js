@@ -304,6 +304,13 @@ function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, 
           }
           }
 
+        } else if (panel === "Host") {
+          if (command === "GetInfo") result = await cardApi.Host.GetInfo();
+          else if (command === "IsBrowser") result = await cardApi.Host.IsBrowser();
+          else if (command === "HasLimitation") result = await cardApi.Host.HasLimitation(data?.id);
+          else if (command === "IsAvailable") result = await cardApi.Host.IsAvailable(data?.path);
+          else throw new Error(`Unknown Host method: ${command}`);
+
         } else if (panel === "Rolls") {
           if (command === "Start") result = await cardApi.Rolls.Start(data?.formulas);
           else if (command === "Finish") result = await cardApi.Rolls.Finish(data);

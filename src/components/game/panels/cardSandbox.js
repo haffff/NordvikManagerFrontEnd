@@ -338,6 +338,15 @@ const BRIDGE_TEMPLATE = `<script>
     // card that should dismiss itself once its job (create X) is done.
     Close: () => parent.postMessage({ type: 'CLOSE_PANEL' }, '*'),
 
+    // Which GM host the game runs on — see src/CardAPI.js Host. GetInfo resolves to
+    // { kind: "server" | "browser", version, protocol, unavailable, limitations } or null.
+    Host: {
+      GetInfo:       ()   => _rpc('Host', 'GetInfo', {}),
+      IsBrowser:     ()   => _rpc('Host', 'IsBrowser', {}),
+      HasLimitation: (id) => _rpc('Host', 'HasLimitation', { id }),
+      IsAvailable:   (path) => _rpc('Host', 'IsAvailable', { path }),
+    },
+
     // Roll now, post later — see src/CardAPI.js Rolls. Start resolves to
     // { rollId, results: [{ key, roll }] }; Finish posts one Html chat message.
     Rolls: {
@@ -364,6 +373,7 @@ const BRIDGE_TEMPLATE = `<script>
   Object.freeze(CardAPI.Properties);
   Object.freeze(CardAPI.Resources);
   Object.freeze(CardAPI.Rolls);
+  Object.freeze(CardAPI.Host);
   Object.freeze(CardAPI.BattleMap);
   Object.freeze(CardAPI.ClientMediator);
   Object.freeze(CardAPI);

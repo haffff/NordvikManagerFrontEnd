@@ -50,6 +50,20 @@ export function hasLimitation(info, id) {
 // hosted in a browser has no thumbnails for anyone). Once per game.
 const inGame = new Map();
 
+/**
+ * The game's backend's host info (null outside a game, or when it can't say). Asked once
+ * per game; a null answer is asked again next time. Cards get it through CardAPI.Host.
+ */
+export function loadGameHostInfo(gameId, get = (path) => ActiveWebHelper.getAsync(path)) {
+  if (!gameId) return Promise.resolve(null);
+  if (!inGame.has(gameId)) {
+    const pendingInfo = Promise.resolve().then(() => get('host/info')).then((info) => info ?? null, () => null);
+    inGame.set(gameId, pendingInfo);
+    pendingInfo.then((info) => { if (!info && inGame.get(gameId) === pendingInfo) inGame.delete(gameId); });
+  }
+  return inGame.get(gameId);
+}
+
 /** False when the game's backend makes no thumbnails (images would come at full size). */
 export function useHasThumbnails() {
   const gameId = ActiveWebHelper.GameId;
@@ -57,10 +71,7 @@ export function useHasThumbnails() {
   useEffect(() => {
     if (!gameId) return undefined;
     let live = true;
-    if (!inGame.has(gameId)) {
-      inGame.set(gameId, Promise.resolve(ActiveWebHelper.getAsync('host/info')).then((info) => info ?? null, () => null));
-    }
-    inGame.get(gameId).then((info) => { if (live) setHas(!hasLimitation(info, 'no-thumbnails')); });
+    loadGameHostInfo(gameId).then((info) => { if (live) setHas(!hasLimitation(info, 'no-thumbnails')); });
     return () => { live = false; };
   }, [gameId]);
   return has;
