@@ -73,6 +73,19 @@ describe('runActionClientCommand', () => {
     expect(console.error).toHaveBeenCalled();
   });
 
+  // An action's mistake (bad data, a command the card doesn't have) is logged, not thrown into
+  // the connection's message handling.
+  it.each([
+    ['bad data', () => runActionClientCommand({ panel: 'addon_card-1_poll', command: 'Reply', data: '{not json' })],
+    ['a missing command', () => {
+      send.mockImplementation(() => { throw new Error('Command not found: Reply for panel: addon_card-1_poll'); });
+      runActionClientCommand({ panel: 'addon_card-1_poll', command: 'Reply' });
+    }],
+  ])('logs %s instead of throwing', (_, run) => {
+    expect(run).not.toThrow();
+    expect(console.error).toHaveBeenCalled();
+  });
+
   it('only lists map commands the app describes', () => {
     const described = {
       battlemap: new BMService().$meta,

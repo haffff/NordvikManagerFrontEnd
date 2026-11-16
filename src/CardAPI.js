@@ -99,7 +99,14 @@ export function runActionClientCommand({ panel, command, data }) {
     console.error(`RunClientCommand: "${panel}.${command}" is not available to actions`);
     return;
   }
-  ClientMediator.sendCommand(panel, command, data ? JSON.parse(data) : undefined);
+  const failed = (err) => console.error(`RunClientCommand: "${panel}.${command}" failed: ${err?.message ?? err}`);
+  try {
+    const answer = ClientMediator.sendCommand(panel, command, data ? JSON.parse(data) : undefined);
+    // An async handler's failure, too.
+    if (typeof answer?.catch === "function") answer.catch(failed);
+  } catch (err) {
+    failed(err);
+  }
 }
 
 // ─── Resource data helpers ────────────────────────────────────────────────────
