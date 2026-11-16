@@ -111,6 +111,8 @@ async function runImport(exported, parsed, { kind, name = null, parentId = null,
     const { id, missing = [], linkedTemplate, linkedCards } = response.body ?? {};
     return { id, missing, ...(linkedTemplate ? { linkedTemplate } : {}), ...(linkedCards ? { linkedCards } : {}) };
   }
+  // Not imported: the server may keep the upload for a refusal (permission), so it's dropped.
+  await Promise.resolve(WebHelper.postAsync("transfer/CancelImport", { uploadId })).catch(() => {});
   throw new Error(response?.body?.error ?? "Couldn't import it.");
 }
 

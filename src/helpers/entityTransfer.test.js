@@ -74,6 +74,15 @@ describe('entityTransfer', () => {
     expect(WebHelper.uploadInPieces).toHaveBeenCalledTimes(1); // sent once
   });
 
+  // The server keeps an upload it refused for permission (theirs to cancel): a failed import drops it.
+  it('a failed import drops the upload', async () => {
+    uploaded();
+    WebHelper.postAsync.mockResolvedValueOnce({ status: 403, body: { error: 'not yours' } }).mockResolvedValue({ status: 204 });
+
+    await expect(importEntity(exported, { kind: 'card' })).rejects.toThrow('not yours');
+    expect(WebHelper.postAsync).toHaveBeenLastCalledWith('transfer/CancelImport', { uploadId: 'up1' });
+  });
+
   it('code from another server the GM declines: the upload is dropped and nothing imported', async () => {
     uploaded();
     WebHelper.postAsync.mockResolvedValueOnce({ status: 409, body: { error: 'from another server', inspection } }).mockResolvedValue({ status: 204 });
