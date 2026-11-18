@@ -3,12 +3,17 @@ import React from "react";
 import { toaster } from "../ui/toaster";
 import WebHelper from "../../helpers/WebHelper";
 import { removeUrlParam } from "../../helpers/UrlParamHelper";
+import { useSignupCheck, HoneypotInput, HONEYPOT_FIELD } from "../../helpers/signupCheck";
 
 export const RegisterForm = ({ OnSuccess, code, requiresCode, onBack }) => {
   const [form, setForm] = React.useState({ inviteCode: code });
   const [error, setError] = React.useState(false);
   const [codeError, setCodeError] = React.useState(false);
   const [errorMessage, setErrorMessage] = React.useState("");
+  const [trap, setTrap] = React.useState("");
+  // Central's signup puzzle, fetched through the GM server and solved while the user types
+  // (helpers/signupCheck.js).
+  const { getAltcha, renew } = useSignupCheck(() => WebHelper.getAsync("user/SignupChallenge"));
 
   const precheckRegistrationCode = async () => {
     if (!code) {
@@ -41,9 +46,23 @@ export const RegisterForm = ({ OnSuccess, code, requiresCode, onBack }) => {
       return;
     }
 
-    let response = await WebHelper.postAsync("user/register", form);
+    let altcha;
+    try {
+      altcha = await getAltcha();
+    } catch (e) {
+      setErrorMessage([e.message]);
+      return;
+    }
+
+    let response = await WebHelper.postAsync("user/register", {
+      ...form,
+      [HONEYPOT_FIELD]: trap,
+      ...(altcha ? { altcha } : {}),
+    });
 
     let data = await response.json();
+
+    if (response.status !== 200) renew(); // the answer counted for this try
 
     if (response.status === 401 || response.status === 400) {
       setErrorMessage(data.message?.split("\r\n"));
@@ -96,6 +115,7 @@ export const RegisterForm = ({ OnSuccess, code, requiresCode, onBack }) => {
           ))}
         </Box>
       )}
+      <HoneypotInput value={trap} onChange={setTrap} />
       <Stack spacing={4} borderColor={error ? "tomato" : "gray.200"}>
         <Heading as="h6" size="xs">
           Login
