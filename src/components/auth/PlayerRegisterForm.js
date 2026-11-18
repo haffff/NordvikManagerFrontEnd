@@ -4,6 +4,7 @@ import CentralWebHelper from '../../helpers/CentralWebHelper';
 import TokenStore from '../../helpers/TokenStore';
 import { toaster } from '../ui/toaster';
 import { removeUrlParam } from '../../helpers/UrlParamHelper';
+import { useSignupCheck, HoneypotInput, HONEYPOT_FIELD } from '../../helpers/signupCheck';
 
 // code       — pre-filled invite code from URL (optional)
 // requiresCode — whether the server demands an invite code
@@ -14,6 +15,9 @@ export const PlayerRegisterForm = ({ code, requiresCode, onBack, OnSuccess }) =>
   const [codeValid, setCodeValid] = React.useState(null); // null | true | false
   const [errors, setErrors] = React.useState([]);
   const [loading, setLoading] = React.useState(false);
+  const [trap, setTrap] = React.useState('');
+  // Central's signup puzzle, solved while the user types (helpers/signupCheck.js).
+  const { getAltcha, renew } = useSignupCheck(() => CentralWebHelper.getAsync('user/signupchallenge'));
 
   // Pre-validate invite code if one was passed via URL
   React.useEffect(() => {
@@ -33,13 +37,26 @@ export const PlayerRegisterForm = ({ code, requiresCode, onBack, OnSuccess }) =>
     }
     setLoading(true);
     try {
+      let altcha;
+      try {
+        altcha = await getAltcha();
+      } catch (e) {
+        setErrors([e.message]);
+        return;
+      }
       // Central keeps the refresh token in an httpOnly cookie (never in page storage).
-      const resp = await CentralWebHelper.postAsync('user/register', { ...form, refreshMode: 'cookie' });
-      if (!resp) { setErrors(['Connection error. Please try again.']); return; }
+      const resp = await CentralWebHelper.postAsync('user/register', {
+        ...form,
+        refreshMode: 'cookie',
+        [HONEYPOT_FIELD]: trap,
+        ...(altcha ? { altcha } : {}),
+      });
+      if (!resp) { renew(); setErrors(['Connection error. Please try again.']); return; }
 
       const data = await resp.json().catch(() => ({}));
 
       if (!resp.ok) {
+        renew(); // the answer counted for this try
         setErrors(
           data.errors
             ? data.errors.map((e) => e.msg)
@@ -82,6 +99,7 @@ export const PlayerRegisterForm = ({ code, requiresCode, onBack, OnSuccess }) =>
       onSubmit={(e) => e.preventDefault()}
       className="nm_authForm"
     >
+      <HoneypotInput value={trap} onChange={setTrap} />
       <Stack spacing={4}>
         {errors.length > 0 && (
           <Box color="red.400" fontSize="sm">
