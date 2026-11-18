@@ -449,7 +449,9 @@ class WebRTCWebHelper {
    * Uploads a Blob in parts of pieceSize (materials/UploadStart, UploadPart, UploadFinish):
    * no huge request, onProgress(fraction) as parts arrive, and a part lost on the way is
    * resumed from what the server has (UploadStatus). meta: { name, mimeType, key, parentFolder,
-   * storageKind } (with a key: made like CreateResource; without: like a Materials upload).
+   * storageKind, forImport } (with a key: made like CreateResource; without: like a Materials
+   * upload; forImport: an export kept for transfer/Import, not finished, answering
+   * { status: 200, body: { uploadId } }).
    * Resolves to the finishing answer { status, body }, the refusal of the start, or null
    * when the server has no such routes (send it in one piece then).
    */
@@ -463,11 +465,12 @@ class WebRTCWebHelper {
     return result;
   }
 
-  async _uploadInPiecesNow(blob, { name, mimeType, key = null, parentFolder = null, storageKind = 0 }, { onProgress } = {}) {
+  async _uploadInPiecesNow(blob, { name, mimeType, key = null, parentFolder = null, storageKind = 0, forImport = false }, { onProgress } = {}) {
     const pieceSize = this.pieceSize ?? PIECE_SIZE;
     const size = blob.size;
     const start = await this._sendRequest('POST', 'materials/uploadstart', {
       Name: name, MimeType: mimeType, Key: key, ParentFolder: parentFolder, StorageKind: storageKind, Size: size,
+      ...(forImport ? { ForImport: true } : {}),
     });
     if (start?.status === 404) return null;
     if (start?.status !== 200 || !start.body?.uploadId) return start;
@@ -494,6 +497,7 @@ class WebRTCWebHelper {
         if (status?.status === 200 && typeof status.body?.received === 'number') offset = status.body.received;
       } catch { /* asked again on the next miss */ }
     }
+    if (forImport) return { status: 200, body: { uploadId } };
     return this._sendRequest('POST', 'materials/uploadfinish', { UploadId: uploadId });
   }
 

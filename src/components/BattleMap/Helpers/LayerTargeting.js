@@ -16,7 +16,7 @@ import { drawLayerOf } from "./layerVisibility";
 
 const DIMMED_ALPHA = 0.45;
 
-const isHidden = (canvas, obj) => !!canvas.layerView?.hidden.has(drawLayerOf(obj));
+export const isLayerHidden = (canvas, obj) => !!canvas.layerView?.hidden.has(drawLayerOf(obj));
 
 // An element whose size or place isn't a finite number gets a 0x0 cache canvas, and
 // Fabric's drawImage then throws in the middle of drawing the map — which leaves
@@ -41,7 +41,7 @@ export function installLayerTargeting(canvas) {
 
   const checkTarget = canvas._checkTarget;
   canvas._checkTarget = function (pointer, obj, globalPointer) {
-    if (obj && obj.layer !== undefined && isHidden(this, obj)) return false;
+    if (obj && obj.layer !== undefined && isLayerHidden(this, obj)) return false;
     if (
       obj &&
       // Picking for an action (RequestTargets): the element may be on any layer.
@@ -77,7 +77,7 @@ export function installLayerTargeting(canvas) {
   const collectObjects = canvas._collectObjects;
   canvas._collectObjects = function (e) {
     const collected = collectObjects.call(this, e) ?? [];
-    return this.layerView ? collected.filter((obj) => !isHidden(this, obj)) : collected;
+    return this.layerView ? collected.filter((obj) => !isLayerHidden(this, obj)) : collected;
   };
 
   canvas.__layerTargeting = true;
@@ -88,7 +88,7 @@ export function setLayerView(canvas, view) {
   if (!canvas) return;
   canvas.layerView = view;
   // A selection can't stay on something that's no longer drawn.
-  if ((canvas.getActiveObjects?.() ?? []).some((obj) => isHidden(canvas, obj))) {
+  if ((canvas.getActiveObjects?.() ?? []).some((obj) => isLayerHidden(canvas, obj))) {
     canvas.discardActiveObject();
   }
   canvas.requestRenderAll?.();

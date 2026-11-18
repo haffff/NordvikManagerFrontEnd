@@ -1,12 +1,19 @@
+import ClientMediator from "../../../ClientMediator";
+
 class BMQueryService {
-  _canvas = undefined;
   _game = undefined;
-  _map = undefined;
-  _battleMapModel = undefined;
   _popupRef = undefined;
   _operationModeRef = undefined;
   _destructionSubscriptions = [];
-  _selectionChangedSubscriptions = [];
+
+  constructor({ canvas, battleMapModel, map } = {}) {
+    this._canvas = canvas;
+    this._battleMapModel = battleMapModel;
+    this._map = map;
+    this.panel = "battlemap";
+    this.contextId = battleMapModel?.id;
+    this.id = "BMQueryService" + battleMapModel?.id;
+  }
 
   Load() {
     // Targeted removal (own handler reference only) — NOT a bare
@@ -26,9 +33,6 @@ class BMQueryService {
     this._canvas.on("selection:updated", this._onSelChanged);
     this._canvas.on("selection:cleared", this._onSelChanged);
 
-    this.panel = "battlemap";
-    this.contextId = this._battleMapModel.id;
-    this.id = "BMQueryService" + this._battleMapModel.id;
   }
 
   // ── $meta ──────────────────────────────────────────────────────────────────
@@ -121,18 +125,34 @@ class BMQueryService {
     };
   }
 
-  SubscribeSelectionChanged({ name, method, isCommand }) {
-    this._selectionChangedSubscriptions.push({ name, method });
+  // Kept on the canvas: every load of a map makes a new service for it, and subscribers
+  // (the overlays) subscribe once for the life of the canvas.
+  get _selectionSubscribers() {
+    return (this._canvas.selectionSubscribers ??= new Map());
+  }
+
+  SubscribeSelectionChanged({ name, method }) {
+    this._selectionSubscribers.set(name, method);
+    return true;
   }
 
   UnSubscribeSelectionChanged({ name }) {
-    this._selectionChangedSubscriptions =
-      this._selectionChangedSubscriptions.filter((x) => x.name !== name);
+    this._selectionSubscribers.delete(name);
+    return true;
   }
 
   _onSelectionChanged(event) {
-    this._selectionChangedSubscriptions.forEach((element) => {
-      element.method(event);
+    this._selectionSubscribers.forEach((method) => method(event));
+    // For cards (CardAPI.BattleMap.SubscribeSelection): only what they may know.
+    ClientMediator.fireEvent("BattleMap:SelectionChanged", {
+      battleMapId: this.contextId,
+      mapId: this._map?.id,
+      selected: this._canvas.getActiveObjects().map((x) => ({
+        id: x.id,
+        name: x.name,
+        isToken: x.tokenData !== undefined,
+        cardId: x.tokenData?.cardId ?? null,
+      })),
     });
   }
 

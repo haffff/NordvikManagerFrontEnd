@@ -18,6 +18,8 @@ import { Button } from "@chakra-ui/react";
 
 import { toaster } from "../../ui/toaster";
 import { AboutDialog } from "../../AboutDialog";
+import { isHostMode } from "../../../helpers/appMode";
+import { HostButton } from "../../../host/HostButton";
 import { getToolbarButtons, subscribeToolbarButtons, useToolbarCommands } from "../../uiComponents/base/DDItems/toolbarButtonsStore";
 
 export const MainToolbar = ({
@@ -116,6 +118,8 @@ export const MainToolbar = ({
       />
       <AddonsMenu state={state} />
       {additionalButtons}
+      {/* The host build: this tab is the game's server (the host drawer), at the right end. */}
+      {isHostMode() && <HostButton marginLeft="auto" marginRight="12px" />}
       <AboutDialog openRef={openAboutRef} />
     </ToolBar>
   );

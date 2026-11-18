@@ -4,8 +4,10 @@ import useUUID from "../../uiComponents/hooks/useUUID";
 import { BasePanel } from "../../uiComponents/base/BasePanel";
 import { ActiveWebHelper as WebHelper } from "../../../helpers/transport";
 import { ActiveTransportManager as WebSocketManagerInstance } from "../../../helpers/transport";
+import ClientMediator from "../../../ClientMediator";
 import { sandboxBridgeScript, withCardCsp } from "./cardSandbox";
-import { loadSandboxOrigins } from "../../../helpers/sandboxOrigins";
+import { loadSandboxOrigins, cardOrigins } from "../../../helpers/sandboxOrigins";
+import { recordBlocked } from "../../../helpers/addonNetworkLog";
 import CardAPIFactory, { ALLOWED_WS_RECEIVE_PREFIXES } from "../../../CardAPI";
 import DockableHelper from "../../../helpers/DockableHelper";
 import { isMobileUi } from "../../../helpers/uiMode";
@@ -37,6 +39,7 @@ const RESOURCE_KEEPALIVE_MS = 60000;
  *   CMD_RESULT      { reqId, result, error? }
  *   PROPERTY_EVENT  { eventType, name, propData, global?, parentId? }
  *   WS_EVENT        { command, data }
+ *   MAP_SELECTION   { selection }
  *   APP_STYLES      { base, theme }
  *   MEDIATOR_CALL   { reqId, name, command, data }   (a call to a panel the card registered)
  *
@@ -50,7 +53,18 @@ const RESOURCE_KEEPALIVE_MS = 60000;
  *   WS_SEND         { command, data }
  *   CLOSE_PANEL     {}
  */
-function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, onClosePanel) {
+// What a CARD_BLOCKED report may say. It comes from the card's frame, so the card's own code
+// can send one: only an origin and a CSP directive are taken (never text of the card's own in
+// front of the GM), and only so many per card.
+const BLOCKED_ORIGIN = /^(https?|wss?):\/\/[a-z0-9.-]+(:\d{1,5})?$/i;
+const BLOCKED_DIRECTIVES = new Set([
+  "connect-src", "img-src", "style-src", "style-src-elem", "style-src-attr", "font-src", "media-src",
+  "frame-src", "child-src", "worker-src", "script-src", "script-src-elem", "default-src", "form-action",
+]);
+const MAX_BLOCKED_PER_CARD = 20;
+
+function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, onClosePanel, cardName, addonKey) {
+  let blockedReports = 0;
   let ready = false;
   const queue = [];
 
@@ -132,6 +146,11 @@ function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, 
     post({ type: "WS_EVENT", command, data });
   });
 
+  // ── parent → iframe: what's selected on the map ─────────────────────────
+  const selectionListener = ClientMediator.on("BattleMap:SelectionChanged", (selection) =>
+    post({ type: "MAP_SELECTION", selection })
+  );
+
   // ── iframe → parent: handle RPC and WS send requests ───────────────────
   const onMessage = async (event) => {
     if (event.source !== iframe.contentWindow) return;
@@ -160,6 +179,17 @@ function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, 
       clearTimeout(call.timer);
       if (event.data.error) call.reject(new Error(event.data.error));
       else call.resolve(event.data.result);
+      return;
+    }
+
+    // ── The card's CSP blocked an address (its guard script, cardSandbox.js) ──
+    if (type === "CARD_BLOCKED") {
+      const { directive, origin } = event.data;
+      if (typeof origin !== "string" || !BLOCKED_ORIGIN.test(origin)) return;
+      if (typeof directive !== "string" || !BLOCKED_DIRECTIVES.has(directive)) return;
+      if (blockedReports >= MAX_BLOCKED_PER_CARD) return;
+      blockedReports += 1;
+      recordBlocked({ source: "card", addon: addonKey ?? null, cardId, card: cardName ?? null, directive, origin });
       return;
     }
 
@@ -297,6 +327,13 @@ function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, 
           }
           }
 
+        } else if (panel === "Host") {
+          if (command === "GetInfo") result = await cardApi.Host.GetInfo();
+          else if (command === "IsBrowser") result = await cardApi.Host.IsBrowser();
+          else if (command === "HasLimitation") result = await cardApi.Host.HasLimitation(data?.id);
+          else if (command === "IsAvailable") result = await cardApi.Host.IsAvailable(data?.path);
+          else throw new Error(`Unknown Host method: ${command}`);
+
         } else if (panel === "Rolls") {
           if (command === "Start") result = await cardApi.Rolls.Start(data?.formulas);
           else if (command === "Finish") result = await cardApi.Rolls.Finish(data);
@@ -371,6 +408,7 @@ function mountBridge(iframe, html, nonce, cardApi, cardId, additionalArguments, 
   const cleanup = () => {
     hostWindow.removeEventListener("message", onMessage);
     WebSocketManagerInstance.Unsubscribe(wsSubKey);
+    ClientMediator.off(selectionListener);
     for (const call of mediatorCalls.values()) {
       clearTimeout(call.timer);
       call.reject(new Error("CardAPI: the card closed"));
@@ -529,8 +567,9 @@ export const CardPanel = ({ id, name, data }) => {
         ? iframeHtml.replace("</body>", bodyInjection + "\n</body>")
         : iframeHtml + bodyInjection;
 
-      // Hold the card to the GM's allowed hosts (see withCardCsp).
-      const origins = await loadSandboxOrigins();
+      // Hold the card to the GM's allowed hosts (see withCardCsp), and to its addon's own
+      // hosts when the addon says where it connects (cardOrigins).
+      const origins = cardOrigins(await loadSandboxOrigins(), response);
       if (cancelled) { cardApi.destroy(); return; }
       iframeHtml = withCardCsp(iframeHtml, origins);
 
@@ -563,7 +602,7 @@ export const CardPanel = ({ id, name, data }) => {
         Dockable.coallesceEmptyPanels(globalState.ref.current);
         globalState.commit();
       };
-      const bridge = mountBridge(iframe, iframeHtml, nonce, cardApi, id, additionalArguments, closePanel);
+      const bridge = mountBridge(iframe, iframeHtml, nonce, cardApi, id, additionalArguments, closePanel, name || response?.name, response?.addonKey);
       // The theme (or its colours) changed while the card is open: restyle it in place.
       const stopStyles = appStyles
         ? onGameCssChange((theme) => bridge.post({ type: "APP_STYLES", base: baseCardCss(), theme }))

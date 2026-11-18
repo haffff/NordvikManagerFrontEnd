@@ -121,37 +121,26 @@ describe("splitMatch", () => {
 });
 
 describe("computeMove", () => {
-  it("inside a folder appends at its end", () => {
-    expect(computeMove(entries, "e-goblin", "deep", "inside")).toEqual({ id: "e-goblin", parentId: "deep", next: null });
+  // [entry moved, target, where] → the move to send, or null when there's nothing to do.
+  it.each([
+    ["inside a folder appends at its end", "e-goblin", "deep", "inside", { id: "e-goblin", parentId: "deep", next: null }],
+    ["before an entry places it right before", "e-goblin", "e-dungeon", "before", { id: "e-goblin", parentId: "maps", next: "e-dungeon" }],
+    ["after an entry places it before that entry's successor", "e-goblin", "e-dungeon", "after", { id: "e-goblin", parentId: "maps", next: "e-forest" }],
+    ["after the last entry places it last", "e-goblin", "deep", "after", { id: "e-goblin", parentId: "maps", next: null }],
+    ["'end' moves to the end of the top level", "e-crypt", null, "end", { id: "e-crypt", parentId: null, next: null }],
+    ["'end' does nothing for what is already last at the top level", "e-goblin", null, "end", null],
+    ["moves a folder up a level", "deep", "maps", "after", { id: "deep", parentId: null, next: "e-goblin" }],
+    ["rejects moving an entry after itself", "e-dungeon", "e-dungeon", "after", null],
+    ["rejects a move to where it already is (after)", "e-forest", "e-dungeon", "after", null],
+    ["rejects a move to where it already is (before)", "e-dungeon", "e-forest", "before", null],
+    ["rejects moving inside something that is not a folder", "e-goblin", "e-forest", "inside", null],
+    ["rejects moving a folder into its own subfolder", "maps", "deep", "inside", null],
+    ["rejects moving a folder into its own subtree", "maps", "e-crypt", "before", null],
+    ["rejects moving inside a folder where it is already last", "e-crypt", "deep", "inside", null],
+  ])("%s", (_name, id, target, where, expected) => {
+    expect(computeMove(entries, id, target, where)).toEqual(expected);
   });
 
-  it("before an entry places it right before", () => {
-    expect(computeMove(entries, "e-goblin", "e-dungeon", "before")).toEqual({ id: "e-goblin", parentId: "maps", next: "e-dungeon" });
-  });
-
-  it("after an entry places it before that entry's successor (or last)", () => {
-    expect(computeMove(entries, "e-goblin", "e-dungeon", "after")).toEqual({ id: "e-goblin", parentId: "maps", next: "e-forest" });
-    expect(computeMove(entries, "e-goblin", "deep", "after")).toEqual({ id: "e-goblin", parentId: "maps", next: null });
-  });
-
-  it("'end' moves to the end of the top level", () => {
-    expect(computeMove(entries, "e-crypt", null, "end")).toEqual({ id: "e-crypt", parentId: null, next: null });
-    expect(computeMove(entries, "e-goblin", null, "end")).toBeNull(); // already last at top level
-  });
-
-  it("moves a folder up a level", () => {
-    expect(computeMove(entries, "deep", "maps", "after")).toEqual({ id: "deep", parentId: null, next: "e-goblin" });
-  });
-
-  it("rejects moves that change nothing or are impossible", () => {
-    expect(computeMove(entries, "e-dungeon", "e-dungeon", "after")).toBeNull();
-    expect(computeMove(entries, "e-forest", "e-dungeon", "after")).toBeNull();   // already after
-    expect(computeMove(entries, "e-dungeon", "e-forest", "before")).toBeNull();  // already before
-    expect(computeMove(entries, "e-goblin", "e-forest", "inside")).toBeNull();   // not a folder
-    expect(computeMove(entries, "maps", "deep", "inside")).toBeNull();           // into its own subfolder
-    expect(computeMove(entries, "maps", "e-crypt", "before")).toBeNull();        // into its own subtree
-    expect(computeMove(entries, "e-crypt", "deep", "inside")).toBeNull();        // already last there
-  });
 });
 
 describe("collectDescendants / entryPath", () => {

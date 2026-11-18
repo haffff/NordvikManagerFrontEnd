@@ -28,6 +28,7 @@
  *   { type: "CMD_RESULT",     reqId, result, error? }
  *   { type: "PROPERTY_EVENT", eventType, name, propData, global?, parentId? }
  *   { type: "WS_EVENT",       command, data }
+ *   { type: "MAP_SELECTION",  selection }
  *   { type: "APP_STYLES",     base, theme }
  *   { type: "MEDIATOR_CALL",  reqId, name, command, data }  (a call to a panel the card registered)
  *
@@ -45,6 +46,25 @@
 import { validOrigins } from "../../../helpers/sandboxOrigins";
 import { ALLOWED_WS_COMMANDS } from "../../../CardAPI";
 
+// Runs right after the card's CSP, before anything of the card's: tells the app what the
+// policy blocked (CardPanel logs it, helpers/addonNetworkLog.js), as the directive and the
+// origin only — never the path or query, which can carry the card's data — each pair once.
+// Inline code, eval and data: aren't outside addresses and aren't reported.
+// It also takes WebRTC away from the card's window, read only: CSP can't stop a peer
+// connection reaching any STUN/TURN server. Best effort: frame-src 'none' blocks frames that
+// load something, but an about:blank or srcdoc frame loads nothing and has a fresh window of
+// its own, so code set on it can still get one. It keeps honest code off WebRTC; installing an
+// addon still means trusting it.
+export const CARD_GUARD_SCRIPT =
+  "(function(){" +
+  "['RTCPeerConnection','webkitRTCPeerConnection','RTCDataChannel','RTCSessionDescription','RTCIceCandidate'].forEach(function(n){" +
+  "try{Object.defineProperty(window,n,{value:undefined,writable:false,configurable:false});}catch(_){}});" +
+  "var seen={};document.addEventListener('securitypolicyviolation',function(e){" +
+  "var origin;try{var u=new URL(e.blockedURI);if(!/^(https?|wss?):$/.test(u.protocol))return;origin=u.origin;}catch(_){return;}" +
+  "var directive=e.effectiveDirective||e.violatedDirective||'';var key=directive+' '+origin;" +
+  "if(seen[key])return;seen[key]=1;" +
+  "parent.postMessage({type:'CARD_BLOCKED',directive:directive,origin:origin},'*');});})();";
+
 // The card's own CSP, from the GM's host list (helpers/sandboxOrigins.js). It goes first
 // in <head>, before the card's styles and scripts, and only tightens the sandbox page's
 // header policy: on a player's client that header comes from the Central Server and
@@ -61,9 +81,14 @@ export function withCardCsp(html, origins) {
   meta.setAttribute(
     "content",
     `connect-src 'self'${allow}; img-src 'self' data: blob:${allow}; ` +
-      `style-src 'self' 'unsafe-inline' data:${allow}; font-src 'self' data:${allow}`
+      `style-src 'self' 'unsafe-inline' data:${allow}; font-src 'self' data:${allow}; ` +
+      // No frames: one would be a fresh window. Framing the sandbox page itself would run
+      // code without this policy, and any frame would get back what the card's window lacks.
+      `frame-src 'none'`
   );
-  doc.head.prepend(meta);
+  const guard = doc.createElement("script");
+  guard.textContent = CARD_GUARD_SCRIPT;
+  doc.head.prepend(meta, guard);
   // Without a doctype the card renders in quirks mode, as it would on its own.
   return (doc.doctype ? "<!DOCTYPE html>" : "") + doc.documentElement.outerHTML;
 }
@@ -99,6 +124,7 @@ const BRIDGE_TEMPLATE = `<script>
   const _propSubscriptions = {};        // name → callback[]
   const _globalPropSubscriptions = {};  // "parentId:name" → callback[]
   const _wsSubscriptions   = [];        // callback[]
+  const _selectionSubscriptions = [];   // callback[]
   const _registrations     = {};        // addon panel name → { command: handler }
 
   // Mutable identity fields — written once on INIT
@@ -333,11 +359,29 @@ const BRIDGE_TEMPLATE = `<script>
     // card that should dismiss itself once its job (create X) is done.
     Close: () => parent.postMessage({ type: 'CLOSE_PANEL' }, '*'),
 
+    // Which GM host the game runs on — see src/CardAPI.js Host. GetInfo resolves to
+    // { kind: "server" | "browser", version, protocol, unavailable, limitations } or null.
+    Host: {
+      GetInfo:       ()   => _rpc('Host', 'GetInfo', {}),
+      IsBrowser:     ()   => _rpc('Host', 'IsBrowser', {}),
+      HasLimitation: (id) => _rpc('Host', 'HasLimitation', { id }),
+      IsAvailable:   (path) => _rpc('Host', 'IsAvailable', { path }),
+    },
+
     // Roll now, post later — see src/CardAPI.js Rolls. Start resolves to
     // { rollId, results: [{ key, roll }] }; Finish posts one Html chat message.
     Rolls: {
       Start:  (formulas) => _rpc('Rolls', 'Start',  { formulas }),
       Finish: (payload)  => _rpc('Rolls', 'Finish', payload),
+    },
+
+    // What the player has selected on a map: { battleMapId, mapId, selected: [...] }.
+    BattleMap: {
+      SubscribeSelection: (cb) => { _selectionSubscriptions.push(cb); },
+      UnsubscribeSelection: (cb) => {
+        const i = _selectionSubscriptions.indexOf(cb);
+        if (i !== -1) _selectionSubscriptions.splice(i, 1);
+      },
     },
 
     SubscribeWebSocket: (cb) => { _wsSubscriptions.push(cb); },
@@ -350,6 +394,8 @@ const BRIDGE_TEMPLATE = `<script>
   Object.freeze(CardAPI.Properties);
   Object.freeze(CardAPI.Resources);
   Object.freeze(CardAPI.Rolls);
+  Object.freeze(CardAPI.Host);
+  Object.freeze(CardAPI.BattleMap);
   Object.freeze(CardAPI.ClientMediator);
   Object.freeze(CardAPI);
 
@@ -435,6 +481,13 @@ const BRIDGE_TEMPLATE = `<script>
         if (pending && pending.progress) pending.progress(msg.fraction);
         break;
       }
+
+      case 'MAP_SELECTION':
+        for (const cb of [..._selectionSubscriptions]) {
+          try { cb(msg.selection); }
+          catch (e) { console.error('CardAPI selection subscriber error', e); }
+        }
+        break;
 
       case 'WS_EVENT':
         for (const cb of _wsSubscriptions) {

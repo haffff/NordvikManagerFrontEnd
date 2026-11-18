@@ -17,10 +17,16 @@ const SAMPLE_ITEMS = vi.hoisted(() => [
   { id: 'r-json', name: 'token_hero.json', mimeType: 'application/json', storage: 0 },
   { id: 'r-png', name: 'hero.png', mimeType: 'image/png', storage: 0 },
 ]);
+// thumbnails: whether the game's backend makes them; bodies: render each item's row body too.
+const view = vi.hoisted(() => ({ thumbnails: true, bodies: false }));
+vi.mock('../../../host/hostInfo', () => ({ useHasThumbnails: () => view.thumbnails }));
+vi.mock('../../uiComponents/base/List/DTreeListItem', () => ({ default: ({ children }) => <div>{children}</div> }));
+vi.mock('../../uiComponents/ResourceImage', () => ({ default: ({ id, thumbnail }) => <img alt="" data-testid={`image-${id}${thumbnail ? '-thumbnail' : ''}`} /> }));
 vi.mock('../../uiComponents/treeList/DTreeList', () => ({
-  default: ({ renderAddRow, onGenerateEditButtons }) => (
+  default: ({ renderAddRow, onGenerateEditButtons, generateItem }) => (
     <>
       {renderAddRow ? renderAddRow(null) : null}
+      {view.bodies && generateItem && SAMPLE_ITEMS.map((item) => <div key={item.id} data-testid={`body-${item.id}`}>{generateItem(item)}</div>)}
       {onGenerateEditButtons && SAMPLE_ITEMS.map((item) => <div key={item.id} data-testid={`item-${item.id}`}>{onGenerateEditButtons(item)}</div>)}
     </>
   ),
@@ -40,7 +46,7 @@ vi.mock('../../../ClientMediator', () => ({
 }));
 vi.mock('../../../helpers/ProgressToastManager', () => ({ default: {} }));
 vi.mock('../../../helpers/transport', () => ({
-  ActiveWebHelper: { getAsync: vi.fn(async () => []), get: vi.fn() },
+  ActiveWebHelper: { getAsync: vi.fn(async () => []), get: vi.fn(), getResourceString: (id) => `/api/Materials/Resource?id=${id}` },
   ActiveTransportManager: { Send: vi.fn(), Subscribe: vi.fn(), Unsubscribe: vi.fn() },
 }));
 
@@ -58,31 +64,43 @@ describe('MaterialsPanel', () => {
   beforeEach(() => {
     perms.canEditGame = false;
     perms.isLocalAdmin = false;
+    view.thumbnails = true;
+    view.bodies = false;
   });
 
-  it('an editor who is not the local admin sees all resources but cannot link files', async () => {
-    perms.canEditGame = true;
+  // A game hosted in a browser has no thumbnails: each preview would be the whole image.
+  it('shows image thumbnails when the backend makes them', async () => {
+    view.bodies = true;
+    renderWithProviders(<MaterialsPanel state={{}} />);
+
+    await waitFor(() => expect(screen.queryByTestId('image-r-png-thumbnail')).not.toBeNull());
+    expect(screen.queryByTestId('material-preview-eye')).toBeNull();
+  });
+
+  it('shows an eye instead of loading the image when the backend makes no thumbnails', async () => {
+    view.bodies = true;
+    view.thumbnails = false;
+    renderWithProviders(<MaterialsPanel state={{}} />);
+
+    await waitFor(() => expect(screen.queryByTestId('material-preview-eye')).not.toBeNull());
+    expect(screen.queryByTestId('image-r-png-thumbnail')).toBeNull();
+    expect(screen.getByLabelText('Preview hero.png')).toBeTruthy();
+  });
+
+  it.each([
+    { name: 'an editor who is not the local admin sees all resources but cannot link files', canEditGame: true, isLocalAdmin: false, allResources: true, link: false },
+    { name: 'the local admin can link files', canEditGame: true, isLocalAdmin: true, allResources: true, link: true },
+    { name: 'a player sees only their own materials and no link button', canEditGame: false, isLocalAdmin: false, allResources: false, link: false },
+  ])('$name', async ({ canEditGame, isLocalAdmin, allResources, link }) => {
+    perms.canEditGame = canEditGame;
+    perms.isLocalAdmin = isLocalAdmin;
 
     renderWithProviders(<MaterialsPanel state={{}} />);
 
-    await waitFor(() => expect(screen.queryByText('All Resources')).not.toBeNull());
-    expect(screen.queryByText(LINK)).toBeNull();
-  });
-
-  it('the local admin can link files', async () => {
-    perms.canEditGame = true;
-    perms.isLocalAdmin = true;
-
-    renderWithProviders(<MaterialsPanel state={{}} />);
-
-    await waitFor(() => expect(screen.queryAllByText(LINK).length).toBeGreaterThan(0));
-  });
-
-  it('a player sees only their own materials and no link button', async () => {
-    renderWithProviders(<MaterialsPanel state={{}} />);
-
-    await waitFor(() => expect(screen.queryByText('All Resources')).toBeNull());
-    expect(screen.queryByText(LINK)).toBeNull();
+    await waitFor(() => {
+      expect(screen.queryByText('All Resources') !== null).toBe(allResources);
+      expect(screen.queryAllByText(LINK).length > 0).toBe(link);
+    });
   });
 });
 

@@ -18,7 +18,7 @@ vi.mock('@hlorenzi/react-dockable', () => ({
   useContentContext: () => ({ setTitle: vi.fn() }),
 }));
 vi.mock('../../../../ClientMediator', () => ({
-  default: { sendCommand: vi.fn((panel, cmd) => (cmd === 'GetGameId' ? 'game-1' : undefined)) },
+  default: { sendCommand: vi.fn((panel, cmd) => (cmd === 'GetGameId' ? 'game-1' : undefined)), on: vi.fn() },
 }));
 
 const views = [

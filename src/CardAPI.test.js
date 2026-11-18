@@ -1,4 +1,4 @@
-import { vi, describe, it, expect, beforeEach } from 'vitest';
+import { vi, describe, it, expect, beforeEach, afterEach } from 'vitest';
 
 // Regression coverage for the parentId casing bug this session — CardAPI.js used to
 // read data.parentID (capital ID) in one round and both CardAPI.js + PropertiesManager
@@ -27,7 +27,78 @@ vi.mock('./helpers/ResourceCache', () => ({
 
 import { ActiveTransportManager, ActiveWebHelper } from './helpers/transport';
 import ResourceCache from './helpers/ResourceCache';
-import CardAPIFactory, { PropertiesManagerInstance } from './CardAPI';
+import CardAPIFactory, { ACTION_CLIENT_COMMANDS, PropertiesManagerInstance, runActionClientCommand } from './CardAPI';
+import ClientMediator from './ClientMediator';
+import BMService from './components/BattleMap/Managers/BMService';
+import TokenManager from './components/BattleMap/Managers/TokenManager';
+
+// What an action's RunClientCommand step may run in a player's browser.
+describe('runActionClientCommand', () => {
+  let send;
+  beforeEach(() => {
+    send = vi.spyOn(ClientMediator, 'sendCommand').mockImplementation(() => undefined);
+    vi.spyOn(console, 'error').mockImplementation(() => {});
+  });
+  afterEach(() => vi.restoreAllMocks());
+
+  it('runs a supported command with its parsed data', () => {
+    runActionClientCommand({ panel: 'BattleMap_token', command: 'CreateToken', data: '{"cardId":"c1"}' });
+
+    expect(send).toHaveBeenCalledWith('BattleMap_token', 'CreateToken', { cardId: 'c1' });
+  });
+
+  it("doesn't mind the panel's casing, as the mediator doesn't", () => {
+    runActionClientCommand({ panel: 'battlemap_token', command: 'CreateToken' });
+
+    expect(send).toHaveBeenCalledWith('battlemap_token', 'CreateToken', undefined);
+  });
+
+  it("runs a card's own panel", () => {
+    runActionClientCommand({ panel: 'addon_card-1_poll', command: 'Reply', data: '{"ok":true}' });
+
+    expect(send).toHaveBeenCalledWith('addon_card-1_poll', 'Reply', { ok: true });
+  });
+
+  it.each([
+    ['BattleMap', 'ApplyMapChange'],
+    ['Game', 'GetGame'],
+    ['Properties', 'Remove'],
+    ['addon_card-1_poll', 'onEvent'],
+    ['constructor', 'prototype'],
+    [undefined, 'CreateToken'],
+  ])('refuses %s.%s', (panel, command) => {
+    runActionClientCommand({ panel, command });
+
+    expect(send).not.toHaveBeenCalled();
+    expect(console.error).toHaveBeenCalled();
+  });
+
+  // An action's mistake (bad data, a command the card doesn't have) is logged, not thrown into
+  // the connection's message handling.
+  it.each([
+    ['bad data', () => runActionClientCommand({ panel: 'addon_card-1_poll', command: 'Reply', data: '{not json' })],
+    ['a missing command', () => {
+      send.mockImplementation(() => { throw new Error('Command not found: Reply for panel: addon_card-1_poll'); });
+      runActionClientCommand({ panel: 'addon_card-1_poll', command: 'Reply' });
+    }],
+  ])('logs %s instead of throwing', (_, run) => {
+    expect(run).not.toThrow();
+    expect(console.error).toHaveBeenCalled();
+  });
+
+  it('only lists map commands the app describes', () => {
+    const described = {
+      battlemap: new BMService().$meta,
+      battlemap_token: new TokenManager().$meta,
+    };
+
+    for (const key of Object.keys(ACTION_CLIENT_COMMANDS)) {
+      const [panel, command] = key.split('.');
+      if (described[panel]) expect(described[panel][command], key).toBeDefined();
+    }
+  });
+});
+
 
 function subscribedCallback(prefix) {
   const call = ActiveTransportManager.Subscribe.mock.calls.find(([key]) => key.startsWith(prefix));
@@ -54,48 +125,31 @@ describe('CardAPI — _handleWebSocketMessage property routing', () => {
     return { api, onMessage: subscribedCallback('CardAPI_') };
   }
 
-  it('updates the cache and notifies subscribers when parentId matches this card', async () => {
+  // owner: the field naming the card the property belongs to. The parentID row guards against
+  // regressing back to the old capital-ID casing bug: a payload that only has parentID (not
+  // parentId) must be treated as not belonging to this card, since the real server contract
+  // is exclusively lowercase "parentId" now.
+  it.each([
+    { name: 'updates the cache and notifies subscribers when parentId matches this card', owner: { parentId: CARD_ID }, delivered: true },
+    { name: 'ignores property_update when parentId belongs to a different card', owner: { parentId: 'some-other-card' }, delivered: false },
+    { name: 'does not match on a stray parentID (capital ID) field', owner: { parentID: CARD_ID }, delivered: false },
+  ])('$name', async ({ owner, delivered }) => {
     const { api, onMessage } = await makeApi();
     const received = vi.fn();
     api.Properties.Subscribe('strength_attribute', received);
 
     onMessage({
       command: 'property_update',
-      data: { id: 'p1', name: 'strength_attribute', value: '18', parentId: CARD_ID },
+      data: { id: 'p1', name: 'strength_attribute', value: '18', ...owner },
     });
 
-    expect(received).toHaveBeenCalledWith(
-      expect.objectContaining({ name: 'strength_attribute', value: '18' })
-    );
-  });
-
-  it('ignores property_update when parentId belongs to a different card', async () => {
-    const { api, onMessage } = await makeApi();
-    const received = vi.fn();
-    api.Properties.Subscribe('strength_attribute', received);
-
-    onMessage({
-      command: 'property_update',
-      data: { id: 'p1', name: 'strength_attribute', value: '18', parentId: 'some-other-card' },
-    });
-
-    expect(received).not.toHaveBeenCalled();
-  });
-
-  it('does not match on a stray parentID (capital ID) field', async () => {
-    // Guards against regressing back to the old capital-ID casing bug: a payload that
-    // only has parentID (not parentId) must be treated as not belonging to this card,
-    // since the real server contract is exclusively lowercase "parentId" now.
-    const { api, onMessage } = await makeApi();
-    const received = vi.fn();
-    api.Properties.Subscribe('strength_attribute', received);
-
-    onMessage({
-      command: 'property_update',
-      data: { id: 'p1', name: 'strength_attribute', value: '18', parentID: CARD_ID },
-    });
-
-    expect(received).not.toHaveBeenCalled();
+    if (delivered) {
+      expect(received).toHaveBeenCalledWith(
+        expect.objectContaining({ name: 'strength_attribute', value: '18' })
+      );
+    } else {
+      expect(received).not.toHaveBeenCalled();
+    }
   });
 
   it('removes the cached property and notifies with null on property_remove', async () => {
@@ -770,5 +824,53 @@ describe('resync after a dropped connection', () => {
     await flush();
 
     expect(ActiveWebHelper.getAsync).not.toHaveBeenCalled();
+  });
+});
+
+// Which GM host the game runs on (GET api/Host/Info over the game's connection): a GM
+// server ("server") or the browser version ("browser"), with what it doesn't provide.
+describe('CardAPI — Host', () => {
+  const browserInfo = {
+    kind: 'browser', version: '0.0.3', protocol: 2,
+    unavailable: [{ path: 'api/Backup', reason: 'Backs up the whole GM server.' }],
+    limitations: [{ id: 'outside-connections', title: 'No connections to other services', detail: '...' }],
+  };
+  beforeEach(() => {
+    ActiveTransportManager.Subscribe.mockClear();
+    ActiveWebHelper.getAsync.mockReset().mockImplementation(async (path) => (path === 'host/info' ? browserInfo : []));
+    ActiveWebHelper.GameId = 'game-host-1';
+  });
+
+  it('GetInfo answers what the game\'s backend says, as it says it', async () => {
+    const api = await CardAPIFactory('card-host');
+
+    await expect(api.Host.GetInfo()).resolves.toEqual(browserInfo);
+  });
+
+  it('IsBrowser, HasLimitation and IsAvailable read that answer', async () => {
+    const api = await CardAPIFactory('card-host');
+
+    await expect(api.Host.IsBrowser()).resolves.toBe(true);
+    await expect(api.Host.HasLimitation('outside-connections')).resolves.toBe(true);
+    await expect(api.Host.HasLimitation('tab-open')).resolves.toBe(false);
+    await expect(api.Host.IsAvailable('api/Backup/Create')).resolves.toBe(false);
+    await expect(api.Host.IsAvailable('api/Materials')).resolves.toBe(true);
+  });
+
+  it('an older GM server that can\'t say: null info, a server with everything', async () => {
+    ActiveWebHelper.GameId = 'game-host-old';
+    ActiveWebHelper.getAsync.mockImplementation(async () => undefined);
+    const api = await CardAPIFactory('card-host');
+
+    await expect(api.Host.GetInfo()).resolves.toBeNull();
+    await expect(api.Host.IsBrowser()).resolves.toBe(false);
+    await expect(api.Host.HasLimitation('outside-connections')).resolves.toBe(false);
+    await expect(api.Host.IsAvailable('api/Backup')).resolves.toBe(true);
+  });
+
+  it('is its own group: not reachable as a ClientMediator panel', async () => {
+    const api = await CardAPIFactory('card-host');
+
+    await expect(api.ClientMediator.sendCommandAsync('Host', 'GetInfo')).rejects.toThrow('use CardAPI.Host instead');
   });
 });

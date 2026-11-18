@@ -33,7 +33,6 @@ describe('BMService.SetLayerEditMode', () => {
     // The old code checked `if (object.origOpacity)` — falsy for 0 — so an
     // object that started fully transparent never got its opacity restored and
     // stayed dimmed/wrong forever once edit mode toggled off.
-    const service = new BMService();
     const obj = makeFakeObject({ layer: 999, origOpacity: 0, opacity: -0.2 });
     const canvas = {
       editMode: 'edit', // anything truthy and != false, so the off-toggle isn't a no-op
@@ -42,7 +41,7 @@ describe('BMService.SetLayerEditMode', () => {
       getObjects: () => [obj],
       requestRenderAll: vi.fn(),
     };
-    service._canvas = canvas;
+    const service = new BMService({ canvas: canvas });
 
     service.SetLayerEditMode({ editMode: false, layer: 999 });
 
@@ -51,7 +50,6 @@ describe('BMService.SetLayerEditMode', () => {
   });
 
   it('restores an object whose original opacity was exactly 0 when its own layer becomes the active edit layer', () => {
-    const service = new BMService();
     const obj = makeFakeObject({ layer: 5, origOpacity: 0, opacity: -0.2, currentlyEdited: undefined });
     const canvas = {
       editMode: undefined,
@@ -60,7 +58,7 @@ describe('BMService.SetLayerEditMode', () => {
       getObjects: () => [obj],
       requestRenderAll: vi.fn(),
     };
-    service._canvas = canvas;
+    const service = new BMService({ canvas: canvas });
 
     service.SetLayerEditMode({ editMode: true, layer: 5 });
 
@@ -69,7 +67,6 @@ describe('BMService.SetLayerEditMode', () => {
   });
 
   it('clamps the dim step so a low-opacity object never goes negative', () => {
-    const service = new BMService();
     const obj = makeFakeObject({ layer: 5, opacity: 0.3 }); // on a different layer than the one being edited
     const canvas = {
       editMode: undefined,
@@ -78,7 +75,7 @@ describe('BMService.SetLayerEditMode', () => {
       getObjects: () => [obj],
       requestRenderAll: vi.fn(),
     };
-    service._canvas = canvas;
+    const service = new BMService({ canvas: canvas });
 
     service.SetLayerEditMode({ editMode: true, layer: 999 });
 
@@ -92,7 +89,6 @@ describe('BMService.SetLayerEditMode', () => {
 // mismatch could leave stale ruler/cone/circle previews on other clients.
 describe('BMService.CleanPreviews', () => {
   it('sends a flat array of {previewId, playerId}, not a nested array', () => {
-    const service = new BMService();
     const previewObj = { previewId: 'p1', playerId: 'player-1' };
     const canvas = {
       getObjects: () => [previewObj],
@@ -100,7 +96,7 @@ describe('BMService.CleanPreviews', () => {
       requestRenderAll: vi.fn(),
       measure: { visibleToOthers: true },
     };
-    service._canvas = canvas;
+    const service = new BMService({ canvas: canvas });
     service.contextId = 'bm-1';
 
     ClientMediator.sendCommand.mockReturnValue({ id: 'player-1' }); // GetCurrentPlayer
@@ -120,13 +116,12 @@ describe('BMService.CleanPreviews', () => {
 // player picks a layer again.
 describe('BMService measure mode', () => {
   const measuringService = (objects) => {
-    const service = new BMService();
-    service._canvas = {
+    const service = new BMService({ canvas: {
       getObjects: () => objects,
       discardActiveObject: vi.fn(),
       requestRenderAll: vi.fn(),
       remove: vi.fn(),
-    };
+    } });
     service._addPopupAndOverlay = vi.fn();
     service._removePopupAndOverlay = vi.fn();
     service.SetDragMode = vi.fn();
@@ -175,9 +170,8 @@ describe('BMService.FocusElement', () => {
   });
 
   it("centres the view on the element and selects it when it's selectable", () => {
-    const service = new BMService();
     const token = { id: 't1', selectable: true, getCenterPoint: () => ({ x: 100, y: 50 }) };
-    service._canvas = canvasWith([token]);
+    const service = new BMService({ canvas: canvasWith([token]) });
 
     service.FocusElement({ elementId: 't1' });
 
@@ -187,8 +181,7 @@ describe('BMService.FocusElement', () => {
   });
 
   it("only centres on an element the player can't select", () => {
-    const service = new BMService();
-    service._canvas = canvasWith([{ id: 't1', selectable: false, getCenterPoint: () => ({ x: 0, y: 0 }) }]);
+    const service = new BMService({ canvas: canvasWith([{ id: 't1', selectable: false, getCenterPoint: () => ({ x: 0, y: 0 }) }]) });
 
     service.FocusElement({ elementId: 't1' });
 
@@ -197,8 +190,7 @@ describe('BMService.FocusElement', () => {
   });
 
   it('reports an element that is not on this map', () => {
-    const service = new BMService();
-    service._canvas = canvasWith([]);
+    const service = new BMService({ canvas: canvasWith([]) });
 
     expect(service.FocusElement({ elementId: 'nope' })).toMatch(/not on this map/);
   });

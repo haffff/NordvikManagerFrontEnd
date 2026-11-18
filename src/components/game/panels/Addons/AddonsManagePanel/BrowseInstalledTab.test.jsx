@@ -1,5 +1,5 @@
 import { vi, describe, it, expect } from 'vitest';
-import { screen } from '@testing-library/react';
+import { screen, act } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { renderWithProviders } from '../../../../../setupTests';
 
@@ -8,7 +8,7 @@ vi.mock('../../../../../helpers/transport', () => ({
 }));
 vi.mock('../../../../ui/toaster', () => ({ toaster: { create: vi.fn() } }));
 
-import { BrowseInstalledTab } from './BrowseInstalledTab';
+import { BrowseInstalledTab, blockedByHost } from './BrowseInstalledTab';
 
 // Regression coverage: selectedKey is set via `addon.key ?? addon.id`, but
 // currentSelected was looked up via `x.key` only — for an addon that has an id
@@ -44,6 +44,66 @@ describe('BrowseInstalledTab — selection fallback for addons without a key', (
   });
 });
 
+describe('BrowseInstalledTab — dependencies', () => {
+  const installed = () => [
+    { id: 'a1', key: 'dnd5e', name: 'Fifth Edition', dependencies: [{ key: 'core', version: '2.0' }, { key: 'dice', version: null }] },
+    { id: 'a2', key: 'core', name: 'Core', dependencies: [] },
+  ];
+
+  it('lists what the addon needs, by installed name, with the lowest version', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<BrowseInstalledTab addons={installed()} loading={false} handleReload={vi.fn()} />);
+
+    await user.click(screen.getByText('Fifth Edition'));
+
+    expect(screen.getByText('Core ≥ 2.0')).toBeInTheDocument();
+    // Not installed: shown by its key.
+    expect(screen.getByText('dice')).toBeInTheDocument();
+  });
+
+  it('names the installed addons that need the selected one', async () => {
+    const user = userEvent.setup();
+    renderWithProviders(<BrowseInstalledTab addons={installed()} loading={false} handleReload={vi.fn()} />);
+
+    await user.click(screen.getByText('Core'));
+
+    expect(screen.getByText('Needed by')).toBeInTheDocument();
+    expect(screen.getAllByText('Fifth Edition').length).toBeGreaterThan(1);
+  });
+
+  it('shows why an uninstall was refused', async () => {
+    const { ActiveWebHelper } = await import('../../../../../helpers/transport');
+    const { toaster } = await import('../../../../ui/toaster');
+    const error = '"Core" is needed by "Fifth Edition". Uninstall those first.';
+    ActiveWebHelper.postAsync.mockResolvedValue({ status: 409, body: { error } });
+    const user = userEvent.setup();
+    renderWithProviders(<BrowseInstalledTab addons={installed()} loading={false} handleReload={vi.fn()} />);
+
+    await user.click(screen.getByText('Core'));
+    await user.click(screen.getByRole('button', { name: /uninstall/i }));
+
+    expect(toaster.create).toHaveBeenCalledWith(expect.objectContaining({ title: 'Uninstall failed', description: error }));
+  });
+
+  it('warns, naming them, when turning off an addon others need', async () => {
+    const { ActiveWebHelper } = await import('../../../../../helpers/transport');
+    const { toaster } = await import('../../../../ui/toaster');
+    ActiveWebHelper.postAsync.mockResolvedValue({ status: 200 });
+    toaster.create.mockClear();
+    const user = userEvent.setup();
+    renderWithProviders(<BrowseInstalledTab addons={installed()} loading={false} handleReload={vi.fn()} />);
+
+    await user.click(screen.getByText('Core'));
+    await user.click(screen.getByText('Enabled'));
+
+    expect(ActiveWebHelper.postAsync).toHaveBeenCalledWith('addon/setEnabled', { addonId: 'a2', enabled: false });
+    expect(toaster.create).toHaveBeenCalledWith(expect.objectContaining({
+      type: 'warning',
+      description: expect.stringContaining('Fifth Edition'),
+    }));
+  });
+});
+
 describe('BrowseInstalledTab — readme', () => {
   it('shows the readme of the registry entry with the same key', async () => {
     const { ActiveWebHelper } = await import('../../../../../helpers/transport');
@@ -57,5 +117,45 @@ describe('BrowseInstalledTab — readme', () => {
     await user.click(screen.getByText('Poll'));
 
     expect(await screen.findByRole('heading', { name: 'How to vote' })).toBeInTheDocument();
+  });
+});
+
+// Where an installed addon connects, whether the browser version can run it, and what it
+// was blocked from reaching while this game runs: compact, the list is narrow.
+// A count names what tried: actions, cards, or both.
+describe('blockedByHost', () => {
+  const at = (source, name) => ({ source, origin: 'https://h.example.com', ...(source === 'card' ? { card: name } : { action: name }) });
+
+  it.each([
+    [[at('card', 'A'), at('card', 'B'), at('card', 'C')], 'h.example.com — 3 cards'],
+    [[at('action', 'A'), at('action', 'B'), at('card', 'C')], 'h.example.com — 2 actions, 1 card'],
+    [[at('card', 'A'), at('action', 'B')], 'h.example.com — A, B'],
+  ])('%#', (entries, text) => {
+    expect(blockedByHost(entries)[0].text).toBe(text);
+  });
+});
+
+describe('BrowseInstalledTab — outside connections', () => {
+  it('marks it in the list, says where it connects, and groups what was blocked by host', async () => {
+    const { recordBlocked, resetBlocked } = await import('../../../../../helpers/addonNetworkLog');
+    resetBlocked();
+    const user = userEvent.setup();
+    const addons = [{ key: 'trilium', id: 't-1', name: 'Trilium', version: '0.1.5', network: { userHosts: "Your Trilium server's address" }, usesOutsideConnections: true }];
+
+    renderWithProviders(<BrowseInstalledTab addons={addons} loading={false} handleReload={vi.fn()} hostInfo={{ kind: 'browser' }} />);
+    // In the list: a short note on the version line, not a badge beside the name.
+    expect(screen.getByText('v0.1.5 · may need local server')).toBeInTheDocument();
+
+    await user.click(screen.getByText('Trilium'));
+    expect(screen.getByText("Your Trilium server's address")).toBeInTheDocument();
+
+    const block = (action, origin = 'https://notes.example.com') =>
+      recordBlocked({ source: 'action', addon: 'trilium', action, origin, reason: 'browser-refused' });
+    act(() => { block('Import'); });
+    expect(await screen.findByText('notes.example.com — Import')).toBeInTheDocument();
+
+    // Many actions to one host: one line with a count.
+    act(() => { block('Search'); block('Pin'); block('Test'); });
+    expect(await screen.findByText('notes.example.com — 4 actions')).toBeInTheDocument();
   });
 });

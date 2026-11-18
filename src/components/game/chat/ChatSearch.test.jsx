@@ -19,28 +19,16 @@ const renderSearch = (props = {}) => {
 const summary = () => screen.getByTestId('chat-search-summary').textContent;
 
 describe('ChatSearch', () => {
-  it('filters by text as you type', () => {
-    const { setFilter } = renderSearch();
+  it.each([
+    { name: 'filters by text as you type', props: {}, field: 'Contains', value: 'goblin', handler: 'setFilter', expected: 'goblin' },
+    { name: 'clears the text filter when the box is emptied', props: { filter: 'goblin' }, field: 'Contains', value: '', handler: 'setFilter', expected: undefined },
+    { name: 'filters by sender', props: {}, field: 'From', value: 'p2', handler: 'setFrom', expected: 'p2' },
+  ])('$name', ({ props, field, value, handler, expected }) => {
+    const handlers = renderSearch(props);
 
-    fireEvent.change(screen.getByLabelText('Contains'), { target: { value: 'goblin' } });
+    fireEvent.change(screen.getByLabelText(field), { target: { value } });
 
-    expect(setFilter).toHaveBeenCalledWith('goblin');
-  });
-
-  it('clears the text filter when the box is emptied', () => {
-    const { setFilter } = renderSearch({ filter: 'goblin' });
-
-    fireEvent.change(screen.getByLabelText('Contains'), { target: { value: '' } });
-
-    expect(setFilter).toHaveBeenCalledWith(undefined);
-  });
-
-  it('filters by sender', () => {
-    const { setFrom } = renderSearch();
-
-    fireEvent.change(screen.getByLabelText('From'), { target: { value: 'p2' } });
-
-    expect(setFrom).toHaveBeenCalledWith('p2');
+    expect(handlers[handler]).toHaveBeenCalledWith(expected);
   });
 
   it('describes what is shown', () => {

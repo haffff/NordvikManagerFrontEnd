@@ -20,32 +20,84 @@ import KeyboardEventsManager, {
 
 beforeEach(() => vi.clearAllMocks());
 
+describe("Ctrl+A", () => {
+  const key = (target, extra = {}) => ({
+    key: "a", ctrlKey: true, shiftKey: false, altKey: false, target, preventDefault: vi.fn(), ...extra,
+  });
+  const inside = (className) => {
+    const parent = document.createElement("div");
+    parent.className = className;
+    const child = document.createElement("div");
+    parent.appendChild(child);
+    return child;
+  };
+  const fired = () => ClientMediator.sendCommandAsync.mock.calls.filter(([, command]) => command === "SelectAll");
+  const settle = () => new Promise((resolve) => setTimeout(resolve));
+
+  beforeEach(() => ClientMediator.sendCommandWaitForRegisterAsync.mockResolvedValue("map-1"));
+
+  it("selects all on the map at key down, and not again at key up", async () => {
+    const mgr = new KeyboardEventsManager();
+    const down = key(inside("nm_battleMap"));
+
+    mgr.HandleKeyboardEventDown(down);
+    mgr.HandleKeyboardEventUp(key(inside("nm_battleMap")));
+    await settle();
+
+    expect(down.preventDefault).toHaveBeenCalled();
+    expect(fired()).toEqual([["battlemap", "SelectAll", { contextId: "map-1" }]]);
+  });
+
+  it("selects once while the key is held down", async () => {
+    const mgr = new KeyboardEventsManager();
+
+    mgr.HandleKeyboardEventDown(key(inside("nm_battleMap")));
+    mgr.HandleKeyboardEventDown(key(inside("nm_battleMap"), { repeat: true }));
+    await settle();
+
+    expect(fired()).toHaveLength(1);
+  });
+
+  it("stays the browser's in any other panel", async () => {
+    const mgr = new KeyboardEventsManager();
+    const down = key(inside("nm_chat"));
+
+    mgr.HandleKeyboardEventDown(down);
+    mgr.HandleKeyboardEventUp(key(inside("nm_chat")));
+    await settle();
+
+    expect(down.preventDefault).not.toHaveBeenCalled();
+    expect(fired()).toEqual([]);
+  });
+
+  it("stays the browser's in a text box on the map", async () => {
+    const mgr = new KeyboardEventsManager();
+    const box = document.createElement("input");
+    inside("nm_battleMap").appendChild(box);
+    const down = key(box);
+
+    mgr.HandleKeyboardEventDown(down);
+    await settle();
+
+    expect(down.preventDefault).not.toHaveBeenCalled();
+    expect(fired()).toEqual([]);
+  });
+});
+
 describe("isValidBindingValue", () => {
-  it("accepts a bare panel.command", () => {
-    expect(isValidBindingValue("battlemap.CopyElements")).toBe(true);
+  // A panel.command, optionally with a --flag=value tail; "" is the tombstone for a removed default.
+  it.each([
+    ["a bare panel.command", "battlemap.CopyElements", true],
+    ["a command with a --flag=value argument tail", "Playlist.PlaySound --resourceId=abc-123", true],
+    ["the empty-string tombstone", "", true],
+    ["a value with no dot", "save", false],
+    ["a dangling dot (end)", "game.", false],
+    ["a dangling dot (start)", ".save", false],
+    ["a value longer than the server limit", "game.Do --value=" + "x".repeat(MAX_BINDING_VALUE_LENGTH), false],
+  ])("%s → %s", (_name, value, valid) => {
+    expect(isValidBindingValue(value)).toBe(valid);
   });
 
-  it("accepts a command with a --flag=value argument tail", () => {
-    expect(isValidBindingValue("Playlist.PlaySound --resourceId=abc-123")).toBe(true);
-  });
-
-  it("accepts the empty-string tombstone", () => {
-    expect(isValidBindingValue("")).toBe(true);
-  });
-
-  it("rejects a value with no dot", () => {
-    expect(isValidBindingValue("save")).toBe(false);
-  });
-
-  it("rejects a dangling dot", () => {
-    expect(isValidBindingValue("game.")).toBe(false);
-    expect(isValidBindingValue(".save")).toBe(false);
-  });
-
-  it("rejects a value longer than the server limit", () => {
-    const tooLong = "game.Do --value=" + "x".repeat(MAX_BINDING_VALUE_LENGTH);
-    expect(isValidBindingValue(tooLong)).toBe(false);
-  });
 });
 
 describe("mergeShortcuts", () => {

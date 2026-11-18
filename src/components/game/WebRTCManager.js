@@ -15,7 +15,7 @@ import { debugLog } from '../../helpers/debugLog';
 import { demoRecorder } from '../../helpers/demoRecorder';
 import CentralWebHelper, { refreshAccessToken } from '../../helpers/CentralWebHelper';
 import { expiresWithin } from '../../helpers/jwtExpiry';
-import { isPlayerMode } from '../../helpers/appMode';
+import { isHostMode, isPlayerMode } from '../../helpers/appMode';
 import { refreshCentralTokenViaBackend } from '../../helpers/gmCentralToken';
 import {
   PROTOCOL_VERSION,
@@ -251,6 +251,14 @@ class WebRTCManager {
       const protocol = Number.isInteger(gmProtocol) && gmProtocol > 0 ? gmProtocol : null;
       if (gmProtocol != null && protocol == null) this._log('warn', `Ignoring invalid GM protocol: ${JSON.stringify(gmProtocol)}`);
       if (protocol != null && protocol !== PROTOCOL_VERSION) {
+        // The host build's backend is this tab: leaving the page would stop the game, and the two
+        // are built together, so they never differ unless something is badly wrong.
+        if (isHostMode()) {
+          const err = new Error(`This tab's game host speaks protocol ${protocol}, its interface ${PROTOCOL_VERSION}. Reload the page.`);
+          err.isVersionMismatch = true;
+          this._handleError(err);
+          return;
+        }
         this._switchToProtocolClient(protocol);
         return;
       }

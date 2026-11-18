@@ -5,7 +5,8 @@ import CommandFactory from '../Factories/CommandFactory';
 import { ActiveTransportManager as WebSocketManagerInstance } from '../../../helpers/transport';
 import ClientMediator from '../../../ClientMediator';
 import { takeDroppedExports } from '../../../helpers/droppedExports';
-import { askImportDropped, reportImported, reportImportFailed } from '../../uiComponents/ImportDropPrompt';
+import { askImportDropped, reportImportFailed } from '../../uiComponents/ImportDropPrompt';
+import { askImportCode } from '../../uiComponents/ImportCodePrompt';
 
 // Factory that returns a drop handler bound to provided refs/instances
 export default function createHandleDrop({ editor, mapRef, battleMapObjectRef, battleMapModel }) {
@@ -70,10 +71,9 @@ export default function createHandleDrop({ editor, mapRef, battleMapObjectRef, b
         .filter((item) => item.kind === 'file')
         .map((item) => item.getAsFile())
         .filter(Boolean);
-      // An Export JSON file is offered for import: a map then shows here, a card's token
-      // lands where it was dropped.
+      // An Export JSON file is offered for import (its toast says how it went): a map then
+      // shows here, a card's token lands where it was dropped.
       const onImported = (result, exported) => {
-        reportImported(result, exported);
         const battleMapId = battleMapObjectRef?.current?.id;
         if (exported.kind === 'map') {
           WebSocketManagerInstance.Send(CommandFactory.CreateChangeMapCommand(result.id, battleMapId));
@@ -82,7 +82,7 @@ export default function createHandleDrop({ editor, mapRef, battleMapObjectRef, b
         }
       };
       // Each upload lands as an image at the drop point, offset a little per file.
-      takeDroppedExports(files, { ask: askImportDropped, onImported, onError: reportImportFailed }).then((rest) => uploadMaterials(rest, {
+      takeDroppedExports(files, { ask: askImportDropped, onImported, onError: reportImportFailed, confirmCode: askImportCode }).then((rest) => uploadMaterials(rest, {
         onUploaded: (result, file) => {
           const i = rest.indexOf(file);
           fabric.Image.fromURL(WebHelper.getResourceString(result.id), (img) => {

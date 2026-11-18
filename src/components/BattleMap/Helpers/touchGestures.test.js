@@ -161,6 +161,29 @@ describe('createTouchGestures', () => {
   });
 });
 
+describe('installTouchGestures', () => {
+  it("keeps a pinch's touch moves from the page in a popped-out window too", async () => {
+    const { installTouchGestures } = await import('./touchGestures');
+    const frame = document.createElement('iframe');
+    document.body.appendChild(frame);
+    const popout = frame.contentWindow;
+    const el = popout.document.createElement('canvas');
+    popout.document.body.appendChild(el);
+    const undo = installTouchGestures({ ...fakeCanvas(), upperCanvasEl: el });
+    const finger = (id, x) =>
+      el.dispatchEvent(Object.assign(new Event('pointerdown'), { pointerType: 'touch', pointerId: id, clientX: x, clientY: 0 }));
+
+    finger(1, 10);
+    finger(2, 50);
+    const move = new Event('touchmove', { bubbles: true, cancelable: true });
+    popout.document.body.dispatchEvent(move);
+
+    expect(move.defaultPrevented).toBe(true);
+    undo();
+    frame.remove();
+  });
+});
+
 describe('openContextMenuAt', () => {
   it("sends a right click at the point to the map's menu trigger", async () => {
     const { openContextMenuAt } = await import('./touchGestures');

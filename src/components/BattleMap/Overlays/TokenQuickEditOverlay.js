@@ -1,5 +1,6 @@
 import * as React from "react";
 import * as ReactDOM from "react-dom";
+import { useEnvironmentContext } from "@chakra-ui/react";
 import ClientMediator from "../../../ClientMediator";
 import { useClientMediator } from "../../uiComponents/hooks/useClientMediator";
 import UtilityHelper from "../../../helpers/UtilityHelper";
@@ -33,6 +34,8 @@ export const TokenQuickEditOverlay = ({ battleMapId, canvas }) => {
   const [pickingImage, setPickingImage] = React.useState(null);
   const panelRef = React.useRef(null);
   const gearRef = React.useRef(null);
+  // The document of the window this map is in, which may be a popped-out one.
+  const { getDocument } = useEnvironmentContext();
 
   const editableProps = token?.tokenData?.editableProps ?? [];
 
@@ -199,13 +202,14 @@ export const TokenQuickEditOverlay = ({ battleMapId, canvas }) => {
       if (panelRef.current?.contains(e.target) || gearRef.current?.contains(e.target)) return;
       setOpen(false);
     };
-    document.addEventListener("keydown", onKey);
-    document.addEventListener("mousedown", onDown);
+    const doc = getDocument();
+    doc.addEventListener("keydown", onKey);
+    doc.addEventListener("mousedown", onDown);
     return () => {
-      document.removeEventListener("keydown", onKey);
-      document.removeEventListener("mousedown", onDown);
+      doc.removeEventListener("keydown", onKey);
+      doc.removeEventListener("mousedown", onDown);
     };
-  }, [open]);
+  }, [open, getDocument]);
 
   const commit = (field, value) => {
     writeTokenProperty({

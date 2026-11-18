@@ -30,16 +30,15 @@ const fire = (event) => act(() => {
 describe('MapsSyncer', () => {
   beforeEach(() => { handlers = {}; });
 
-  it('a rename (settings_map) shows in the list', () => {
+  // settings_map on Forest (grid 50); the list shows "name|grid".
+  it.each([
+    ['a rename shows in the list', 'Ok', { id: 'a', name: 'Dark Forest' }, 'Dark Forest|50'],
+    ['a partial settings_map (grid edit) keeps the name', 'Ok', { id: 'a', gridSize: 70, action: 'gridEdit' }, 'Forest|70'],
+    ['ignores a refused rename', 'NoPermission', { id: 'a', name: 'Hacked' }, 'Forest|50'],
+  ])('%s', (_name, result, data, shown) => {
     render(<Host initialMaps={[{ id: 'a', name: 'Forest', gridSize: 50 }]} />);
-    fire({ command: 'settings_map', result: 'Ok', data: { id: 'a', name: 'Dark Forest' } });
-    expect(screen.getByTestId('map-a')).toHaveTextContent('Dark Forest|50');
-  });
-
-  it('a partial settings_map (grid edit) keeps the name', () => {
-    render(<Host initialMaps={[{ id: 'a', name: 'Forest', gridSize: 50 }]} />);
-    fire({ command: 'settings_map', result: 'Ok', data: { id: 'a', gridSize: 70, action: 'gridEdit' } });
-    expect(screen.getByTestId('map-a')).toHaveTextContent('Forest|70');
+    fire({ command: 'settings_map', result, data });
+    expect(screen.getByTestId('map-a')).toHaveTextContent(shown);
   });
 
   it('still adds and removes maps', () => {
@@ -50,9 +49,4 @@ describe('MapsSyncer', () => {
     expect(screen.getByTestId('map-b')).toHaveTextContent('Cave');
   });
 
-  it('ignores a refused rename', () => {
-    render(<Host initialMaps={[{ id: 'a', name: 'Forest' }]} />);
-    fire({ command: 'settings_map', result: 'NoPermission', data: { id: 'a', name: 'Hacked' } });
-    expect(screen.getByTestId('map-a')).toHaveTextContent('Forest');
-  });
 });

@@ -37,6 +37,43 @@ describe('public/sandbox.html', () => {
 });
 
 describe('CardAPI bridge', () => {
+  it('asks the app for the host info, and passes Host calls through as they are', async () => {
+    const frame = runScript(sandboxBridgeScript('n-4'), { hash: '' });
+    frame.send({ type: 'INIT', cardId: 'card-1', nonce: 'n-4' });
+    const answers = { GetInfo: { kind: 'browser' }, IsBrowser: true, HasLimitation: true, IsAvailable: false };
+    const calls = [];
+    frame.parent.postMessage.mockImplementation((msg) => {
+      if (msg.type !== 'CMD' || msg.panel !== 'Host') return;
+      calls.push([msg.command, msg.data]);
+      frame.send({ type: 'CMD_RESULT', reqId: msg.reqId, result: answers[msg.command], nonce: 'n-4' });
+    });
+    const { Host } = frame.win.CardAPI;
+
+    await expect(Host.GetInfo()).resolves.toEqual({ kind: 'browser' });
+    await expect(Host.IsBrowser()).resolves.toBe(true);
+    await expect(Host.HasLimitation('outside-connections')).resolves.toBe(true);
+    await expect(Host.IsAvailable('api/Backup')).resolves.toBe(false);
+    expect(calls).toEqual([
+      ['GetInfo', {}], ['IsBrowser', {}],
+      ['HasLimitation', { id: 'outside-connections' }], ['IsAvailable', { path: 'api/Backup' }],
+    ]);
+    expect(Object.isFrozen(Host)).toBe(true);
+  });
+
+  it('tells a card about the map selection until it unsubscribes', () => {
+    const frame = runScript(sandboxBridgeScript('n-3'), { hash: '' });
+    const seen = vi.fn();
+    const selection = { battleMapId: 'bm-1', mapId: 'map-1', selected: [] };
+
+    frame.win.CardAPI.BattleMap.SubscribeSelection(seen);
+    frame.send({ type: 'MAP_SELECTION', selection, nonce: 'n-3' });
+    frame.win.CardAPI.BattleMap.UnsubscribeSelection(seen);
+    frame.send({ type: 'MAP_SELECTION', selection, nonce: 'n-3' });
+
+    expect(seen).toHaveBeenCalledTimes(1);
+    expect(seen).toHaveBeenCalledWith(selection);
+  });
+
   it('ignores messages without its nonce, even when they arrive first', () => {
     const frame = runScript(sandboxBridgeScript('n-2'), { hash: '' });
 

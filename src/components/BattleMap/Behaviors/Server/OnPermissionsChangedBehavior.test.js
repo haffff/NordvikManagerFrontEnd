@@ -31,20 +31,13 @@ describe('OnPermissionsChangedBehavior — the game permission', () => {
     ClientMediator.sendCommand.mockImplementation(() => false); // GetIsGM: not the owner
   });
 
-  it("uses the player's own row", async () => {
-    expect(await gameUpdate({ [ME]: 15, [EVERYONE]: 1 })).toEqual([15]);
-  });
-
-  it('"not set" (-1) falls back to everyone, not to all bits', async () => {
-    expect(await gameUpdate({ [ME]: -1, [EVERYONE]: 1 })).toEqual([1]);
-  });
-
-  it('"not set" for both is no permission', async () => {
-    expect(await gameUpdate({ [ME]: -1, [EVERYONE]: -1 })).toEqual([0]);
-  });
-
-  it("an update about other players only leaves this player's permission alone", async () => {
-    expect(await gameUpdate({ other: 15 })).toEqual([]);
+  it.each([
+    ["uses the player's own row", { [ME]: 15, [EVERYONE]: 1 }, [15]],
+    ['"not set" (-1) falls back to everyone, not to all bits', { [ME]: -1, [EVERYONE]: 1 }, [1]],
+    ['"not set" for both is no permission', { [ME]: -1, [EVERYONE]: -1 }, [0]],
+    ["an update about other players only leaves this player's permission alone", { other: 15 }, []],
+  ])('%s', async (_name, permissions, bits) => {
+    expect(await gameUpdate(permissions)).toEqual(bits);
   });
 
   // GetIsGM is true for co-GMs, but the game's own permission is what makes them one: a

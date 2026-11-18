@@ -48,8 +48,7 @@ const definition = {
 };
 
 const manager = () => {
-  const tm = new TokenManager();
-  tm._getCanvas = () => ({ getObjects: () => [], requestRenderAll: vi.fn() });
+  const tm = new TokenManager({ getCanvas: () => ({ getObjects: () => [], requestRenderAll: vi.fn() }) });
   return tm;
 };
 
@@ -169,8 +168,7 @@ describe('TokenManager: showing / hiding a masked part redraws the map', () => {
 
 describe('TokenManager: token parts stay as the user left them', () => {
   const managerFor = (token) => {
-    const tm = new TokenManager();
-    tm._getCanvas = () => ({ getObjects: () => [token], requestRenderAll: vi.fn() });
+    const tm = new TokenManager({ getCanvas: () => ({ getObjects: () => [token], requestRenderAll: vi.fn() }) });
     tm._findObject = () => token;
     tm._getSelectedMap = () => ({ id: 'map-1' });
     ClientMediator.sendCommand.mockImplementation(() => undefined);

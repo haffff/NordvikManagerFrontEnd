@@ -29,8 +29,7 @@ const tokenImage = (naturalSize) => {
 };
 
 const manager = () => {
-  const tm = new TokenManager();
-  tm._getCanvas = () => ({ requestRenderAll: vi.fn() });
+  const tm = new TokenManager({ getCanvas: () => ({ requestRenderAll: vi.fn() }) });
   tm._getSelectedMap = () => ({ id: 'map-1', gridSize: GRID });
   return tm;
 };

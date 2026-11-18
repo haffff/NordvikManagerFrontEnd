@@ -15,28 +15,16 @@ describe('describePrivacy', () => {
     expect(describePrivacy({ playerId: 'alice', data: 'hi' }, { players, meId: 'bob', gmId: 'gm' })).toBeNull();
   });
 
-  it('calls a roll sent to the GM a GM roll', () => {
-    expect(label({ playerId: 'alice', recipientId: 'gm', data: roll }, 'alice')).toBe('GM roll');
-    expect(label({ playerId: 'alice', recipientId: 'gm', data: roll }, 'gm')).toBe('GM roll');
+  it.each([
+    ['calls a roll sent to the GM a GM roll (sender)', { playerId: 'alice', recipientId: 'gm', data: roll }, 'alice', 'GM roll'],
+    ['calls a roll sent to the GM a GM roll (GM)', { playerId: 'alice', recipientId: 'gm', data: roll }, 'gm', 'GM roll'],
+    ['tells the sender who they whispered to', { playerId: 'alice', recipientId: 'bob', data: 'psst' }, 'alice', 'Whisper to Bob'],
+    ['calls a message to the GM a whisper to the GM', { playerId: 'alice', recipientId: 'gm', data: 'psst' }, 'alice', 'Whisper to the GM'],
+    ['tells the recipient who whispered', { playerId: 'alice', recipientId: 'bob', data: 'psst' }, 'bob', 'Whisper from Alice'],
+    ['shows the GM both sides of a whisper between players', { playerId: 'alice', recipientId: 'bob', data: 'psst' }, 'gm', 'Alice → Bob'],
+    ['copes with a player who has left', { playerId: 'alice', recipientId: 'gone', data: 'psst' }, 'alice', 'Whisper to [Unknown]'],
+  ])('%s', (_name, item, meId, expected) => {
+    expect(label(item, meId)).toBe(expected);
   });
 
-  it('tells the sender who they whispered to', () => {
-    expect(label({ playerId: 'alice', recipientId: 'bob', data: 'psst' }, 'alice')).toBe('Whisper to Bob');
-  });
-
-  it('calls a message to the GM a whisper to the GM', () => {
-    expect(label({ playerId: 'alice', recipientId: 'gm', data: 'psst' }, 'alice')).toBe('Whisper to the GM');
-  });
-
-  it('tells the recipient who whispered', () => {
-    expect(label({ playerId: 'alice', recipientId: 'bob', data: 'psst' }, 'bob')).toBe('Whisper from Alice');
-  });
-
-  it('shows the GM both sides of a whisper between players', () => {
-    expect(label({ playerId: 'alice', recipientId: 'bob', data: 'psst' }, 'gm')).toBe('Alice → Bob');
-  });
-
-  it('copes with a player who has left', () => {
-    expect(label({ playerId: 'alice', recipientId: 'gone', data: 'psst' }, 'alice')).toBe('Whisper to [Unknown]');
-  });
 });

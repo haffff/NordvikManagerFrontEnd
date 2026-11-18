@@ -6,6 +6,13 @@ let demoRole = 'gm';
 
 export const isDemo = () => process.env.REACT_APP_MODE === 'demo';
 
+/**
+ * The host build: the GM app with its backend (the browser host, NordvikManager.Wasm.Host) running
+ * in this tab. It's the GM's app, not the player client (isPlayerMode() is false); the tab is the
+ * game's server, so it must not navigate away while a session runs.
+ */
+export const isHostMode = () => process.env.REACT_APP_MODE === 'host';
+
 export const getDemoRole = () => demoRole;
 
 export const setDemoRole = (role) => {

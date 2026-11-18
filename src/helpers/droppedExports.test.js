@@ -1,6 +1,7 @@
 import { vi, describe, it, expect, beforeEach } from 'vitest';
 
 vi.mock('../ClientMediator', () => ({ default: { sendCommand: vi.fn() } }));
+vi.mock('./ProgressToastManager', () => ({ default: {} }));
 vi.mock('./entityTransfer', async (importOriginal) => ({
   ...(await importOriginal()),
   importEntity: vi.fn(),
@@ -38,8 +39,19 @@ describe('droppedExports', () => {
 
     expect(rest).toEqual([img, json]);
     expect(ask).toHaveBeenCalledTimes(1);
-    expect(importEntity).toHaveBeenCalledWith(exported, { kind: 'map' });
+    expect(importEntity).toHaveBeenCalledWith(JSON.stringify(exported), { kind: 'map', parsed: exported, confirmCode: undefined });
     expect(onImported).toHaveBeenCalledWith({ id: 'new', missing: [] }, exported);
+  });
+
+  it("sends the file's own text and the GM's say on code from elsewhere; a declined one isn't reported", async () => {
+    const confirmCode = vi.fn();
+    const onImported = vi.fn();
+    importEntity.mockResolvedValue(null); // declined
+
+    await takeDroppedExports([exportFile()], { ask: async () => 'import', onImported, confirmCode });
+
+    expect(importEntity).toHaveBeenCalledWith(JSON.stringify(exported), { kind: 'map', parsed: exported, confirmCode });
+    expect(onImported).not.toHaveBeenCalled();
   });
 
   it('uploads an export as a plain file when asked to, and drops it on cancel', async () => {

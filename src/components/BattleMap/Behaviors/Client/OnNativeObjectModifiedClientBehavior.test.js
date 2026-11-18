@@ -79,10 +79,15 @@ describe('OnNativeObjectModifiedClientBehavior — grid snapping', () => {
     expect([free.left, free.top]).toEqual([61, 140]);
   });
 
-  it('scaling does not snap unless Ctrl is held', () => {
-    const target = rect({ left: 100, top: 100, scaleX: 1.3, scaleY: 0.7 });
-    run(target, { action: 'scale', originX: 'left', originY: 'top' });
-    expect([target.left, target.top, target.scaleX, target.scaleY]).toEqual([100, 100, 1.3, 0.7]);
+  // Scaling that leaves the scale as it was, or snaps one side only.
+  it.each([
+    { name: 'scaling does not snap unless Ctrl is held', props: {}, transform: { action: 'scale', originX: 'left', originY: 'top' }, keys: {}, scale: [1.3, 0.7] },
+    { name: 'a side handle only snaps its own edge', props: {}, transform: { action: 'scaleX', originX: 'left', originY: 'center' }, keys: { ctrlKey: true }, scale: [1.5, 0.7] },
+    { name: 'a rotated element is scaled freely', props: { angle: 30 }, transform: { action: 'scale', originX: 'left', originY: 'top' }, keys: { ctrlKey: true }, scale: [1.3, 0.7] },
+  ])('$name', ({ props, transform, keys, scale }) => {
+    const target = rect({ left: 100, top: 100, scaleX: 1.3, scaleY: 0.7, ...props });
+    run(target, transform, keys);
+    expect([target.left, target.top, target.scaleX, target.scaleY]).toEqual([100, 100, ...scale]);
   });
 
   it('scaling with Ctrl snaps the dragged corner onto the grid and sends size and position', () => {
@@ -122,22 +127,10 @@ describe('OnNativeObjectModifiedClientBehavior — grid snapping', () => {
     expect(sentElement(cmd)).toMatchObject({ width: 1000, height: 1000, scaleX: 0.5, scaleY: 0.5 });
   });
 
-  it('a side handle only snaps its own edge', () => {
-    const target = rect({ left: 100, top: 100, scaleX: 1.3, scaleY: 0.7 });
-    run(target, { action: 'scaleX', originX: 'left', originY: 'center' }, { ctrlKey: true });
-    expect([target.scaleX, target.scaleY]).toEqual([1.5, 0.7]);
-  });
-
   it('rotating does not move the element onto the grid', () => {
     const target = rect({ left: 61, top: 140, angle: 15 });
     run(target, { action: 'rotate' });
     expect([target.left, target.top]).toEqual([61, 140]);
-  });
-
-  it('a rotated element is scaled freely', () => {
-    const target = rect({ left: 100, top: 100, scaleX: 1.3, scaleY: 0.7, angle: 30 });
-    run(target, { action: 'scale', originX: 'left', originY: 'top' }, { ctrlKey: true });
-    expect([target.scaleX, target.scaleY]).toEqual([1.3, 0.7]);
   });
 
   it('follows the configured keys and modes', () => {

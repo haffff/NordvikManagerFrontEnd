@@ -12,6 +12,7 @@ pnpm start_gm                     # Dev server with GM role (REACT_APP_MODE=gm, 
 pnpm build                        # Production build (Vite)
 pnpm run buildci_gm               # Production build with GM env
 pnpm run buildci_player           # Production build with player env
+pnpm start_host / buildci_host    # Host build (REACT_APP_MODE=host, port 3005); needs NORDVIK_WASM_BUNDLE, see below
 pnpm preview                      # Preview production build (vite preview)
 pnpm test                         # Run tests (Vitest)
 pnpm test -- <test-path-or-pattern>  # Run a specific test file or pattern
@@ -75,6 +76,19 @@ Staying connected (`WebRTCManager`):
 
 - Bump `protocol.json` only for changes an older backend can't handle, together with the backend's `ProtocolVersion.Current` (CI checks they match).
 - Frozen older builds share the origin with the latest one, so they share **localStorage and IndexedDB** (e.g. `ResourceCache`, saved layouts). Stored formats must stay readable by older clients — when a format changes incompatibly, use a new key / DB name instead of rewriting the old one.
+
+### Host build (`REACT_APP_MODE=host`, served at Central's `/client/host/`)
+
+The GM app with its GM backend running in the same tab: the browser host (`NordvikManager-Backend`'s `NordvikManager.Wasm.Host` AppBundle: .NET in a worker, games on OPFS). `NORDVIK_WASM_BUNDLE` names that AppBundle folder; Vite serves it at `./wasm/` in dev and copies it into the build's `wasm/` (a worker must be the page's own origin). `App.js` → `src/host/HostApp.js`, which starts it through the bundle's `host.js` and then renders the ordinary `GMApp`:
+
+- **Backend calls.** `WebHelper.ApiAddress` is `/__nordvik-host__/api`; `hostFetch` (installed as `window.fetch`) answers those requests from the host (`host.Call`, with `user/login`/`logout` going to `host.Login`/`Logout`, `meta` to Central itself, and `Materials/Resource` turned back into bytes). Nothing else changes: in game the GM app connects to the host over WebRTC through Central, as it does to a GM server. `<img src>` can't reach the host: use `useResourceUrl` (blob URL in the host build) for a backend resource URL shown as an image outside the game.
+- **What's hidden.** `GET api/Host/Info` (`src/host/hostInfo.js`: `useHostInfo`, `isAvailable(info, "api/Backup")`) lists what the backend doesn't have. Gate server-only UI on it, not on the mode (a GM server lists nothing).
+- **Host button and notices.** `HostButton` ("Host", rectangular) sits at the right end of the game's toolbar (`MainToolbar`) and the lobby's (`GameList`); on screens with neither (login) `HostApp` shows a floating one. Shared state is `hostUi.js` (`useHostUi`, `setHostUi`). The button has an orange "!" while the browser hasn't granted persistent storage, and a red count of errors logged since the Logs tab was last open. `StorageBanner` has "Install as app" (Chrome's `beforeinstallprompt`, kept by `installPrompt.js`), "Ask again" (`navigator.storage.persist()`) and Dismiss (for the session). A refused `persist()` is asked again on the GM's first click (`askOnFirstClick`), because Firefox prompts only during a click. The host build's `manifest.json` is renamed in the build ("NordvikManager game host", standalone).
+- **Startup dialog.** `HostIntroDialog` opens once the host info is in (after login), on every page load until "Don't remind me again" (localStorage). It shows a warning, six limitation cards (`CARD_IDS`, icons by limitation id), then the remaining limitations and the server-only list, with three buttons: the local server's download (`<central>/#download`), Continue, and Don't remind me again. The drawer reopens it.
+- **Drawer.** `HostDrawer` (opened by the button) has two tabs. Host shows games running, version, storage used and allowed (`navigator.storage.estimate()`), and the persistence warning. Logs (`HostLogs`) shows `host.js`'s log, which lives in the page and so outlives the worker; the "host stopped" screen shows it too.
+- **No thumbnails.** A backend that lists the `no-thumbnails` limitation (`useHasThumbnails`, asked over the game connection, so players see it too) gets an eye icon in the Materials panel instead of a full-size image per row; the image loads only in the hover popup.
+- **The tab is the server.** The host drawer (`HostDrawer`, top right) shows the host info and how many games run; leaving the page while one runs asks first; `WebRTCManager` never switches to another build in host mode (the two are built together).
+- `isPlayerMode()` is false: it's the GM's app, with the GM's token refresh through the backend (the host holds the Central login).
 
 ### State Management
 

@@ -27,7 +27,7 @@ vi.mock('../../../helpers/transport', () => ({
   ActiveWebHelper: {
     ApiAddress: 'https://gm.example/api',
     getAsync: vi.fn(async (path) => {
-      if (path.startsWith('materials/getcard')) return { name: server.cardName, mainResource: 'main', additionalResources: ['css1'] };
+      if (path.startsWith('materials/getcard')) return { name: server.cardName, mainResource: 'main', additionalResources: ['css1'], ...server.addon };
       if (path.startsWith('properties/QueryProperties')) {
         return server.appStyles === undefined ? [] : [{ name: 'app_styles', value: server.appStyles }];
       }
@@ -55,6 +55,7 @@ beforeEachTest(() => {
   });
 });
 import DockableHelper from '../../../helpers/DockableHelper';
+import ClientMediator from '../../../ClientMediator';
 import { setAppliedGameCss } from '../../../helpers/cardAppStyles';
 
 const decode = (href) => new TextDecoder().decode(Uint8Array.from(atob(href.split(',')[1]), (c) => c.charCodeAt(0)));
@@ -62,7 +63,7 @@ const linkHref = (html, id) => html.match(new RegExp(`id="${id}" href="([^"]+)"`
 
 // Renders a card and waits until its iframe points at the sandbox page.
 async function openCard(name = 'Note') {
-  const { container } = render(<CardPanel id="card-1" name={name} />);
+  const { container, unmount } = render(<CardPanel id="card-1" name={name} />);
   const frame = container.querySelector('iframe');
   await waitFor(() => expect(frame.getAttribute('src')).toBeTruthy());
   const posted = vi.spyOn(frame.contentWindow, 'postMessage');
@@ -72,8 +73,27 @@ async function openCard(name = 'Note') {
     fromFrame({ type: 'SANDBOX_HOST_READY' });
     return posted.mock.calls.filter(([m]) => m.type === 'SANDBOX_LOAD').at(-1)?.[0].html;
   };
-  return { frame, posted, fromFrame, hostReady };
+  return { frame, posted, fromFrame, hostReady, unmount };
 }
+
+describe('CardPanel, map selection', () => {
+  const selection = { battleMapId: 'bm-1', mapId: 'map-1', selected: [{ id: 'el-1', name: 'Goblin', isToken: true, cardId: 'c1' }] };
+  const delivered = (posted) => posted.mock.calls.filter(([m]) => m.type === 'MAP_SELECTION');
+
+  it('tells the card what is selected on the map, until it closes', async () => {
+    const before = ClientMediator._eventListeners.length;
+    const { posted, fromFrame, unmount } = await openCard();
+    fromFrame({ type: 'SANDBOX_READY' });
+
+    ClientMediator.fireEvent('BattleMap:SelectionChanged', selection);
+
+    await waitFor(() => expect(delivered(posted)).toHaveLength(1));
+    expect(delivered(posted)[0][0].selection).toEqual(selection);
+
+    unmount();
+    expect(ClientMediator._eventListeners).toHaveLength(before);
+  });
+});
 
 // A view opened by an action (ShowView, view_show) gets only the card's id and data: the
 // window is titled with the card's own name instead of the dock's "Content N".
@@ -240,6 +260,75 @@ describe('CardPanel, closing from the card', () => {
       ['coallesceEmptyPanels', state],
       ['commit'],
     ]);
+  });
+});
+
+describe('CardPanel, blocked addresses', () => {
+  // The card's guard script reports what its policy blocked; the panel logs it with the
+  // card's name (the panel's, as in its title) — only messages from its own frame.
+  it("logs what the card's frame reports as blocked", async () => {
+    const { getBlocked, resetBlocked } = await import('../../../helpers/addonNetworkLog');
+    resetBlocked();
+    const card = await openCard();
+    card.hostReady();
+
+    const blocked = { type: 'CARD_BLOCKED', directive: 'connect-src', origin: 'https://evil.example.com' };
+    act(() => window.dispatchEvent(new MessageEvent('message', { data: blocked, source: {} })));
+    act(() => window.dispatchEvent(new MessageEvent('message', { data: blocked, source: card.frame.contentWindow })));
+
+    await waitFor(() => expect(getBlocked()).toEqual([
+      expect.objectContaining({ source: 'card', cardId: 'card-1', card: 'Note', directive: 'connect-src', origin: 'https://evil.example.com', count: 1 }),
+    ]));
+  });
+});
+
+// The report comes from the card's frame, so the card's own code can send one too: only a
+// real origin and a CSP directive are taken, and only so many per card, so a card can't put
+// its own text in front of the GM or flood them.
+describe('CardPanel, blocked reports the card could fake', () => {
+  it('takes only an origin and a known directive', async () => {
+    const { getBlocked, resetBlocked } = await import('../../../helpers/addonNetworkLog');
+    resetBlocked();
+    const card = await openCard();
+    card.hostReady();
+
+    for (const origin of ['Click here to log in again: evil.example.com', 'https://evil.example.com/path', 'javascript:alert(1)', 'https://ok.example.com'])
+      card.fromFrame({ type: 'CARD_BLOCKED', directive: 'connect-src', origin });
+    card.fromFrame({ type: 'CARD_BLOCKED', directive: 'Your session expired', origin: 'https://other.example.com' });
+
+    await waitFor(() => expect(getBlocked().map((e) => e.origin)).toEqual(['https://ok.example.com']));
+  });
+
+  it('takes at most 20 from one card', async () => {
+    const { getBlocked, resetBlocked } = await import('../../../helpers/addonNetworkLog');
+    resetBlocked();
+    const card = await openCard();
+    card.hostReady();
+
+    for (let i = 0; i < 50; i++)
+      card.fromFrame({ type: 'CARD_BLOCKED', directive: 'img-src', origin: `https://h${i}.example.com` });
+
+    await waitFor(() => expect(getBlocked()).toHaveLength(20));
+  });
+});
+
+describe("CardPanel, the addon's hosts", () => {
+  afterEach(() => { server.addon = undefined; });
+
+  // The card runs its addon's code: an addon that says where it connects may reach only those
+  // of its hosts that the GM allows (here https://cdn.example.com), and its blocks name it.
+  it("holds the card to its addon's declared hosts, and names the addon when something is blocked", async () => {
+    const { getBlocked, resetBlocked } = await import('../../../helpers/addonNetworkLog');
+    resetBlocked();
+    server.addon = { addonKey: 'notes', addonNetwork: { hosts: ['https://cdn.example.com', 'https://evil.example.com'] } };
+    const card = await openCard();
+
+    const csp = card.hostReady().match(/http-equiv="Content-Security-Policy" content="([^"]*)"/)[1];
+    expect(csp).toContain("connect-src 'self' https://cdn.example.com;");
+    expect(csp).not.toContain('evil.example.com');
+
+    card.fromFrame({ type: 'CARD_BLOCKED', directive: 'connect-src', origin: 'https://evil.example.com' });
+    await waitFor(() => expect(getBlocked()).toEqual([expect.objectContaining({ addon: 'notes', origin: 'https://evil.example.com' })]));
   });
 });
 

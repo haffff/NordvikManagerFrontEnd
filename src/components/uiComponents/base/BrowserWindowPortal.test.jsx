@@ -1,7 +1,8 @@
 import { describe, it, expect, vi, afterEach } from "vitest";
-import { render, waitFor, cleanup } from "@testing-library/react";
+import { render, waitFor, cleanup, fireEvent } from "@testing-library/react";
 import { CacheProvider, ClassNames } from "@emotion/react";
 import createCache from "@emotion/cache";
+import { ChakraProvider, defaultSystem, Menu, Portal } from "@chakra-ui/react";
 import { BrowserWindowPortal } from "./BrowserWindowPortal";
 
 // A popped-out panel is rendered into a blank window, which gets the page's styles. In a
@@ -56,5 +57,34 @@ describe("BrowserWindowPortal", () => {
     );
     await waitFor(() => expect(win.document.body.textContent).toContain("styled"));
     expect(cssOf(win.document)).toContain("outline-width: 7px");
+  });
+
+  // Chakra mounts menus and dialogs on the page it's told about, the main one by default.
+  it("opens a right-click menu in the popped-out window", async () => {
+    const win = popupWindow();
+    render(
+      <ChakraProvider value={defaultSystem}>
+        <BrowserWindowPortal title="Map">
+          <Menu.Root>
+            <Menu.ContextTrigger>trigger</Menu.ContextTrigger>
+            <Portal>
+              <Menu.Positioner>
+                <Menu.Content>
+                  <Menu.Item value="delete">Delete element</Menu.Item>
+                </Menu.Content>
+              </Menu.Positioner>
+            </Portal>
+          </Menu.Root>
+        </BrowserWindowPortal>
+      </ChakraProvider>,
+    );
+    await waitFor(() => expect(win.document.body.textContent).toContain("trigger"));
+
+    const trigger = Array.from(win.document.querySelectorAll("button, [data-part='context-trigger']"))
+      .find((el) => el.textContent === "trigger");
+    fireEvent.contextMenu(trigger, { clientX: 40, clientY: 30 });
+
+    await waitFor(() => expect(win.document.body.textContent).toContain("Delete element"));
+    expect(document.body.textContent).not.toContain("Delete element");
   });
 });

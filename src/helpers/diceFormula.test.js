@@ -13,72 +13,35 @@ const state = (overrides = {}) => {
 };
 
 describe('buildDiceFormula', () => {
-  it('returns null for an empty pool', () => {
-    expect(buildDiceFormula(state())).toBeNull();
-    expect(buildDiceFormula(state({ modifier: 3 }))).toBeNull();
-  });
-
-  it('builds a single die type', () => {
-    expect(buildDiceFormula(state({ pool: { 20: 1 } }))).toBe('1d20');
-    expect(buildDiceFormula(state({ pool: { 6: 3 } }))).toBe('3d6');
-  });
-
-  it('writes mixed pools in die order', () => {
-    expect(buildDiceFormula(state({ pool: { 20: 1, 6: 2, 100: 1 } }))).toBe('2d6+1d20+1d100');
-  });
-
-  it('adds the modifier with its sign and omits zero', () => {
-    expect(buildDiceFormula(state({ pool: { 20: 1 }, modifier: 5 }))).toBe('1d20+5');
-    expect(buildDiceFormula(state({ pool: { 20: 1 }, modifier: -2 }))).toBe('1d20-2');
-    expect(buildDiceFormula(state({ pool: { 20: 1 }, modifier: 0 }))).toBe('1d20');
-  });
-
-  it('writes fudge dice as dF', () => {
-    expect(buildDiceFormula(state({ pool: { F: 4 } }))).toBe('4dF');
-  });
-
-  it('turns a single d20 into 2d20kh1 / 2d20kl1 for advantage / disadvantage', () => {
-    expect(buildDiceFormula(state({ pool: { 20: 1 }, modifier: 5, advantage: 'adv' }))).toBe('2d20kh1+5');
-    expect(buildDiceFormula(state({ pool: { 20: 1 }, advantage: 'dis' }))).toBe('2d20kl1');
-    expect(buildDiceFormula(state({ pool: { 20: 1, 6: 1 }, advantage: 'adv' }))).toBe('1d6+2d20kh1');
-  });
-
-  it('ignores advantage unless the pool has exactly one d20', () => {
-    expect(buildDiceFormula(state({ pool: { 20: 2 }, advantage: 'adv' }))).toBe('2d20');
-    expect(buildDiceFormula(state({ pool: { 6: 1 }, advantage: 'adv' }))).toBe('1d6');
-  });
-
-  it('applies keep/drop to a single die type', () => {
-    expect(buildDiceFormula(state({ pool: { 6: 4 }, keepDrop: { kind: 'dl', count: 1 } }))).toBe('4d6dl1');
-    expect(buildDiceFormula(state({ pool: { 6: 4 }, keepDrop: { kind: 'kh', count: 3 } }))).toBe('4d6kh3');
-  });
-
-  it('clamps the keep/drop count to 1..dice-1', () => {
-    expect(buildDiceFormula(state({ pool: { 6: 4 }, keepDrop: { kind: 'kh', count: 9 } }))).toBe('4d6kh3');
-    expect(buildDiceFormula(state({ pool: { 6: 4 }, keepDrop: { kind: 'dl', count: 0 } }))).toBe('4d6dl1');
-  });
-
-  it('ignores keep/drop for mixed pools, single dice, and together with advantage', () => {
-    expect(buildDiceFormula(state({ pool: { 6: 2, 8: 2 }, keepDrop: { kind: 'kh', count: 1 } }))).toBe('2d6+2d8');
-    expect(buildDiceFormula(state({ pool: { 6: 1 }, keepDrop: { kind: 'kh', count: 1 } }))).toBe('1d6');
-    expect(buildDiceFormula(state({ pool: { 20: 1 }, advantage: 'adv', keepDrop: { kind: 'kh', count: 1 } }))).toBe('2d20kh1');
-  });
-
-  it('adds ! to every non-fudge term when exploding', () => {
-    expect(buildDiceFormula(state({ pool: { 6: 3 }, exploding: true }))).toBe('3d6!');
-    expect(buildDiceFormula(state({ pool: { 6: 1, F: 2 }, exploding: true }))).toBe('1d6!+2dF');
-  });
-
-  it('appends count successes / failures after the other modifiers', () => {
-    expect(buildDiceFormula(state({ pool: { 10: 10 }, exploding: true, successes: { mode: 'cs', cmp: '>', target: 7 } })))
-      .toBe('10d10!cs>7');
-    expect(buildDiceFormula(state({ pool: { 10: 5 }, successes: { mode: 'cf', cmp: '=', target: 1 } })))
-      .toBe('5d10cf=1');
-  });
-
-  it('ignores count successes for mixed pools', () => {
-    expect(buildDiceFormula(state({ pool: { 6: 2, 10: 2 }, successes: { mode: 'cs', cmp: '>', target: 4 } })))
-      .toBe('2d6+2d10');
+  it.each([
+    ['returns null for an empty pool', {}, null],
+    ['returns null for an empty pool', { modifier: 3 }, null],
+    ['builds a single die type', { pool: { 20: 1 } }, '1d20'],
+    ['builds a single die type', { pool: { 6: 3 } }, '3d6'],
+    ['writes mixed pools in die order', { pool: { 20: 1, 6: 2, 100: 1 } }, '2d6+1d20+1d100'],
+    ['adds the modifier with its sign and omits zero', { pool: { 20: 1 }, modifier: 5 }, '1d20+5'],
+    ['adds the modifier with its sign and omits zero', { pool: { 20: 1 }, modifier: -2 }, '1d20-2'],
+    ['adds the modifier with its sign and omits zero', { pool: { 20: 1 }, modifier: 0 }, '1d20'],
+    ['writes fudge dice as dF', { pool: { F: 4 } }, '4dF'],
+    ['turns a single d20 into 2d20kh1 / 2d20kl1 for advantage / disadvantage', { pool: { 20: 1 }, modifier: 5, advantage: 'adv' }, '2d20kh1+5'],
+    ['turns a single d20 into 2d20kh1 / 2d20kl1 for advantage / disadvantage', { pool: { 20: 1 }, advantage: 'dis' }, '2d20kl1'],
+    ['turns a single d20 into 2d20kh1 / 2d20kl1 for advantage / disadvantage', { pool: { 20: 1, 6: 1 }, advantage: 'adv' }, '1d6+2d20kh1'],
+    ['ignores advantage unless the pool has exactly one d20', { pool: { 20: 2 }, advantage: 'adv' }, '2d20'],
+    ['ignores advantage unless the pool has exactly one d20', { pool: { 6: 1 }, advantage: 'adv' }, '1d6'],
+    ['applies keep/drop to a single die type', { pool: { 6: 4 }, keepDrop: { kind: 'dl', count: 1 } }, '4d6dl1'],
+    ['applies keep/drop to a single die type', { pool: { 6: 4 }, keepDrop: { kind: 'kh', count: 3 } }, '4d6kh3'],
+    ['clamps the keep/drop count to 1..dice-1', { pool: { 6: 4 }, keepDrop: { kind: 'kh', count: 9 } }, '4d6kh3'],
+    ['clamps the keep/drop count to 1..dice-1', { pool: { 6: 4 }, keepDrop: { kind: 'dl', count: 0 } }, '4d6dl1'],
+    ['ignores keep/drop for mixed pools', { pool: { 6: 2, 8: 2 }, keepDrop: { kind: 'kh', count: 1 } }, '2d6+2d8'],
+    ['ignores keep/drop for single dice', { pool: { 6: 1 }, keepDrop: { kind: 'kh', count: 1 } }, '1d6'],
+    ['ignores keep/drop together with advantage', { pool: { 20: 1 }, advantage: 'adv', keepDrop: { kind: 'kh', count: 1 } }, '2d20kh1'],
+    ['adds ! to every non-fudge term when exploding', { pool: { 6: 3 }, exploding: true }, '3d6!'],
+    ['adds ! to every non-fudge term when exploding', { pool: { 6: 1, F: 2 }, exploding: true }, '1d6!+2dF'],
+    ['appends count successes / failures after the other modifiers', { pool: { 10: 10 }, exploding: true, successes: { mode: 'cs', cmp: '>', target: 7 } }, '10d10!cs>7'],
+    ['appends count successes / failures after the other modifiers', { pool: { 10: 5 }, successes: { mode: 'cf', cmp: '=', target: 1 } }, '5d10cf=1'],
+    ['ignores count successes for mixed pools', { pool: { 6: 2, 10: 2 }, successes: { mode: 'cs', cmp: '>', target: 4 } }, '2d6+2d10'],
+  ])('%s: %o → %s', (_rule, overrides, expected) => {
+    expect(buildDiceFormula(state(overrides))).toBe(expected);
   });
 
   it('never contains whitespace (chat splits /r on spaces)', () => {

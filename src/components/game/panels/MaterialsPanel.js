@@ -22,6 +22,8 @@ import { FaLink } from '@react-icons/all-files/fa/FaLink';
 import { FaMinusCircle } from '@react-icons/all-files/fa/FaMinusCircle';
 import { FaMusic } from '@react-icons/all-files/fa/FaMusic';
 import { FaPen } from '@react-icons/all-files/fa/FaPen';
+import { FaEye } from '@react-icons/all-files/fa/FaEye';
+import { useHasThumbnails } from '../../../host/hostInfo';
 import UtilityHelper from '../../../helpers/UtilityHelper';
 import DTreeList from '../../uiComponents/treeList/DTreeList';
 import CollectionSyncer from '../../uiComponents/base/CollectionSyncer';
@@ -45,7 +47,8 @@ import {
 import ProgressToastManager from '../../../helpers/ProgressToastManager';
 import uploadMaterials from '../../../helpers/uploadMaterials';
 import { takeDroppedExports } from '../../../helpers/droppedExports';
-import { askImportDropped, reportImported, reportImportFailed } from '../../uiComponents/ImportDropPrompt';
+import { askImportDropped, reportImportFailed } from '../../uiComponents/ImportDropPrompt';
+import { askImportCode } from '../../uiComponents/ImportCodePrompt';
 import themeColors from "../../../helpers/themeColors";
 import { useResync } from "../../../helpers/resync";
 
@@ -271,7 +274,7 @@ export const MaterialsPanel = ({ state }) => {
     // An Export JSON file among them is offered for import instead.
     const handleFiles = React.useCallback(async (dropped, parentFolder = null) => {
         if (!dropped.length) return;
-        const files = await takeDroppedExports(dropped, { ask: askImportDropped, onImported: reportImported, onError: reportImportFailed });
+        const files = await takeDroppedExports(dropped, { ask: askImportDropped, onError: reportImportFailed, confirmCode: askImportCode });
         if (!files.length) return;
         setIgnoreRefresh(true);
 
@@ -362,6 +365,10 @@ export const MaterialsPanel = ({ state }) => {
 
     // ── item body ───────────────────────────────────────────────────────────
 
+    // A backend without thumbnails (a game hosted in a browser) would send every image whole to
+    // fill the 36 px previews: an eye instead, and the image only in the hover popup.
+    const hasThumbnails = useHasThumbnails();
+
     const getItemBody = React.useCallback((item) => {
         const link = WebHelper.getResourceString(item.id);
 
@@ -385,8 +392,10 @@ export const MaterialsPanel = ({ state }) => {
             return (
                 <>
                     <Tooltip
-                        openDelay={1000}
+                        openDelay={hasThumbnails ? 1000 : 300}
                         closeDelay={0}
+                        lazyMount
+                        unmountOnExit
                         contentProps={{
                             bg: "var(--nordvik-secondary-color)",
                             color: "var(--nordvik-text-color)",
@@ -399,16 +408,23 @@ export const MaterialsPanel = ({ state }) => {
                         }
                     >
                         <Box flexShrink={0}>
-                            <ResourceImage
-                                id={item.id}
-                                objectFit="contain"
-                                boxSize="36px"
-                                borderRadius="sm"
-                                cursor="pointer"
-                                onClick={openPreview}
-                                fallbackSrc={undefined}
-                                thumbnail
-                            />
+                            {hasThumbnails ? (
+                                <ResourceImage
+                                    id={item.id}
+                                    objectFit="contain"
+                                    boxSize="36px"
+                                    borderRadius="sm"
+                                    cursor="pointer"
+                                    onClick={openPreview}
+                                    fallbackSrc={undefined}
+                                    thumbnail
+                                />
+                            ) : (
+                                <Flex boxSize="36px" alignItems="center" justifyContent="center" cursor="pointer" onClick={openPreview}
+                                    aria-label={`Preview ${item.name}`} data-testid="material-preview-eye">
+                                    <Icon as={FaEye} boxSize={5} color="fg.muted" />
+                                </Flex>
+                            )}
                         </Box>
                     </Tooltip>
                     <DLabel>{item.name}</DLabel>
@@ -437,7 +453,7 @@ export const MaterialsPanel = ({ state }) => {
                 <DLabel>{item.name}</DLabel>
             </>
         );
-    }, [state]);
+    }, [state, hasThumbnails]);
 
     // ── shared resource list renderer ───────────────────────────────────────
 

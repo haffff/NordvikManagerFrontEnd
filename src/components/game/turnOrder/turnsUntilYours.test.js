@@ -8,27 +8,22 @@ const order = (currentEntryId, mine, ids = ['a', 'b', 'c', 'd']) => ({
 });
 
 describe('turnsUntilYours', () => {
-  it('is 0 on your turn', () => {
-    expect(turnsUntilYours(order('b', ['b']))).toBe(0);
+  // Order a, b, c, d; the current turn and the entries you control.
+  it.each([
+    ['is 0 on your turn', 'b', ['b'], 0],
+    ['counts the turns before yours', 'a', ['b'], 1],
+    ['counts the turns before yours', 'a', ['d'], 3],
+    ['wraps around into the next round', 'c', ['a'], 2],
+    ['uses your nearest token when you have several', 'a', ['d', 'c'], 2],
+    ['is unknown when you have no token in the order', 'a', [], null],
+    ["is unknown when it's not running", null, ['b'], null],
+  ])('%s (current %s, yours %j)', (_name, current, mine, expected) => {
+    expect(turnsUntilYours(order(current, mine))).toBe(expected);
   });
 
-  it('counts the turns before yours', () => {
-    expect(turnsUntilYours(order('a', ['b']))).toBe(1);
-    expect(turnsUntilYours(order('a', ['d']))).toBe(3);
-  });
-
-  it('wraps around into the next round', () => {
-    expect(turnsUntilYours(order('c', ['a']))).toBe(2);
-  });
-
-  it('uses your nearest token when you have several', () => {
-    expect(turnsUntilYours(order('a', ['d', 'c']))).toBe(2);
-  });
-
-  it("is unknown when you have no token in the order, it's not running, or the current turn is hidden from you", () => {
-    expect(turnsUntilYours(order('a', []))).toBeNull();
-    expect(turnsUntilYours(order(null, ['b']))).toBeNull();
+  it('is unknown when the current turn is hidden from you, or there is no order', () => {
     expect(turnsUntilYours({ ...order(null, ['b']), currentHidden: true })).toBeNull();
     expect(turnsUntilYours(null)).toBeNull();
   });
+
 });

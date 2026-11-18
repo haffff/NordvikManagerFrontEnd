@@ -50,7 +50,6 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
 
   //this map is for loading data
   let map = mapRef.current;
-  const [, forceUpdate] = React.useReducer((x) => x + 1, 0);
 
   const ctx = Dockable.useContentContext();
 
@@ -88,7 +87,6 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
       editor,
       mapRef,
       battleMapModel,
-      forceUpdate,
       keyboardEventsManagerRef,
       battleMapObjectRef,
       battleMapContainerRef,
@@ -111,7 +109,6 @@ const BattlemapComponent = ({ withID, keyboardEventsManagerRef }) => {
         editor,
         mapRef,
         battleMapModel,
-        forceUpdate,
         keyboardEventsManagerRef,
         battleMapObjectRef,
         battleMapContainerRef,
