@@ -83,6 +83,10 @@ export default defineConfig(({ mode }) => {
     // The demo is served from /client/demo/, the token editor from /client/tokens/.
     // The host build is served from /client/host/.
     base: isPlayer || isDemo || isTokens || isHost ? './' : '/',
+    // Each mode pre-bundles its dependencies into its own folder: dev servers for two modes
+    // (player on 3001, host on 3005) share node_modules, and with one cache a re-optimize in
+    // one server leaves the other's pages asking for stale chunks (504 Outdated Optimize Dep).
+    cacheDir: appMode ? `node_modules/.vite-${appMode}` : 'node_modules/.vite',
     plugins: [
       react(),
       ...(isDemo ? [swapTransport('nordvik-demo-transport', 'src/demo/DemoTransport.js')] : []),
